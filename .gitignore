@@ -1,5 +1,13 @@
 .env
 *.csv
 
+data/
+*.zip
+*.shp
+*.dbf
+*shx
+
+__pycache__/
+*.pyc
 reference/
 tiger-line-census/
