@@ -1,43 +1,46 @@
 #!/usr/bin/env bash
 
-# Load reference data: report_types (CSV) and zcta_boudaries (TIGER shapefile).
+# Load reference data: report_types (CSV) and zcta_boundaries (TIGER shapefile).
 
-# SAFE to re-run.  Both loads go through stagin tables and INSERT ... ON
+# SAFE to re-run.  Both loads go through staging tables and INSERT ... ON
 # CONFLICT DO NOTHING, second run won't duplicate records.
 
 
 
-set euo pipefail
+set -euo pipefail
 
 DB="${PGDATABASE:-hail}"
 CSV="${CSV:-reference/report_types.csv}"
 SHP="${SHP:-data/raw/tiger/tl_2025_us_zcta520.shp}"
+export PGHOST="${PGHOST:-db}"
+export PGUSER="${PGUSER:-hail}"
+
 
 # TIGER sends NAD83 -> Everything in this DB is WGS84
 
-SRID_IN=4268
+SRID_IN=4269
 SRID_OUT=4326
 
-log()  {printf '%s  %s\n' "$(date +H%:%M:%S)" "$*"; }
-fail() {printf 'error: $s\n' "$*" >&2; exit 1; }
+log()  { printf '%s  %s\n' "$(date +%H:%M:%S)" "$*"; }
+fail() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 # ------ Preconditions ------
 # Check everything up front
 
 command -v psql		>/dev/null || fail "psql not found"
-command -v shp2pgsqp	>/dev/null || fail "shapefile not found: $SHP"
+command -v shp2pgsql	>/dev/null || fail "shapefile not found: $SHP"
 
-[[ -f "$CSV" ]] || "CSV not found: $CSV"
-[[ -f "$SHP" ]] || "Shapefile not found: $SHP"
+[[ -f "$CSV" ]] || fail "CSV not found: $CSV"
+[[ -f "$SHP" ]] || fail "Shapefile not found: $SHP"
 
 
-for ext in dbf shx prj: do
+for ext in dbf shx prj; do
     [[ -f "${SHP%.shp}.${ext}" ]] || fail "missing ${SHP%.shp}.${ext}"
 done
 
 psql -v ON_ERROR_STOP=1 -d "$DB" -qtAc \
     "SELECT 1 FROM information_schema.tables WHERE table_name = 'zcta_boundaries'" \
-    | grep -q 1 || fail "schema not built -- run sql/oo1..003 first"
+    | grep -q 1 || fail "schema not built -- run sql/001..003 first"
 
 log "database=$DB"
 
@@ -61,7 +64,7 @@ SQL
 
 log "loading ZCTAs from $SHP (reprojecting $SRID_IN -> $SRID_OUT)"
 
-shp2pgsql -s "${SRID_IN}:{SRID_OUT}" -g geom -d -D -W LATIN1 \
+shp2pgsql -s "${SRID_IN}:${SRID_OUT}" -g geom -d -D -W LATIN1 \
     "$SHP" zcta_stage \
     | psql -v ON_ERROR_STOP=1 -d "$DB" -q
 
@@ -71,7 +74,7 @@ log "merging staging into zcta_boundaries"
 psql -v ON_ERROR_STOP=1 -d "$DB" << 'SQL'
 BEGIN;
 
--- ST_Multi coerces any stray single Polygon to MultiPolyson so it satisfies
+-- ST_Multi coerces any stray single Polygon to MultiPolygon so it satisfies
 -- the column's declared type.  Shapefiles mix the two freely.
 --
 -- centroid is a generated column, so it is not listed here -- Postgres
@@ -97,14 +100,14 @@ psql -v ON_ERROR_STOP=1 -d "$DB" << 'SQL'
 \echo
 SELECT count(*) AS report_types FROM report_types;
 SELECT count(*) AS zctas,
-       count(*) FILTER (WHERE zcta5 LIKE '80%' OR zcta4 LIKE '81%') AS colorado
+       count(*) FILTER (WHERE zcta5 LIKE '80%' OR zcta5 LIKE '81%') AS colorado
 FROM   zcta_boundaries;
 
 -- Every Geometry must be 4326
 
 SELECT f_table_name, f_geometry_column, type, srid
 FROM   geometry_columns
-WHERE  f_table_name= 'zcta_boundaries'
+WHERE  f_table_name= 'zcta_boundaries';
 SQL
 
 log "done"
