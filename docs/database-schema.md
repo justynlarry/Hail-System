@@ -24,19 +24,36 @@ what every outbound email hangs off.
 The flow, end to end:
 
 ```
-  IEM (free, nightly)              RentCast (paid, on demand)
-         │                                    │
-         ▼                                    ▼
-    iem_data ──┐                    properties ──> listings
-   (points)    │                                      │
-               │                                      │
-               └──────> storm_listing_matches <───────┘
-                                 │
-                                 ▼
-                            send_log ──> realtors
-                                 │            │
-                                 │            ▼
-                                 └───────> dnc_list
+  IEM (free, nightly)
+         │
+         ▼
+    iem_data ────spatial────> zcta_boundaries
+   (points)                          │
+      │                           equality
+      │                              ▼
+      │                        coverage_zips
+      │                     (territory filter)
+      │                              │
+      │                              ▼
+      │                          zip list
+      │                              │
+      │                     ┌────────┴────────┐
+      │                     │  HUMAN CLICKS   │
+      │                     │  PULL  (spend)  │
+      │                     └────────┬────────┘
+      │                              │
+      │                RentCast (paid, on demand)
+      │                              │
+      │                              ▼
+      │                     properties ──> listings
+      │                                        │
+      └────────> storm_listing_matches <───────┘
+                          │
+                          ▼
+                     send_log ──> realtors
+                          │            │
+                          │            ▼
+                          └───────> dnc_list
 ```
 
 ### Principles the schema follows
@@ -175,6 +192,8 @@ different radius.
 
 ---
 
+## Reference Data
+
 ### `zcta_boundaries`
 
 Zip code shapes from Census TIGER/Line. ~33,000 rows nationwide, a few hundred MB.
@@ -200,6 +219,91 @@ systems fails silently — the join runs, returns too few rows, and never errors
 ZCTAs are the Census approximation of USPS zip codes. They do not match exactly
 at the edges, and some PO-box-only zips have no ZCTA. Fine for finding storm
 areas; not authoritative for mail.
+
+
+### `coverage_zips`
+
+RBI's service territory. The list of ZCTAs worth spending a RentCast call on.
+183 rows. Reference data, but unlike `zcta_boundaries` it is ours and it will
+be edited.
+
+Derived from a one-hour drive time from the Fraser Ave office, extended down
+I-25 to Colorado Springs and north to the Fort Collins/Wellington line.
+
+| Field | Purpose |
+|---|---|
+| `zcta5` | PK. FK → `zcta_boundaries`. **A ZCTA, not a USPS zip** — see below |
+| `area_name` | Human label, e.g. `Peyton/Falcon`, `Windsor`. What the territory is called out loud |
+| `reason` | Free text. Why this is in scope. **The field that will be empty in six months if it is not filled in now** |
+| `added_at`, `added_by` | FK → `users` |
+| `removed_at`, `removed_by` | **Nullable.** Populated only if territory is dropped |
+
+`CHECK ((removed_at IS NULL) = (removed_by IS NULL))` — the two removal columns
+move together. A removal date with no author is a half-written row, and there is
+no reason the database should accept one. `dnc_list` wants the same constraint
+on its own removal pair.
+
+**This is not a link in the storm → match chain.** There is no relationship
+between `coverage_zips` and `iem_data`, in either direction. A storm reaches
+coverage only by passing through geometry, and only at read time:
+
+```
+iem_data ──spatial──► zcta_boundaries ──equality──► coverage_zips
+```
+
+The first hop is `ST_DWithin`; the second is an ordinary join on the zip string.
+Coverage constrains which zips leave that query. It does not constrain which
+storms enter the system.
+
+**Ingest stays unfiltered.** The nightly IEM job does not consult this table.
+Same argument as storing full lat/lon rather than derived zips: territory is a
+tuning parameter. If ingest dropped out-of-area reports, taking on Pueblo next
+spring would leave a permanent hole in history, fillable only by re-ingesting
+from an archive that may not cooperate.
+
+**The enforcement point is the RentCast pull.** That is the only place money is
+spent, so that is where the rule has to hold — not in the UI having filtered the
+zip list. Secondarily it is a browse default ("storms that touched our
+territory"), but that one is a filter the user can switch off, not a gate.
+
+**Why `zcta5` and not `zip_code`.** These have to be ZCTAs; a zip with no polygon
+cannot be reached through the spatial join and cannot be checked against
+territory. Naming the column `zip_code` invites someone to insert a plausible
+USPS zip that matches nothing. The name carries the constraint.
+
+**Why the FK to `zcta_boundaries`.** The first hand-built version of this list was
+193 entries, of which 10 had no ZCTA polygon — PO-box-only zips (`80502`, `80522`,
+`80539`, `80632`, `80638`, `80901`), institutional zips (`80225` Federal Center,
+`80523` CSU, `80639` UNC), and one (`80213`) that is not an assigned zip at all.
+5%, and it took a purpose-written script against the raw TIGER `.dbf` to find
+them. The FK makes that row uninsertable rather than periodically re-detected,
+and it means the rule survives whoever expands the territory later without
+having read this paragraph.
+
+Cost: TIGER must load before coverage, and a decennial boundary revision that
+retires a ZCTA will block the reload until it is reconciled by hand. That is a
+loud, attended event roughly once a decade, traded against a silent hazard that
+is otherwise always on.
+
+Note that dropping those 10 lost no geographic coverage — every one sits inside a
+city already covered by its residential ZCTAs.
+
+**This table breaks the surrogate-key convention deliberately.** Every other table
+we control uses a generated `BIGINT`. This one is keyed on a third party's
+identifier because the whole point of the row is to name a Census polygon, and a
+surrogate would add a join without adding stability — `zcta5` is the most stable
+third-party key in the schema, redrawn only after a decennial census.
+
+**Nothing is deleted.** Dropping territory sets `removed_at` and `removed_by`.
+Every query that reads this table filters on `removed_at IS NULL`. Retaining
+removed rows is what makes "we stopped working Greeley in March" answerable.
+
+**What this table does not answer:** which ZCTAs fall inside the drive-time area
+but were never added. That is the question that finds missing territory rather
+than dead entries, and it is a genuine spatial query — buffer the office point,
+intersect `zcta_boundaries`, anti-join `coverage_zips`. Worth running once TIGER
+is loaded, to catch anything eyeballing a map missed.
+
 
 ---
 
