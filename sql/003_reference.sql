@@ -6,7 +6,7 @@ BEGIN;
 CREATE TABLE report_types (
 	report_type	TEXT	NOT NULL,
 	report_text	TEXT	NOT NULL,
-	mag_unit	TEXT	NOT NULL
+	mag_unit	TEXT
 			CHECK (mag_unit IN ('inches', 'mph', 'none')),
 	unit_confidence	TEXT	NOT NULL
 			CHECK (unit_confidence IN ('certain', 'inferred', 'unknown')),
@@ -30,7 +30,8 @@ CREATE TABLE zcta_boundaries (
 	zcta5		TEXT				NOT NULL	PRIMARY KEY
 			CHECK (zcta5 ~ '^[0-9]{5}$'),
 	geom		GEOMETRY(MultiPolygon, 4326)	NOT NULL,
-	centroid	GEOMETRY(Point, 4326)		NOT NULL,
+	centroid	GEOMETRY(Point, 4326)		GENERATED ALWAYS AS
+			(ST_PointOnSurface(geom)) STORED,
 	land_area	BIGINT
 
 );

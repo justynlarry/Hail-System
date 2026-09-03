@@ -28,7 +28,7 @@ fail() { printf 'error: %s\n' "$*" >&2; exit 1; }
 # Check everything up front
 
 command -v psql		>/dev/null || fail "psql not found"
-command -v shp2pgsql	>/dev/null || fail "shapefile not found: $SHP"
+command -v shp2pgsql	>/dev/null || fail "shp2pgsql not found (postgis-client)"
 
 [[ -f "$CSV" ]] || fail "CSV not found: $CSV"
 [[ -f "$SHP" ]] || fail "Shapefile not found: $SHP"
@@ -38,23 +38,55 @@ for ext in dbf shx prj; do
     [[ -f "${SHP%.shp}.${ext}" ]] || fail "missing ${SHP%.shp}.${ext}"
 done
 
-psql -v ON_ERROR_STOP=1 -d "$DB" -qtAc \
-    "SELECT 1 FROM information_schema.tables WHERE table_name = 'zcta_boundaries'" \
-    | grep -q 1 || fail "schema not built -- run sql/001..003 first"
+for t in report_types zcta_boundaries; do
+    psql -v ON_ERROR_STOP=1 -d "$DB" -qtAc \
+        "SELECT 1 FROM information_schema.tables WHERE table_name = '$t'" \
+        | grep -q 1 || fail "table $t missing -- run sql/001..003 first"
+done
 
 log "database=$DB"
 
 log "loading report_types from $CSV"
 
+# NOTE: this heredoc is << SQL (unquoted) on purpose -- $CSV has to expand.
+# The others below are << 'SQL' so that nothing in them expands.  The asymmetry
+# is deliberate; do not "fix" it.
+#
+# The stage table mirrors the CSV's 11 columns, not report_types' 5.  \copy maps
+# columns by POSITION, and HEADER true only skips the header row rather than
+# reading names from it -- so a stage table of the wrong shape or column order
+# loads silently wrong.  Naming the five columns in the INSERT is what makes the
+# mapping explicit.
+#
+# roof_relevant is not in the CSV.  It takes its DEFAULT FALSE here and is set
+# afterward by a documented UPDATE -- the same mechanism as adding a new
+# roof-relevant type later.
+
 psql -v ON_ERROR_STOP=1 -d "$DB" << SQL
 BEGIN;
 
-CREATE TEMP TABLE report_types_stage (LIKE report_types EXCLUDING CONSTRAINTS);
+CREATE TEMP TABLE report_types_stage (
+    typecode          TEXT,
+    typetext          TEXT,
+    report_count      INTEGER,
+    first_seen        TIMESTAMPTZ,
+    last_seen         TIMESTAMPTZ,
+    mag_present_count INTEGER,
+    mag_null_count    INTEGER,
+    mag_min           NUMERIC,
+    mag_max           NUMERIC,
+    mag_unit          TEXT,
+    unit_confidence   TEXT
+);
 
 \copy report_types_stage FROM '$CSV' WITH (FORMAT csv, HEADER true)
 
-INSERT INTO report_types
-SELECT * FROM report_types_stage
+INSERT INTO report_types (report_type, report_text, mag_unit, unit_confidence)
+SELECT typecode,
+       typetext,
+       nullif(mag_unit, ''),
+       unit_confidence
+FROM   report_types_stage
 ON CONFLICT (report_type, report_text) DO NOTHING;
 
 COMMIT;

@@ -46,7 +46,7 @@
                      │ FK SENT_BY      ──┐│   │                         │
                      │    RECIPIENT_EMAIL││   │                         │ N (nullable)
                      │    PROVIDER_MSG_ID││   │                 ┌───────┴──────────────┐
-                     │    STATUS         ││   │                 │ DNC_LIST             │
+                     │    SEND_STATUS    ││   │                 │ DNC_LIST             │
                      └───────────────────┼┼───┘                 │──────────────────────│
                                          ││                     │ PK DNC_ID            │
                                          │└────────┐            │ UQ EMAIL_NORM        │
@@ -64,9 +64,9 @@
                                             │  │   │    │ PK ZCTA5             │
                                             │  │   │    │    GEOM (multipoly)  │
                      ┌──────────────────────▼──▼───▼┐   └──────────┬───────────┘
-                     │ Users                        │              ╎ 1
-                     │──────────────────────────────│              ╎
-                     │ PK EMP_ID                    │              ╎ N   FK undecided
+                     │ Users                        │              │ 1
+                     │──────────────────────────────│              │
+                     │ PK EMP_ID                    │              │ N   FK ZCTA5
                      │ FK CREATED_BY (self, null)   │   ┌──────────┴───────────┐
                      │    ROLE, IS_ACTIVE           │   │ Coverage_Zips        │
                      │    PASSWORD_HASH             │   │──────────────────────│
@@ -80,8 +80,8 @@
              │ PK PULL_ID             │   │             ╎ ╎
              │ FK EMP_ID              │   │   spatial join only, no FK
              │ FK IEM_ID (nullable)   │   │             ╎ ╎
-             │    ESTIMATED_CALLS     │   │   IEM_DATA.GEOM ──► ZCTA_Boundaries.GEOM
-             │    ACTUAL_CALLS        │   │   Properties lat/lon ──► ZCTA_Boundaries
+             │    ESTIMATED_API_CALLS │   │   IEM_DATA.GEOM ──► ZCTA_Boundaries.GEOM
+             │    ACTUAL_API_CALLS    │   │   Properties lat/lon ──► ZCTA_Boundaries
              └────────────────────────┘   │
                                           │ N
                               ┌───────────▼──────────┐
@@ -94,9 +94,9 @@
                               └──────────────────────┘
 
 
- Coverage_Zips is a filter on query output, not a link in the storm→match
- chain. It has no relationship to IEM_DATA. A storm reaches it only through
- ZCTA_Boundaries geometry, and only at read time:
+ Coverage_Zips is reference data and a filter on query output, not a link in
+ the storm→match chain. It has no relationship to IEM_DATA. A storm reaches it
+ only through ZCTA_Boundaries geometry, and only at read time:
 
      iem_data ──spatial──► zcta_boundaries ──equality──► coverage_zips
 

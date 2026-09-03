@@ -133,7 +133,7 @@ setting it correctly.
 ---
 # Tables
 
-Thirteen tables. Grouped by which half of the system they belong to.
+Fourteen tables. Grouped by which half of the system they belong to.
 
 ---
 
@@ -151,7 +151,7 @@ magnitude value is measured in, and whether the type is worth acting on.
 |---|---|
 | `report_type` | One-character IEM code. **Not unique on its own** — part of the composite PK |
 | `report_text` | Textual type, e.g. `HAIL`, `NON-TSTM WND GST`. Other half of the PK |
-| `mag_unit` | `inches`, `mph`, or `none`. Blank where confidence is `unknown` |
+| `mag_unit` | `inches`, `mph`, or `none`. **Nullable** — NULL where `unit_confidence` is `unknown`, which is a different statement from `none`. `none` means the type has no magnitude; NULL means we do not know what the magnitude is measured in. 7 of 37 rows are NULL |
 | `unit_confidence` | `certain` / `inferred` / `unknown`. Derived from the type name only — inferring units from value ranges produced wrong answers (tornado EF numbers read as inches, heat index as mph) |
 | `roof_relevant` | Whether this type triggers outreach. **The reason this table exists** — adding wildfire later is an `UPDATE`, not a deploy |
 
@@ -178,13 +178,21 @@ Colorado, growing by a handful daily. The only table fed by an automatic job.
 | `report_qualifier` | `M`/`E`/`U`. **Does not mean what it says for hail** — tracks reporter training, not instrument measurement. Both M and E values land on the same coin/ball catalog |
 | `county`, `state` | As reported |
 | `nws_geo_code` | UGC, e.g. `COC081` = CO + county-type + FIPS 081. Free county crosswalk. **Null before mid-2022** |
+| `nws_geo_name` | IEM's `UGCNAME` — the county name that goes with the UGC. Null on the same rows |
 | `remark` | Free text. On damage reports with no magnitude, this is where the content is |
 | `ingested_at` | When we pulled it |
 
-Unique on `(utc_datetime, latitude, longitude, report_text, magnitude)`. This is
-what makes the nightly job safe: it pulls a 30-hour overlapping window and lets
-`ON CONFLICT DO NOTHING` discard repeats, so a failed night self-heals rather
-than leaving a permanent hole.
+Unique on `(utc_datetime, latitude, longitude, report_text, magnitude)`,
+declared `UNIQUE NULLS NOT DISTINCT`. This is what makes the nightly job safe: it
+pulls a 30-hour overlapping window and lets `ON CONFLICT DO NOTHING` discard
+repeats, so a failed night self-heals rather than leaving a permanent hole.
+
+**`NULLS NOT DISTINCT` is load-bearing.** By default SQL treats two nulls as
+distinct, so two rows identical in every column but with null `magnitude` would
+both insert — and null magnitude is exactly the IEM `None` trap, 3,353 of 135,856
+rows. Without it the overlapping window duplicates those rows every single night,
+and a duplicated `iem_data` row multiplies into duplicate matches and duplicate
+sends. Requires PostgreSQL 15+.
 
 Never trimmed. 135k rows is small for Postgres; deleting old data would cost the
 ability to answer "when did this zip last get hit" and to replay history at a
@@ -203,7 +211,7 @@ Loaded once, never written to.
 |---|---|
 | `zcta5` | 5-digit ZCTA code, PK |
 | `geom` | `GEOMETRY(MultiPolygon, 4326)`. The outline — often thousands of coordinate pairs per zip |
-| `centroid` | Convenience point |
+| `centroid` | Generated: `ST_PointOnSurface(geom)`. `ST_PointOnSurface` rather than `ST_Centroid` because the centroid of a C-shaped or donut-shaped ZCTA can land outside the polygon |
 | `land_area` | From Census attributes |
 
 **No foreign keys.** Joined spatially, not relationally. Nothing in the database
@@ -327,7 +335,8 @@ Year built yes, price no.
 | `list_latitude`, `list_longitude` | Property coordinates. Used for point-to-point distance in matching |
 | `property_type` | Single Family, Condo, etc. Filter for excluding multifamily |
 | `bedrooms`, `bathrooms`, `square_footage`, `lot_size`, `year_built`, `hoa_dues` | Structural attributes |
-| `created_date` | When RentCast first saw the property |
+| `created_date` | When *RentCast* first saw the property |
+| `first_seen_at` | When *we* ingested it. A different fact — since pulls are user-initiated, the gap can be weeks. The same distinction is drawn on `listings` |
 
 **Known weakness:** because the key comes from the address string, an upstream
 formatting change mints a new id for the same building. Would produce two rows
@@ -352,7 +361,9 @@ One row per *time a house was for sale*. Many-to-one with `properties`.
 | `list_removed_date`, `list_last_seen`, `list_days_on_market` | Listing lifecycle |
 | `list_mls_name`, `list_mls_number` | Identifies the *listing*, not the agent or office. Useful for looking a property up in REcolorado directly |
 | `list_agent_name`, `list_agent_phone`, `list_agent_email` | **Snapshot** — who RentCast said listed it, at the time |
-| `list_office_*` | Brokerage snapshot |
+| `list_agent_email_norm` | `lower(trim(list_agent_email))`. **Not unique.** Many listings sharing one agent email is the normal case, not a duplicate — agent identity uniqueness lives on `realtors.email_norm`, not here |
+| `list_office_name`, `list_office_phone`, `list_office_email`, `list_office_website` | Brokerage snapshot |
+| `list_office_email_norm` | `lower(trim(list_office_email))`. Not unique, for the same reason as `realtors.office_email_norm` |
 | `realtor_id` | FK → `realtors`. **Nullable** — some listings have no agent block |
 | `raw_payload` | `JSONB` of the full RentCast response. Cheap insurance for fields not mapped today, including `history` |
 | `first_seen_at` | When *we* ingested it |
@@ -383,6 +394,7 @@ history to a person rather than to scattered listing rows.
 | `email_norm` | Lowercased/trimmed. UNIQUE where not null. Match on this |
 | `agent_phone` | 10 digits, unformatted |
 | `agent_office_name`, `agent_office_phone`, `agent_office_email` | Brokerage |
+| `office_email_norm` | `lower(trim(agent_office_email))`. **Deliberately not unique** — one brokerage address is shared by every agent in the office. Exists to pre-flight a batch against `dnc_list`; see open question 9 |
 | `first_seen_at`, `last_seen_at` | Most recent listing they appeared on |
 
 **Rows are created during a pull:** if the incoming normalized email is not
@@ -407,7 +419,7 @@ The suppression list. Answers one question: *may we send to this address?*
 | `dnc_id` | Surrogate PK |
 | `email_raw` | As received |
 | `email_norm` | Lowercased/trimmed. **UNIQUE. This is the enforcement key** |
-| `added_at`, `added_by` | Who suppressed it, or `system` |
+| `added_at`, `added_by` | When, and the `emp_id` of who suppressed it — the system account's `emp_id` for machine-initiated rows (bounces, complaints, the legacy import) |
 | `source` | reply / unsubscribe / hard bounce / complaint / manual. **Bounces mean bad data; complaints mean bad targeting or copy.** Count them separately when watching deliverability |
 | `reason` | Free text |
 | `realtor_id` | FK, nullable. Convenience only, never a requirement |
@@ -419,6 +431,16 @@ under five emails, marking one row leaves four sendable. She asked not to be
 contacted at an *address*. Keying on email also allows suppressing addresses
 never seen as a realtor — a bounce, a forwarded complaint, a phone call to the
 office.
+
+**Every normalized email column in the schema is `lower(trim(...))`.** Not
+`upper`, not `trim` alone, in any table: `realtors.email_norm`,
+`realtors.office_email_norm`, `listings.list_agent_email_norm`,
+`listings.list_office_email_norm`, and `dnc_list.email_norm`. This is a
+correctness requirement, not a style preference. The suppression check compares
+`dnc_list.email_norm` against the normalized address being sent to; if two
+tables normalize with different case functions the comparison silently never
+matches, and the failure mode is a suppressed agent receiving mail with no error
+anywhere.
 
 **The check runs at send time against this table. Always.** Not against a cached
 flag, not against the UI having filtered the list. The dangerous version is
@@ -447,6 +469,11 @@ Records the finding: *this listing was within N miles of that storm report.*
 | `matched_at` | When computed |
 
 Unique on `(iem_id, listing_id, radius_used)`.
+
+`CHECK (distance_miles <= radius_used)` — constraint `distance_within_radius`. A
+match further away than the radius that produced it is arithmetically impossible,
+so a row like that is a matcher bug rather than a finding. Catching it at write
+time keeps a bad radius calculation from quietly widening targeting.
 
 **Why it points at `listing_id` rather than `rentcast_id`:** a house listed in
 2024, matched to hail, sold, and relisted in 2026 would otherwise carry its old
@@ -493,10 +520,16 @@ One row per email to one agent. Append-only except for provider status updates.
 | `queued_at` | Row created, before the send attempt |
 | `sent_at` | Nullable until the provider accepts it |
 | `sent_by` | FK → `users` |
-| `status` | `queued` → `sent` → (`bounced` \| `complained`), or `queued` → `failed` |
+| `send_status` | `queued` → `sent` → (`bounced` \| `complained`), or `queued` → `failed`. Prefixed to match `list_status` and `api_status` |
 | `provider_message_id` | The ESP's id. **How a bounce finds its way home** |
 | `status_updated_at` | When a bounce or complaint arrived |
 | `error_detail` | Provider error text |
+
+`CHECK (send_status = 'queued' OR send_status = 'failed' OR sent_at IS NOT NULL)`
+— constraint `sent_has_timestamp`. A row cannot claim `sent`, `bounced`, or
+`complained` without recording when it was sent. Those three statuses are
+assertions that a message left the building; without a timestamp the audit trail
+says something happened but not when, which is not an audit trail.
 
 Index on `(realtor_id, sent_at)` — exists purely for the frequency-cap lookup.
 
@@ -512,6 +545,12 @@ Hard bounces and complaints write to `dnc_list` automatically.
 
 **Append-only because it is the audit trail.** If anyone asks whether a
 suppressed agent was emailed, the answer must come from an immutable record.
+
+**Append-only is enforced in application code only.** There is no trigger, no
+rule, and no `REVOKE` on this table or on `email_templates` — nothing in the DDL
+prevents an `UPDATE` or `DELETE`. The convention is documented and followed, not
+enforced where the data is, which is a departure from the principle stated at the
+top of this file. Whether to enforce it in the database is open question 10.
 
 ---
 
@@ -534,6 +573,13 @@ send claim to have used text that did not exist at the time — the audit trail
 becomes fiction. To change a template: insert a new row, set `supersedes_id`,
 set the old row's `is_active` to false. Walking `supersedes_id` backward gives
 the edit history for free.
+
+`CHECK ((report_type IS NULL) = (report_text IS NULL))` — constraint
+`report_type_pair_complete`. The two columns are both null or both set. This is
+not redundant with the composite foreign key: Postgres foreign keys default to
+`MATCH SIMPLE`, which **skips the check entirely when any column in the key is
+null**. Without this constraint a half-set pair — a `report_type` with no
+`report_text` — passes the FK unverified and points at nothing.
 
 **Merge fields are required.** Minimum vocabulary: agent name, property address,
 storm date, event type and magnitude, distance from report to property.
@@ -562,7 +608,7 @@ Logins. Four or five rows, probably ever.
 | `user_name` | UNIQUE, login |
 | `emp_fname`, `emp_lname`, `emp_email` | Identity |
 | `password_hash` | bcrypt or argon2. **Never anything reversible** — people reuse passwords, so a weak store is a liability to the user personally, not just to the system |
-| `role` | `admin` / `sender` / `viewer` |
+| `role` | `admin` / `sender` / `viewer` / `system` |
 | `is_active` | Disable, never delete |
 | `created_at`, `created_by` | Self-FK, nullable for the first account |
 | `last_login_at` | |
@@ -575,6 +621,24 @@ That last constraint is deliberate and needs enforcing in code, because "admin"
 conventionally means "can do everything" and anyone picking this up later will
 assume that unless it is explicit. An admin cannot touch templates, suppression,
 or sending.
+
+**`system` is the fourth role and is not a cost stage.** The other three describe
+what a person is allowed to spend; this one describes rows no person created. It
+is **not a login**. It exists to own machine-initiated writes — automatic
+suppressions from bounces and complaints, and the legacy DNC import — so that
+`added_by` and `created_by` can stay `NOT NULL BIGINT` foreign keys instead of
+going nullable or accepting the free-text string `'system'`.
+
+The account is bootstrapped by an `INSERT` at the end of `sql/002_users.sql` and
+is constrained in the database rather than by convention:
+
+```sql
+CONSTRAINT system_account_cannot_log_in
+    CHECK (role <> 'system' OR (is_active = FALSE AND password_hash = '!'))
+```
+
+It cannot be activated and cannot be given a real password hash. A machine
+identity that can be turned into a working login is a backdoor with a name.
 
 **`is_active` rather than deletion:** every `sent_by` and `created_by` points
 here. Deleting someone who left breaks the audit trail on everything they did.
@@ -592,10 +656,10 @@ One row per user-initiated RentCast pull.
 | `iem_id` | FK → `iem_data`, nullable. What storm they were working |
 | `started_at`, `finished_at` | Null while running or if it died |
 | `zip_count` | Zips in scope |
-| `estimated_calls` | **What the UI showed before the user confirmed** |
-| `actual_calls` | What it really cost |
+| `estimated_api_calls` | **What the UI showed before the user confirmed** |
+| `actual_api_calls` | What it really cost |
 | `listings_returned` | |
-| `status` | running / complete / failed / cancelled |
+| `api_status` | running / complete / failed / cancelled |
 
 Every other table records what the system *knows*. This records what it *spent*
 — a different category, and the one that got the previous system into trouble
@@ -699,6 +763,46 @@ and letting the sender decide, but the rule is unstated.
 `JSONB` of every RentCast response is cheap at current volume but grows without
 bound. No policy set. Probably fine indefinitely; worth revisiting if the
 listings table gets large.
+
+### 9. Does outreach ever fall back to the office email when an agent has none?
+
+`listingAgent.email` is frequently missing, and `office_email_norm` /
+`list_office_email_norm` exist so a batch can at least be pre-flighted against
+`dnc_list`. Whether we would ever *send* to an office address is unsettled.
+
+**Suppression already handles it correctly.** The check runs against the address
+actually being used, not against a person, so a suppressed `info@` inbox is safe
+by construction.
+
+**The frequency cap does not.** Fifteen agents at one brokerage with no email of
+their own all resolve to a single `info@` inbox. Each is a distinct
+`realtor_id`, so a per-realtor cap counts fifteen separate sends and the shared
+inbox receives fifteen emails from one batch. Shared inboxes are also the least
+tolerant recipients on a list, and a complaint is precisely the signal that means
+bad targeting.
+
+If this is ever built, two things change: the cap needs a **per-address window**
+alongside the per-realtor one, and `send_log` likely needs to record whether the
+recipient was a person or an office. Without that second column `realtor_id`
+quietly stops meaning "who we emailed" and starts meaning "who this was about" —
+a different fact under the same name, which is the failure this schema otherwise
+works hard to avoid.
+
+### 10. Should append-only be enforced by the database?
+
+`send_log` and `email_templates` are append-only by convention and by code. The
+database does not enforce it — no trigger, no rule, no `REVOKE`. Every other rule
+this project treats as load-bearing lives in the database, and this one does not,
+which makes it the exception rather than the pattern.
+
+Options, cheapest first: `REVOKE UPDATE, DELETE` from the application role, which
+is one statement but also blocks the legitimate provider-status update on
+`send_log`; a `BEFORE UPDATE OR DELETE` trigger that allows only the status
+columns to change; or splitting the status updates into a separate table so the
+log itself is genuinely insert-only.
+
+**Deferred to Phase 5**, when sending is actually built and the real update
+pattern is known. Deciding it now would be designing against a guess.
 
 ---
 

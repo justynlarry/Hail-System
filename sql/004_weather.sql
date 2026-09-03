@@ -21,7 +21,6 @@ CREATE TABLE iem_data (
 	nws_geo_name		TEXT,
 	report_qualifier	TEXT		CHECK (report_qualifier IN ('M','E','U')),
 	ingested_at		TIMESTAMPTZ	NOT NULL,
-	report_source_norm	TEXT GENERATED ALWAYS AS (upper(trim(report_source))) STORED,
 	geom			GEOMETRY(Point, 4326)	GENERATED ALWAYS AS
 				(ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)) STORED,
 
@@ -30,16 +29,17 @@ CREATE TABLE iem_data (
 		REFERENCES report_types (report_type, report_text),
 
 	CONSTRAINT uq_iem_natural_key
-		UNIQUE (utc_datetime, latitude, longitude, report_text, magnitude)
+		UNIQUE NULLS NOT DISTINCT
+		(utc_datetime, latitude, longitude, report_text, magnitude)
 
 );
 
 CREATE INDEX iem_data_geom_gix ON iem_data USING GIST (geom);
-CREATE INDEX iem_data_utc_idx ON iem_data (utc_datetime DESC);
+CREATE INDEX iem_data_utc_datetime_idx ON iem_data (utc_datetime DESC);
 
 COMMENT ON COLUMN iem_data.magnitude IS
 	'IEM sends the literal string None as its null marker.  Coercing to 0 '
-	'produces 549 magnitude-zero tornados ';
+	'produces 549 magnitude-zero tornadoes.';
 
 COMMENT ON COLUMN iem_data.report_qualifier IS
 	'Tracks reporter training, NOT instrument measurement.  Use report_source '
@@ -48,15 +48,20 @@ COMMENT ON COLUMN iem_data.report_qualifier IS
 
 
 CREATE TABLE coverage_zips (
-	zcta5		TEXT		NOT NULL		PRIMARY KEY,
+	zcta5		TEXT		PRIMARY KEY
+			CONSTRAINT fk_coverage_zips_zcta_boundaries
 			REFERENCES zcta_boundaries (zcta5)
 			CHECK (zcta5 ~ '^[0-9]{5}$'),
 	area_name	TEXT		NOT NULL,
 	reason		TEXT,
 	added_at	TIMESTAMPTZ	NOT NULL DEFAULT now(),
-	added_by	BIGINT		NOT NULL REFERENCES users (emp_id),
+	added_by	BIGINT		NOT NULL
+			CONSTRAINT fk_coverage_zips_added_by
+			REFERENCES users (emp_id),
 	removed_at	TIMESTAMPTZ,
-	removed_by	BIGINT REFERENCES users (emp_id),
+	removed_by	BIGINT
+			CONSTRAINT fk_coverage_zips_removed_by
+			REFERENCES users (emp_id),
 
 	CONSTRAINT removal_is_complete
 		CHECK ((removed_at IS NULL) = (removed_by IS NULL))
