@@ -18,7 +18,7 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/00*.sql` |
 
-Last synced against the repo: **2026-09-03**, commit `0dfc2cc` (schema verified
+Last synced against the repo: **2026-09-03**, commit `8989aa2` (schema verified
 to build clean on PostgreSQL 16 / PostGIS 3.4; reference data loads; Phase 0's
 "done when" demonstrated).
 
