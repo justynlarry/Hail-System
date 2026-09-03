@@ -749,3 +749,115 @@ correct expression gets both.
 
 Both indexes are kept: `geom_gix` serves geometry predicates like
 `ST_Intersects`, `geog_gix` serves distance in metres.
+
+---
+
+## 2026-09-03 — Initial `roof_relevant` set and magnitude floors
+
+Twelve of 37 types are roof-relevant. Five carry a floor.
+
+| Type | Floor |
+|---|---|
+| HAIL | 1.00 in |
+| TSTM WND GST | 58 mph |
+| NON-TSTM WND GST | 58 mph |
+| HIGH SUST WINDS | 40 mph |
+| HEAVY SNOW | 6 in |
+
+Unfloored, because the damage or the event *is* the report: TSTM WND DMG,
+NON-TSTM WND DMG, DOWNBURST, TORNADO, LANDSPOUT, SNOW/ICE DMG, FREEZING RAIN.
+
+**The premise that decided this.** `roof_relevant` was initially being treated as
+gating what is *queryable*. It is not — every report is in `iem_data` regardless,
+and a viewer can browse all of it. What the flag gates is **outreach**: which
+types put a listing in front of someone with a send button. So the test is not
+"might someone want to look at this," it is "would I email an agent about it."
+That reframing is what moved four types.
+
+**`SNOW` is N, `HEAVY SNOW` is Y.** SNOW is 85,051 reports, 63% of the entire
+archive, and most of it is an ordinary February. The pitch also does not survive
+contact: "12 inches of snow was reported near this listing" is a weather report,
+not a public record implying damage. Colorado snow is dry and roofs here are
+pitched for it; the real failure modes are ice dams and wet spring loading, and
+HEAVY SNOW captures the second because a forecaster applied judgment when
+choosing that label. That is a free human filter rather than a number we would
+have to invent.
+
+The archive confirms the label is doing real work: SNOW's median is 3.0 in with
+78.6% under six inches, against HEAVY SNOW's median of 9.1 in with only 7.5%
+under six. Approximating the label with a threshold on SNOW would need a floor
+around 8 in, and would still be a number we picked over one the NWS picked with
+more context.
+
+**`HEAVY SNOW` still gets a 6 in floor.** Even after the label filter it is 34.5%
+of the outreach set unfloored — more than hail. 643 of its reports are under six
+inches, which contradicts the label's own implication. Cheap cut, same logic as
+hail.
+
+**`FUNNEL CLOUD` is N.** By definition it has not touched the ground. Nothing
+happened on the roof. Having it Y while LANDSPOUT was N had it exactly backwards.
+
+**`WILDFIRE` is N**, for two reasons. `CLAUDE.md` uses wildfire as the worked
+example of a deferred addition — "adding wildfire later is an `UPDATE`, not a
+deploy" — and turning it on now spends the example. Substantively, a
+fire-affected house is usually either unlisted or a total loss, and neither is a
+roof-repair conversation. **`DEBRIS FLOW` is N** for the same substantive reason:
+a post-fire mudslide is not a roof event.
+
+**What the numbers say about which decision mattered.** Measured against the
+135,856-row archive:
+
+| Set | Reports | Share |
+|---|---|---|
+| The 15-type list in `data-sources.md` | 37,042 | 27.3% |
+| This 12-type set, unfloored | 36,799 | 27.1% |
+| **This 12-type set with floors** | **24,124** | **17.8%** |
+
+The type-list question is worth 243 reports — 0.2 points. The floors are worth
+12,675 — 9.3 points. And excluding SNOW, decided before either, was worth 56
+points on its own. The ordering is worth remembering: one type decided the scale
+of this system, the floors tune it, and the rest of the list barely moves it.
+
+Composition of the final outreach set: NON-TSTM WND GST 8,505 (35.3%),
+HEAVY SNOW 7,905 (32.8%), HAIL 4,515 (18.7%), TSTM WND GST 1,729 (7.2%),
+everything else 1,470 (6.1%). **Hail is under a fifth of it**, which is worth
+knowing for a company whose pitch is hail.
+
+**The floors sit on modal values, not in gaps — the sensitivity is on the
+record.** `1.00 in` is 2,011 reports on its own, 32% of all hail, and 96.7% of
+hail values land on the NWS coin-and-ball chart with only 47 distinct values in
+6,304 reports. `50-60 mph` is 39.0% of NON-TSTM WND GST, and the 58 mph line runs
+straight through that bucket. So a future "what if we tried 1.25?" is a **cliff,
+not a slope**: it would drop a third of all hail in one step.
+
+The defense is that these are published NWS severe criteria rather than numbers
+we invented — 1.00 in and 58 mph are the thresholds the Weather Service itself
+uses, and 1.00 in is also roughly where the roofing industry draws the
+asphalt-shingle damage line. But anyone re-tuning them should know they are
+balanced on a peak, and should look at the distribution before moving them.
+
+Values live in `planning/report_types.csv` and load via `load_reference.sh`.
+Because that load is `ON CONFLICT DO NOTHING`, changing them after the first load
+is an `UPDATE`, not a re-run.
+
+---
+
+## 2026-09-03 — Data quality: the `SNOW` magnitude tail is not single reports
+
+`SNOW` has a maximum magnitude of **175 inches**, with a handful of values above
+60 in (60-66, 66-72, 72-78, 84-90, and the 175 outlier — 5 reports total out of
+85,049).
+
+Colorado does not get 175 inches in one storm report. These are almost certainly
+**seasonal or storm-total accumulations** entered against a single LSR, not the
+snowfall of one event.
+
+**Inert today**, because `SNOW` is `roof_relevant = FALSE` and nothing queries it
+for outreach. Recorded because it would stop being inert the moment anyone
+flipped that flag: a magnitude floor on SNOW would admit these rows first, and
+they are the least trustworthy in the type.
+
+**Needs a look before SNOW is ever turned on.** The likely shape of a fix is a
+sanity ceiling in the ingest that flags rather than drops — consistent with
+storing what IEM sends at full fidelity and deriving judgments on read, the same
+principle that keeps zips out of `iem_data`.

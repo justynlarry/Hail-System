@@ -18,7 +18,7 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/00*.sql` |
 
-Last synced against the repo: **2026-09-03**, commit `9eb08d2` (schema verified
+Last synced against the repo: **2026-09-03**, commit `0dfc2cc` (schema verified
 to build clean on PostgreSQL 16 / PostGIS 3.4; reference data loads; Phase 0's
 "done when" demonstrated).
 
@@ -70,6 +70,11 @@ Built so far:
 - `docker/loader.Dockerfile` — the loader image. Stock `postgis/postgis` plus
   the `postgis` client package, which is what carries `shp2pgsql`.
 - Reference data loads: 37 report types, 33,791 ZCTAs, both at SRID 4326.
+- **Initial `roof_relevant` set chosen:** 12 of 37 types, 5 with magnitude
+  floors (HAIL 1.00″, TSTM WND GST / NON-TSTM WND GST 58 mph, HIGH SUST WINDS
+  40 mph, HEAVY SNOW 6″). That is 17.8% of the archive — 24,124 of 135,856
+  reports. `SNOW` is excluded and that single call is what set the scale: with
+  it, the set would be 82.9%.
 - **Phase 0's "done when" is met** — zip codes within 5 miles of an arbitrary
   lat/lon, 21 zips around the office point in ~22 ms.
 
