@@ -18,8 +18,9 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/00*.sql` |
 
-Last synced against the repo: **2026-09-03**, drift-reconciliation pass
-(commit hash to be filled in when this pass is committed).
+Last synced against the repo: **2026-09-03**, commit `2b51e99` (drift
+reconciliation plus the schema-review fixes; schema verified to build clean on
+PostgreSQL 16 / PostGIS 3.4).
 
 ---
 
