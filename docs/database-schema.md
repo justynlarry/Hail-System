@@ -133,7 +133,7 @@ setting it correctly.
 ---
 # Tables
 
-Fourteen tables. Grouped by which half of the system they belong to.
+Fifteen tables. Grouped by which half of the system they belong to.
 
 ---
 
@@ -154,8 +154,65 @@ magnitude value is measured in, and whether the type is worth acting on.
 | `mag_unit` | `inches`, `mph`, or `none`. **Nullable** — NULL where `unit_confidence` is `unknown`, which is a different statement from `none`. `none` means the type has no magnitude; NULL means we do not know what the magnitude is measured in. 7 of 37 rows are NULL |
 | `unit_confidence` | `certain` / `inferred` / `unknown`. Derived from the type name only — inferring units from value ranges produced wrong answers (tornado EF numbers read as inches, heat index as mph) |
 | `roof_relevant` | Whether this type triggers outreach. **The reason this table exists** — adding wildfire later is an `UPDATE`, not a deploy |
+| `min_magnitude` | `NUMERIC(6,2)`, nullable. Outreach floor for this type; NULL means no floor. Same scale as `iem_data.magnitude`, so comparison needs no cast. `CHECK` blocks a floor on a type whose `mag_unit` is not `inches` or `mph` — a threshold on `TSTM WND DMG` has nothing to compare against and would silently exclude everything |
+
+**The NULL-magnitude semantic, which the DDL cannot show.** When
+`min_magnitude` is set and a report's `magnitude` is NULL,
+`magnitude >= min_magnitude` evaluates to UNKNOWN — not TRUE — so the report is
+**excluded**. For a wind gust with no recorded speed that is the right answer: it
+cannot be assessed against a threshold. But it has a consequence worth stating
+plainly: **a type cannot have both a floor and an include-the-unmeasured
+behaviour.** Choosing a floor is also choosing to drop that type's unmeasured
+reports.
 
 Referenced by `iem_data` and optionally by `email_templates`.
+
+---
+
+### `report_sources`
+
+Reference data. 36 rows observed in ten years of Colorado. What a reporting
+source is and how much its reports should be trusted.
+
+| Field | Purpose |
+|---|---|
+| `source` | PK. The normalized source string, `upper(trim(...))`. `CHECK (source = upper(trim(source)))` |
+| `display_name` | Human label for the UI, e.g. `Trained Spotter` |
+| `confidence_tier` | `high` / `moderate` / `low` / `unrated`. `NOT NULL DEFAULT 'unrated'` so a newly discovered source can be inserted before anyone has judged it |
+| `is_automated` | Whether the source is an instrument rather than a person. Nullable — unknown for a source nobody has classified |
+| `notes` | Free text |
+| `added_at`, `added_by`, `removed_at`, `removed_by` | Audit and retirement, same removal-pair CHECK as `coverage_zips` and `dnc_list` |
+
+**There is deliberately no foreign key from `iem_data`.** `report_source` is free
+text typed at individual NWS offices. The archive contains `DEPARTMENT OF HIG`
+and `DEPT OF` — truncated mid-word, one report each. An FK would have failed the
+nightly ingest on those rows and on every future variant, which is the one thing
+the ingest must never do.
+
+`report_types` can carry an FK because 37 NWS types are a closed set. Sources are
+not, and never will be.
+
+So this is modelled the way `zcta_boundaries` is: a lookup you `LEFT JOIN` when
+you need it, never a constraint that can break a write. An unrecognized source
+yields a NULL tier and the UI shows "unrated" rather than dropping the report.
+
+**The join is `iem_data.report_source_norm = report_sources.source`, never the
+raw `report_source`.** Both sides are `upper(trim(...))`, and the CHECK on
+`source` is what guarantees the right-hand side stays that way. The failure this
+prevents is the same class as an email-normalization mismatch: the join silently
+returns nothing and no error is raised.
+
+**This table is what supplies the confidence signal.** `report_qualifier` is
+explicitly not that signal — `M` tracks reporter training, not instrumentation.
+The 36 rows carry the distinction that actually matters: `ASOS` and `AWOS` are
+instruments, `PUBLIC` is a stranger on a phone, `TRAINED SPOTTER` is someone who
+took the class.
+
+The statistics that informed the tiers — report counts, per-qualifier
+breakdowns, hail measured-rates — live in `reference/sources.csv` and
+`reference/data_quality_notes.md`, deliberately not here. They describe one
+ten-year extract and go stale the moment the nightly job runs. The durable fact
+is the judgment, not the evidence for it.
 
 ---
 
@@ -210,8 +267,8 @@ Loaded once, never written to.
 | Field | Purpose |
 |---|---|
 | `zcta5` | 5-digit ZCTA code, PK |
-| `geom` | `GEOMETRY(MultiPolygon, 4326)`. The outline — often thousands of coordinate pairs per zip |
-| `centroid` | Generated: `ST_PointOnSurface(geom)`. `ST_PointOnSurface` rather than `ST_Centroid` because the centroid of a C-shaped or donut-shaped ZCTA can land outside the polygon |
+| `geom` | `GEOMETRY(MultiPolygon, 4326)`. The outline — often thousands of coordinate pairs per zip. **Two GiST indexes**: `zcta_boundaries_geom_gix` on `geom` for geometry predicates, and `zcta_boundaries_geog_gix` on `(geom::geography)` for distance-in-metres — see below |
+| `centroid` | Generated: `ST_PointOnSurface(geom)`. Verified: 0 of 33,791 fall outside their own polygon. `ST_PointOnSurface` rather than `ST_Centroid` because the centroid of a C-shaped or donut-shaped ZCTA can land outside the polygon |
 | `land_area` | From Census attributes |
 
 **No foreign keys.** Joined spatially, not relationally. Nothing in the database
@@ -220,6 +277,26 @@ every query.
 
 Appears in exactly one operation: turning a storm report point into a list of
 zips to hand to RentCast. Everything downstream works with zip strings.
+
+**The buffer query needs the geography index, not the geometry one.** The query
+is written in metres, so it casts:
+
+```sql
+ST_DWithin(geom::geography, point::geography, 8046.72)   -- 5 miles
+```
+
+That cast is evaluated per row, so it **cannot** use a plain index on `geom`.
+Measured on the full 33,791-row national table: parallel sequential scan,
+**17.9 seconds**. With a GiST index on the cast expression itself, the same query
+plans as a bitmap index scan and runs in **22 ms** — an 855× difference, and the
+index takes 10 seconds to build.
+
+Both indexes are kept because they serve different predicates: `geom_gix` for
+`ST_Intersects` / `ST_Contains`, `geog_gix` for distance in metres. The
+alternative — a degrees-based `ST_DWithin` on raw geometry — does use `geom_gix`
+but is wrong in a way that hides: a degree of longitude is 85.6 km at the Front
+Range and 111 km at the equator, so a fixed degree radius silently changes size
+with latitude.
 
 Loaded in EPSG 4326 to match IEM and RentCast coordinates. Mixing coordinate
 systems fails silently — the join runs, returns too few rows, and never errors.
@@ -725,6 +802,17 @@ preference. A settings table is the flexible answer and costs one more table.
 
 Related and unanswered: **does the radius vary by event type?** Hail swaths and
 straight-line wind damage do not have the same footprint.
+
+**Note the asymmetry, which is not yet justified.** "Does this vary by event
+type?" now has two instances, and they were answered differently.
+`report_types.min_magnitude` gives the magnitude floor a per-type column. The
+radius has no equivalent — `storm_listing_matches.radius_used` records what was
+used, but nothing declares a per-type default. These are the same shape of
+question, and one got a column while the other did not. Either the radius
+belongs on `report_types` alongside `min_magnitude`, or `min_magnitude` belongs
+wherever the radius default eventually lives. Recorded rather than resolved,
+because the answer depends on question 3 — whether there is a settings table at
+all.
 
 ### 3. Is there a settings table at all?
 

@@ -60,12 +60,18 @@ Built so far:
   under `data/raw/tiger/`
 - Ten years of Colorado LSR CSV pulled to `data/lsr_201601010000_202608312359.csv`
 - Reference data derived: `reference/report_types.csv`, `sources.csv`,
-  `qualifiers.csv`, plus seed SQL and `data_quality_notes.md`
+  `qualifiers.csv`, `data_quality_notes.md` — statistical evidence, not load
+  input. The curated seed the loader actually reads is
+  `planning/report_types.csv`.
 - `scripts/build_reference_tables.py`, `scripts/zcat-data-check.py`,
   `scripts/load_reference.sh`
-- `sql/001`–`sql/008` — DDL for all fourteen tables, **written but not yet
-  applied to a database and not yet reviewed.** Expect syntax errors in them;
-  they are drafts pending a review pass.
+- `sql/001`–`sql/008` — DDL for all fifteen tables. **Reviewed, fixed, and
+  verified to build clean** on PostgreSQL 16 / PostGIS 3.4.
+- `docker/loader.Dockerfile` — the loader image. Stock `postgis/postgis` plus
+  the `postgis` client package, which is what carries `shp2pgsql`.
+- Reference data loads: 37 report types, 33,791 ZCTAs, both at SRID 4326.
+- **Phase 0's "done when" is met** — zip codes within 5 miles of an arbitrary
+  lat/lon, 21 zips around the office point in ~22 ms.
 
 Not built: the database itself, the IEM ingest, any web UI, any RentCast client,
 any sending path. **Do not build ahead of the current phase.**
@@ -153,18 +159,19 @@ incurred only after a person has deliberately narrowed scope.
 
 ## 5. The data model
 
-Fourteen tables. Full field-level detail is in `docs/database-schema.md`; an
+Fifteen tables. Full field-level detail is in `docs/database-schema.md`; an
 ASCII ER diagram is in `docs/db-schema-diagram.md`.
 
 ### Weather side
 | Table | What it holds |
 |---|---|
-| `report_types` | 37 rows. Meaning of a report type: magnitude unit, unit confidence, and `roof_relevant`. Composite PK `(report_type, report_text)`. `mag_unit` is nullable — NULL means "we do not know the unit", which is not the same as `none`. |
+| `report_types` | 37 rows. Meaning of a report type: magnitude unit, unit confidence, `roof_relevant`, and `min_magnitude` (the outreach floor; NULL means none). Composite PK `(report_type, report_text)`. `mag_unit` is nullable — NULL means "we do not know the unit", which is not the same as `none`. |
 | `iem_data` | One row per NWS Local Storm Report. Exact lat/lon, generated `geom` (GiST indexed), UTC timestamp, magnitude, qualifier, remark. Natural key is `UNIQUE NULLS NOT DISTINCT` so null-magnitude rows deduplicate. The only table fed by an automatic job. |
 
 ### Reference
 | Table | What it holds |
 |---|---|
+| `report_sources` | 36 rows. What a reporting source is and how far to trust it — `confidence_tier`, `is_automated`. **No FK from `iem_data`**: source is free text typed at NWS offices and an FK would break the nightly ingest. A lookup, joined on `report_source_norm`, never a constraint. |
 | `zcta_boundaries` | ~33,000 Census ZCTA polygons, nationwide, EPSG 4326. `centroid` is generated with `ST_PointOnSurface`, not `ST_Centroid`, so it cannot fall outside a C-shaped zip. Loaded once, never written to. **No foreign keys** — joined spatially. |
 | `coverage_zips` | RBI's service territory, 183 ZCTAs. Keyed on `zcta5` with an FK to `zcta_boundaries`. Ours, and it will be edited. |
 
@@ -364,7 +371,7 @@ CLAUDE.md                     rules for AI assistants — read first
 README.md                     currently empty
 docs/
   hail-consolidated.md        this file
-  database-schema.md          field-level data model, 14 tables, open questions
+  database-schema.md          field-level data model, 15 tables, open questions
   db-schema-diagram.md        ASCII ER diagram
   decision-log.md             dated, append-only; supersede, never rewrite
   data-sources.md             IEM / TIGER / RentCast endpoints and traps
@@ -383,9 +390,12 @@ scripts/
   build_reference_tables.py   derives reference CSVs from the raw LSR archive
   zcat-data-check.py          checks coverage zips against the TIGER .dbf
   load_reference.sh           idempotent loader: report_types CSV + ZCTA shapefile
-reference/                    gitignored — derived CSVs, seed SQL, DNC lists
+reference/                    gitignored — derived statistical CSVs, DNC lists
+docker/
+  loader.Dockerfile           postgis image + the postgis client package
 data/                         gitignored — raw LSR archive, TIGER shapefiles
 planning/                     spreadsheets, coverage zip list, working notes
+  report_types.csv            THE curated seed for report_types (gitignored)
 ```
 
 ---

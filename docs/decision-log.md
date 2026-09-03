@@ -583,3 +583,169 @@ columns to change, or splitting status updates into a separate table so the log
 itself is genuinely insert-only. Both are judgments about a write path that does
 not exist yet. Recorded as open question 10, to be settled in Phase 5 when
 sending is built and the real update pattern is known.
+
+---
+
+## 2026-09-03 — `report_sources` is a lookup, with no foreign key from `iem_data`
+
+A 36-row table keyed on the normalized source string, carrying
+`confidence_tier`, `is_automated`, and a display name. `iem_data` does **not**
+reference it.
+
+**Why no FK:** `report_source` is free text typed by individual NWS offices. The
+ten-year archive contains `DEPARTMENT OF HIG` and `DEPT OF` — each one report,
+each truncated mid-word by a person at a keyboard. A foreign key would have
+failed the nightly ingest on those rows and on every future variant of them, and
+failing the ingest is the one thing that must not happen: the storm data is the
+free, automatic half of the system and it has to keep working unattended.
+
+`report_types` can carry an FK because 37 NWS report types are a closed,
+documented set. Sources are an open set and always will be. The same word —
+"reference data" — covers two different guarantees, and the difference decides
+whether an FK is safe.
+
+Modelled on `zcta_boundaries`: joined when needed, never a constraint on a write.
+An unrecognized source yields a NULL tier and the UI shows "unrated" rather than
+dropping the report.
+
+**`CHECK (source = upper(trim(source)))` is the load-bearing part.** The join is
+`iem_data.report_source_norm = report_sources.source`, and it only works because
+both sides are `upper(trim(...))`. Without the CHECK, one row inserted as
+`Trained Spotter` matches nothing, raises no error, and silently drops that
+source's confidence signal — the identical failure mode as an email
+normalization mismatch, which this project has already been bitten by once.
+
+**What is deliberately not in the table:** the report counts, per-qualifier
+breakdowns, and hail measured-rates from `reference/sources.csv`. Those describe
+one 2016–2026 extract and go stale the moment the nightly job runs. They are
+evidence for the judgment, not the judgment. The evidence stays in `reference/`
+and `data_quality_notes.md`; the table stores only what stays true.
+
+**This is also what makes the confidence label computable.** "Moderate — 3
+reports, up to 1.25″, 2 spotters" requires knowing that a trained spotter
+outranks a member of the public, and until now there was nowhere for that fact
+to live.
+
+---
+
+## 2026-09-03 — A `qualifiers` table is deferred, not rejected
+
+`iem_data.report_qualifier` keeps its `CHECK (report_qualifier IN ('M','E','U'))`
+and a column comment. No table.
+
+**Why not now:** there are three codes. A three-row table earns its place only if
+it carries text worth displaying, and the text available is actively wrong.
+`reference/qualifiers.csv` glosses `M` as "Measured - magnitude was measured with
+an instrument", which is precisely the claim the documented trap disproves — `M`
+tracks reporter training, and 97.8% of `M` and 94.9% of `E` hail values land on
+the same coin-and-ball catalog. Loading that text would take a trap already paid
+for and promote it to a UI label telling the sender the opposite of what is true.
+
+The CSV also is not shaped like a table: five rows for three codes, one being an
+empty-string row for "no qualifier supplied" (already handled by the column being
+nullable) and one a totals row that any positional load would ingest as a bogus
+qualifier.
+
+**The table also has no remaining job.** `database-schema.md` already steers away
+from qualifier as a confidence signal in favour of `SOURCE`, and
+`report_sources` now supplies that. Qualifier is metadata about a report, not a
+basis for deciding whom to contact.
+
+**Reversal condition:** if the UI ever displays qualifier to a user, the caveat
+needs somewhere to live, and a three-row table is a reasonable home for it. In
+that case the text is **written here, from the trap as documented**, and not
+imported from that CSV.
+
+---
+
+## 2026-09-03 — `report_types.min_magnitude` added; thresholds left NULL
+
+`NUMERIC(6,2)`, nullable, same scale as `iem_data.magnitude` so comparisons need
+no cast. `CHECK (min_magnitude IS NULL OR mag_unit IN ('inches','mph'))`.
+
+**Why the CHECK:** a floor on a type with no magnitude to compare against is
+meaningless. `TSTM WND DMG` has `mag_unit = 'none'`; a threshold on it would
+produce a filter that silently excludes every row of that type. Caught at write
+time instead.
+
+**The semantic that the DDL cannot express:** when `min_magnitude` is set and a
+report's `magnitude` is NULL, `magnitude >= min_magnitude` evaluates to UNKNOWN,
+not TRUE, so the report is excluded. For a wind gust with no recorded speed that
+is correct — it cannot be assessed. The consequence is that **a type cannot have
+both a floor and an include-the-unmeasured behaviour**, and choosing a floor is
+also choosing to drop that type's unmeasured reports. Recorded in the column
+comment, because it is invisible in the declaration and will surprise someone.
+
+**All values left NULL.** Thresholds are a business decision and are being made
+against the measured distributions rather than in the abstract. What the archive
+shows, for the record:
+
+- `NON-TSTM WND GST`, 17,368 reports, none null: median 57 mph, 51.0% below the
+  58 mph NWS severe criterion. A floor at 58 halves the type — to 8,505, still
+  larger than all hail.
+- `HAIL`, 6,304 reports, none null: median 1.00″, 28.4% below 1.00″. But the
+  distribution is not continuous — **96.7% of values sit on the NWS coin-and-ball
+  chart, and `1.00″` alone is 2,011 reports, 31.9% of all hail.** Only 47
+  distinct values appear. A floor of `>= 1.00` keeps that spike; any floor
+  between 1.01 and 1.25 drops a third of all hail in one step. The cliff is an
+  artifact of how sizes are reported, not of how hail falls.
+
+---
+
+## 2026-09-03 — Loader runs in its own image; the DB service stays stock
+
+`docker/loader.Dockerfile`: `FROM postgis/postgis:16-3.4` plus the `postgis`
+client package, pinned to `3.5.2+dfsg-1.pgdg110+1`.
+
+**Why a second image:** `postgis/postgis:16-3.4` ships only the server-side
+extension. `shp2pgsql` lives in the separate `postgis` client package, and the
+TIGER load cannot run without it.
+
+**Why the base image made this look impossible:** it clears
+`/var/lib/apt/lists`, so `apt-cache policy postgis` reports
+`Candidate: (none)` and a bare `apt-get install` fails with "unable to locate
+package" — indistinguishable from the package not existing. It does exist, in
+the PGDG repo the base image already has configured. `apt-get update` first is
+the entire fix. Worth remembering as a general shape: on a slimmed image, "not
+found" usually means "not indexed", not "not available".
+
+**Why not put it in the DB image:** the container holding the data should not be
+rebuilt to add a one-shot utility. Client 3.5.x against a 3.4 server is safe —
+`shp2pgsql` is a standalone converter that emits SQL text and never links against
+the server — but the version is pinned anyway so a PGDG refresh cannot change
+the loader underneath us.
+
+**Also fixed while verifying:** the script used `shp2pgsql -d`, which emits a
+`DropGeometryColumn` for a stage table that does not exist on a first run. Under
+`ON_ERROR_STOP=1` that killed the load before it began — a script advertised as
+safe to re-run could not run once. Now an explicit `DROP TABLE IF EXISTS`
+followed by `-c`.
+
+---
+
+## 2026-09-03 — The buffer query needs a geography index, not the geometry one
+
+`zcta_boundaries` carries two GiST indexes: `zcta_boundaries_geom_gix` on `geom`,
+and `zcta_boundaries_geog_gix` on `(geom::geography)`.
+
+**Why:** the buffer query is written in metres, so it casts —
+`ST_DWithin(geom::geography, point::geography, 8046.72)`. That cast is evaluated
+per row and therefore cannot use an index on `geom`. Measured against all 33,791
+ZCTAs: **parallel sequential scan, 17.9 seconds**. With the functional index on
+the cast expression, the same query becomes a bitmap index scan at **22 ms**.
+855×, for an index that builds in 10 seconds.
+
+This matters beyond speed. `database-schema.md` said the GiST index was "the
+entire performance story for the buffer query" — and that was true of the
+intent but false of the schema as written, because the index did not match the
+predicate the query actually uses. An index only helps the expression it is
+built on.
+
+**Why not avoid the cast instead:** `ST_DWithin` on raw geometry with a radius in
+degrees does use `geom_gix`, but a degree of longitude is 85.6 km at the Front
+Range and 111 km at the equator, so a fixed degree radius silently changes real
+size with latitude. Correct-but-slow beats fast-but-quietly-wrong; indexing the
+correct expression gets both.
+
+Both indexes are kept: `geom_gix` serves geometry predicates like
+`ST_Intersects`, `geog_gix` serves distance in metres.
