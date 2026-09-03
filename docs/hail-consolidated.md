@@ -18,9 +18,9 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/00*.sql` |
 
-Last synced against the repo: **2026-09-03**, commit `2b51e99` (drift
-reconciliation plus the schema-review fixes; schema verified to build clean on
-PostgreSQL 16 / PostGIS 3.4).
+Last synced against the repo: **2026-09-03**, commit `9eb08d2` (schema verified
+to build clean on PostgreSQL 16 / PostGIS 3.4; reference data loads; Phase 0's
+"done when" demonstrated).
 
 ---
 
@@ -73,8 +73,15 @@ Built so far:
 - **Phase 0's "done when" is met** — zip codes within 5 miles of an arbitrary
   lat/lon, 21 zips around the office point in ~22 ms.
 
-Not built: the database itself, the IEM ingest, any web UI, any RentCast client,
-any sending path. **Do not build ahead of the current phase.**
+Not built: the IEM ingest, any web UI, any RentCast client, any sending path.
+**Do not build ahead of the current phase.**
+
+**Known gap, not today's problem:** `.gitignore` line 2 is `*.csv`, which means
+`planning/report_types.csv` is untracked. That file holds the `roof_relevant`
+judgments — business decisions about which storm types trigger outreach — and it
+exists on one machine with no backup and no history. Narrowing `*.csv` to the two
+DNC files is the fix; the DNC lists are the only CSVs that genuinely cannot enter
+the repo. Deferred deliberately, not overlooked.
 
 **Phase 0 is done when** a spatial query returns the zip codes within 5 miles of
 an arbitrary lat/lon.
