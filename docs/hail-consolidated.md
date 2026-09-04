@@ -52,7 +52,7 @@ probably ever. ~135,856 storm report rows for ten years of Colorado.
 
 ## 2. Where the project actually stands
 
-**Phase 0 — Groundwork. Nothing is running yet.**
+**Phase 1 — IEM ingest. Phase 0 is closed; nothing is running yet.**
 
 Built so far:
 
@@ -67,7 +67,7 @@ Built so far:
   `planning/report_types.csv`.
 - `scripts/build_reference_tables.py`, `scripts/zcat-data-check.py`,
   `scripts/load_reference.sh`
-- `sql/001`–`sql/008` — DDL for all fifteen tables. **Reviewed, fixed, and
+- `sql/001`–`sql/009` — DDL for all seventeen tables. **Reviewed, fixed, and
   verified to build clean** on PostgreSQL 16 / PostGIS 3.4.
 - `docker/loader.Dockerfile` — the loader image. Stock `postgis/postgis` plus
   the `postgis` client package, which is what carries `shp2pgsql`.
@@ -89,8 +89,17 @@ Built so far:
   for distance. Without the second one the same query is a parallel sequential
   scan at 17.9 seconds.
 
-Not built: the IEM ingest, any web UI, any RentCast client, any sending path,
-any `report_sources` seed.
+Phase 1 so far:
+
+- `sql/009_ingest.sql` — `ingest_runs` and `iem_ingest_rejects`, the run log
+  and reject log for the nightly ingest. Verified to build clean on top of
+  `001`–`008`, and the constraint behaviour tested rather than assumed:
+  a `running` row with null counts passes `counts_consistent`, a `complete`
+  row missing any count or `finished_at` is rejected, an unenumerated
+  `reason` is rejected, and deleting a run with rejects attached fails.
+
+Not built: the ingest scripts themselves, any web UI, any RentCast client,
+any sending path, any `report_sources` seed.
 **Do not build ahead of the current phase.**
 
 **Known gap, not today's problem:** `.gitignore` line 2 is `*.csv`, which means
@@ -100,8 +109,10 @@ exists on one machine with no backup and no history. Narrowing `*.csv` to the tw
 DNC files is the fix; the DNC lists are the only CSVs that genuinely cannot enter
 the repo. Deferred deliberately, not overlooked.
 
-**Phase 0 is done when** a spatial query returns the zip codes within 5 miles of
-an arbitrary lat/lon.
+**Phase 0's "done when"** — a spatial query returning the zip codes within 5
+miles of an arbitrary lat/lon — was met on 2026-09-03. **Phase 1 is done when**
+the nightly ingest has run unattended and `ingest_runs` shows a `complete` row
+for each night.
 
 ---
 
@@ -183,7 +194,7 @@ incurred only after a person has deliberately narrowed scope.
 
 ## 5. The data model
 
-Fifteen tables. Full field-level detail is in `docs/database-schema.md`; an
+Seventeen tables. Full field-level detail is in `docs/database-schema.md`; an
 ASCII ER diagram is in `docs/db-schema-diagram.md`.
 
 ### Weather side
@@ -224,6 +235,8 @@ ASCII ER diagram is in `docs/db-schema-diagram.md`.
 | `users` | Logins. Roles `admin` / `sender` / `viewer`, plus `system` — a non-login account, bootstrapped in `sql/002`, that owns machine-initiated rows (automatic bounce and complaint suppressions, the legacy DNC import). Constrained in the database so it cannot be activated or given a real password. Unlike the other three it is **not a cost stage**. |
 | `api_pulls` | One row per user-initiated RentCast pull. Records `estimated_api_calls` vs. `actual_api_calls` side by side; `api_status` tracks the run. `iem_id` is nullable — a pull need not be tied to one storm. |
 | `api_call_log` | One row per zip within a pull. Powers the "this zip was pulled recently" warning. |
+| `ingest_runs` | One row per execution of an IEM ingest script (`nightly` / `backfill` / `replay`). Records the UTC window actually requested plus `rows_seen` / `rows_inserted` / `rows_skipped`. No `emp_id` — system-initiated. Written before the work starts, like `api_pulls`. **The alert that matters is the absence of a row**, which is why it is a table and not log output. |
+| `iem_ingest_rejects` | One row per input line the parser refused. FK → `ingest_runs`. `raw_row` holds the line verbatim (TEXT, not JSONB — it is here because it did not parse), so rejecting is not lossy. `reason` is a closed five-value CHECK; anything outside it must terminate the run rather than be skipped. |
 
 ### Key strategy
 
@@ -411,7 +424,7 @@ CLAUDE.md                     rules for AI assistants — read first
 README.md                     currently empty
 docs/
   hail-consolidated.md        this file
-  database-schema.md          field-level data model, 15 tables, open questions
+  database-schema.md          field-level data model, 17 tables, open questions
   db-schema-diagram.md        ASCII ER diagram
   decision-log.md             dated, append-only; supersede, never rewrite
   data-sources.md             IEM / TIGER / RentCast endpoints and traps
@@ -427,6 +440,7 @@ sql/
   006_matching.sql            storm_listing_matches
   007_sending.sql             send_log, email_templates
   008_operations.sql          api_pulls, api_call_log
+  009_ingest.sql              ingest_runs, iem_ingest_rejects
 scripts/
   build_reference_tables.py   derives reference CSVs from the raw LSR archive
   zcat-data-check.py          checks coverage zips against the TIGER .dbf

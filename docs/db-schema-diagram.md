@@ -94,6 +94,40 @@
                               └──────────────────────┘
 
 
+ INGEST OPERATIONS
+ ═════════════════
+
+ Free-standing. No user, no storm — nothing here points at IEM_DATA or USERS.
+
+                              ┌──────────────────────┐
+                              │ Ingest_Runs          │
+                              │──────────────────────│
+                              │ PK RUN_ID            │
+                              │    RUN_MODE          │
+                              │    WINDOW_START/_END │
+                              │    STARTED/FINISHED  │
+                              │    ROWS_SEEN         │
+                              │    ROWS_INSERTED     │
+                              │    ROWS_SKIPPED      │
+                              │    RUN_STATUS        │
+                              │ CK window_ordered    │
+                              │ CK complete_has_cnts │
+                              │ CK counts_consistent │
+                              └───────────┬──────────┘
+                                          │ 1
+                                          │
+                                          │ N   FK RUN_ID
+                              ┌───────────┴──────────┐
+                              │ IEM_Ingest_Rejects   │
+                              │──────────────────────│
+                              │ PK REJECT_ID         │
+                              │ FK RUN_ID            │
+                              │    RAW_ROW  (text)   │
+                              │    REASON   (CK enum)│
+                              │    DETAIL            │
+                              └──────────────────────┘
+
+
  Coverage_Zips is reference data and a filter on query output, not a link in
  the storm→match chain. It has no relationship to IEM_DATA. A storm reaches it
  only through ZCTA_Boundaries geometry, and only at read time:
@@ -101,3 +135,11 @@
      iem_data ──spatial──► zcta_boundaries ──equality──► coverage_zips
 
  Enforcement point is the RentCast pull. Ingest stays unfiltered.
+
+ Ingest_Runs is written by the nightly job, not by a person, so it carries no
+ EMP_ID — unlike API_Pulls, which exists to attribute spend to a human. And it
+ has no FK to IEM_DATA: a run is an event in the life of the script, not a
+ property of any report it happened to insert. The rows it did insert are
+ reachable by timestamp, not by key.
+
+ The alert is the ABSENCE of a row. That is why this is a table.

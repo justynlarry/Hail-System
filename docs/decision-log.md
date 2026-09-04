@@ -861,3 +861,228 @@ they are the least trustworthy in the type.
 sanity ceiling in the ingest that flags rather than drops — consistent with
 storing what IEM sends at full fidelity and deriving judgments on read, the same
 principle that keeps zips out of `iem_data`.
+
+---
+
+## 2026-09-04 — Backfill and nightly are two scripts over one parser module
+
+The one-time historical load and the recurring nightly job are separate entry
+points. They share a single parser module; neither has its own copy.
+
+**Why:** the backfill is exercised over five years of data by a person watching
+the output. The nightly job sees roughly forty rows and nobody watches it at
+all. Separate parsers would mean the code that got tested and the code that runs
+unattended are different code, and the difference would surface at 4am on a row
+nobody has ever looked at.
+
+The entry points differ in what they legitimately differ in — window
+computation, how much they log, `run_mode` — and in nothing else.
+
+---
+
+## 2026-09-04 — The nightly ingest gets a run-log table, `ingest_runs`
+
+`api_pulls` was considered and rejected as the place to record this.
+
+**Why not `api_pulls`:** it records *spend*. Every column on it — `emp_id`,
+`estimated_api_calls`, `actual_api_calls` — exists to attribute money to the
+person who chose to spend it. IEM is free and nobody chooses. Widening that
+table to cover a second, unrelated kind of run would make every column on it
+conditionally meaningful, which is how a table stops being readable.
+
+**Why a table rather than journald:** the alert that matters most is the
+*absence* of a run. A script that never fires cannot report that it never fired
+— there is no process to write the log line. In journald, "ran and found
+nothing" and "never ran" both look like silence, and distinguishing them means
+parsing text and reasoning about gaps. In a table it is a query: is there a
+`complete` row whose window covers last night? Everything else the table records
+is secondary to that one question.
+
+Consequence: `ingest_runs` carries **no `emp_id`**, unlike every other
+operational table. The runs are system-initiated, and pointing them at the
+`system` account would imply an actor where there is none.
+
+---
+
+## 2026-09-04 — Malformed rows are rejected, logged, and skipped — not repaired
+
+A row the parser cannot read is written to `iem_ingest_rejects` and the run
+continues. It is never guessed at, patched, or silently dropped.
+
+**Why this is not lossy:** `raw_row` holds the input line verbatim. Nothing is
+destroyed; a rejected row can be read, replayed, or entered by hand. Without
+that column this would be a record that something was thrown away, which is
+worse than no record at all.
+
+**Why it is bounded:** skip-and-continue applies only to an enumerated list of
+reasons, enforced by a CHECK — `field_count_mismatch`, `unknown_report_type`,
+`unparseable_timestamp`, `unparseable_coordinate`, `unparseable_magnitude`. Any
+other exception must terminate the run.
+
+The enumeration is the whole safeguard. A free-text `reason` column would let
+the parser grow a new tolerated failure every time it met something it did not
+understand, and a skip-and-continue loop with an open-ended tolerance is how
+silent data loss happens. Adding a reason takes a migration and a human
+decision, deliberately.
+
+`raw_row` is `TEXT`, not `JSONB`: a row is in the table precisely because it did
+not parse, and the malformation that rejected it is often the same thing that
+would make it invalid JSON. Contrast `listings.raw_payload`, which is `JSONB`
+because that data arrives well-formed.
+
+---
+
+## 2026-09-04 — The 76 unquoted-comma `CITY` rows are rejected, not realigned
+
+76 rows in the archive carry an unquoted comma inside `CITY`, which shifts every
+field after it. They are rejected as `field_count_mismatch`.
+
+**Realignment is possible.** `CITY` is field 9 and is not stored, so the tail of
+the row reads correctly counting from the right, and the extra field could be
+absorbed. This was not a question of feasibility.
+
+**Why not:** all 76 are from 2018, all from GJT, all `MESONET`, all outside
+`coverage_zips`, and all below the magnitude floors. Not one of them would ever
+reach an outreach query. Realigning them means writing a special case into the
+parser — the code that runs unattended every night — that would fire once during
+the backfill and never again, and would sit there afterwards as a branch nobody
+can test and nobody dares remove.
+
+Rejecting them costs 76 rows that were never going to be used, and keeps the
+parser a parser.
+
+**Reverses if** the pattern appears in any row dated after 2018. A recurring
+malformation is a parser problem; a dead one from a single office in a single
+year is a historical artifact.
+
+Note that 2018 is the test, not 2021. The archive floor is `2021-01-01`, so the
+nightly job will never see these 76 rows at all — only a backfill reaching
+further back than the floor does. Those are separate numbers and conflating them
+would set the tripwire three years too late: a 2019 or 2020 occurrence would
+prove the malformation outlived 2018 while sitting below a 2021 threshold and
+raising nothing.
+
+---
+
+## 2026-09-04 — A run that skipped rows still exits 0
+
+`rows_skipped > 0` is an alert condition, raised off the table. It is not a
+non-zero exit status.
+
+**Why:** systemd's job is to answer whether the process ran. That is a different
+question from whether the input was clean, and collapsing the two costs the
+first one. A unit parked in `failed` because the NWS invented a report type
+trains everyone to ignore `systemctl --failed`, and the next time it means
+something real — the host is down, the timer never fired — nobody looks.
+
+So the split is: systemd tracks whether the process ran, and Irin alerts on
+`rows_skipped > 0`. The process succeeded; some of its input did not.
+
+**The Irin half is not Phase 1.** Phase 1 delivers the column and the
+condition — `rows_skipped` is populated and `SELECT ... WHERE rows_skipped > 0`
+answers the question. Nothing is wired to anything, and no alert fires. Until
+that integration exists the check is a query someone runs, which is worth
+stating plainly: an alert nobody has built is not an alert, and this entry
+describes where the signal *will* be read from, not a monitor that is watching.
+
+Expect the first backfill window covering 2018 to report a non-zero
+`rows_skipped`. That is the mechanism working, not a failure.
+
+---
+
+## 2026-09-04 — No partial unique index preventing concurrent runs
+
+A `UNIQUE ... WHERE run_status = 'running'` index was considered and declined.
+Nothing in the database prevents two ingest runs at once.
+
+**Why:** single operator, single host, one 4am timer. The concurrency it guards
+against does not currently have a way to occur.
+
+**And the failure mode is worse than the thing it prevents.** A run that dies
+without updating its status leaves a `running` row behind forever, and that row
+would then block every subsequent night until someone noticed and cleared it by
+hand. That converts a soft problem — two runs overlapping, which the `iem_data`
+natural key already makes harmless — into a hard one: an ingest that has
+silently stopped. The lock outlasts the crash that created it.
+
+**Reverses if** the ingest ever runs on more than one host, or if anyone other
+than the operator can trigger a run. Both change the premise.
+
+---
+
+## 2026-09-04 — The archive floor is a fixed `2021-01-01`, not a rolling five years
+
+The backfill starts at a hard date. It is not "five years back from today."
+
+**Why:** a rolling window does not survive a one-time load. The backfill runs
+once; a window computed relative to `now()` means the boundary of the data
+depends on the day the load happened to be run, which is not a fact anyone will
+remember or be able to reconstruct. A fixed date says what it means — this is
+where ingest started — and matches the existing decision that storm history is
+never trimmed. Nothing walks the floor forward and nothing deletes behind it.
+
+Widening it later is one script run rather than a migration, because the
+`iem_data` natural key makes re-ingest idempotent: a backfill from an earlier
+floor re-reads the overlap and inserts nothing new.
+
+**Related:** *Storm report history is never trimmed* (2026-09-01).
+
+---
+
+## 2026-09-04 — `sql/` files are named for a domain, never a vendor or a phase
+
+Each numbered file is named for the part of the model it defines. Not for the
+external service the data comes from, and not for the phase that happens to
+introduce it.
+
+`009_ingest.sql` is consistent with this. **Ingest is a domain** — the run log
+and the reject log describe the act of loading data, and would still be named
+that if they had been written in Phase 0 or arrived in Phase 4. The name
+survives the schedule that produced it.
+
+**Why not vendor names:** a `010_rentcast.sql` would put a supplier's name on
+our data model. Vendors get replaced; `properties` and `listings` describe
+houses and sales regardless of who sells us the rows, and renaming a file after
+a supplier change is the least of the work but the most visible reminder that
+the name was wrong. RentCast tables belong in a file named for what they hold.
+
+**Why not phase names:** phases are a plan, and plans get reordered. A file
+called `phase3.sql` tells a reader when it was written, which is what `git log`
+is for, and hides what is in it, which is what the name is for. It also makes
+the numbering silently chronological rather than structural — at which point the
+sequence stops grouping anything and is just an ordering.
+
+The numeric prefix already carries load order. The name should carry meaning,
+and the two should be independent enough that a file could be renumbered without
+the name becoming a lie.
+
+---
+
+## 2026-09-04 — `sql/` is a build directory until the backfill runs; additive after
+
+Until the historical backfill has loaded, `sql/001`–`009` are a **build**: the
+database is dropped and recreated from them, and any of them may be edited in
+place. There are no migrations, because there is nothing to migrate.
+
+**Why this is safe right now:** nothing in the database is irreplaceable. Every
+row is either reference data reloadable from `planning/report_types.csv` and the
+TIGER shapefiles, or it is test data. Editing `004` to fix a column is one
+`DROP DATABASE` away from being verified, and pretending otherwise would mean
+carrying migration files for a schema no data has ever touched.
+
+**The line is the backfill, not the first deploy or the first table.** Once five
+years of `iem_data` are loaded, the rows stop being reproducible on demand — the
+IEM query would have to be re-run, the reject decisions re-made, and anything
+downstream that referenced an `iem_id` would be pointing at a different row. At
+that moment `001`–`009` become history rather than source, and every change
+after it is a new file: `010`, `011`, additive, never an edit to what came
+before.
+
+**Practical consequence, worth being blunt about:** the freedom to edit
+`001`–`009` expires on a specific day, and it expires quietly. Nothing in the
+tooling will start refusing edits. The check is "has the backfill run" — and
+after it has, an edit to an early file is a change that the built database will
+not have and no rebuild will reveal, because there will be no rebuild.
+
+**Related:** *Storm report history is never trimmed* (2026-09-01), which is what
+makes the backfill the point of no return rather than one snapshot among many.

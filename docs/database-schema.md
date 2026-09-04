@@ -133,7 +133,7 @@ setting it correctly.
 ---
 # Tables
 
-Fifteen tables. Grouped by which half of the system they belong to.
+Seventeen tables. Grouped by which half of the system they belong to.
 
 ---
 
@@ -775,6 +775,138 @@ take six pages; a rural one takes one.
 
 ---
 
+### `ingest_runs`
+
+One row per execution of an IEM ingest script. One row a night, plus a handful
+of backfill and replay rows — a few thousand rows after a decade.
+
+| Field | Purpose |
+|---|---|
+| `run_id` | Surrogate PK |
+| `run_mode` | `nightly` / `backfill` / `replay` |
+| `window_start`, `window_end` | The UTC range actually requested |
+| `started_at` | Set on insert, before any work |
+| `finished_at` | Null while running |
+| `rows_seen` | Rows the parser read from IEM |
+| `rows_inserted` | Rows that survived the natural key |
+| `rows_skipped` | Rows written to `iem_ingest_rejects` |
+| `run_status` | running / complete / failed |
+| `error_detail` | Why a `failed` run failed |
+
+**This exists because `api_pulls` records spend, not ingest.** The two look
+alike deliberately — a row is written *before* the attempt, so a process that
+dies mid-run leaves something to reconcile against instead of nothing. But they
+answer different questions. `api_pulls` asks what a person chose to spend;
+`ingest_runs` asks whether the machine did its job.
+
+**The alert that matters most is the absence of a row.** A nightly job that
+never fires cannot report its own failure — there is no process to write a log
+line, and nothing in journald distinguishes "ran and found nothing" from "never
+ran." A table makes that a query: *is there a `complete` row whose window covers
+last night?* That is the whole reason this is a table rather than log output.
+
+**No `emp_id`.** Every other operational table records which human is
+responsible. This one is system-initiated, and inventing a `system` actor for it
+would imply a decision nobody made.
+
+**Counts are nullable, not `DEFAULT 0`.** "Not yet counted" and "counted zero"
+are different facts. A crashed run with zero-defaulted counts reads as a clean
+ingest that happened to find no storms, which is exactly the failure this table
+is meant to catch.
+
+The nullability is load-bearing for the constraints, and depends on a detail of
+SQL that is worth stating outright: **a CHECK rejects a row only on definite
+false, and passes on unknown.** While a run is in progress the counts are NULL,
+so `rows_inserted + rows_skipped <= rows_seen` evaluates to NULL and the row is
+accepted. The same constraint bites once the counts are filled in. One
+constraint covers both states, with no `run_status` term in it.
+
+Four named constraints:
+
+| Constraint | Holds that |
+|---|---|
+| `window_ordered` | `window_end > window_start` |
+| `finished_has_timestamp` | Anything not `running` has a `finished_at` — `failed` included |
+| `complete_has_counts` | A `complete` run reported all three counts |
+| `counts_consistent` | `rows_inserted + rows_skipped <= rows_seen` |
+
+`finished_has_timestamp` binding `failed` as well as `complete` is deliberate.
+A run that stopped, stopped at a time, and a `failed` row with a null
+`finished_at` would be indistinguishable from one still in flight — which
+defeats the one question the table exists to answer. The consequence lands on
+the error handler: the `UPDATE` that sets `run_status = 'failed'` must set
+`finished_at` in the same statement, and that code path runs precisely when
+something has already gone wrong. `error_detail` is deliberately *not* tied to
+`run_status` by a constraint for the same reason — a CHECK firing there would
+replace a diagnosable failure with an unlogged one.
+
+`counts_consistent` is `<=`, not `=`, because the remainder is rows the
+`iem_data` natural key discarded as duplicates — the expected majority on a
+nightly run, since consecutive windows overlap. It catches a miscounting bug in
+the script, the same way `distance_within_radius` catches a matcher bug.
+
+**`rows_skipped > 0` is the alert condition, and the run still exits 0.**
+systemd's job is to say whether the process ran; a unit parked in `failed`
+because the NWS invented a report type would train everyone to ignore
+`systemctl --failed`. Expect a non-zero value the first time a window covering
+2018 is ingested — 76 archive rows carry an unquoted comma in `CITY`.
+
+---
+
+### `iem_ingest_rejects`
+
+One row per input line the parser refused. Child of `ingest_runs`; the only
+foreign key either table has.
+
+| Field | Purpose |
+|---|---|
+| `reject_id` | Surrogate PK |
+| `run_id` | FK → `ingest_runs`. Which run threw it out |
+| `raw_row` | The input line, verbatim |
+| `reason` | Closed enumeration, five values |
+| `detail` | The specific instance |
+| `rejected_at` | |
+
+**Skipping a malformed row is only defensible because it is not lossy.**
+`raw_row` holds the bytes as received, so anything dropped can be read,
+replayed, or entered by hand later. Without that column this table would be a
+record that something was discarded, which is worse than useless.
+
+**`raw_row` is `TEXT`, not `JSONB`.** A row is in here precisely because it did
+not parse, and the malformation that rejected it is often the same thing that
+would make it invalid JSON. Storing the raw line keeps the problem visible in
+the record instead of losing it to a second parse. This is the one place the
+schema stores unstructured input on purpose; `listings.raw_payload` is `JSONB`
+because that data arrived well-formed.
+
+**`reason` is a closed `CHECK`, and that is the enforcement point for
+skip-and-continue.** These five and only these five are survivable:
+
+`field_count_mismatch` · `unknown_report_type` · `unparseable_timestamp` ·
+`unparseable_coordinate` · `unparseable_magnitude`
+
+Any other exception must terminate the run. A free-text column would let the
+parser quietly grow a new tolerated failure every time it met something it did
+not understand, which is how a skip-and-continue loop turns into silent data
+loss. Adding a reason takes a migration and a human decision — deliberately.
+
+**`detail` says which case, `reason` says which class.** Which type pair was
+unknown, how many fields were found, what failed to parse. Without it,
+diagnosing a reject means re-parsing `raw_row` by hand.
+
+**No cascade on the foreign key.** Deleting an `ingest_runs` row that has
+rejects attached fails, which is correct: neither table is ever pruned, and a
+reject with no run to explain it is not worth keeping.
+
+Index on `run_id`. `ingest_runs` deliberately has none — one row a night will
+never justify one — but this table is one row per *rejected line*, and the first
+backfill produces 76 in a single run. Postgres indexes the referenced side of a
+foreign key, never the referencing side, so without this the query that actually
+gets typed — "show me the rejects for run N" — has nothing to use. Same shape as
+`api_call_log_pull_id_idx`.
+
+---
+
 # Open questions
 
 Unresolved as of this writing. Each one is cheaper to settle now than after
@@ -891,6 +1023,47 @@ log itself is genuinely insert-only.
 
 **Deferred to Phase 5**, when sending is actually built and the real update
 pattern is known. Deciding it now would be designing against a guess.
+
+---
+
+### 11. Which role sees the operational views?
+
+`ingest_runs` and `iem_ingest_rejects` are the first tables that answer a
+question about *the system* rather than about storms, listings, or sends — and
+the role model has no answer for them.
+
+The three roles are defined as **cost stages**: `viewer` spends nothing, `sender`
+spends money and reputation, `admin` manages users and nothing else. Ingest
+health is not a cost stage. It costs nothing to look at, which by the existing
+logic makes it `viewer` — but "did last night's ingest run" is an operator
+question, and `viewer` is the role given to whoever wants to browse hail.
+
+Each option gives something up:
+
+- **`viewer` sees it.** Consistent with the cost-stage rule, and free data is
+  free data. But it puts `raw_row` — unparsed NWS text, occasionally with a
+  reporter's name or phone number in the remark — in front of the broadest role.
+- **`admin` sees it.** Matches the intuition that this is administration, and
+  breaks the rule that `admin` touches users *and nothing else*. That rule is
+  load-bearing and stated twice; bending it here is how it stops being true.
+- **A fourth role.** Honest about the fact that operational visibility is a
+  different axis from spend, and the cost of a role nobody has asked for.
+- **Nobody, in Phase 1.** The tables are queried with `psql` by the one person
+  who has the server. This is what will happen by default whether or not it is
+  decided.
+
+The last option is the current de facto answer and it is fine for Phase 1, since
+the operator and the entire user base are the same person. **It stops being fine
+at Phase 6**, when someone else starts relying on the storm browser and needs to
+know whether the data behind it is current.
+
+Worth noting the question is broader than these two tables: `api_pulls` and
+`api_call_log` have the same shape and the same unanswered question. They have
+simply never been read by anyone but the operator either.
+
+**Not urgent, but it is the kind of thing that gets decided by whoever writes
+the first page that shows it** — which is the argument for settling it before
+that page exists rather than after.
 
 ---
 
