@@ -1067,6 +1067,34 @@ that page exists rather than after.
 
 ---
 
+### 12. Out-of-state reports are excluded permanently
+
+The ingest queries `state=CO`. A storm report a few miles into Wyoming or
+Nebraska is never fetched, never stored, and therefore never matched.
+
+**No buffer radius recovers this.** The radius widens the search *around a
+stored report*; these reports do not exist in `iem_data` to widen around. Every
+other coverage question in this schema is a read-time tuning parameter — this
+one is decided at ingest, which makes it the exception.
+
+The exposure is real but narrow: hail does not stop at a survey line, and a
+storm three miles into Wyoming that crosses into a covered ZCTA produces
+listings we would want and reports we do not have. `coverage_zips` runs to the
+northern border, so the affected band is the top edge of the territory.
+
+Options, cheapest first: add the neighbouring states to the query and let
+`coverage_zips` keep filtering at read time, which costs storage and nothing
+else; or switch to a bounding box, which is what `docs/data-sources.md` already
+recommends for production and which ignores state lines entirely.
+
+**Same shape as the archive floor** — quiet, permanent, and cheap to widen
+later, because the `iem_data` natural key makes re-ingest idempotent. A wider
+re-run inserts only what is new. The reason to settle it deliberately is that
+nothing will ever surface the gap: a report that was never fetched leaves no
+row, no reject, and no count to notice.
+
+---
+
 # Deliberate non-goals
 
 Recorded so they are not re-litigated as oversights.

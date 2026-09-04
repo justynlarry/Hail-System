@@ -1086,3 +1086,38 @@ not have and no rebuild will reveal, because there will be no rebuild.
 
 **Related:** *Storm report history is never trimmed* (2026-09-01), which is what
 makes the backfill the point of no return rather than one snapshot among many.
+
+---
+
+## 2026-09-04 — CSV, not GeoJSON, for both ingest paths
+
+`fmt=geojson` on the LSR endpoint returns **422**. GeoJSON exists only as a
+static nationwide 24-hour file, which cannot serve the 30-hour overlap the
+nightly job needs and cannot backfill at all.
+
+CSV takes both a window and a date range, so one format covers nightly and
+backfill. Live and archive CSV headers **verified identical**, which is what
+makes a single parser module honest rather than hopeful.
+
+Consequence: the CSV/GeoJSON key-name table in `docs/data-sources.md` is
+reference material, not something the parser needs.
+
+---
+
+## 2026-09-04 — `state=CO`, not a WFO list
+
+The query filters on state. This retires the `wfos=BOU,PUB` trap recorded in
+`docs/data-sources.md` — Colorado is covered by five offices, not two, and
+GLD and CYS carry the northeast corner.
+
+State is one stable parameter instead of a list that is wrong by omission.
+
+**Open consequence, not settled scope:** reports just over the state line are
+excluded permanently, and **no buffer radius recovers them** — the radius widens
+the search around a stored report, and these are never stored. A hailstorm three
+miles into Wyoming that crosses into a covered zip is invisible to this system.
+
+Same shape as the archive floor: quiet, permanent, and cheap to widen later,
+since the `iem_data` natural key makes re-ingest idempotent. Carried as open
+question 12 in `docs/database-schema.md`.
+

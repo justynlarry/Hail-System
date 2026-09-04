@@ -500,6 +500,17 @@ Unresolved. Each is cheaper to settle now than after there is data.
    rule, no `REVOKE`. Every other load-bearing rule in this project lives in the
    database; this one does not. **Deferred to Phase 5**, when the real update
    pattern is known.
+11. **Which role sees the operational views?** The three roles are defined as
+   cost stages, and ingest health is not one — it costs nothing to look at, but
+   "did last night's ingest run" is an operator question, not a browsing one.
+   The de facto answer is `psql` and the operator, which holds only while they
+   are the same person. Applies equally to `api_pulls` and `api_call_log`.
+12. **Out-of-state reports are excluded permanently.** Ingest queries
+   `state=CO`, so a report over the Wyoming or Nebraska line is never fetched.
+   **No buffer radius recovers it** — the radius widens the search around a
+   stored report, and these are never stored. Cheap to widen later (re-ingest is
+   idempotent); the reason to decide it deliberately is that nothing will ever
+   surface the gap — no row, no reject, no count.
 
 Also open and blocked on RBI rather than on us: **DNS access and existing
 subscription status**, needed for the Phase 5 sending identity. The ask starts
