@@ -18,11 +18,11 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/00*.sql` |
 
-Last synced against the repo: **2026-09-04**, commit `9e54c5c` (schema verified
-to build clean on PostgreSQL 16 / PostGIS 3.4; reference data loads; Phase 0's
-"done when" demonstrated). Nothing in `sql/`, `scripts/`, or `docs/` has changed
-since `8989aa2` — the two commits after it are a timesheet and this file's own
-sync line.
+Last synced against the repo: **2026-09-04**, commit `9d7ba2e` (Phase 1 opened;
+`sql/001`–`009` verified to build clean on PostgreSQL 16 / PostGIS 3.4, the
+`ingest_runs` constraint behaviour tested rather than assumed, and
+`scripts/iem_parse.py` added as the shared row parser). Phase 0's "done when"
+was demonstrated under `9e54c5c` and still holds.
 
 ---
 
