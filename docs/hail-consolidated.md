@@ -18,9 +18,11 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/00*.sql` |
 
-Last synced against the repo: **2026-09-03**, commit `8989aa2` (schema verified
+Last synced against the repo: **2026-09-04**, commit `9e54c5c` (schema verified
 to build clean on PostgreSQL 16 / PostGIS 3.4; reference data loads; Phase 0's
-"done when" demonstrated).
+"done when" demonstrated). Nothing in `sql/`, `scripts/`, or `docs/` has changed
+since `8989aa2` — the two commits after it are a timesheet and this file's own
+sync line.
 
 ---
 
@@ -70,15 +72,25 @@ Built so far:
 - `docker/loader.Dockerfile` — the loader image. Stock `postgis/postgis` plus
   the `postgis` client package, which is what carries `shp2pgsql`.
 - Reference data loads: 37 report types, 33,791 ZCTAs, both at SRID 4326.
+  `report_sources` has DDL but **no seed** — `load_reference.sh` loads
+  `report_types` and `zcta_boundaries` only. Populating it is Phase 1 work,
+  since nothing reads a confidence tier until there is ingested data to rate.
 - **Initial `roof_relevant` set chosen:** 12 of 37 types, 5 with magnitude
   floors (HAIL 1.00″, TSTM WND GST / NON-TSTM WND GST 58 mph, HIGH SUST WINDS
   40 mph, HEAVY SNOW 6″). That is 17.8% of the archive — 24,124 of 135,856
   reports. `SNOW` is excluded and that single call is what set the scale: with
   it, the set would be 82.9%.
 - **Phase 0's "done when" is met** — zip codes within 5 miles of an arbitrary
-  lat/lon, 21 zips around the office point in ~22 ms.
+  lat/lon, 21 zips around the office point in ~22 ms. That number depends on a
+  second index: the buffer query casts to `geography` to work in metres, and a
+  cast is evaluated per row, so the plain `geom` GiST index cannot serve it.
+  `zcta_boundaries` therefore carries two — `zcta_boundaries_geom_gix` on `geom`
+  for geometry predicates, and `zcta_boundaries_geog_gix` on `(geom::geography)`
+  for distance. Without the second one the same query is a parallel sequential
+  scan at 17.9 seconds.
 
-Not built: the IEM ingest, any web UI, any RentCast client, any sending path.
+Not built: the IEM ingest, any web UI, any RentCast client, any sending path,
+any `report_sources` seed.
 **Do not build ahead of the current phase.**
 
 **Known gap, not today's problem:** `.gitignore` line 2 is `*.csv`, which means
@@ -183,8 +195,8 @@ ASCII ER diagram is in `docs/db-schema-diagram.md`.
 ### Reference
 | Table | What it holds |
 |---|---|
-| `report_sources` | 36 rows. What a reporting source is and how far to trust it — `confidence_tier`, `is_automated`. **No FK from `iem_data`**: source is free text typed at NWS offices and an FK would break the nightly ingest. A lookup, joined on `report_source_norm`, never a constraint. |
-| `zcta_boundaries` | ~33,000 Census ZCTA polygons, nationwide, EPSG 4326. `centroid` is generated with `ST_PointOnSurface`, not `ST_Centroid`, so it cannot fall outside a C-shaped zip. Loaded once, never written to. **No foreign keys** — joined spatially. |
+| `report_sources` | 36 rows when seeded; **currently empty** — the table exists, the loader does not fill it. What a reporting source is and how far to trust it — `confidence_tier`, `is_automated`. **No FK from `iem_data`**: source is free text typed at NWS offices and an FK would break the nightly ingest. A lookup, joined on `report_source_norm`, never a constraint. |
+| `zcta_boundaries` | ~33,000 Census ZCTA polygons, nationwide, EPSG 4326. `centroid` is generated with `ST_PointOnSurface`, not `ST_Centroid`, so it cannot fall outside a C-shaped zip. Two GiST indexes, one on `geom` and one on `(geom::geography)` — see §2. Loaded once, never written to. **No foreign keys** — joined spatially. |
 | `coverage_zips` | RBI's service territory, 183 ZCTAs. Keyed on `zcta5` with an FK to `zcta_boundaries`. Ours, and it will be edited. |
 
 ### Property side
@@ -282,6 +294,13 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
   "admin" conventionally means "can do everything."
 - **Whole-country boundary data, not Colorado-only.** The spatial index makes
   national scope free to query.
+- **No `qualifiers` table — deferred, not rejected.** Three codes, and the
+  glossary text available for them (`reference/qualifiers.csv`) says `M` means
+  instrument-measured, which is the trap in §7 stated backwards. Loading it
+  would promote a known-false claim to a UI label. `iem_data.report_qualifier`
+  keeps its CHECK and a column comment instead. If the UI ever shows qualifier
+  to a user, the caveat needs a home and the table is reasonable — but its text
+  gets written from the trap, not imported from that CSV.
 - **Legacy DNC lists are imported before any send**, marked
   `source = 'legacy_import'`, with `added_by` set to the system account's
   `emp_id`. Keeping the source distinguishable stops imported rows from drowning
@@ -322,6 +341,11 @@ These have already bitten. Do not re-discover them.
   truncates the query string — curl succeeds and returns the wrong data.
 - **Colorado WFOs are `BOU`, `PUB`, `GJT`, plus `GLD` and `CYS` on the borders.**
   `wfos=BOU,PUB` silently drops the northeast corner.
+- **The `SNOW` magnitude tail is not one storm.** Maximum 175 inches, with a
+  handful above 60 — seasonal or storm-total accumulations entered against a
+  single LSR. Five reports out of 85,049. Inert today because `SNOW` is
+  `roof_relevant = FALSE`, but a magnitude floor on SNOW would admit exactly
+  these rows first. Look at this before that flag is ever flipped.
 
 ### Census TIGER
 - **TIGER ships in NAD83 (EPSG 4269); IEM and RentCast are WGS84 (4326).**
@@ -329,6 +353,10 @@ These have already bitten. Do not re-discover them.
   join runs, returns too few rows, and never errors.
 - A shapefile is a **set**: `.shp`, `.dbf`, `.prj`, `.shx`. Extracting only the
   `.shp` fails.
+- **An index only helps the expression it is built on.** A GiST index on `geom`
+  does nothing for a predicate written against `geom::geography`. The schema
+  looked right and the query was 855× slower than it should have been, with no
+  error anywhere. Check the plan, not the index list.
 - **ZCTAs are not USPS zips.** PO-box-only and institutional zips have no
   polygon. A hand-built 193-entry coverage list had 10 such entries; the FK to
   `zcta_boundaries` is what makes them uninsertable rather than periodically
@@ -389,10 +417,11 @@ docs/
   data-sources.md             IEM / TIGER / RentCast endpoints and traps
   phases.md                   phases 0–7 with a "done when" for each
   command-ref.md              Justyn's own Docker/Postgres/type notes
+  schema-review.md            re-runnable review prompt for sql/ + the loader
 sql/
   001_extensions.sql          postgis
   002_users.sql               users
-  003_reference.sql           report_types, zcta_boundaries
+  003_reference.sql           report_types, report_sources, zcta_boundaries
   004_weather.sql             iem_data, coverage_zips
   005_property.sql            properties, listings, realtors, dnc_list
   006_matching.sql            storm_listing_matches
