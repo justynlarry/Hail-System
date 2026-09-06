@@ -1121,3 +1121,31 @@ Same shape as the archive floor: quiet, permanent, and cheap to widen later,
 since the `iem_data` natural key makes re-ingest idempotent. Carried as open
 question 12 in `docs/database-schema.md`.
 
+---
+
+## 2026-09-06 — An out-of-domain `QUALIFIER` ends the run; it is not a reject
+
+`iem_data.report_qualifier` keeps its `CHECK (report_qualifier IN ('M','E','U'))`
+— settled 2026-09-03. The parser now validates against the same three codes and
+raises `QualifierDomainError` on anything else.
+
+**Not a sixth reject reason.** A reject discards the whole storm report, and
+`QUALIFIER` tracks reporter training rather than instrument measurement — losing
+a hail report over it would be the wrong trade.
+
+**Not silently nulled either.** A fourth code is not a bad row, it is a changed
+upstream domain, and nulling would turn that into no signal at all.
+
+So it ends the run, which is what the skip-and-continue rule already says about
+anything outside the five enumerated reasons. The raise adds nothing but
+legibility: the run stops on a sentence naming the field, the value, and the
+report's timestamp, WFO and type code, rather than on an `IntegrityError` thrown
+from the middle of a batch `INSERT` that does not say which row caused it.
+
+Fixing an occurrence means confirming the new code with IEM and migrating the
+CHECK — a human decision, which is the same reasoning that keeps the reject
+enumeration closed.
+
+**Related:** *A `qualifiers` table is deferred, not rejected* (2026-09-03), which
+is why the domain is three codes and not a lookup table.
+

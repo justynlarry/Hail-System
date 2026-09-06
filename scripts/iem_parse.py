@@ -43,12 +43,38 @@ RESTKEY = "_extra"
 IEM_NULL_MARKER = "None"
 VALID_FORMAT = "%Y%m%d%H%M"
 
+# iem_data.report_qualifier carries CHECK (report_qualifier IN ('M','E','U')),
+# kept deliberately -- there are only three codes (decision log, 2026-09-03).
+#
+# A fourth value is therefore not a bad row, it is a changed upstream domain,
+# and it ends the run.  That is already the rule: skip-and-continue covers the
+# five enumerated reasons and nothing else.  This check exists only so the run
+# ends on a sentence naming the field and the value, instead of on an
+# IntegrityError raised from the middle of a batch INSERT with no clue which
+# of the rows carried it.
+#
+# NOT a reject reason on purpose.  A sixth reason would discard an entire storm
+# report over this field, and QUALIFIER tracks reporter training rather than
+# instrument measurement -- SOURCE is the confidence signal.  Silently nulling
+# it would be worse still: it would convert a changed upstream contract into no
+# signal at all.
+QUALIFIER_DOMAIN = frozenset({"M", "E", "U"})
+
+
+class QualifierDomainError(ValueError):
+    """IEM sent a QUALIFIER outside ('M','E','U').
+
+    Ends the run by design.  Fixing it means confirming the new code with IEM
+    and migrating the CHECK on iem_data.report_qualifier -- a human decision,
+    not something the parser should absorb.
+    """
+
 def _clean(value):
     """ Strip whitespace; return None for an empty result.
 
     NULL and empty string are different facts, and only one of them is
     correct about a field IEM didn't populate.  UGC arrives empty for
-    for every report prior to July 2022.
+    every report prior to July 2022.
 
     """
 
@@ -63,22 +89,31 @@ def parse_row(row, valid_types):
 
     Args:
         row:	a dict from csv.DictReader constructed with
-                restkey=RESTKEY.  Do no pass restval -- a missing key
-                that defaults to None creates short row detection.
+                restkey=RESTKEY.  Do NOT pass restval -- the short-row
+                check below tests for None, so a missing key that
+                defaults to anything else defeats that detection.
         valid_types: a set of (report_type, report_text) tuples, loaded once
                  from report_types at the start of a run
 
     Returns:
         (record, reject) where exactly one is None.
 
-        record:  dict of iem_data column names to values ready to insert.
+        record:  dict of iem_data column names to values.  NOT complete:
+                 iem_data.ingested_at is NOT NULL with no DEFAULT, and is
+                 not set here because this function has no clock and no
+                 opinion about when the run started.  The caller must add
+                 it or the INSERT fails.
         reject:  dict with 'reason' and 'detail'. The caller adds raw_row
                  and run_id -> this function never sees the original line.
 
     Raises:
-        Nothing by design.  An expected problem comes back as a reject.
-        Caller's row loop therefore needs no try/except, and any exception
-        that does excape is a bug that should end run.
+        QualifierDomainError if IEM sends a QUALIFIER outside ('M','E','U').
+        This is deliberate and is the one exception: it means the upstream
+        domain changed, which is not a bad row and not something to skip.
+
+        Otherwise nothing, by design.  An expected problem comes back as a
+        reject.  The caller's row loop therefore needs no try/except, and
+        any other exception that escapes is a bug that should end the run.
     """
 
     overflow = row.get(RESTKEY)
@@ -156,6 +191,15 @@ def parse_row(row, valid_types):
             "detail": f"({report_type!r}, {report_text!r}) not in report_types",
         }
 
+    # ------ Qualifier ------
+    qualifier = _clean(row["QUALIFIER"])
+    if qualifier is not None and qualifier not in QUALIFIER_DOMAIN:
+        raise QualifierDomainError(
+            f"QUALIFIER={qualifier!r} outside {sorted(QUALIFIER_DOMAIN)}; "
+            f"VALID={row['VALID'].strip()!r} "
+            f"TYPECODE={report_type!r} WFO={row['WFO'].strip()!r}"
+        )
+
     # ------ Build Record ------
     record = {
         "utc_datetime": utc_datetime,
@@ -166,7 +210,7 @@ def parse_row(row, valid_types):
         "report_text": report_text,
         "nws_issuer": _clean(row["WFO"]),
         "report_source": _clean(row["SOURCE"]),
-        "report_qualifier": _clean(row["QUALIFIER"]),
+        "report_qualifier": qualifier,
         "county": _clean(row["COUNTY"]),
         "state": _clean(row["STATE"]),
         "nws_geo_code": _clean(row["UGC"]),
