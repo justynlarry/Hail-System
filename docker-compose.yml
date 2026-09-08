@@ -1,0 +1,56 @@
+
+services:
+
+  postgis:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: hail_admin
+      POSTGRES_PASSWORD: ${POSTGIS_ROOT_PASSWORD}
+      POSTGRES_DB: weather-property
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql:/sql:ro,Z
+    networks:
+      - hailnet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hail_admin -d weather-property"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  ingest:
+    build:
+      context: .
+      dockerfile: docker/ingest.Dockerfile
+    env_file:
+      - .env
+    networks:
+      - hailnet
+    depends_on:
+      postgis:
+        condition: service_healthy
+    profiles: ["tools"]
+
+  loader:
+    build:
+      context: .
+      dockerfile: docker/loader.Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - .:/repo:ro,Z
+    networks:
+      - hailnet
+    depends_on:
+      postgis:
+      condition: service_healthy
+    profiles: ["tools"]
+
+
+networks:
+  hailnet
+
+volumes:
+  pgdata:
+
