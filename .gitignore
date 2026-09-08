@@ -1,13 +1,39 @@
+# ---- Credentials --------------------------------------------------------
+# .env does not exist yet; the Docker Compose stack will bring one. Ignoring
+# a file only works before it is tracked, so the rule lands first.
 .env
+.env.*
+!.env.example
+.pgpass
+*.pem
+*.key
 
+# ---- Real people's data -------------------------------------------------
+# This remote is PUBLIC. DNC and unsubscribe lists hold live email addresses.
+# Belt and braces: reference/ is ignored wholesale below, but these patterns
+# catch a copy dropped anywhere else in the tree.
+*[Dd][Nn][Cc]*
+*[Uu]nsubscribe*
 
+# ---- Derived data -------------------------------------------------------
+# reference/ is entirely regenerable by scripts/build_reference_tables.py
+# (report_types.csv, qualifiers.csv, sources.csv, data_quality_notes.md,
+# seed_*.sql) and is also where the DNC lists live. Never track it.
+# NOTE: planning/report_types.csv is a DIFFERENT file -- the hand-curated
+# seed with the roof_relevant judgments -- and IS tracked.
+reference/
+
+# ---- Large public downloads ---------------------------------------------
+# Raw IEM LSR archive and Census TIGER shapefiles. ~1.5G, re-downloadable.
 data/
 *.zip
 *.shp
+*.shx
 *.dbf
-*shx
+*.prj
+*.cpg
 
+# ---- Noise --------------------------------------------------------------
 __pycache__/
 *.pyc
-reference/
-tiger-line-census/
+.~lock.*#
