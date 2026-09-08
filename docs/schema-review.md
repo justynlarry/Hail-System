@@ -28,14 +28,17 @@ Build from empty against a scratch database and report exactly where it fails:
 
 ```bash
 createdb hail_scratch
+# 010_roles.sql reads both passwords from the environment and aborts with a
+# nonzero status if either is missing or empty, so export them for the loop.
+export HAIL_INGEST_PASSWORD=scratch HAIL_APP_PASSWORD=scratch
 for f in sql/*.sql; do
     echo "--- $f"
     psql -v ON_ERROR_STOP=1 -d hail_scratch -f "$f" || { echo "FAILED: $f"; break; }
 done
 ```
 
-Then confirm with `\dt` (expect 14 tables) and `\d <table>` on each. Drop the
-scratch database when done.
+Then confirm with `\dt` (expect 17 tables, plus PostGIS's own `spatial_ref_sys`)
+and `\d <table>` on each. Drop the scratch database when done.
 
 If PostgreSQL is not reachable on this host, say so rather than guessing — the
 database runs in Docker (`postgis/postgis`) and `psql` may not be installed

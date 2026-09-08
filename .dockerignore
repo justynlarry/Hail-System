@@ -1,0 +1,52 @@
+# The Docker client tars this entire directory and ships it to the daemon
+# BEFORE the first instruction in any Dockerfile runs.  Both services use
+# `context: .`, so the repo root is that context.
+#
+# So this file is about what never leaves the host, not only about image size.
+# A path excluded here is never read, never transmitted, and never sits in a
+# daemon-side build cache -- which is the actual reason .env and reference/ are
+# listed, and it holds even though no Dockerfile contains a COPY that would
+# have picked them up.  "No COPY reaches it" is not the same guarantee.
+
+# ---- Version control ----------------------------------------------------
+.git
+.gitignore
+
+# ---- Credentials --------------------------------------------------------
+# The `!` re-inclusion is ORDER-DEPENDENT: Docker applies the last matching
+# rule, so !.env.example has to come after the .env* rule that would otherwise
+# swallow it.  Reversing these two lines silently drops the example file.
+.env
+.env.*
+!.env.example
+
+# ---- Real people's data -------------------------------------------------
+# DNC and unsubscribe lists hold live email addresses.  Nothing in an image
+# needs them and they must not reach the daemon.
+reference/
+
+# ---- Large public downloads ---------------------------------------------
+# ~1.5G of TIGER shapefiles and the IEM archive.  The loader reads these at RUN
+# time through the ./:/repo bind mount, never from the image, so excluding them
+# costs nothing and is the single biggest win in this file.
+data/
+
+# ---- Not needed to build or run -----------------------------------------
+docs/
+planning/
+tests/
+
+# ---- Python bytecode and caches -----------------------------------------
+# The `**/` prefix is REQUIRED and its absence is silent.  A .dockerignore
+# pattern is matched against the whole relative path and `*` does not cross a
+# `/`, so a bare `__pycache__/` matches ONLY a directory at the context root --
+# scripts/__pycache__/ sails straight through and lands in the image.  Verified:
+# without these prefixes, three .pyc files were present in the build context.
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.venv/
+**/venv/

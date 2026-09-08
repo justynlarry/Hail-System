@@ -1,11 +1,23 @@
 
+# Credentials reach containers through per-service `environment:` blocks, never
+# through `env_file:`.  This is deliberate and the two are NOT interchangeable:
+# env_file injects EVERY key in .env into the container, so an ingest container
+# would hold POSTGIS_ROOT_PASSWORD and HAIL_APP_PASSWORD no matter what else was
+# set.  A per-service override changes what PGPASSWORD *is*; it does not remove
+# the other secrets sitting beside it in the environment.  Enumerating the keys
+# is the only form that actually gives each service just its own identity.
+#
+# The ${VAR} references are resolved by Compose ON THE HOST, reading ./.env at
+# parse time, so no secret is written into this file or into any image.
+# `:?` makes a missing value a startup error rather than a blank password.
+
 services:
 
   postgis:
     image: postgis/postgis:16-3.4
     environment:
       POSTGRES_USER: hail_admin
-      POSTGRES_PASSWORD: ${POSTGIS_ROOT_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGIS_ROOT_PASSWORD:?POSTGIS_ROOT_PASSWORD is not set -- copy .env.example to .env}
       POSTGRES_DB: weather-property
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -19,12 +31,19 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # Nightly ingest and backfill.  Connects as hail_ingest, whose grants in
+  # sql/010_roles.sql stop at iem_data / ingest_runs / iem_ingest_rejects.
+  # It is given NO other password, so a bug here cannot reach send_log even
+  # by trying: there is no credential in this container that would open it.
   ingest:
     build:
       context: .
       dockerfile: docker/ingest.Dockerfile
-    env_file:
-      - .env
+    environment:
+      PGHOST: postgis
+      PGDATABASE: weather-property
+      PGUSER: hail_ingest
+      PGPASSWORD: ${HAIL_INGEST_PASSWORD:?HAIL_INGEST_PASSWORD is not set -- see .env.example}
     networks:
       - hailnet
     depends_on:
@@ -32,25 +51,33 @@ services:
         condition: service_healthy
     profiles: ["tools"]
 
+  # Provisioning identity.  Connects as hail_admin because it runs DDL and
+  # loads reference data, and it carries the two role passwords because it is
+  # the thing that RUNS sql/010_roles.sql and sets them:
+  #   docker compose run --rm loader psql -v ON_ERROR_STOP=1 -f /repo/sql/010_roles.sql
   loader:
     build:
       context: .
       dockerfile: docker/loader.Dockerfile
-    env_file:
-      - .env
+    environment:
+      PGHOST: postgis
+      PGDATABASE: weather-property
+      PGUSER: hail_admin
+      PGPASSWORD: ${POSTGIS_ROOT_PASSWORD:?POSTGIS_ROOT_PASSWORD is not set -- copy .env.example to .env}
+      HAIL_INGEST_PASSWORD: ${HAIL_INGEST_PASSWORD:?HAIL_INGEST_PASSWORD is not set -- see .env.example}
+      HAIL_APP_PASSWORD: ${HAIL_APP_PASSWORD:?HAIL_APP_PASSWORD is not set -- see .env.example}
     volumes:
       - .:/repo:ro,Z
     networks:
       - hailnet
     depends_on:
       postgis:
-      condition: service_healthy
+        condition: service_healthy
     profiles: ["tools"]
 
 
 networks:
-  hailnet
+  hailnet:
 
 volumes:
   pgdata:
-

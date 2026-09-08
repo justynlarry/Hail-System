@@ -1149,3 +1149,80 @@ enumeration closed.
 **Related:** *A `qualifiers` table is deferred, not rejected* (2026-09-03), which
 is why the domain is three codes and not a lookup table.
 
+
+---
+
+## 2026-09-08 — `set -euo pipefail` is the standard for shell in this repo
+
+Every `.sh` under `scripts/` begins with `set -euo pipefail`. Currently that is
+one file, `load_reference.sh`, which already had it; this entry is written so
+the second script does not have to rediscover the reasoning.
+
+`pipefail` is the part that earned the entry. A pipeline's exit status is the
+status of its *last* command, so `set -e` alone does not see a failure anywhere
+upstream of the final `|`. This is not theoretical here — it already happened.
+The precondition check was:
+
+    psql ... "SELECT 1 FROM information_schema.tables WHERE ..." \
+        | grep -q 1 || fail "table $t missing -- run sql/001..003 first"
+
+A wrong `PGPASSWORD` made `psql` fail, `grep` saw no input and exited non-zero,
+and the script reported a **missing table**. That sends you to `sql/001..003` to
+debug a problem that is in `.env`. The rule the project already states —
+failures should be loud, silent partial success is worse than an error — is
+violated just as badly by a loud error naming the wrong cause.
+
+The load itself depends on this directly: `shp2pgsql | psql` will happily leave
+`psql` exiting 0 on empty input when `shp2pgsql` could not read the shapefile.
+Verified both ways in the loader container: with `pipefail` the script stops at
+the pipeline; with `set -eu` alone it prints the shapefile error and *continues
+to the next line*.
+
+Two corollaries, both of which cost more than they look:
+
+- **Never infer a command's success from its output.** Capture the status
+  separately, then test the output. `found=$(psql ...) || fail ...` and then
+  `[[ "$found" == 1 ]]` are two different questions and need two checks.
+- **`-u` is a real constraint, not decoration.** It turns a typo'd variable into
+  an error instead of an empty string. Every expansion in a script carrying `-u`
+  needs a default (`${VAR:-fallback}`) or a guaranteed assignment above it.
+
+**Related:** *Malformed rows are rejected, logged, and skipped — not repaired*
+(2026-09-04), which is the same principle one layer up: the failure is recorded
+as what it actually was, not converted into something more convenient.
+
+---
+
+## 2026-09-08 — A sixth reject reason for `QUALIFIER` was reconsidered and declined
+
+Revisited today as `invalid_qualifier`, with the argument that one bad character
+should not cost an entire run. Declined. The 2026-09-06 entry stands unchanged
+and no code was written.
+
+Two corrections to the case for it, recorded because they are what settled it:
+
+**The harm it described does not occur.** The proposal assumed an out-of-domain
+qualifier reaches the `INSERT` and takes the transaction down. It does not.
+`scripts/iem_parse.py` validates against `QUALIFIER_DOMAIN` and raises
+`QualifierDomainError` *before* the record is built — which is exactly the work
+done on 2026-09-06, so that the run ends on a sentence naming the field, the
+value, `VALID`, `TYPECODE` and `WFO`, rather than on an `IntegrityError` from
+the middle of a batch.
+
+**The run ends either way.** This is the part worth keeping in mind if it comes
+up again. A reject does not rescue the run; it discards the report and keeps
+going, and a changed upstream domain will be on many rows, not one. So the trade
+is not "lose a run" versus "lose a row" — it is "stop and look at it" versus
+"quietly discard storm reports until someone reads a count." The first is what
+the project already asks for: failures should be loud.
+
+The reject enumeration stays closed at five. The friction of a migration is the
+mechanism that keeps skip-and-continue from drifting into swallowing whatever
+goes wrong, and that friction only works if it is actually felt.
+
+**Reversal condition** is unchanged from 2026-09-06: confirm the new code with
+IEM, then migrate the CHECK on `iem_data.report_qualifier`. A fourth code is a
+changed contract and a human decision, not a row to skip.
+
+**Related:** *An out-of-domain `QUALIFIER` ends the run; it is not a reject*
+(2026-09-06) and *A `qualifiers` table is deferred, not rejected* (2026-09-03).

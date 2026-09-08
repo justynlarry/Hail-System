@@ -9,15 +9,22 @@
 
 set -euo pipefail
 
-DB="${PGDATABASE:-hail}"
+# Defaults match docker-compose.yml: the service is named postgis (which is its
+# hostname on hailnet), the database is weather-property, the superuser is
+# hail_admin.  This script runs DDL -- staging tables, DROP TABLE -- so it needs
+# the superuser, not hail_app.  PGPASSWORD is set by the loader service's own
+# environment: block in docker-compose.yml, which is the only place it appears.
+DB="${PGDATABASE:-weather-property}"
 # planning/report_types.csv, not reference/report_types.csv.  They are not
 # duplicates: this one is the curated 6-column seed matching the table, the
 # reference/ one is the 11-column statistical extract that build_reference_
 # tables.py generates as evidence.  Loading the wrong one loads statistics.
 CSV="${CSV:-planning/report_types.csv}"
-SHP="${SHP:-data/raw/tiger/tl_2025_us_zcta520.shp}"
-export PGHOST="${PGHOST:-db}"
-export PGUSER="${PGUSER:-hail}"
+# TIGER unzips into a directory named after the archive; the .shp is one level
+# down, not beside it.
+SHP="${SHP:-data/raw/tiger/tl_2025_us_zcta520/tl_2025_us_zcta520.shp}"
+export PGHOST="${PGHOST:-postgis}"
+export PGUSER="${PGUSER:-hail_admin}"
 
 
 # TIGER sends NAD83 -> Everything in this DB is WGS84
@@ -42,10 +49,19 @@ for ext in dbf shx prj; do
     [[ -f "${SHP%.shp}.${ext}" ]] || fail "missing ${SHP%.shp}.${ext}"
 done
 
+# Check the CONNECTION before checking for tables.  Piping psql into grep throws
+# psql's exit status away -- the pipeline's status is grep's -- so a wrong
+# password or an unreachable host produced no output, grep found nothing, and
+# the script blamed a missing table.  That sends you to sql/001..003 to debug a
+# problem that is actually in .env.
+psql -v ON_ERROR_STOP=1 -d "$DB" -qtAc 'SELECT 1' >/dev/null \
+    || fail "cannot connect to database '$DB' as '$PGUSER' at '$PGHOST' -- check PGPASSWORD in .env"
+
 for t in report_types zcta_boundaries; do
-    psql -v ON_ERROR_STOP=1 -d "$DB" -qtAc \
-        "SELECT 1 FROM information_schema.tables WHERE table_name = '$t'" \
-        | grep -q 1 || fail "table $t missing -- run sql/001..003 first"
+    found=$(psql -v ON_ERROR_STOP=1 -d "$DB" -qtAc \
+        "SELECT 1 FROM information_schema.tables WHERE table_name = '$t'") \
+        || fail "query failed while checking for table $t"
+    [[ "$found" == 1 ]] || fail "table $t missing -- run sql/001..003 first"
 done
 
 log "database=$DB"

@@ -128,7 +128,7 @@ system, `.shx` index. All must be present. Extracting only the `.shp` fails.
 
 ```bash
 shp2pgsql -I -s 4269:4326 -D tl_2025_us_zcta520.shp public.zcta_boundaries \
-  | psql -d hailsystem
+  | psql -d weather-property
 ```
 
 - `-s 4269:4326` reprojects NAD83 → WGS84. **TIGER ships in 4269; IEM and

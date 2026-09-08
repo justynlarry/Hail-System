@@ -161,6 +161,16 @@ def parse_row(row, valid_types):
                 "reason": REASON_BAD_COORDINATE,
                 "detail": f"{field}={raw!r} is not a number",
             }
+        # Decimal() accepts 'NaN' and 'Infinity' as valid input -- they do NOT
+        # raise InvalidOperation above.  This check has to come BEFORE the range
+        # test, because an ordered comparison against a Decimal NaN signals
+        # InvalidOperation and that exception would escape parse_row entirely,
+        # ending the run on a row that should have been a clean reject.
+        if not value.is_finite():
+            return None, {
+                "reason": REASON_BAD_COORDINATE,
+                "detail": f"{field}={raw!r} is not a finite number",
+            }
         if not -limit <= value <= limit:
             return None, {
                 "reason": REASON_BAD_COORDINATE,
@@ -180,6 +190,15 @@ def parse_row(row, valid_types):
                 "reason": REASON_BAD_MAGNITUDE,
                 "detail": f"MAG={raw_mag!r} is neither a number nor "
                           f"{IEM_NULL_MARKER!r}",
+            }
+        # Same Decimal('NaN') / Decimal('Infinity') gap as the coordinates, but
+        # with a worse ending: magnitude has no range check to fall through to,
+        # and Postgres NUMERIC accepts NaN, so an unfiltered value lands in
+        # iem_data.magnitude and reads as a real measurement forever after.
+        if not magnitude.is_finite():
+            return None, {
+                "reason": REASON_BAD_MAGNITUDE,
+                "detail": f"MAG={raw_mag!r} is not a finite number",
             }
 
     # ------ Report Type ------

@@ -37,7 +37,7 @@ COMMENT ON COLUMN users.role IS
 
 INSERT INTO users (user_name, emp_fname, emp_lname, emp_email,
 		password_hash, role, is_active, created_by)
-VALUES ('system', 'System', 'Account', 'system@rbit.invalid',
+VALUES ('system', 'System', 'Account', 'system@rbi.invalid',
 	'!', 'system', FALSE, NULL);
 
 

@@ -15,14 +15,23 @@ disagrees with the files it summarizes, the source files win:
 | Why a choice was made | `docs/decision-log.md` |
 | External APIs, endpoints, field traps | `docs/data-sources.md` |
 | What gets built when | `docs/phases.md` |
+| Building the server from bare metal | `docs/server-setup.md` |
 | Rules for AI assistants | `CLAUDE.md` |
-| Actual DDL | `sql/00*.sql` |
+| Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-09-04**, commit `9d7ba2e` (Phase 1 opened;
-`sql/001`–`009` verified to build clean on PostgreSQL 16 / PostGIS 3.4, the
-`ingest_runs` constraint behaviour tested rather than assumed, and
-`scripts/iem_parse.py` added as the shared row parser). Phase 0's "done when"
-was demonstrated under `9e54c5c` and still holds.
+Last synced against the repo: **2026-09-08**, commit `cd5a84f` **plus an
+uncommitted working tree** (see §2). Since the previous sync at `9d7ba2e` the
+project gained a running container stack, database roles and grants, a
+per-service credential split, and a server build document. `sql/001`–`010` were
+re-verified end to end against `postgis/postgis:16-3.4` on this date, and the
+reference load was run twice to confirm idempotence.
+
+**One documented conflict, unresolved.** `CLAUDE.md` says *"Currently in
+planning — nothing is built yet"* and *"Phase 0 — groundwork."* That is no
+longer true: the schema builds, the stack runs, and reference data loads. This
+file and `docs/phases.md` treat Phase 1 as open. `CLAUDE.md` is the authority
+for rules but has drifted on status; it needs a one-line update. Flagged, not
+silently overridden.
 
 ---
 
@@ -52,67 +61,102 @@ probably ever. ~135,856 storm report rows for ten years of Colorado.
 
 ## 2. Where the project actually stands
 
-**Phase 1 — IEM ingest. Phase 0 is closed; nothing is running yet.**
+**Phase 1 — IEM ingest. Phase 0 is closed. Nothing runs unattended yet.**
 
-Built so far:
+### Infrastructure — new since the last sync, and verified on 2026-09-08
 
-- Repo structure, `.gitignore` (excludes `data/`, `reference/`, `*.csv`, shapefiles)
+- **`docker-compose.yml`** defines three services on one network, `hailnet`:
+  - `postgis` — stock `postgis/postgis:16-3.4`, the only long-running service.
+    Named volume `pgdata`; `./sql` mounted read-only at `/sql`.
+  - `ingest` — `python:3.12-slim` + `psycopg[binary]==3.2.3`. Behind the
+    `tools` profile, so `docker compose up` does not start it.
+  - `loader` — the postgis image plus the `postgis` client package for
+    `shp2pgsql`. Repo bind-mounted read-only at `/repo`. Also `tools`.
+- **The schema is not auto-applied.** `./sql` is mounted at `/sql`, *not* at
+  `/docker-entrypoint-initdb.d`, so `docker compose up` yields an empty
+  database. Applying it is an explicit step, and order matters — `010` last.
+- **Reference load verified end to end:** 37 report types, 33,791 ZCTAs (527
+  Colorado), all at SRID 4326. Re-run inserts 0 rows.
+
+### Database roles — `sql/010_roles.sql`
+
+Three Postgres login roles, unrelated to `users.role`, which is the
+application's own login model enforced in Python:
+
+| Role | Used by | Reach |
+|---|---|---|
+| `hail_admin` | `postgis` superuser, and the `loader` service | Everything. Runs DDL and provisioning. |
+| `hail_ingest` | the `ingest` service | `SELECT` on `report_types`; `SELECT, INSERT` on `iem_data` and `iem_ingest_rejects`; `SELECT, INSERT, UPDATE` on `ingest_runs`. No `DELETE` anywhere. |
+| `hail_app` | the future web UI | The three cost stages: read reference and weather, write property/matching/sending/operations. No `DELETE` anywhere. |
+
+**Verified by trying it, not by reading the grants.** From inside the ingest
+container as `hail_ingest`: `send_log`, `dnc_list`, `email_templates` and
+`realtors` all refuse with *permission denied*; `DELETE FROM iem_data` refuses;
+`report_types`, `iem_data` and `ingest_runs` are reachable. The grants in `010`
+are load-bearing, so they are worth re-testing whenever a table is added — the
+convention recorded in that file is that **every SQL file creating a table ends
+with the grants for it**.
+
+### Credentials
+
+`.env` holds **secrets only** — three passwords. Every non-secret (hostname,
+database name, which role each service connects as) lives in
+`docker-compose.yml`. Credentials reach containers through per-service
+`environment:` blocks and **never** through `env_file:`, because `env_file`
+injects every key in `.env` into every container that uses it — an override
+changes what `PGPASSWORD` *is* but leaves the other secrets sitting beside it.
+Enumerating keys per service is the only form where a container holds just its
+own identity, which is what makes `010`'s grants meaningful rather than
+decorative. Compose resolves `${VAR}` on the host at parse time, so no secret is
+written into the YAML or any image, and every reference carries `:?` so a
+missing value is a startup error rather than a blank password.
+
+The database is `weather-property`. The hyphen means it must be double-quoted in
+any literal SQL that names it, which is why `010` grants `CONNECT` through
+`format('... %I ...', current_database())` instead.
+
+### Built before this sync, unchanged
+
 - Full written design: schema, decision log, data-source notes, phase plan
-- Boundary data downloaded — TIGER 2025 national ZCTA and county shapefiles
-  under `data/raw/tiger/`
-- Ten years of Colorado LSR CSV pulled to `data/lsr_201601010000_202608312359.csv`
-- Reference data derived: `reference/report_types.csv`, `sources.csv`,
-  `qualifiers.csv`, `data_quality_notes.md` — statistical evidence, not load
-  input. The curated seed the loader actually reads is
-  `planning/report_types.csv`.
-- `scripts/build_reference_tables.py`, `scripts/zcat-data-check.py`,
-  `scripts/load_reference.sh`
-- `sql/001`–`sql/009` — DDL for all seventeen tables. **Reviewed, fixed, and
-  verified to build clean** on PostgreSQL 16 / PostGIS 3.4.
-- `docker/loader.Dockerfile` — the loader image. Stock `postgis/postgis` plus
-  the `postgis` client package, which is what carries `shp2pgsql`.
-- Reference data loads: 37 report types, 33,791 ZCTAs, both at SRID 4326.
-  `report_sources` has DDL but **no seed** — `load_reference.sh` loads
-  `report_types` and `zcta_boundaries` only. Populating it is Phase 1 work,
-  since nothing reads a confidence tier until there is ingested data to rate.
-- **Initial `roof_relevant` set chosen:** 12 of 37 types, 5 with magnitude
-  floors (HAIL 1.00″, TSTM WND GST / NON-TSTM WND GST 58 mph, HIGH SUST WINDS
-  40 mph, HEAVY SNOW 6″). That is 17.8% of the archive — 24,124 of 135,856
-  reports. `SNOW` is excluded and that single call is what set the scale: with
-  it, the set would be 82.9%.
-- **Phase 0's "done when" is met** — zip codes within 5 miles of an arbitrary
+- TIGER 2025 national ZCTA and county shapefiles under `data/raw/tiger/`
+- Ten years of Colorado LSR CSV at `data/lsr_201601010000_202608312359.csv`
+- Derived reference CSVs in `reference/` — statistical evidence, not load input
+- `sql/001`–`009`: DDL for all seventeen tables
+- `scripts/build_reference_tables.py`, `zcat-data-check.py`, `load_reference.sh`
+- `scripts/iem_parse.py` — the shared row parser both ingest scripts will import
+- **Initial `roof_relevant` set:** 12 of 37 types, 5 with magnitude floors
+  (HAIL 1.00″, TSTM WND GST / NON-TSTM WND GST 58 mph, HIGH SUST WINDS 40 mph,
+  HEAVY SNOW 6″). 17.8% of the archive — 24,124 of 135,856 reports. `SNOW` is
+  excluded and that single call set the scale: with it, the set would be 82.9%.
+- **Phase 0's "done when" met 2026-09-03** — zips within 5 miles of an arbitrary
   lat/lon, 21 zips around the office point in ~22 ms. That number depends on a
   second index: the buffer query casts to `geography` to work in metres, and a
   cast is evaluated per row, so the plain `geom` GiST index cannot serve it.
-  `zcta_boundaries` therefore carries two — `zcta_boundaries_geom_gix` on `geom`
-  for geometry predicates, and `zcta_boundaries_geog_gix` on `(geom::geography)`
-  for distance. Without the second one the same query is a parallel sequential
-  scan at 17.9 seconds.
+  `zcta_boundaries` carries two — `zcta_boundaries_geom_gix` on `geom` for
+  geometry predicates, `zcta_boundaries_geog_gix` on `(geom::geography)` for
+  distance. Without the second, the same query is a parallel sequential scan at
+  17.9 seconds.
 
-Phase 1 so far:
+### Resolved since last sync
 
-- `sql/009_ingest.sql` — `ingest_runs` and `iem_ingest_rejects`, the run log
-  and reject log for the nightly ingest. Verified to build clean on top of
-  `001`–`008`, and the constraint behaviour tested rather than assumed:
-  a `running` row with null counts passes `counts_consistent`, a `complete`
-  row missing any count or `finished_at` is rejected, an unenumerated
-  `reason` is rejected, and deleting a run with rejects attached fails.
+- **The `*.csv` gitignore gap is closed.** `planning/report_types.csv` — which
+  carries the `roof_relevant` business judgments — is now tracked. `.gitignore`
+  ignores `reference/` wholesale plus DNC/unsubscribe name patterns instead of a
+  blanket `*.csv`.
 
-Not built: the ingest scripts themselves, any web UI, any RentCast client,
-any sending path, any `report_sources` seed.
+### Not built
+
+The ingest scripts themselves, any web UI, any RentCast client, any sending
+path, any `report_sources` seed, and **any test suite at all** — there is no
+`tests/` directory, no test runner, and no test dependency. Deliberate: test
+infrastructure is not Phase 0/1 groundwork. `iem_parse.py` is pure and takes its
+`valid_types` as an argument, so it is already shaped for testing with no
+fixtures and no database whenever that becomes phase-appropriate.
+
 **Do not build ahead of the current phase.**
 
-**Known gap, not today's problem:** `.gitignore` line 2 is `*.csv`, which means
-`planning/report_types.csv` is untracked. That file holds the `roof_relevant`
-judgments — business decisions about which storm types trigger outreach — and it
-exists on one machine with no backup and no history. Narrowing `*.csv` to the two
-DNC files is the fix; the DNC lists are the only CSVs that genuinely cannot enter
-the repo. Deferred deliberately, not overlooked.
-
-**Phase 0's "done when"** — a spatial query returning the zip codes within 5
-miles of an arbitrary lat/lon — was met on 2026-09-03. **Phase 1 is done when**
-the nightly ingest has run unattended and `ingest_runs` shows a `complete` row
-for each night.
+**Phase 1 is done when** a spreadsheet of affected zip codes can be produced for
+a real storm from last month, and the nightly job has run unattended for a week.
 
 ---
 
@@ -139,7 +183,7 @@ say so rather than implementing it.
    Every pull is user-initiated and logged to `api_pulls` / `api_call_log`.
 7. **Nothing is deleted anywhere.** Suppressions are marked removed, users
    deactivated, templates superseded, territory rows retired. Every audit column
-   points at a row that must still exist.
+   points at a row that must still exist. No role holds `DELETE` on any table.
 
 ---
 
@@ -188,7 +232,9 @@ hangs off that table.
 
 **Three stages, each narrower and more expensive than the last:** free browse →
 paid pull → human send. Exploration happens entirely on free data; cost is
-incurred only after a person has deliberately narrowed scope.
+incurred only after a person has deliberately narrowed scope. The `hail_app`
+grants in `sql/010_roles.sql` are grouped by these same three stages, so the
+privilege list can be read against this diagram.
 
 ---
 
@@ -207,7 +253,7 @@ ASCII ER diagram is in `docs/db-schema-diagram.md`.
 | Table | What it holds |
 |---|---|
 | `report_sources` | 36 rows when seeded; **currently empty** — the table exists, the loader does not fill it. What a reporting source is and how far to trust it — `confidence_tier`, `is_automated`. **No FK from `iem_data`**: source is free text typed at NWS offices and an FK would break the nightly ingest. A lookup, joined on `report_source_norm`, never a constraint. |
-| `zcta_boundaries` | ~33,000 Census ZCTA polygons, nationwide, EPSG 4326. `centroid` is generated with `ST_PointOnSurface`, not `ST_Centroid`, so it cannot fall outside a C-shaped zip. Two GiST indexes, one on `geom` and one on `(geom::geography)` — see §2. Loaded once, never written to. **No foreign keys** — joined spatially. |
+| `zcta_boundaries` | 33,791 Census ZCTA polygons, nationwide, EPSG 4326. `centroid` is generated with `ST_PointOnSurface`, not `ST_Centroid`, so it cannot fall outside a C-shaped zip. Two GiST indexes, one on `geom` and one on `(geom::geography)` — see §2. Loaded once, never written to. **No foreign keys** — joined spatially. |
 | `coverage_zips` | RBI's service territory, 183 ZCTAs. Keyed on `zcta5` with an FK to `zcta_boundaries`. Ours, and it will be edited. |
 
 ### Property side
@@ -215,7 +261,7 @@ ASCII ER diagram is in `docs/db-schema-diagram.md`.
 |---|---|
 | `properties` | One row per physical house, PK `rentcast_id`. Only facts still true in five years (year built, yes; price, no). |
 | `listings` | One row per *time a house was for sale*. Surrogate `listing_id`, natural key `(rentcast_id, list_date)`. Carries an agent **snapshot** plus `raw_payload` JSONB. Its `list_agent_email_norm` and `list_office_email_norm` are snapshots and neither is unique — many listings sharing one agent is the normal case. |
-| `realtors` | Resolved agent identities, keyed on `email_norm` (UNIQUE). Also carries `office_email_norm`, **not** unique — a brokerage address is shared by every agent in the office. Exists for frequency capping and send history. |
+| `realtors` | Resolved agent identities, keyed on `email_norm` (UNIQUE, partial: `WHERE email_norm IS NOT NULL`). Also carries `office_email_norm`, **not** unique — a brokerage address is shared by every agent in the office. Exists for frequency capping and send history. |
 | `dnc_list` | Suppression list, keyed on `email_norm`. Answers one question: may we send to this address? |
 
 ### The hinge
@@ -236,13 +282,13 @@ ASCII ER diagram is in `docs/db-schema-diagram.md`.
 | `api_pulls` | One row per user-initiated RentCast pull. Records `estimated_api_calls` vs. `actual_api_calls` side by side; `api_status` tracks the run. `iem_id` is nullable — a pull need not be tied to one storm. |
 | `api_call_log` | One row per zip within a pull. Powers the "this zip was pulled recently" warning. |
 | `ingest_runs` | One row per execution of an IEM ingest script (`nightly` / `backfill` / `replay`). Records the UTC window actually requested plus `rows_seen` / `rows_inserted` / `rows_skipped`. No `emp_id` — system-initiated. Written before the work starts, like `api_pulls`. **The alert that matters is the absence of a row**, which is why it is a table and not log output. |
-| `iem_ingest_rejects` | One row per input line the parser refused. FK → `ingest_runs`. `raw_row` holds the line verbatim (TEXT, not JSONB — it is here because it did not parse), so rejecting is not lossy. `reason` is a closed five-value CHECK; anything outside it must terminate the run rather than be skipped. |
+| `iem_ingest_rejects` | One row per input line the parser refused. FK → `ingest_runs`. `raw_row` holds the line verbatim (TEXT, not JSONB — it is here because it did not parse), so rejecting is not lossy. `reason` is a closed **five**-value CHECK; anything outside it must terminate the run rather than be skipped. |
 
 ### Key strategy
 
 - **Surrogate `BIGINT` PKs** on every table we control: `iem_id`, `listing_id`,
   `realtor_id`, `match_id`, `send_id`, `template_id`, `emp_id`, `pull_id`,
-  `api_log_id`, `dnc_id`.
+  `api_log_id`, `dnc_id`, `run_id`, `reject_id`.
 - **Natural keys enforced as unique constraints** on every table ingesting
   external data. `iem_data` is unique on
   `(utc_datetime, latitude, longitude, report_text, magnitude)` — this is what
@@ -266,6 +312,9 @@ ASCII ER diagram is in `docs/db-schema-diagram.md`.
   type pair or neither — Postgres FKs default to `MATCH SIMPLE`, which skips the
   check entirely when any column in the key is null, so a half-set pair would
   otherwise slip past the composite FK unverified.
+- **A CHECK fails only on definite false, never on unknown.** `ingest_runs`
+  relies on this: `counts_consistent` passes while a run is in flight because
+  the counts are still null, so one constraint covers both states.
 
 ---
 
@@ -304,16 +353,31 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
   double-sends before the first clears.
 - **`admin` manages users and nothing else** — cannot touch templates,
   suppression, or sending. This needs enforcing explicitly in code, because
-  "admin" conventionally means "can do everything."
+  "admin" conventionally means "can do everything." Note that all three
+  application roles share one *database* role, `hail_app`; the split between
+  them is Python's job, not Postgres's.
 - **Whole-country boundary data, not Colorado-only.** The spatial index makes
   national scope free to query.
 - **No `qualifiers` table — deferred, not rejected.** Three codes, and the
   glossary text available for them (`reference/qualifiers.csv`) says `M` means
   instrument-measured, which is the trap in §7 stated backwards. Loading it
-  would promote a known-false claim to a UI label. `iem_data.report_qualifier`
-  keeps its CHECK and a column comment instead. If the UI ever shows qualifier
-  to a user, the caveat needs a home and the table is reasonable — but its text
-  gets written from the trap, not imported from that CSV.
+  would promote a known-false claim to a UI label.
+- **An out-of-domain `QUALIFIER` ends the run; it is not a reject** (2026-09-06,
+  reaffirmed 2026-09-08). `iem_parse.py` validates against `{M, E, U}` and
+  raises `QualifierDomainError` before building the record, so the run stops on
+  a sentence naming the field, value, `VALID`, `TYPECODE` and `WFO` rather than
+  on an `IntegrityError` from mid-batch. A fourth code is a **changed upstream
+  contract**, not a bad row: rejecting would discard whole storm reports over a
+  field that only tracks reporter training, and nulling would convert a changed
+  contract into no signal at all. The run ends either way — a reject does not
+  rescue it — so the real trade is "stop and look" versus "quietly discard until
+  someone reads a count." **The reject enumeration stays closed at five.**
+- **Malformed rows are rejected, logged, and skipped — not repaired**, and only
+  for the five enumerated reasons. The friction of a migration to add a sixth is
+  the mechanism that stops skip-and-continue from drifting into swallowing
+  whatever goes wrong.
+- **`set -euo pipefail` is the standard for shell in this repo** (2026-09-08).
+  See §7 for the incident that produced it.
 - **Legacy DNC lists are imported before any send**, marked
   `source = 'legacy_import'`, with `added_by` set to the system account's
   `emp_id`. Keeping the source distinguishable stops imported rows from drowning
@@ -324,7 +388,7 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
 
 ---
 
-## 7. Known data traps
+## 7. Known traps
 
 These have already bitten. Do not re-discover them.
 
@@ -332,6 +396,17 @@ These have already bitten. Do not re-discover them.
 - **`MAG` contains the literal string `None`** as its null marker — 3,353 of
   135,856 rows. Coerced to 0 it produces 629 magnitude-zero flash floods and
   549 magnitude-zero tornadoes.
+- **`Decimal()` accepts `'NaN'` and `'Infinity'`.** Neither raises
+  `InvalidOperation`, so a naive parse passes them straight through. Two
+  distinct consequences, and `iem_parse.py` now guards both with `is_finite()`
+  *before* any range test:
+  - For coordinates, an **ordered comparison against a `Decimal` NaN signals
+    `InvalidOperation`** — so `-90 <= value <= 90` raises, and that exception
+    escapes `parse_row` and ends the whole run on a row that should have been a
+    clean reject.
+  - For magnitude there is no range check to fall through to, and **Postgres
+    `NUMERIC` accepts `NaN`** (confirmed against `NUMERIC(6,2)`), so the value
+    lands in `iem_data.magnitude` and reads as a real measurement forever after.
 - **Units come from the type name, never the value range.** Range inference was
   actively wrong: tornado EF numbers read as inches, fog visibility as inches,
   heat index as mph.
@@ -365,7 +440,8 @@ These have already bitten. Do not re-discover them.
   Reproject at load (`shp2pgsql -s 4269:4326`). Mixing them fails silently — the
   join runs, returns too few rows, and never errors.
 - A shapefile is a **set**: `.shp`, `.dbf`, `.prj`, `.shx`. Extracting only the
-  `.shp` fails.
+  `.shp` fails. TIGER also unzips into a **directory named after the archive**,
+  so the `.shp` is one level below where the archive sits.
 - **An index only helps the expression it is built on.** A GiST index on `geom`
   does nothing for a predicate written against `geom::geography`. The schema
   looked right and the query was 855× slower than it should have been, with no
@@ -388,6 +464,47 @@ These have already bitten. Do not re-discover them.
 - **New Construction is not worth outreach** — a brand-new roof is not a hail
   claim.
 
+### Shell, Docker, and psql
+
+These are newer and cost real time on 2026-09-08.
+
+- **A pipeline's exit status is its last command's.** `set -e` alone does not
+  see an upstream failure. The precondition check `psql ... | grep -q 1 || fail
+  "table missing"` reported a **missing table** when the real cause was a wrong
+  password — sending the reader to `sql/001..003` to debug a problem in `.env`.
+  `set -o pipefail` is what catches it, and `shp2pgsql | psql` depends on it
+  directly: `psql` exits 0 on empty input when `shp2pgsql` could not read the
+  file. **Never infer a command's success from its output** — capture the status
+  separately, then test the output.
+- **`.dockerignore` patterns do not cross `/`.** A bare `__pycache__/` matches
+  only a directory at the **context root**, so `scripts/__pycache__/` sailed
+  through into the build context. Nested matches need `**/`. This fails
+  silently. Likewise the `!` re-inclusion is **order-dependent**:
+  `!.env.example` must follow the `.env.*` rule that would otherwise swallow it.
+- **The whole build context is tarred and shipped to the daemon before the first
+  instruction runs.** Without a `.dockerignore` this repo sent **1.6 GB** every
+  build, because `data/` is in the context even though no `COPY` touches it.
+  With one: 36 kB. This is about what never leaves the host, not only image size.
+- **psql does not interpolate `:'var'` inside dollar-quoted text.** A
+  `DO $$ ... :'password' ... $$` block reaches the server verbatim and is a
+  syntax error *even when the variable is set correctly*. Carry the answer
+  across that boundary with `set_config`, never the value.
+- **An undefined psql variable is not an empty string.** `:'nosuchvar'` is
+  passed through literally and is a syntax error. But an env var that is **set
+  and empty** leaves the variable defined and interpolates cleanly — which is
+  what a half-filled `.env` copied from `.env.example` produces. Guard for empty,
+  not just undefined.
+- **`\quit` exits psql with status 0.** A `for f in sql/*.sql` loop reads a
+  skipped file as a passing one. Fail with a `RAISE` under `ON_ERROR_STOP`.
+- **`shp2pgsql -d` is not `-c`.** `-d` emits a `DropGeometryColumn` for a stage
+  table that does not exist on a first run, which raises and, under
+  `ON_ERROR_STOP=1`, kills the load before it starts.
+- **The postgis image ships only the server-side extension.** `shp2pgsql` lives
+  in the separate `postgis` client package. The base image clears
+  `/var/lib/apt/lists`, so a bare `apt-get install` reports "unable to locate
+  package" and looks exactly like the package does not exist. The `apt-get
+  update` is the whole fix.
+
 ---
 
 ## 8. External sources
@@ -395,25 +512,34 @@ These have already bitten. Do not re-discover them.
 | Source | Cost | Notes |
 |---|---|---|
 | **IEM Local Storm Reports** | Free, no key, no documented rate limit | Realtime GeoJSON/CSV endpoint for the nightly job (`hours=N`); archive endpoint back to 2003 for backfill and replay (`sts`/`ets`). Schema page: `https://mesonet.agron.iastate.edu/request/gis/lsrs.phtml` |
-| **Census TIGER/Line 2025** | Free | National ZCTA (`tl_2025_us_zcta520.zip`, ~33k rows) and county (`tl_2025_us_county.zip`, ~3.2k rows) files. No state split exists for ZCTA. |
+| **Census TIGER/Line 2025** | Free | National ZCTA (`tl_2025_us_zcta520.zip`, 33,791 rows) and county (`tl_2025_us_county.zip`, ~3.2k rows) files. No state split exists for ZCTA. |
 | **RentCast** | **Paid**, monthly lookup allowance | `GET /listings/sale`, paginated to 500, sorted by `lastSeenDate` desc. Docs: `https://developers.rentcast.io/reference/property-listings-schema` (append `.md` for markdown). |
 | **Email provider** | TBD | Must *explicitly permit* outreach to non-opt-in recipients — several providers terminate for it. Needs bounce/complaint webhooks returning a matchable message id, plus throttling for warmup, on a separate sending subdomain. |
 
 **Prior history worth knowing:** a contractor-built predecessor used Mailchimp
 and led to blacklisting. Whether RBI's main domain took reputation damage is an
-open Phase 0 question; if so, remediation is its own line item.
+open question; if so, remediation is its own line item.
 
 ---
 
 ## 9. Stack and environment
 
 - Dell OptiPlex on RBI's office network, running **Proxmox**
-- **Rocky Linux** VM (plus a PBS VM for backup)
-- **PostgreSQL + PostGIS**
-- **Python** backend, stdlib and boring dependencies preferred
-- Web UI reachable via **Cloudflare tunnel**
+- **Rocky Linux** VM (plus a PBS VM for backup) — build steps in
+  `docs/server-setup.md`: static IP via `nmcli`, Podman removed and Docker CE
+  installed from the CentOS repo, system timezone **UTC**, persistent journald
+  capped at 500M, `firewalld` left closed because the UI arrives through the
+  tunnel
+- **PostgreSQL 16 + PostGIS 3.4**, in Docker, database `weather-property`
+- **Python 3.12** backend, stdlib and boring dependencies preferred;
+  `psycopg[binary]==3.2.3` is currently the only dependency
+- Web UI reachable via **Cloudflare tunnel** (outbound-only, so no inbound
+  ports — but note Docker writes iptables rules directly and a published `-p`
+  bypasses firewalld's zones)
+- **Tailscale** for host-to-host file movement
 - Deployed with **Ansible** where practical
 - Monitoring through an existing instance called **Irin**
+- SELinux: bind mounts carry `:Z`
 
 ---
 
@@ -422,6 +548,11 @@ open Phase 0 question; if so, remediation is its own line item.
 ```
 CLAUDE.md                     rules for AI assistants — read first
 README.md                     currently empty
+docker-compose.yml            postgis + ingest + loader on hailnet
+.dockerignore                 keeps data/ and secrets out of the build context
+.env                          gitignored — three passwords, nothing else
+.env.example                  same keys, no values
+requirements.txt              psycopg[binary]==3.2.3
 docs/
   hail-consolidated.md        this file
   database-schema.md          field-level data model, 17 tables, open questions
@@ -429,11 +560,12 @@ docs/
   decision-log.md             dated, append-only; supersede, never rewrite
   data-sources.md             IEM / TIGER / RentCast endpoints and traps
   phases.md                   phases 0–7 with a "done when" for each
+  server-setup.md             bare-metal Rocky build, step by step
   command-ref.md              Justyn's own Docker/Postgres/type notes
   schema-review.md            re-runnable review prompt for sql/ + the loader
-sql/
+sql/                          apply in order; 010 must be last
   001_extensions.sql          postgis
-  002_users.sql               users
+  002_users.sql               users (+ the bootstrap system account)
   003_reference.sql           report_types, report_sources, zcta_boundaries
   004_weather.sql             iem_data, coverage_zips
   005_property.sql            properties, listings, realtors, dnc_list
@@ -441,16 +573,35 @@ sql/
   007_sending.sql             send_log, email_templates
   008_operations.sql          api_pulls, api_call_log
   009_ingest.sql              ingest_runs, iem_ingest_rejects
+  010_roles.sql               hail_ingest / hail_app roles, grants, passwords
 scripts/
   build_reference_tables.py   derives reference CSVs from the raw LSR archive
   zcat-data-check.py          checks coverage zips against the TIGER .dbf
+  iem_parse.py                shared row parser; both ingest scripts import it
   load_reference.sh           idempotent loader: report_types CSV + ZCTA shapefile
-reference/                    gitignored — derived statistical CSVs, DNC lists
 docker/
-  loader.Dockerfile           postgis image + the postgis client package
+  ingest.Dockerfile           python:3.12-slim + psycopg, runs as non-root
+  loader.Dockerfile           postgis image + the pinned postgis client package
+reference/                    gitignored — derived statistical CSVs, DNC lists
 data/                         gitignored — raw LSR archive, TIGER shapefiles
 planning/                     spreadsheets, coverage zip list, working notes
-  report_types.csv            THE curated seed for report_types (gitignored)
+  report_types.csv            THE curated seed for report_types (tracked)
+```
+
+**No `tests/` directory exists.** See §2.
+
+### Running it
+
+```bash
+cp .env.example .env          # then fill in three passwords
+docker compose up -d          # postgis only; ingest/loader are profile "tools"
+
+# apply the schema — NOT automatic, and 010 must come last
+docker compose run --rm loader \
+  bash -c 'for f in /repo/sql/*.sql; do psql -v ON_ERROR_STOP=1 -f "$f" || exit 1; done'
+
+# load reference data — idempotent, safe to re-run
+docker compose run --rm loader bash /repo/scripts/load_reference.sh
 ```
 
 ---
@@ -496,25 +647,30 @@ Unresolved. Each is cheaper to settle now than after there is data.
    `realtor_id` stops meaning "who we emailed" and starts meaning "who this was
    about."
 10. **Should append-only be enforced by the database?** `send_log` and
-   `email_templates` are append-only by convention and in code — no trigger, no
-   rule, no `REVOKE`. Every other load-bearing rule in this project lives in the
-   database; this one does not. **Deferred to Phase 5**, when the real update
-   pattern is known.
-11. **Which role sees the operational views?** The three roles are defined as
-   cost stages, and ingest health is not one — it costs nothing to look at, but
-   "did last night's ingest run" is an operator question, not a browsing one.
-   The de facto answer is `psql` and the operator, which holds only while they
-   are the same person. Applies equally to `api_pulls` and `api_call_log`.
+    `email_templates` are append-only by convention and in code. `sql/010` now
+    withholds `DELETE` from every role, which closes part of this — but `UPDATE`
+    is still granted on both tables, so nothing stops a body being rewritten in
+    place. **Deferred to Phase 5**, when the real update pattern is known.
+11. **Which role sees the operational views?** The three application roles are
+    defined as cost stages, and ingest health is not one — it costs nothing to
+    look at, but "did last night's ingest run" is an operator question, not a
+    browsing one. `hail_app` currently holds `SELECT` on `ingest_runs` and
+    `iem_ingest_rejects`, which is a provisional answer, not a decided one.
 12. **Out-of-state reports are excluded permanently.** Ingest queries
-   `state=CO`, so a report over the Wyoming or Nebraska line is never fetched.
-   **No buffer radius recovers it** — the radius widens the search around a
-   stored report, and these are never stored. Cheap to widen later (re-ingest is
-   idempotent); the reason to decide it deliberately is that nothing will ever
-   surface the gap — no row, no reject, no count.
+    `state=CO`, so a report over the Wyoming or Nebraska line is never fetched.
+    **No buffer radius recovers it** — the radius widens the search around a
+    stored report, and these are never stored. Cheap to widen later (re-ingest
+    is idempotent); the reason to decide it deliberately is that nothing will
+    ever surface the gap — no row, no reject, no count.
+13. **`report_sources` has DDL but no seed.** Nothing reads a confidence tier
+    until there is ingested data to rate, so this is Phase 1 work — but it is
+    the one table whose absence is invisible, because a `LEFT JOIN` against an
+    empty lookup returns NULL tiers and the UI shows "unrated" rather than
+    erroring.
 
 Also open and blocked on RBI rather than on us: **DNS access and existing
 subscription status**, needed for the Phase 5 sending identity. The ask starts
-in Phase 0 because DNS changes at a small company can sit in an inbox for weeks.
+early because DNS changes at a small company can sit in an inbox for weeks.
 
 ---
 
@@ -526,6 +682,8 @@ Recorded so they are not re-litigated as oversights.
 - No confidence score or percentage — a tiered label showing its inputs instead.
 - No automatic sending, ever.
 - No trimming of `iem_data`.
+- No sixth reject reason. The enumeration is closed at five, and the friction of
+  a migration is the point.
 - No "currently being viewed" locking. Four people in one office talk to each
   other; `send_log` and the frequency cap prevent double-*sending*, and
   "last contacted" per row covers the case that matters.
@@ -543,11 +701,15 @@ Recorded so they are not re-litigated as oversights.
 For any assistant contributing to this project:
 
 - **Plan first, build second.** Say what you intend to do before doing it.
-- **Do not build ahead of the current phase.** Phase 0 now.
+- **Do not build ahead of the current phase.**
 - **Ask before installing anything not already present.** Prefer stdlib and
   boring dependencies.
 - **Ingest scripts must be idempotent and safe to re-run.**
-- **Failures should be loud.** Silent partial success is worse than an error.
+- **Failures should be loud.** Silent partial success is worse than an error —
+  and so is a loud error naming the wrong cause. See the pipefail incident in §7.
+- **Verify, do not assert.** The grants in `sql/010` were checked by connecting
+  as each role and trying a forbidden statement, not by reading the file. Do the
+  same for anything load-bearing.
 - **Comment the *why*, not the *what*** — especially around the traps in §7.
 - **Do not silently refactor working code, and do not add unrequested features.**
 - **Justyn is teaching himself** Bash, Docker, Python, and Postgres as this is
