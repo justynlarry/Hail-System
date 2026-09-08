@@ -27,7 +27,7 @@ sudo dnf install -y dnf-plugins-core
 
 sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 
-sudo dnf install -y docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 sudo systemctl enable --now docker
 
@@ -35,7 +35,7 @@ sudo usermod -aG docker $USER
 
 newgrp docker
 
-docker run -rm hello-world
+docker run --rm hello-world
 ```
 
 **Set timezone to UTC - The system timestamps are all in UTC, part of the system's job is to convert to America/Denver**
@@ -72,9 +72,9 @@ git config --global user.name "justynlarry"
 
 git config --global user.email "justynlarry@gmail.com"
 
-git config --global init.devaultBranch main
+git config --global init.defaultBranch main
 
-ssh-keygen -t ed25519 -c "<server-name>"
+ssh-keygen -t ed25519 -C "<server-name>"
 
 cat ~/.ssh/id_ed25519.pub
 ```
