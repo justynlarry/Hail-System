@@ -82,3 +82,22 @@ cat ~/.ssh/id_ed25519.pub
 Paste that public key into GitHub → Settings → SSH and GPG keys. Then `ssh -T git@github.com` to confirm
 — it will say you've authenticated but shell access is denied, which is success.
 
+## Install Tailscale:
+```
+curl -fsSL https://tailscale.com/install.sh | sh
+```
+
+### *Not necessary on EVERY server, but to move files untracked in git*
+
+```
+# dry run first — shows what would transfer, moves nothing
+rsync -avn --exclude='__pycache__/' --exclude='*.pyc' \
+  ~/Hail-System/data ~/Hail-System/reference \
+  larryman@devvm:~/Hail-System/
+
+# then for real
+rsync -avP --exclude='__pycache__/' --exclude='*.pyc' \
+  ~/Hail-System/data ~/Hail-System/reference \
+  larryman@devvm:~/Hail-System/
+```
+

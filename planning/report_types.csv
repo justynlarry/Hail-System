@@ -1,0 +1,38 @@
+REPORT_TYPE,REPORT_TEXT,MAG_UNIT,UNIT_CONFIDENCE,ROOF_RELEVANT,MIN_MAGNITUDE
+S,SNOW,inches,certain,N,
+N,NON-TSTM WND GST,mph,certain,Y,58
+S,HEAVY SNOW,inches,certain,Y,6
+R,HEAVY RAIN,inches,certain,N,
+H,HAIL,inches,certain,Y,1.00
+R,RAIN,inches,certain,N,
+G,TSTM WND GST,mph,certain,Y,58
+7,EXTR WIND CHILL,,unknown,N,
+F,FLASH FLOOD,none,inferred,N,
+T,TORNADO,,unknown,Y,
+J,DENSE FOG,,unknown,N,
+D,TSTM WND DMG,none,inferred,Y,
+O,NON-TSTM WND DMG,none,inferred,Y,
+6,EXTREME COLD,,unknown,N,
+J,FOG,,unknown,N,
+7,WIND CHILL,none,inferred,N,
+x,DEBRIS FLOW,none,inferred,N,
+A,HIGH SUST WINDS,mph,certain,Y,40
+E,FLOOD,none,inferred,N,
+2,DUST STORM,none,inferred,N,
+Z,BLIZZARD,none,inferred,N,
+C,FUNNEL CLOUD,none,inferred,N,
+5,FREEZING RAIN,inches,certain,Y,
+I,EXCESSIVE HEAT,,unknown,N,
+U,WILDFIRE,none,inferred,N,
+W,LANDSPOUT,none,inferred,Y,
+2,BLOWING DUST,none,inferred,N,
+6,FREEZE,none,inferred,N,
+L,LIGHTNING,none,inferred,N,
+q,SNOW SQUALL,none,inferred,N,
+I,EXTREME HEAT,,unknown,N,
+B,DOWNBURST,none,inferred,Y,
+s,SLEET,inches,certain,N,
+M,MARINE TSTM WIND,mph,certain,N,
+s,HEAVY SLEET,inches,certain,N,
+5,SNOW/ICE DMG,none,inferred,Y,
+V,AVALANCHE,none,inferred,N,
