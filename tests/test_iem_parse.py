@@ -126,7 +126,7 @@ class TestCleanRow(unittest.TestCase):
 class TestMagnitudeNullMarker(unittest.TestCase):
     """IEM's null marker for MAG is the literal string None, not empty field."""
 
-    def test_none_markert_becomes_none(self):
+    def test_none_marker_becomes_none(self):
         line = with_field(CLEAN_HAIL, MAG, "None")
         record, reject = parse_row(row_from(line), VALID_TYPES)
         self.assertIsNone(reject)
