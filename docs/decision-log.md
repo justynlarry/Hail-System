@@ -1541,3 +1541,144 @@ inside the territory would be lost the same way, which is the argument for
 
 **Related:** the same row is the evidence for the `SOURCE` truncation entry
 below, and for why `report_sources` has no foreign key from `iem_data`.
+
+---
+
+## 2026-09-09 — `coverage_zips` is loaded; the 10 unmatched zips get a second, independent explanation
+
+`coverage_zips` was empty until today. `config/coverage_zips.txt` (formerly
+`planning/rbi-zip-code-coverage-area-list.txt`) held 193 zips and nothing loaded
+them, so the coverage-filtered `ST_DWithin` query returned **0 rows with no
+error** — the inner join eliminated everything. Same silent-empty-join shape as
+the SRID trap and as an unseeded `report_sources`: the query runs, the answer is
+empty, and nothing anywhere says why.
+
+`scripts/load_coverage.sh` now loads it: 183 inserted, 10 reported, exit 0.
+
+### Correction to the 2026-09-03 entry: `80638` is institutional, not PO-box-only
+
+*Territory is a table: `coverage_zips`* (2026-09-03) classified the 10 zips with
+no ZCTA polygon as "PO-box-only zips (`80502`, `80522`, `80539`, `80632`,
+`80638`, `80901`), institutional zips (`80225` Federal Center, `80523` CSU,
+`80639` UNC), and `80213`, which is not an assigned zip at all."
+
+**`80638` is in the wrong group.** It is University of Northern Colorado, the
+same institution as `80639`, and the USPS delivery file has no record of it at
+all — which is the signature of the institutional group, not the PO-box group.
+The count and the conclusion are unaffected; only the label on one zip is wrong.
+That entry stands as written and is not edited.
+
+### The signal that produced the correction
+
+The USPS PostalPro `ZIP_Locale_Detail` file, loaded today for `area_name`, turns
+out to answer a question the original entry could only answer by inspection. It
+lists **delivery** zips. Cross-tabulating membership in it against the presence
+of a ZCTA polygon splits the 10 cleanly, five and five:
+
+| | in USPS delivery file | has ZCTA polygon | what it is |
+|---|---|---|---|
+| `80502` `80522` `80539` `80632` `80901` | yes | no | **PO-box-only.** USPS delivers mail; Census draws no polygon because nobody lives in a PO box |
+| `80213` `80225` `80523` `80638` `80639` | no | no | **Not a delivery zip at all.** Unassigned, or institutional mail handled internally |
+
+Two independent sources agreeing on the same partition is worth more than either
+alone. Finding the original 10 took a purpose-written script against the raw
+TIGER `.dbf`; this reproduces the answer from a different direction and explains
+*why* each is missing rather than only *that* it is.
+
+**A third case the original entry could not have seen:** `80913` (Fort Carson)
+is **absent from the USPS delivery file but has a ZCTA polygon** — the inverse
+of the PO-box pattern. It loads fine, because the FK only cares about the
+polygon, but it has no USPS city and so no `area_name`. It is the single row in
+183 that falls back to the literal `ZIP 80913`. A military installation the
+Census maps and USPS does not deliver to by ordinary route.
+
+### What this does not change
+
+**The FK stays.** Its job was never to explain the 10 — it was to make them
+uninsertable rather than periodically re-detected, and that is still what it
+does. This entry means the next person to expand the territory can be told
+*which kind* of hole they have hit, not merely that they have hit one.
+
+**The loader does not fail on them.** They are a stable fact about how USPS and
+Census disagree, not an error. But each is printed on every run, because
+silently dropping them means nobody learns which zips the customer believes they
+cover that the system cannot represent.
+
+**Related:** *Territory is a table* (2026-09-03), which this corrects and
+extends, and *A `system` user account, with a real `emp_id`* (2026-09-03) — the
+loader resolves `added_by` by querying that account rather than hardcoding an
+integer.
+
+---
+
+## 2026-09-09 — Generic and specific are split by directory: `planning/` and `config/`
+
+`load_coverage.sh` is deliberately **not** part of `load_reference.sh`.
+
+`load_reference.sh` loads national static data that is identical for every
+installation: 37 NWS report types, 33,791 ZCTAs, and now 37,104 USPS zip/city
+names. `load_coverage.sh` loads one customer's territory. Different lifecycle,
+different rerun cadence, different owner — sharing a script would tie a
+territory edit to a reload of 33,791 polygons.
+
+**The zip list is an argument, not a hardcoded path.** A roofing company in
+Dallas points the script at their own file with no code change. That is the
+whole design goal, and it only holds if the customer's list is configuration
+rather than source:
+
+```
+load_coverage.sh /repo/config/their_zips.txt
+```
+
+So the split is made visible in the tree rather than living in a comment:
+
+| | `planning/` | `config/` |
+|---|---|---|
+| Holds | generic national seeds — `report_types.csv`, `zip_city_names.csv` | this customer's `coverage_zips.txt` |
+| Loaded by | `load_reference.sh` | `load_coverage.sh` |
+| Replaced for a second customer | never | entirely |
+
+`planning/rbi-zip-code-coverage-area-list.txt` moved to
+`config/coverage_zips.txt`. The name loses "rbi" on purpose: a per-customer file
+in a per-customer directory does not need the customer's name in it, and the old
+name would have to be edited by every installation that copied it.
+
+**`reference/` was considered and is wrong for both.** It is gitignored
+wholesale — "entirely regenerable by `build_reference_tables.py` … and is also
+where the DNC lists live. Never track it." `zip_city_names.csv` is neither
+regenerable by that script nor safe to lose, and a loader depends on it, so it
+belongs with the other tracked seed. `.gitignore` already documents this exact
+distinction for `planning/report_types.csv`.
+
+### `zip_city_names.csv`, and why it is a file rather than a job
+
+Extracted 2026-09-09 from the USPS PostalPro `ZIP_Locale_Detail` release dated
+2026-09-08. Free, no registration. 37,104 zips, all states.
+
+**All states, not Colorado**, consistent with the existing decision to load
+whole-country ZCTA boundaries rather than a subset — and practical, since the
+file has no state column to filter on cleanly.
+
+**It is a facility file**, one row per post office, so a zip with several
+facilities appears several times and 10.0% of zips carry more than one distinct
+`PHYSICAL CITY`. The dedup rule is **first occurrence in USPS file order**,
+which is the preferred city name.
+
+A modal rule was tried first and does not work: **3,686 of the 3,719 multi-city
+zips are exact ties** at one row each, so frequency decides almost nothing.
+Alphabetical was then tested against the six multi-city zips in RBI's own
+territory and got **two wrong** — `GOLDEN` over `MORRISON` for `80465`, and
+`FORT COLLINS` over `TIMNATH` for `80547`. First-occurrence gets all six right.
+Order carries information here and alphabetical discards it.
+
+**No fetch-and-parse pipeline.** `area_name` is decoration for humans in the
+loop; nothing queries it. A job maintained forever to keep a cosmetic label
+fresh is not worth it. The file header records the extraction date and the USPS
+release so staleness is at least visible, and regenerating by hand is a
+five-minute job on the rare occasion it matters.
+
+**`reason` is left NULL by the loader, on purpose.** `database-schema.md` calls
+it "the field that will be empty in six months if it is not filled in now."
+Writing `'bulk import'` into all 183 rows would fill it with something worse than
+empty — text that looks like an answer and tells nobody why the territory is in
+scope. NULL is honestly unanswered; a placeholder is a lie that survives.

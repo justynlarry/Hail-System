@@ -19,20 +19,15 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-09-08**, commit `1fad5f4` plus an
-uncommitted working tree. Since the previous sync at `9d7ba2e` the project
-gained a running container stack, database roles and grants, a per-service
-credential split, a `.dockerignore`, a second machine, and a logging convention.
-`sql/001`–`010` were verified end to end against `postgis/postgis:16-3.4` on
-this date, the reference load run twice to confirm idempotence, and each
-database role connected to test its own grants.
+Last synced against the repo: **2026-09-09**, commit `83b83bc` plus an
+uncommitted working tree. Since the 2026-09-08 sync the project gained the first
+ingest script and its first real backfill, a loaded `coverage_zips`, a USPS
+zip/city reference, and a `planning/` vs `config/` split separating generic data
+from per-customer configuration.
 
-The IEM section of `docs/data-sources.md` was re-verified against the live
-service on 2026-09-08 and corrected — it described an endpoint shape that does
-not exist. See §7 and that file.
-
-**The `CLAUDE.md` status conflict flagged in the previous revision is closed.**
-It now reads Phase 1 and records two machines.
+Everything below was verified on a running stack rather than read off the
+source. Where a number appears — 183, 33,791, 37,104 — it came from a query on
+2026-09-09.
 
 ---
 
@@ -63,9 +58,10 @@ probably ever. ~135,856 storm report rows for ten years of Colorado.
 
 ## 2. Where the project actually stands
 
-**Phase 1 — IEM ingest. Phase 0 is closed. Nothing runs unattended yet.**
+**Phase 1 — IEM ingest. Phase 0 is closed. The backfill has run; nothing runs
+unattended yet.**
 
-### Infrastructure — new since the last sync, and verified on 2026-09-08
+### Infrastructure — verified on a running stack, 2026-09-08 and 2026-09-09
 
 - **`docker-compose.yml`** defines three services on one network, `hailnet`:
   - `postgis` — stock `postgis/postgis:16-3.4`, the only long-running service.
@@ -117,6 +113,34 @@ The database is `weather-property`. The hyphen means it must be double-quoted in
 any literal SQL that names it, which is why `010` grants `CONNECT` through
 `format('... %I ...', current_database())` instead.
 
+### Ingest and territory — new on 2026-09-09
+
+- **`scripts/iem_backfill.py`** — the first ingest script. Imports
+  `iem_parse.py`, writes the `ingest_runs` row before the fetch, and rejects to
+  `iem_ingest_rejects`. **It has run for real:** `run_id = 4`, 2021-01-01 →
+  2026-09-09, **84,268 rows seen, 1 skipped**. That single skip is the
+  unquoted-comma `CITY` row from 2026-08-31 that disproved the 2018 hypothesis.
+- **`scripts/load_coverage.sh`** — loads one customer's territory into
+  `coverage_zips`. Separate from `load_reference.sh` on purpose, and takes the
+  zip list as an **argument** so a second installation needs no code change.
+- **`coverage_zips` is populated: 183 rows.** It was empty until today, which is
+  why a coverage-filtered `ST_DWithin` returned **0 rows with no error** — the
+  inner join eliminated everything. Same silent-empty-join shape as the SRID
+  trap. Now returns 5 for a point in Fort Collins, out of 7 nearby ZCTAs.
+- **`planning/zip_city_names.csv`** — 37,104 USPS zip → city names, all states,
+  supplying `area_name`. Static reference, deliberately not a pipeline.
+- **`config/`** — new directory holding per-customer configuration. The one file
+  in it is `coverage_zips.txt`, moved from
+  `planning/rbi-zip-code-coverage-area-list.txt`.
+
+**The generic/specific split is now visible in the tree**, not just in comments:
+
+| | `planning/` | `config/` |
+|---|---|---|
+| Holds | national seeds — `report_types.csv`, `zip_city_names.csv` | this customer's `coverage_zips.txt` |
+| Loaded by | `load_reference.sh` | `load_coverage.sh` |
+| Replaced for a second customer | never | entirely |
+
 ### Built before this sync, unchanged
 
 - Full written design: schema, decision log, data-source notes, phase plan
@@ -145,12 +169,18 @@ any literal SQL that names it, which is why `010` grants `CONNECT` through
   carries the `roof_relevant` business judgments — is now tracked. `.gitignore`
   ignores `reference/` wholesale plus DNC/unsubscribe name patterns instead of a
   blanket `*.csv`.
+- **`coverage_zips` is no longer empty**, and the silent 0-row join it caused is
+  closed. See above.
+- **The 10 unmatched coverage zips now have a second, independent explanation**
+  from the USPS delivery file — and it corrected one label in the 2026-09-03
+  decision entry. See §7.
 
 ### Not built
 
-The ingest scripts themselves, any web UI, any RentCast client, any sending
-path, any `report_sources` seed, and **any test suite at all** — there is no
-`tests/` directory, no test runner, and no test dependency. Deliberate: test
+The **nightly** ingest script and its systemd timer (the backfill exists; the
+recurring job does not), any web UI, any RentCast client, any sending path, any
+`report_sources` seed, and **any test suite at all** — there is no `tests/`
+directory, no test runner, and no test dependency. Deliberate: test
 infrastructure is not Phase 0/1 groundwork. `iem_parse.py` is pure and takes its
 `valid_types` as an argument, so it is already shaped for testing with no
 fixtures and no database whenever that becomes phase-appropriate.
@@ -256,7 +286,7 @@ ASCII ER diagram is in `docs/db-schema-diagram.md`.
 |---|---|
 | `report_sources` | 36 rows when seeded; **currently empty** — the table exists, the loader does not fill it. What a reporting source is and how far to trust it — `confidence_tier`, `is_automated`. **No FK from `iem_data`**: source is free text typed at NWS offices and an FK would break the nightly ingest. A lookup, joined on `report_source_norm`, never a constraint. |
 | `zcta_boundaries` | 33,791 Census ZCTA polygons, nationwide, EPSG 4326. `centroid` is generated with `ST_PointOnSurface`, not `ST_Centroid`, so it cannot fall outside a C-shaped zip. Two GiST indexes, one on `geom` and one on `(geom::geography)` — see §2. Loaded once, never written to. **No foreign keys** — joined spatially. |
-| `coverage_zips` | RBI's service territory, 183 ZCTAs. Keyed on `zcta5` with an FK to `zcta_boundaries`. Ours, and it will be edited. |
+| `coverage_zips` | RBI's service territory. **Loaded 2026-09-09: 183 rows**, from a 193-entry list — the other 10 have no ZCTA polygon and are uninsertable by design (§7). Keyed on `zcta5` with an FK to `zcta_boundaries`. `area_name` comes from USPS; `reason` is deliberately left NULL by the loader. Ours, and it will be edited — retirement is a marked row, never a delete. |
 
 ### Property side
 | Table | What it holds |
@@ -455,6 +485,22 @@ These have already bitten. Do not re-discover them.
   `roof_relevant = FALSE`, but a magnitude floor on SNOW would admit exactly
   these rows first. Look at this before that flag is ever flipped.
 
+### USPS ZIP_Locale_Detail
+
+- **It is a FACILITY file, not a zip→city file.** One row per post office, so a
+  zip with several facilities appears several times: 42,288 rows for 37,105
+  distinct zips, and **10.0% of zips carry more than one distinct
+  `PHYSICAL CITY`**.
+- **A modal rule does not deduplicate it.** 3,686 of the 3,719 multi-city zips
+  are exact ties at one row each, so "most frequent" decides almost nothing.
+  Use **first occurrence in file order** — that is the preferred city name.
+  Alphabetical was tested against RBI's six multi-city zips and got two wrong:
+  `GOLDEN` over `MORRISON`, `FORT COLLINS` over `TIMNATH`.
+- **Use `PHYSICAL CITY`, never `LOCALE NAME`.** `LOCALE NAME` is the facility.
+  Zip `00604` is `LOCALE NAME` RAMEY but `PHYSICAL CITY` AGUADILLA.
+- **Presence in this file is a useful signal about ZCTA gaps** — see the ZCTA
+  entry below.
+
 ### Census TIGER
 - **TIGER ships in NAD83 (EPSG 4269); IEM and RentCast are WGS84 (4326).**
   Reproject at load (`shp2pgsql -s 4269:4326`). Mixing them fails silently — the
@@ -469,7 +515,19 @@ These have already bitten. Do not re-discover them.
 - **ZCTAs are not USPS zips.** PO-box-only and institutional zips have no
   polygon. A hand-built 193-entry coverage list had 10 such entries; the FK to
   `zcta_boundaries` is what makes them uninsertable rather than periodically
-  re-detected.
+  re-detected. **Cross-tabulating against the USPS delivery file splits those 10
+  cleanly and says *why* each is missing:**
+
+  | | in USPS delivery file | has ZCTA | what it is |
+  |---|---|---|---|
+  | `80502` `80522` `80539` `80632` `80901` | yes | no | PO-box-only — USPS delivers, Census draws no polygon |
+  | `80213` `80225` `80523` `80638` `80639` | no | no | not a delivery zip at all — unassigned or institutional |
+
+  This corrected the 2026-09-03 decision entry, which had filed `80638` as
+  PO-box-only when it is institutional (UNC), like `80639`.
+- **The inverse case exists too.** `80913` (Fort Carson) is **absent from USPS
+  but has a ZCTA polygon** — it loads, but has no USPS city, so it is the one
+  row in 183 whose `area_name` falls back to the literal `ZIP 80913`.
 
 ### RentCast
 - **`id` is a property id, not a listing id.** A relisted house reuses it.
@@ -516,6 +574,15 @@ These are newer and cost real time on 2026-09-08.
   not just undefined.
 - **`\quit` exits psql with status 0.** A `for f in sql/*.sql` loop reads a
   skipped file as a passing one. Fail with a `RAISE` under `ON_ERROR_STOP`.
+- **`\copy` does not interpolate psql variables.** `\copy t FROM :'somevar'`
+  is read literally and fails with `:: No such file or directory`, even though
+  the same `:'somevar'` works in ordinary SQL on the line below. Staging paths
+  have to be literals inside the heredoc — which is also why the heredoc can
+  stay fully quoted and no shell expansion reaches the SQL.
+- **Python's `csv.writer` emits CRLF by default**, per RFC 4180, and Postgres
+  `\copy ... FORMAT csv` rejects it with *"unquoted carriage return found in
+  data"*. Pass `lineterminator='\n'`, or normalize afterwards. A generated CSV
+  can look perfect in an editor and still fail to load.
 - **`shp2pgsql -d` is not `-c`.** `-d` emits a `DropGeometryColumn` for a stage
   table that does not exist on a first run, which raises and, under
   `ON_ERROR_STOP=1`, kills the load before it starts.
@@ -662,18 +729,26 @@ sql/                          apply in order; 010 must be last
   008_operations.sql          api_pulls, api_call_log
   009_ingest.sql              ingest_runs, iem_ingest_rejects
   010_roles.sql               hail_ingest / hail_app roles, grants, passwords
+  011_ingest.sql              additive COMMENT fix; 001-009 are frozen post-backfill
 scripts/
   build_reference_tables.py   derives reference CSVs from the raw LSR archive
   zcat-data-check.py          checks coverage zips against the TIGER .dbf
   iem_parse.py                shared row parser; both ingest scripts import it
+  iem_backfill.py             historical ingest; has run (run_id 4, 84,268 rows)
   load_reference.sh           idempotent loader: report_types CSV + ZCTA shapefile
+  load_coverage.sh            idempotent loader: one customer's territory
 docker/
   ingest.Dockerfile           python:3.12-slim + psycopg, runs as non-root
   loader.Dockerfile           postgis image + the pinned postgis client package
 reference/                    gitignored — derived statistical CSVs, DNC lists
 data/                         gitignored — raw LSR archive, TIGER shapefiles
-planning/                     spreadsheets, coverage zip list, working notes
+planning/                     GENERIC national seed data + working notes
   report_types.csv            THE curated seed for report_types (tracked)
+  zip_city_names.csv          37,104 USPS zip -> city, for coverage area_name
+  Postgres-Tables.ods         working notes
+config/                       PER-CUSTOMER configuration; see its README
+  coverage_zips.txt           RBI's 193 zips (was planning/rbi-zip-code-...)
+  README.md                   the generic/specific split, stated
 ```
 
 **No `tests/` directory exists.** See §2.
@@ -688,9 +763,18 @@ docker compose up -d          # postgis only; ingest/loader are profile "tools"
 docker compose run --rm loader \
   bash -c 'for f in /repo/sql/*.sql; do psql -v ON_ERROR_STOP=1 -f "$f" || exit 1; done'
 
-# load reference data — idempotent, safe to re-run
+# load GENERIC reference data — 37 report types, 33,791 ZCTAs. Idempotent.
 docker compose run --rm loader bash /repo/scripts/load_reference.sh
+
+# load THIS CUSTOMER's territory — 183 of 193; the other 10 are reported.
+# The path is an argument: a different customer passes a different file.
+docker compose run --rm loader bash /repo/scripts/load_coverage.sh
+docker compose run --rm loader bash /repo/scripts/load_coverage.sh /repo/config/other.txt
 ```
+
+Order matters: `load_coverage.sh` refuses to run against an empty
+`zcta_boundaries`, because every insert depends on that FK and an empty boundary
+table would report all 193 zips as unmatched, insert nothing, and exit 0.
 
 ---
 
