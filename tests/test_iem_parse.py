@@ -58,7 +58,7 @@ VALID, LAT, LON, MAG, WFO, TYPECODE, TYPETEXT, UGC, QUALIFIER = (
     0, 2, 3, 4, 5, 6, 7, 13, 15
 )
 
-def row_from(line, headher=HEADER):
+def row_from(line, header=HEADER):
     """Turn one CSV line into the dict the ingest scripts hand to parser.
 
     restkey is what makes a 17-field row detectable.  restval is deliberately
@@ -118,7 +118,7 @@ class TestCleanRow(unittest.TestCase):
 
     def test_generated_columns_absent(self):
         self.assertNotIn("geom", self.record)
-        selfassertNotIn("report_source_norm", self.record)
+        self.assertNotIn("report_source_norm", self.record)
 
     def test_ingested_at_is_the_callers_job(self):
         self.assertNotIn("ingested_at", self.record)
