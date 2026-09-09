@@ -1226,3 +1226,182 @@ changed contract and a human decision, not a row to skip.
 
 **Related:** *An out-of-domain `QUALIFIER` ends the run; it is not a reject*
 (2026-09-06) and *A `qualifiers` table is deferred, not rejected* (2026-09-03).
+
+---
+
+## 2026-09-08 — Error tracking is two layers, and the split is forced
+
+Domain events get database rows: `ingest_runs` for what a run did,
+`iem_ingest_rejects` for which lines it refused. Process events go to stdout and
+are captured by journald.
+
+This is not a preference for belt and braces. Two constraints force it:
+
+- **A database failure cannot be written to the database.** If the connection is
+  refused, the disk is full, or a constraint rejects the write, the layer meant
+  to record the problem is the layer that failed. Anything that must survive
+  that has to leave the process by another route.
+- **A process killed before its `except` block writes nothing anywhere.** OOM
+  kill, `SIGKILL`, power loss — no handler runs. The only record is what was
+  already emitted, which is why the start line is emitted before anything can
+  fail (see the logfmt entry).
+
+So the division is by *what can still be true when the thing fails*, not by
+severity. Detail lives in the database because it is queryable; the fact that
+the process existed at all lives in the log because it survives the database.
+
+---
+
+## 2026-09-08 — No generic error table
+
+Considered and declined.
+
+The narrow tables are queryable **because** their constraints are narrow. A
+five-value CHECK on `iem_ingest_rejects.reason` is what makes
+`WHERE reason = 'field_count_mismatch'` mean something and what makes a new
+value a deliberate migration. A table accepting arbitrary errors from arbitrary
+sources cannot carry that constraint — its `reason` column is free text by
+definition — and a table nobody can write a meaningful `WHERE` against is
+write-only. It accumulates, it looks like diligence, and it is never read.
+
+It would also be a second write path for failures, which reintroduces the
+problem the two-layer split exists to solve: the generic table lives in the same
+database that may be the thing that failed.
+
+**If a single operational read is wanted later, it is a view** unioning the
+failure conditions that already exist — a stale `ingest_runs`, rejects attached
+to a run, an `api_pulls` row stuck in `running`. A view adds no write path and
+cannot drift from the tables it reads.
+
+**Related:** *Malformed rows are rejected, logged, and skipped* (2026-09-04) and
+*A sixth reject reason was reconsidered and declined* (2026-09-08) — same
+reasoning about closed enumerations, one layer down.
+
+---
+
+## 2026-09-08 — The `ingest_runs` row is written before the fetch, not after
+
+The row is inserted with `run_status = 'running'` before the HTTP request is
+made, then updated on completion.
+
+Writing it afterward would mean **the failure most worth recording is the one
+that leaves no trace**: a fetch that hangs, times out, or dies mid-parse never
+reaches the code that would have written the row, so the run is
+indistinguishable from a run that never fired. That is the exact question the
+table exists to answer.
+
+Same shape as `api_pulls`, and the reason `finished_has_timestamp` binds
+`failed` as well as `complete` — a failed run stopped at a time, and the error
+handler must set `finished_at` in the same `UPDATE` that sets the status.
+
+---
+
+## 2026-09-08 — Ingest health is an absence query, not a status query
+
+The alert condition is:
+
+```sql
+SELECT max(finished_at) FROM ingest_runs
+ WHERE run_mode = 'nightly' AND run_status = 'complete';
+```
+
+older than roughly 30 hours.
+
+**A status column cannot express this.** Asking "is the latest run's status
+`failed`?" answers nothing when the process was killed before it could write
+one — a crashed run leaves `running` forever, which reads as healthy-in-progress
+to any status check. And a run that never fired leaves no row at all, so there
+is no status to inspect.
+
+Phrasing it as "when did a nightly run last *succeed*" is the only form that
+holds across all three: failed, crashed, and never started. It is also why the
+table exists rather than log output — you cannot query a log for the absence of
+a line without knowing to look for it.
+
+---
+
+## 2026-09-08 — logfmt to stdout, never to a file
+
+`key=value` pairs, one event per line, `run_id` on every line so a run's lines
+can be recovered from an interleaved journal.
+
+```
+event=ingest_start run_id=41 run_mode=nightly window_start=... window_end=...
+event=ingest_done  run_id=41 rows_seen=118 rows_inserted=12 rows_skipped=0
+```
+
+**Stdout, not a file.** The container writes to stdout, systemd captures it into
+journald, and rotation, retention, and `journalctl -u` filtering come for free.
+A log file inside a container needs a volume, its own rotation, and is invisible
+to `systemctl status`.
+
+**logfmt, not JSON.** It is readable in `journalctl` by eye during development
+and parseable by a shipper later without regex. JSON is neither of those at a
+terminal.
+
+**The start line is emitted before anything can fail** — before the HTTP
+request, before the database write. It is the only evidence that survives a
+`SIGKILL`.
+
+**Detail stays in the database.** The log says *how many* rows were skipped; the
+table says *which* ones and why. Duplicating reject detail into the log would
+create a second copy that drifts and is harder to query than the first.
+
+**`PYTHONUNBUFFERED=1` is required in the image.** Without it Python buffers
+stdout when it is not a TTY — which is exactly the case under systemd — and a
+process killed before the buffer flushes produces **no logs at all**, defeating
+the one property this layer exists for. It is already set in
+`docker/ingest.Dockerfile`; it is load-bearing, not tidiness.
+
+---
+
+## 2026-09-08 — Explicit grants, not `ALTER DEFAULT PRIVILEGES`
+
+Every SQL file that creates a table ends with the grants for that table.
+`sql/010_roles.sql` holds the roles and the current full set.
+
+`ALTER DEFAULT PRIVILEGES` was considered. Two problems:
+
+**It is easy to aim wrong and it fails silently.** The mechanism grants on
+future tables created by a *named role*. Omitting `FOR ROLE` defaults to the
+executing role, so a statement written expecting one creator and run by another
+**succeeds and does nothing** — no error, no warning, and the gap only appears
+later as a permission denial in an unrelated place.
+
+**The failure modes are asymmetric, and that decides it.** A forgotten explicit
+grant is a loud permission error, in development, at the moment the code first
+touches the table. A default privilege quietly extending access is a role
+holding permissions nobody decided to give it, discovered — if ever — during an
+audit. One failure costs minutes and announces itself; the other is invisible
+and is exactly the kind of thing `sql/010` exists to prevent.
+
+This is the same asymmetry that governs realtor deduplication: choose the
+failure that is recoverable and visible over the one that is silent and
+permanent.
+
+---
+
+## 2026-09-08 — The ingest runs in a container, for a different reason than the loader
+
+Both run in containers. The justifications are **not** the same, and conflating
+them would lose one of them.
+
+**The loader has no choice.** `shp2pgsql` is not on the Rocky host and should
+not be — it ships in the `postgis` client package, and installing a database
+client suite on the host to run a one-shot import is how hosts accumulate.
+
+**The ingest has a choice, and takes the container for different reasons:**
+keeping Python dependencies off the host, and pinning the runtime so the version
+that runs tonight is the version that ran last night.
+
+**systemd schedules and supervises; the container is only the runtime.** A
+timer unit invokes `docker compose run`, and the unit is where `OnFailure=`,
+`Persistent=true` (so a missed run fires after downtime rather than being
+skipped), and `systemctl --failed` live.
+
+**Cron inside the container was considered and declined.** It is a second
+scheduler on a box that already has systemd, and it forfeits the things the
+first one provides: journald capture of stdout, `systemctl --failed` as a single
+place to see a broken job, `OnFailure=` hooks, and `Persistent=true`. It also
+puts the schedule inside an image, so changing when the job runs means a
+rebuild.

@@ -9,12 +9,20 @@ contractor. It pulls free NWS storm reports nightly, maps them to affected zip
 codes, lets staff pull real estate listings in those areas from RentCast, and
 send templated email to the listing agents.
 
-Single developer. Single server. Currently in planning — nothing is built yet.
+Single developer. Two machines — a `hail-dev` VM and the production
+OptiPlex, deliberately built alike. See `docs/hail-consolidated.md` §9.
 
 ## Current phase
 
-**Phase 0 — groundwork.** Machine setup, database design, boundary data.
-The schema is designed but no tables exist.
+**Phase 1 — IEM ingest + zip mapping.** Phase 0 closed 2026-09-03 when a
+spatial query returned the zip codes within 5 miles of an arbitrary lat/lon.
+
+What exists: `sql/001`–`010` (17 tables, roles, and grants), a Docker Compose
+stack, `scripts/load_reference.sh` loading 37 report types and 33,791 ZCTAs, and
+`scripts/iem_parse.py`. Verified end to end 2026-09-08.
+
+What does not: the ingest scripts themselves, any web UI, any RentCast client,
+any sending path, the `report_sources` seed, and any test suite.
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
 with CSV export → 3 RentCast listings → 4 accounts → 5 email → 6 pilot →
@@ -64,7 +72,20 @@ These have already bitten us. Do not re-discover them.
 - IEM `TYPECODE` is **not unique** — `R` is both RAIN and HEAVY RAIN. Keys are
   `(report_type, report_text)`.
 - Some IEM CSV rows have **unquoted commas inside the CITY field**. Never split
-  on commas; use a real CSV parser.
+  on commas. But a real CSV parser only **detects** these — it cannot repair
+  them, because the quotes were never written and the field boundary is
+  unrecoverable. They are rejected as `field_count_mismatch`; `raw_row` keeps
+  the line verbatim, which is what makes rejecting non-lossy.
+- **`Decimal()` accepts `'NaN'` and `'Infinity'`** without raising. A NaN
+  coordinate then makes an ordered comparison *signal* `InvalidOperation`, so a
+  range check raises and the exception escapes the parser and ends the run. And
+  Postgres `NUMERIC` accepts `NaN`, so an unguarded magnitude lands in the
+  column and reads as a real measurement. Guard with `is_finite()` before any
+  range test.
+- **A misspelled IEM filter parameter is silently ignored, not rejected.**
+  `typetext=` and `magnitude=` return the full unfiltered set with HTTP 200;
+  the real names are `type=` and `magge=`. (We must not filter at ingest
+  anyway — this is a trap for anyone reading the old docs.)
 - IEM `QUALIFIER` of `M` (measured) on hail **does not mean instrument-measured**
   — it tracks reporter training. Use `SOURCE` if a confidence signal is needed.
 - Census TIGER ships in **NAD83 (4269)**; IEM and RentCast are **WGS84 (4326)**.

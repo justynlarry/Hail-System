@@ -4,74 +4,122 @@ Every external source the system depends on. Endpoints, parameters, field
 meanings, and the traps found in each.
 
 ---
-
 ## 1. Iowa Environmental Mesonet — Local Storm Reports
 
 Iowa State's mirror of the NWS realtime storm report feed. Free, no key, no
 account, no documented rate limit.
 
-**Key page (bookmark this):**
-`https://mesonet.agron.iastate.edu/request/gis/lsrs.phtml`
-It carries the field schema and the full picklists for report type, WFO, and state.
+**Key page:** `https://mesonet.agron.iastate.edu/request/gis/lsrs.phtml`
+It carries the picklists for report type, WFO, and state. **Read its field
+schema with care — see "The published schema is the DBF" below.**
 
-### Realtime — last 24 hours, regenerated every 5 minutes
+### One endpoint, two jobs
 
-```
-https://mesonet.agron.iastate.edu/geojson/lsr.geojson?states=CO&hours=168
-```
-
-Formats: GeoJSON, CSV, shapefile.
-
-### Archive — arbitrary date range, back to 2003
+Everything goes through a single CGI endpoint. The nightly job and the backfill
+differ only in how the time window is expressed.
 
 ```
 https://mesonet.agron.iastate.edu/cgi-bin/request/gis/lsr.py
-    ?state=CO
-    &sts=2021-01-01T00:00Z
-    &ets=2026-01-01T00:00Z
-    &fmt=csv
 ```
 
-Formats: csv, shapefile, xlsx, kml.
+| Job | Window parameter |
+|---|---|
+| Nightly | `recent=108000` — a rolling window **in SECONDS**. 108000 = 30 hours. |
+| Backfill / replay | `sts=2021-01-01T00:00Z&ets=2026-01-01T00:00Z` — explicit UTC range |
+
+**`recent` is seconds, not hours, and `hours=` does not exist.** `hours=30`
+returns **HTTP 422, "GET start time parameters missing"** — it is not an
+alternate spelling, it is an unrecognized parameter, and without `sts`/`ets`
+there is then no window at all. Verified 2026-09-08.
 
 **Single-quote these URLs in bash.** Unquoted, `&` backgrounds the job and
 silently truncates the query string at the first parameter — curl succeeds and
 returns the wrong data rather than erroring.
 
+### Formats — GeoJSON is not one of them
+
+`fmt=` accepts **`csv`, `shp`, `kml`, `xlsx`**. It does **not** accept
+`geojson`: the server validates `fmt` against a pattern and returns **HTTP 422**
+with `{'type': 'string_pattern_mismatch', 'loc': ('query', 'fmt')}`.
+
+GeoJSON exists only as a static nationwide 24-hour file:
+
+```
+https://mesonet.agron.iastate.edu/data/gis/shape/4326/us/lsr_24hour.geojson
+```
+
+That file **cannot serve this system**: it is a fixed 24-hour window, so it
+cannot supply the 30-hour overlap the nightly job needs to be idempotent, and it
+cannot backfill at all. This is the mechanical half of the 2026-09-04 decision
+*CSV, not GeoJSON, for both ingest paths* — that entry chose CSV; this is the
+note that GeoJSON was never actually on the table for this endpoint.
+
 ### Scoping parameters
 
 | Parameter | Notes |
 |---|---|
-| `state` / `states` | Two-letter code |
-| `wfos` | Forecast office. **Colorado: BOU, PUB, GJT, plus GLD and CYS on the borders.** `wfos=BOU,PUB` would silently drop the northeast corner |
-| bounding box (`west`,`east`,`north`,`south`) | Preferred for production — a Front Range box skips the Western Slope entirely |
-| `hours=N` | Rolling recent window. Use for the nightly job |
-| `sts` / `ets` | Explicit UTC range. Use for backfill and replay testing |
-| `typetext` | Server-side type filter. **We ingest everything and filter at query time instead** |
-| `magnitude` | Minimum. Blunt — does not handle types without a magnitude. Filter in SQL |
+| `state` | Two-letter code. **This is what the ingest uses** — see the 2026-09-04 decision `state=CO`, not a WFO list |
+| `wfos` | **Retired.** Colorado is five offices (BOU, PUB, GJT, GLD, CYS), and `wfos=BOU,PUB` silently drops the northeast corner. Superseded by `state` |
+| `north` `south` `east` `west` | Bounding box, added 2024-10-24. **Not currently used.** Relevant to open question 12 — see below |
+| `recent` | Seconds. Nightly |
+| `sts` / `ets` | Explicit UTC range. Backfill and replay |
+| `type` | Server-side type filter, takes **TYPETEXT** values (`type=HAIL`), not type codes. **Do not use** |
+| `magge` | Minimum magnitude, "mag greater-or-equal". **Do not use** |
 
-### Fields
+**Why `type` and `magge` must not be used.** Storm reports are stored at full
+fidelity and filtered on read — filtering at ingest would violate that rule and
+would bake today's `roof_relevant` judgment into data we cannot recover later.
+The magnitude floors live in `report_types.min_magnitude`, where changing one is
+an `UPDATE` rather than a re-ingest.
 
-CSV and GeoJSON use different key names for the same content. Normalize at the
-parser; keep one internal shape.
+**The bounding box and open question 12.** Open question 12 records that
+`state=CO` excludes out-of-state reports permanently and that no buffer radius
+recovers them, because the radius widens the search around a *stored* report.
+The bbox parameters are a **second option** for that question — a box crossing
+the state line would store the Wyoming report in the first place. This does not
+reopen the decision; it means the question now has a mechanism attached rather
+than only a description.
 
-| CSV | GeoJSON | Meaning |
-|---|---|---|
-| `VALID` | — | `YYYYMMDDHHMM` compact, **UTC** |
-| `VALID2` | `valid` | Human-readable / ISO, **UTC** |
-| `LAT` `LON` | `lat` `lon` | Decimal degrees, ~2 decimals of real precision (≈1 km) |
-| `MAG` | `magnitude` | **Units depend on type.** See traps |
-| `WFO` | `wfo` | Forecast office |
-| `TYPECODE` | `type` | One-char IEM code. **Not unique** |
-| `TYPETEXT` | `typetext` | Textual type. This is the documented picklist — match on this |
-| `CITY` | `city` | **Not a city.** A position relative to a landmark: `2 SW Great Divide` |
-| `COUNTY` `STATE` | `county` `st` | As reported |
-| `SOURCE` | `source` | Free text, entered by the reporting office |
-| `REMARK` | `remark` | Free text. On damage reports with no magnitude, the content is here |
-| `UGC` | — | NWS code, e.g. `COC081` = CO + county-type + FIPS 081 |
-| `UGCNAME` | — | County name |
-| `QUALIFY` | `qualifier` | `M` measured / `E` estimated / `U` unknown |
-| — | `product_id` | NWS text product. **Not unique per report** — one product carries several |
+> Correction to a previous version of this file: the bbox row said "Preferred
+> for production — a Front Range box skips the Western Slope entirely." That
+> contradicted the 2026-09-04 `state=CO` decision, which is the one in force.
+
+### Fields — CSV, addressed by name
+
+The CSV has **16 fields**, in this order:
+
+```
+VALID, VALID2, LAT, LON, MAG, WFO, TYPECODE, TYPETEXT, CITY, COUNTY,
+STATE, SOURCE, REMARK, UGC, UGCNAME, QUALIFIER
+```
+
+| Field | Meaning |
+|---|---|
+| `VALID` | `YYYYMMDDHHMM` compact, **UTC** |
+| `VALID2` | Human-readable duplicate, **UTC**. Not mapped |
+| `LAT` `LON` | Decimal degrees, ~2 decimals of real precision (≈1 km) |
+| `MAG` | **Units depend on type.** See traps |
+| `WFO` | Forecast office |
+| `TYPECODE` | One-char IEM code. **Not unique** |
+| `TYPETEXT` | Textual type. This is the documented picklist — the key is the pair |
+| `CITY` | **Not a city.** A position relative to a landmark: `2 SW Great Divide`. Not mapped |
+| `COUNTY` `STATE` | As reported |
+| `SOURCE` | Free text, entered by the reporting office |
+| `REMARK` | Free text. On damage reports with no magnitude, the content is here |
+| `UGC` | NWS code, e.g. `COC081` = CO + county-type + FIPS 081 |
+| `UGCNAME` | IEM-computed county name. Not mapped |
+| `QUALIFIER` | `M` measured / `E` estimated / `U` unknown |
+
+**The published schema on `lsrs.phtml` documents the shapefile DBF, not the
+CSV.** The DBF carries **15** fields, spells the last one **`QUALIFY`**, and
+orders them differently — LAT/LON sit near the end. Anyone building against the
+published table and then parsing CSV positionally gets silently misaligned data.
+**This is why `iem_parse.py` addresses fields by name and never by position**,
+and why `EXPECTED_FIELDS` is checked rather than assumed.
+
+**The live CSV header is byte-identical to the 2016–2026 archive header.**
+Verified 2026-09-08 by pulling both and comparing bytes. This is what lets one
+parser module serve both the nightly and the backfill with no format branch.
 
 ### Report types
 
@@ -82,29 +130,54 @@ parser; keep one internal shape.
 `SNOW/ICE DMG`, `ICE STORM`, `FREEZING RAIN`, `WILDFIRE`, `DEBRIS FLOW`
 
 The rest are marine, tide, temperature, fog, and flood types. See
-`reference/report_types.csv` for the authoritative list with counts.
+`reference/report_types.csv` for the authoritative list with counts, and
+`planning/report_types.csv` for the curated seed with the `roof_relevant`
+judgments.
 
 ### Traps
 
 - **`MAG` contains the literal string `None`** as the null marker in 3,353 of
   135,856 rows. Coerced to 0 this produces 629 magnitude-zero flash floods and
   549 magnitude-zero tornadoes.
+- **`Decimal()` accepts `'NaN'` and `'Infinity'`** — neither raises
+  `InvalidOperation`, so neither is caught by a naive numeric parse. Worse, an
+  ordered comparison against a `Decimal` NaN *signals* `InvalidOperation`, so a
+  range check like `-90 <= value <= 90` **raises** and the exception escapes the
+  parser. And Postgres `NUMERIC` accepts `NaN`, so an unguarded magnitude lands
+  in `iem_data.magnitude` and reads as a real measurement. `iem_parse.py` guards
+  both with `is_finite()` *before* any range test.
+- **A misspelled filter parameter is silently ignored, not rejected.** Verified
+  against 2018-06-19 (177 reports, 142 of them hail): `type=HAIL` → 142 rows and
+  `magge=1.75` → 75 rows, but **`typetext=HAIL` → 177 rows and
+  `magnitude=1.75` → 177 rows** — the full unfiltered set, HTTP 200, no warning.
+  A wrong parameter name here does not error; it returns everything, and a
+  script that trusted it would look like it was filtering and would not be.
 - **Units come from the type name, never the value range.** Range inference was
   actively wrong: tornado EF numbers (0–2) read as inches, dense fog visibility
   (0.08–0.25 mi) as inches, excessive heat (44–105 °F) as mph.
 - **`TYPECODE` is not unique.** Nine codes map to two texts each — `R` is both
-  RAIN and HEAVY RAIN, `S` both SNOW and HEAVY SNOW.
+  RAIN and HEAVY RAIN, `S` both SNOW and HEAVY SNOW. The key is the pair
+  `(report_type, report_text)`.
 - **76 rows have unquoted commas inside `CITY`** (`BISON LAKE, GLENWOOD 15`),
-  producing 17 fields instead of 16. Never split on commas.
+  producing 17 fields instead of 16. Never split on commas — but note that a
+  real CSV parser **detects** these rows and cannot **repair** them: the quotes
+  were never written, so the field boundary is unrecoverable. They are rejected
+  as `field_count_mismatch`, which is why rejecting is not lossy — `raw_row`
+  keeps the line verbatim.
 - **`QUALIFIER` of `M` on hail does not mean instrument-measured.** 97.8% of M
   and 94.9% of E hail values land on the same coin/ball catalog. M tracks
-  reporter training. Use `SOURCE` for a confidence signal instead.
+  reporter training. Use `SOURCE` for a confidence signal instead. A value
+  outside `{M, E, U}` **ends the run** — see the 2026-09-06 decision.
+- **A quiet day returns a header line and no data rows.** `rows_seen = 0` is a
+  normal `complete` run, not a failure. Verified: a 30-hour `recent` window
+  returned 101 bytes — the header alone.
 - **Timestamps are UTC.** A Front Range evening storm crosses midnight UTC and
   will split across two calendar days if grouped naively.
 - **`UGC` is null before mid-2022.** The cross-reference was added July 2022,
   and IEM describes it as working in about 99% of cases.
 - Before December 2006, no distinction between snow and sleet reports.
-- `SOURCE` is free text with case variants (`PUBLIC` / `Public`). Normalize.
+- `SOURCE` is free text with case variants (`PUBLIC` / `Public`). Normalize;
+  match on `report_source_norm`.
 
 ---
 

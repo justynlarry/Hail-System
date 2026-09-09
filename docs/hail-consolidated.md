@@ -19,19 +19,20 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-09-08**, commit `cd5a84f` **plus an
-uncommitted working tree** (see §2). Since the previous sync at `9d7ba2e` the
-project gained a running container stack, database roles and grants, a
-per-service credential split, and a server build document. `sql/001`–`010` were
-re-verified end to end against `postgis/postgis:16-3.4` on this date, and the
-reference load was run twice to confirm idempotence.
+Last synced against the repo: **2026-09-08**, commit `1fad5f4` plus an
+uncommitted working tree. Since the previous sync at `9d7ba2e` the project
+gained a running container stack, database roles and grants, a per-service
+credential split, a `.dockerignore`, a second machine, and a logging convention.
+`sql/001`–`010` were verified end to end against `postgis/postgis:16-3.4` on
+this date, the reference load run twice to confirm idempotence, and each
+database role connected to test its own grants.
 
-**One documented conflict, unresolved.** `CLAUDE.md` says *"Currently in
-planning — nothing is built yet"* and *"Phase 0 — groundwork."* That is no
-longer true: the schema builds, the stack runs, and reference data loads. This
-file and `docs/phases.md` treat Phase 1 as open. `CLAUDE.md` is the authority
-for rules but has drifted on status; it needs a one-line update. Flagged, not
-silently overridden.
+The IEM section of `docs/data-sources.md` was re-verified against the live
+service on 2026-09-08 and corrected — it described an endpoint shape that does
+not exist. See §7 and that file.
+
+**The `CLAUDE.md` status conflict flagged in the previous revision is closed.**
+It now reads Phase 1 and records two machines.
 
 ---
 
@@ -54,7 +55,8 @@ The loop it automates:
 The pitch is deliberately narrow: *"hail of X size was reported near this
 listing."* It reports a public record. It never claims damage.
 
-**Scale.** Single developer (Justyn). Single server. Four or five user accounts,
+**Scale.** Single developer (Justyn). Two machines — a `hail-dev` VM and the
+production OptiPlex (§9). Four or five user accounts,
 probably ever. ~135,856 storm report rows for ten years of Colorado.
 
 ---
@@ -414,7 +416,23 @@ These have already bitten. Do not re-discover them.
   RAIN and HEAVY RAIN, `S` both SNOW and HEAVY SNOW. The key is
   `(report_type, report_text)`.
 - **76 rows have unquoted commas inside `CITY`** (`BISON LAKE, GLENWOOD 15`),
-  giving 17 fields instead of 16. Never split on commas — use a real CSV parser.
+  giving 17 fields instead of 16. Never split on commas — but a real CSV parser
+  **detects** these and cannot **repair** them. The quotes were never written,
+  so the field boundary is unrecoverable. They are rejected as
+  `field_count_mismatch`, and `raw_row` keeping the line verbatim is what makes
+  that non-lossy.
+- **A misspelled IEM filter parameter is silently ignored, not rejected.**
+  Verified against 2018-06-19 (177 reports, 142 hail): `type=HAIL` → 142 rows
+  and `magge=1.75` → 75 rows, but `typetext=HAIL` → **177** and
+  `magnitude=1.75` → **177** — the full unfiltered set, HTTP 200, no warning.
+  A wrong parameter name returns everything, so a script that trusted it would
+  look like it was filtering and would not be. (We must not filter at ingest
+  regardless; this is a trap for anyone reading the pre-2026-09-08 docs.)
+- **`recent` is in SECONDS and `hours=` does not exist** — `hours=30` returns
+  HTTP 422 "GET start time parameters missing". `fmt=geojson` returns 422 as
+  well; this endpoint serves csv, shp, kml and xlsx only.
+- **A quiet day returns a header line and no data rows.** `rows_seen = 0` is a
+  normal `complete` run, not a failure.
 - **`QUALIFIER` of `M` on hail does not mean instrument-measured.** It tracks
   reporter training; 97.8% of M and 94.9% of E hail values land on the same
   coin/ball catalog. Use `SOURCE` for a confidence signal.
@@ -511,7 +529,7 @@ These are newer and cost real time on 2026-09-08.
 
 | Source | Cost | Notes |
 |---|---|---|
-| **IEM Local Storm Reports** | Free, no key, no documented rate limit | Realtime GeoJSON/CSV endpoint for the nightly job (`hours=N`); archive endpoint back to 2003 for backfill and replay (`sts`/`ets`). Schema page: `https://mesonet.agron.iastate.edu/request/gis/lsrs.phtml` |
+| **IEM Local Storm Reports** | Free, no key, no documented rate limit | **One** endpoint, `cgi-bin/request/gis/lsr.py`, serves both jobs: nightly passes `recent=108000` (SECONDS), backfill passes `sts`/`ets`, back to 2003. Formats csv/shp/kml/xlsx — **`fmt=geojson` returns 422**. The `lsrs.phtml` schema page documents the shapefile DBF, not the CSV. |
 | **Census TIGER/Line 2025** | Free | National ZCTA (`tl_2025_us_zcta520.zip`, 33,791 rows) and county (`tl_2025_us_county.zip`, ~3.2k rows) files. No state split exists for ZCTA. |
 | **RentCast** | **Paid**, monthly lookup allowance | `GET /listings/sale`, paginated to 500, sorted by `lastSeenDate` desc. Docs: `https://developers.rentcast.io/reference/property-listings-schema` (append `.md` for markdown). |
 | **Email provider** | TBD | Must *explicitly permit* outreach to non-opt-in recipients — several providers terminate for it. Needs bounce/complaint webhooks returning a matchable message id, plus throttling for warmup, on a separate sending subdomain. |
@@ -522,14 +540,34 @@ open question; if so, remediation is its own line item.
 
 ---
 
-## 9. Stack and environment
+## 9. Stack, environment, and logging
 
-- Dell OptiPlex on RBI's office network, running **Proxmox**
-- **Rocky Linux** VM (plus a PBS VM for backup) — build steps in
-  `docs/server-setup.md`: static IP via `nmcli`, Podman removed and Docker CE
-  installed from the CentOS repo, system timezone **UTC**, persistent journald
-  capped at 500M, `firewalld` left closed because the UI arrives through the
-  tunnel
+### Two machines, deliberately alike
+
+| | `hail-dev` | production |
+|---|---|---|
+| Hardware | VM | Dell OptiPlex on RBI's office network, running **Proxmox** |
+| OS | **Rocky 10** | **Rocky Linux** VM (plus a PBS VM for backup) |
+| Docker | CE from the CentOS repo | CE from the CentOS repo |
+| Timezone | UTC | UTC |
+| journald | persistent | persistent, capped at 500M |
+| SELinux | **enforcing**, `:Z` on bind mounts | enforcing, `:Z` on bind mounts |
+
+**Dev matching prod is the point, not a coincidence.** SELinux in particular:
+a bind mount without `:Z` fails with a permission error that looks nothing like
+a permission error, and the place to discover that is a VM that can be rebuilt
+in twenty minutes — not a box on RBI's network with the company's data on it.
+The same argument covers the Docker install source and the timezone: a bug that
+only appears in one of the two environments costs more to find than the
+duplication costs to maintain.
+
+Build steps for a machine from bare metal are in `docs/server-setup.md`: static
+IP via `nmcli`, Podman removed before Docker CE goes on, timezone set to UTC,
+`/var/log/journal` created for persistence with `SystemMaxUse` capped,
+`firewalld` left closed because the UI arrives through the tunnel.
+
+### The rest of the stack
+
 - **PostgreSQL 16 + PostGIS 3.4**, in Docker, database `weather-property`
 - **Python 3.12** backend, stdlib and boring dependencies preferred;
   `psycopg[binary]==3.2.3` is currently the only dependency
@@ -539,7 +577,55 @@ open question; if so, remediation is its own line item.
 - **Tailscale** for host-to-host file movement
 - Deployed with **Ansible** where practical
 - Monitoring through an existing instance called **Irin**
-- SELinux: bind mounts carry `:Z`
+
+### Logging and operational visibility
+
+Full reasoning in the 2026-09-08 decision-log entries. The working rules:
+
+**Two layers, and the split is forced rather than chosen.**
+
+| Layer | Holds | Why it cannot be the other one |
+|---|---|---|
+| Database — `ingest_runs`, `iem_ingest_rejects` | What a run did, and which lines it refused | Queryable, constrained, and the detail is worth keeping |
+| stdout → journald | That the process existed, started, and how it ended | **A database failure cannot be written to the database**, and a process killed before its `except` block writes nothing anywhere |
+
+**The format is logfmt, to stdout, never to a file.**
+
+```
+event=ingest_start run_id=41 run_mode=nightly window_start=... window_end=...
+event=ingest_done  run_id=41 rows_seen=118 rows_inserted=12 rows_skipped=0
+```
+
+- `key=value` pairs, `run_id` on **every** line so one run can be pulled out of
+  an interleaved journal.
+- The **start line is emitted before anything can fail** — before the HTTP
+  request, before the database write. It is the only evidence that survives a
+  `SIGKILL`.
+- Readable in `journalctl` by eye, parseable by a shipper later without regex.
+- **Detail stays in the database.** The log says how many; the table says which.
+- **`PYTHONUNBUFFERED=1` is load-bearing**, not tidiness. Python buffers stdout
+  when it is not a TTY — exactly the case under systemd — and a process killed
+  before the buffer flushes produces *no logs at all*. Already set in
+  `docker/ingest.Dockerfile`.
+
+**Health is an absence query, not a status query.**
+
+```sql
+SELECT max(finished_at) FROM ingest_runs
+ WHERE run_mode = 'nightly' AND run_status = 'complete';
+```
+
+Older than ~30 hours is the alert. A status column cannot express this: a
+crashed run leaves `running` forever and reads as healthy-in-progress, and a run
+that never fired leaves no row to inspect at all. "When did a nightly run last
+*succeed*" is the only phrasing that holds across failed, crashed, and never
+started.
+
+**systemd schedules; the container is only the runtime.** A timer unit invokes
+`docker compose run`, and the unit carries `OnFailure=` and `Persistent=true` so
+a missed run fires after downtime rather than being skipped silently. Cron
+inside the container was declined — a second scheduler on a box that already has
+systemd, forfeiting journald capture, `systemctl --failed`, and `OnFailure=`.
 
 ---
 
@@ -662,6 +748,12 @@ Unresolved. Each is cheaper to settle now than after there is data.
     stored report, and these are never stored. Cheap to widen later (re-ingest
     is idempotent); the reason to decide it deliberately is that nothing will
     ever surface the gap — no row, no reject, no count.
+    **New as of 2026-09-08:** IEM exposes bounding-box parameters (`north`,
+    `south`, `east`, `west`, added 2024-10-24), so this question now has a
+    mechanism attached rather than only a description — a box crossing the state
+    line would store the Wyoming report in the first place. This does not
+    reopen the 2026-09-04 `state=CO` decision; it means choosing to leave the
+    gap is now a choice between two available options.
 13. **`report_sources` has DDL but no seed.** Nothing reads a confidence tier
     until there is ingested data to rate, so this is Phase 1 work — but it is
     the one table whose absence is invisible, because a `LEFT JOIN` against an
