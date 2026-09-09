@@ -1405,3 +1405,47 @@ first one provides: journald capture of stdout, `systemctl --failed` as a single
 place to see a broken job, `OnFailure=` hooks, and `Persistent=true`. It also
 puts the schedule inside an image, so changing when the job runs means a
 rebuild.
+
+---
+
+## 2026-09-09 — Three IEM endpoint behaviours, verified against the live endpoint
+
+All three checked against `cgi-bin/request/gis/lsr.py` today. Recorded together
+because they share a lesson: this endpoint's contract cannot be read off its
+documentation or its status codes, only off its responses.
+
+**IEM validates `fmt` but silently ignores unknown filter parameters.**
+`fmt=geojson` returns **422**. `stat=CO` — one transposed character — returns
+**HTTP 200 and every LSR in the country**: 27 New Jersey rows, 13 Kansas, 11
+Texas, with Colorado fourth on the list. The failure is not merely quiet, it is
+*shaped like success*, and a backfill would have loaded a national dataset into
+`iem_data` while every log line said the run completed.
+
+Filter correctness must therefore be **verified in the response, never inferred
+from a status code**. The enforcement is the STATE assertion in
+`scripts/iem_backfill.py`, which runs per month-window after the fetch and
+before the row loop, and ends the run naming the states it found. It excludes
+overflow rows on purpose: an unquoted comma in `CITY` shifts `COUNTY` into
+`STATE`, so asserting on those would abort the backfill on each of the 76 known
+malformed archive rows — the outcome the field-count check runs first to
+prevent. An ignored filter produces thousands of *well-formed* out-of-state
+rows, so the exclusion costs the check nothing.
+
+This generalizes past `state`. Any parameter this endpoint accepts is a
+parameter it may also ignore, so anything that matters has to be observable in
+the data that comes back.
+
+**`ets` is exclusive.** `sts=2021-05-08&ets=2021-05-09` returns 05-08 reports
+only. Month chaining therefore needs **no gap and produces no overlap**: each
+window's `ets` is the next window's `sts`. This is what makes `month_windows()`
+in `scripts/iem_backfill.py` half-open, and why `--end` is documented as
+exclusive. Off-by-one here would either lose a day per month across the whole
+backfill or double-fetch one — the second being survivable, since the
+`iem_data` natural key makes re-ingest idempotent, and the first being silent.
+
+**`state=CO` is confirmed correct for this endpoint — not `states`.** Verified
+directly rather than from documentation. This settles a question raised during
+the 2026-09-09 review of `iem_backfill.py` and **confirms, but does not
+supersede, the 2026-09-04 decision**; the open consequence recorded there —
+reports just over the state line are excluded permanently, carried as open
+question 12 — is untouched by this entry.
