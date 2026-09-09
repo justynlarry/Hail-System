@@ -62,7 +62,7 @@ VALID_TYPES_SQL = "SELECT report_type, report_text FROM report_types"
 START_RUN_SQL = """
     INSERT INTO ingest_runs (run_mode, window_start, window_end)
     VALUES (%s, %s, %s)
-    RETURNS run_id
+    RETURNING run_id
 """
 
 # Status / Finished_at in ONE statement, finished_has_timestamp will reject a
@@ -70,7 +70,7 @@ START_RUN_SQL = """
 
 FINISH_RUN_SQL = """
     UPDATE ingest_runs
-        SET run_stats = %s,
+        SET run_status = %s,
             finished_at = now(),
             rows_seen = %s,
             rows_inserted = %s,
@@ -118,7 +118,7 @@ def log_event(event, run_id=None, level=logging.INFO, **fields):
     logging.log(level, " ".join(parts))
 
 
-def iso_date(txt):
+def iso_date(text):
     """argparse type: validate YYY-MM-DD and return an aware UTC datetime
     """
 
@@ -199,7 +199,7 @@ def fetch(url, run_id):
 
         delay = HTTP_BACKOFF ** attempt
         log_event(
-            "fetch_retry", run_id, level=loggin.WARNING,
+            "fetch_retry", run_id, level=logging.WARNING,
             attempt=attempt, of=HTTP_ATTEMPTS, delay=delay, error=last_error,
         )
         time.sleep(delay)
@@ -217,7 +217,7 @@ def load_valid_types(cursor):
 
 def main(argv=None):
     logging.basicConfig(
-        stream=sys.stdout, level=loggin.INFO, format="%(message)s",
+        stream=sys.stdout, level=logging.INFO, format="%(message)s",
     )
 
     args = parse_args(argv)
@@ -279,8 +279,8 @@ def main(argv=None):
                         skipped +=1
                     else:
                         record["ingested_at"] = ingested_at
-                        curr.execute(INSERT_ROW_SQL, record)
-                        inserted += cur.row.count
+                        cur.execute(INSERT_ROW_SQL, record)
+                        inserted += cur.rowcount
 
                     if seen % COMMIT_CHUNK == 0:
                         conn.commit()
@@ -296,7 +296,7 @@ def main(argv=None):
             with conn.cursor() as cur:
                 cur.execute(FINISH_RUN_SQL, (
                     "failed", seen, inserted, skipped,
-                    "f{type(exc).__name__}: {exc}", run_id,
+                    f"{type(exc).__name__}: {exc}", run_id,
                 ))
 
             conn.commit()
@@ -309,7 +309,7 @@ def main(argv=None):
             ))
         conn.commit()
 
-    elapsed = rount(time.monotonic() - started, 1)
+    elapsed = round(time.monotonic() - started, 1)
     log_event(
         "complete", run_id,
         seen=seen, inserted=inserted, skipped=skipped, elapsed=elapsed,
@@ -317,7 +317,7 @@ def main(argv=None):
 
     if skipped:
         log_event(
-            "rows_skipped", run_id, level=loggin.WARNING, count=skipped,
+            "rows_skipped", run_id, level=logging.WARNING, count=skipped,
         )
 
     return 0
