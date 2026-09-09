@@ -5,10 +5,15 @@ Takes an explicit date range, this is separate from the nightly job.
 
     python3 scripts/iem_backfill.py --start 2021-01-01 --end 2021-02-01
 
-Re-running this script is safe, iem_data's key plus ON CONFLICT DO NOTHING
-will return zero rows if a time window has already been loaded.  Benefit
-is that running it multiple times after a failure won't duplicate existing
-records.
+Re-running this script is safe for iem_data: the natural key plus ON CONFLICT
+DO NOTHING means a window that has already been loaded inserts zero rows, so
+re-running after a failure cannot duplicate storm reports.
+
+iem_ingest_rejects is deliberately NOT deduplicated.  A re-run writes its
+rejects again under the new run_id, because that table answers "what did run
+47 drop" -- collapsing rejects across runs would destroy the question it
+exists to answer.  Expect reject counts to grow with each re-run; that is the
+design, not a leak.
 """
 
 import argparse
@@ -80,6 +85,11 @@ FINISH_RUN_SQL = """
 """
 
 # Named Placeholders, passes parse_row from record dict directly
+#
+# TODO: iem_data.nws_issuer is NOT NULL, but parse_row returns _clean(WFO),
+# which is None for an empty WFO field.  No reject reason covers it, so such a
+# row would raise IntegrityError mid-batch and end the run.  Not yet observed
+# in the archive; left unpatched deliberately rather than guessed at.
 
 INSERT_ROW_SQL = """
     INSERT INTO iem_data (
@@ -141,7 +151,8 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--end", required=True, type=iso_date,
-        help="window end, YYYY-MM-DD (UTC)",
+        help="window end, YYYY-MM-DD (UTC, EXCLUSIVE -- the date given is "
+             "midnight UTC, so its reports are not fetched)",
     )
     parser.add_argument(
         "--mode", default="backfill", choices=("backfill", "replay"),
@@ -205,6 +216,30 @@ def fetch(url, run_id):
         time.sleep(delay)
 
 
+def month_windows(start, end):
+    """Yield (start, end) sub-windows covering [start, end), one per month.
+
+    Five years of Colorado LSRs in a single GET is one request that either
+    finishes inside HTTP_TIMEOUT or loses everything.  A month is small enough
+    to retry cheaply and gives the progress log something to say.  All windows
+    run under ONE run_id: this is one backfill, and ingest_runs.window_start /
+    window_end record what was asked for, not how it was chopped up.
+
+    Boundaries are half-open, so the caller's --end stays exclusive and no
+    report is fetched twice.
+    """
+
+    cursor = start
+    while cursor < end:
+        if cursor.month == 12:
+            following = cursor.replace(year=cursor.year + 1, month=1, day=1)
+        else:
+            following = cursor.replace(month=cursor.month + 1, day=1)
+        following = min(following, end)
+        yield cursor, following
+        cursor = following
+
+
 def load_valid_types(cursor):
     """report_type/report_text pairs, read once at run-start.
 
@@ -252,51 +287,91 @@ def main(argv=None):
         )
 
         seen = inserted = skipped =0
+
+        # Counters as of the last COMMIT.  The running totals above count
+        # attempts, and a rollback discards an uncommitted chunk -- writing
+        # those to ingest_runs would claim rows that no longer exist.
+        done_seen = done_inserted = done_skipped = 0
+
         started = time.monotonic()
 
         try:
-            url = build_url(args.start, args.end)
-            body = fetch(url, run_id)
+            for chunk_start, chunk_end in month_windows(args.start, args.end):
+                url = build_url(chunk_start, chunk_end)
+                body = fetch(url, run_id)
 
-            # iem_ingest_rejects.raw_raw needs original text verbatim
-            # List is kept and zipped against the reader
+                lines = body.splitlines()
+                reader = csv.DictReader(lines, restkey=RESTKEY)
 
-            lines = body.splitlines()
-            reader = csv.DictReader(lines, restkey=RESTKEY)
+                log_event(
+                    "fetch_ok", run_id,
+                    window_start=chunk_start.isoformat(),
+                    window_end=chunk_end.isoformat(),
+                    bytes=len(body), lines=len(lines),
+                )
 
-            log_event("fetch_ok", run_id, bytes=len(body), lines=len(lines))
+                # iem_ingest_rejects.raw_row needs the original text verbatim.
+                #
+                # Do NOT zip lines[1:] against the reader.  A quoted REMARK may
+                # contain a newline, which is one CSV record spanning two
+                # physical lines: the reader consumes both, the zip advances
+                # one, and every raw_row after it is the wrong line.  That
+                # would break the one property that makes rejecting non-lossy.
+                # reader.line_num is the physical line count actually consumed,
+                # so slicing by it stays aligned no matter how many lines a
+                # record spans.  It starts at 1, the header.
+                consumed = 1
 
-            with conn.cursor() as cur:
-                for raw_line, row in zip(lines[1:], reader):
-                    seen +=1
-                    record, reject = parse_row(row, valid_types)
+                with conn.cursor() as cur:
+                    for row in reader:
+                        raw_line = "\n".join(lines[consumed:reader.line_num])
+                        consumed = reader.line_num
 
-                    if reject is not None:
-                        cur.execute(INSERT_REJECT_SQL, (
-                            run_id, raw_line,
-                            reject["reason"], reject["detail"],
-                        ))
-                        skipped +=1
-                    else:
-                        record["ingested_at"] = ingested_at
-                        cur.execute(INSERT_ROW_SQL, record)
-                        inserted += cur.rowcount
+                        seen +=1
+                        record, reject = parse_row(row, valid_types)
 
-                    if seen % COMMIT_CHUNK == 0:
-                        conn.commit()
-                        log_event(
-                            "progress", run_id,
-                            seen=seen, inserted=inserted, skipped=skipped,
+                        if reject is not None:
+                            cur.execute(INSERT_REJECT_SQL, (
+                                run_id, raw_line,
+                                reject["reason"], reject["detail"],
+                            ))
+                            skipped +=1
+                        else:
+                            record["ingested_at"] = ingested_at
+                            cur.execute(INSERT_ROW_SQL, record)
+                            inserted += cur.rowcount
+
+                        if seen % COMMIT_CHUNK == 0:
+                            conn.commit()
+                            done_seen, done_inserted, done_skipped = (
+                                seen, inserted, skipped
+                            )
+                            log_event(
+                                "progress", run_id,
+                                seen=seen, inserted=inserted, skipped=skipped,
+                            )
+
+                    conn.commit()
+                    done_seen, done_inserted, done_skipped = (
+                        seen, inserted, skipped
                     )
-
-                conn.commit()
 
         except Exception as exc:
             conn.rollback()
+
+            # Committed counts go in the columns; the attempted counts are
+            # named in the text, because the gap between them is exactly how
+            # much work the rollback threw away.
+            detail = (
+                f"{type(exc).__name__}: {exc} "
+                f"[committed seen={done_seen} inserted={done_inserted} "
+                f"skipped={done_skipped}; attempted seen={seen} "
+                f"inserted={inserted} skipped={skipped}]"
+            )
             with conn.cursor() as cur:
                 cur.execute(FINISH_RUN_SQL, (
-                    "failed", seen, inserted, skipped,
-                    f"{type(exc).__name__}: {exc}", run_id,
+                    "failed", done_seen, done_inserted, done_skipped,
+                    detail, run_id,
                 ))
 
             conn.commit()
