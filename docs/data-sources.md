@@ -158,12 +158,38 @@ judgments.
 - **`TYPECODE` is not unique.** Nine codes map to two texts each — `R` is both
   RAIN and HEAVY RAIN, `S` both SNOW and HEAVY SNOW. The key is the pair
   `(report_type, report_text)`.
-- **76 rows have unquoted commas inside `CITY`** (`BISON LAKE, GLENWOOD 15`),
+- **76 rows have unquoted commas inside `CITY`** (`BISON LAKE, GLENWOOD 15`)
+  — 75 from 2018 and **one from 2026-08-31, so this is ongoing, not a
+  historical artifact** (see the 2026-09-09 reversal entry),
   producing 17 fields instead of 16. Never split on commas — but note that a
   real CSV parser **detects** these rows and cannot **repair** them: the quotes
   were never written, so the field boundary is unrecoverable. They are rejected
   as `field_count_mismatch`, which is why rejecting is not lossy — `raw_row`
   keeps the line verbatim.
+- **`SOURCE` arrives truncated occasionally, at no consistent width.** Two
+  instances in 135,856 rows, both mangling "Department of Highways":
+  `'DEPT OF'` (7 chars, 2019-03-09, BOU, in a *well-formed* row) and
+  `'Department of Hig'` (17 chars, 2026-08-31, GJT, in the malformed row above).
+  The canonical `'DEPT OF HIGHWAYS'` / `'Dept of Highways'` also exists.
+
+  **There is no length cap to code against, and 16 is not one.** The longest
+  well-formed `SOURCE` is 16 characters, but all ten values at that length are
+  complete, deliberately-abbreviated picklist entries — `DEPT OF HIGHWAYS`,
+  `FIRE DEPT/RESCUE`, `NWS STORM SURVEY`, `OFFICIAL NWS OBS`,
+  `PARK/FOREST SRVC`, and their mixed-case twins. None is cut mid-word.
+  `'Department of Hig'` is **17** characters — longer than any well-formed
+  value — so whatever produced it was not a 16-character truncation.
+
+  Length distribution of well-formed `SOURCE`, for reference: 4, 6, 7, 8, 9,
+  10, 11, 12, 13, 14, 15, 16 — nothing above 16, and the 9/10/11 buckets hold
+  17, 3 and 1 rows respectively.
+
+  **Consequence for `report_sources`:** the table is a lookup joined on
+  `report_source_norm`, and a truncated value will simply never match — which
+  is the behaviour already designed for. A `LEFT JOIN` yields a NULL tier and
+  the UI shows "unrated" rather than dropping the report. This is the concrete
+  evidence behind the `NO FOREIGN KEY` comment in `sql/003_reference.sql`,
+  which already names both of these values.
 - **`QUALIFIER` of `M` on hail does not mean instrument-measured.** 97.8% of M
   and 94.9% of E hail values land on the same coin/ball catalog. M tracks
   reporter training. Use `SOURCE` for a confidence signal instead. A value

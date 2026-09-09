@@ -1449,3 +1449,95 @@ the 2026-09-09 review of `iem_backfill.py` and **confirms, but does not
 supersede, the 2026-09-04 decision**; the open consequence recorded there —
 reports just over the state line are excluded permanently, carried as open
 question 12 — is untouched by this entry.
+
+---
+
+## 2026-09-09 — Natural key verified against the archive; duplicate reports confirmed benign
+
+The first month-scale backfill (January 2021) was cross-checked against
+`data/lsr_201601010000_202608312359.csv`, downloaded independently months
+earlier.
+
+**Row count matched exactly.** `awk -F',' '$1 ~ /^202101/' | wc -l` returned
+1400; the run reported `seen=1400`. Endpoint, parameters, parser, and loop
+agree with a file the script never touched.
+
+**Ten rows conflicted on the natural key** despite January being empty before
+the run, so the duplicates are inside IEM's own data rather than an artifact of
+re-ingest. Confirmed with `sort | uniq -d` on the five key columns.
+
+Inspecting one — `202101140304`, 2 NW MASONVILLE — the two rows are identical
+in every field except `REMARK`: one empty, one containing a single period. Same
+spotter, same station, same minute. A double submission with a stray keystroke,
+not two observations.
+
+**Conclusion: the dedup is correct and `REMARK` is rightly outside the natural
+key.** Including it would have preserved both rows, and a period is not a
+distinguishing fact. No change required.
+
+**Consequence to carry forward:** the tiered confidence label ("Moderate — 3
+reports, 2 spotters") counts stored rows, not reports IEM received. The
+monthly average is 0.71% (10 of 1400), but the rate is not uniform — all ten
+pairs fall on 2021-01-14 and are almost entirely NON-TSTM WND GST, consistent
+with one office re-transmitting a product for a single wind event. So a label
+computed for that day's storm could be off by considerably more than one
+percent, while a label for a quiet week is off by zero. The direction stays
+conservative — it under-counts rather than over-claims — but the label's
+wording should say "reports" and must not imply distinct observers.
+
+---
+
+## 2026-09-09 — Reversal: the unquoted-comma `CITY` malformation is ongoing, not a 2018 artifact
+
+Supersedes the factual premise of *The 76 unquoted-comma `CITY` rows are
+rejected, not realigned* (2026-09-04). That entry set the tripwire as "reverses
+if the pattern appears in any row dated after 2018." The condition is met.
+
+`run_id = 4` (backfill 2021-01-01 → 2026-09-09, 84,268 seen, 1 skipped):
+
+```
+reason:  field_count_mismatch
+detail:  17 fields, expected 16; overflow ['']
+raw_row: 202608312045,2026/08/31 20:45,40.05,-108.15,None,GJT,F,FLASH FLOOD,
+         CO Highway 64, at mile,Rio Blanco,CO,Department of Hig,Mud slide
+         covering westbound lanes on CO Highway 64 at mile point 61.5 due to
+         heavy rainfall.,COC103,Rio Blanco,
+```
+
+Dated **2026-08-31**, nine days before this entry. Same mechanism: an unquoted
+comma inside `CITY` (`CO Highway 64, at mile`). Same office, GJT. The pattern
+outlived 2018 by eight years and was never fixed upstream.
+
+**Correction to the original entry's count, and it matters more than the
+reversal.** The original said "all 76 are from 2018." Re-counted against
+`data/lsr_201601010000_202608312359.csv`: **75 are from 2018 and one is from
+2026** — 76 in total, so the headline number was right and the attribution was
+not. That 2026 row was **already in the archive when the 2026-09-04 entry was
+written**, since the archive runs through 2026-08-31. The hypothesis was not
+disproven by new data; it was never true, and the disproving row was sitting in
+the file the whole time. A total that matched the expected figure is what
+stopped anyone looking at the distribution behind it.
+
+**The decision does not change.** Rejecting rather than realigning is still
+correct, and `raw_row` keeps it lossless. What changes is the expected
+frequency: roughly one row in 84,000 over five years, so `rows_skipped > 0` is a
+real recurring condition rather than a theoretical one. **Whatever eventually
+watches `ingest_runs` must not treat a non-zero skip count as an emergency** —
+it is the documented normal state of this feed, and an alert that fires on it
+will be muted, which is worse than not having it.
+
+**The overflow field is `['']`, not a value.** The row ends `Rio Blanco,` with
+`QUALIFIER` empty, so the shift pushed a real value off the end rather than
+merely displacing everything by one. Worth recording because it means the tail
+of a shifted row is not reliably recoverable by counting from the right — the
+realignment that the original entry called feasible would have silently
+discarded `QUALIFIER` here.
+
+**This one cost nothing, and that is luck.** A Western Slope flash flood outside
+`coverage_zips`, below every magnitude floor, on a type that is not
+`roof_relevant`. Nothing about the reject mechanism arranged that. A hail report
+inside the territory would be lost the same way, which is the argument for
+`rows_skipped` being visible rather than merely logged.
+
+**Related:** the same row is the evidence for the `SOURCE` truncation entry
+below, and for why `report_sources` has no foreign key from `iem_data`.

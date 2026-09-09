@@ -415,7 +415,9 @@ These have already bitten. Do not re-discover them.
 - **`TYPECODE` is not unique.** Nine codes map to two texts each — `R` is both
   RAIN and HEAVY RAIN, `S` both SNOW and HEAVY SNOW. The key is
   `(report_type, report_text)`.
-- **76 rows have unquoted commas inside `CITY`** (`BISON LAKE, GLENWOOD 15`),
+- **76 rows have unquoted commas inside `CITY`** (`BISON LAKE, GLENWOOD 15`)
+  — 75 from 2018 and **one from 2026-08-31, so this is ongoing, not a
+  historical artifact** (see the 2026-09-09 reversal entry),
   giving 17 fields instead of 16. Never split on commas — but a real CSV parser
   **detects** these and cannot **repair** them. The quotes were never written,
   so the field boundary is unrecoverable. They are rejected as
@@ -759,6 +761,17 @@ Unresolved. Each is cheaper to settle now than after there is data.
     the one table whose absence is invisible, because a `LEFT JOIN` against an
     empty lookup returns NULL tiers and the UI shows "unrated" rather than
     erroring.
+    **Complication found 2026-09-09:** `reference/sources.csv` holds 36 rows,
+    but only **35** distinct `upper(trim())` values appear in well-formed
+    archive rows. The 36th is `DEPARTMENT OF HIG`, harvested from the single
+    malformed 2026-08-31 row — a row the ingest **rejects**, so that value can
+    never arrive through `iem_data` and seeding it would create a lookup entry
+    nothing ever joins to. The other truncated variant, `DEPT OF`, is from
+    2019-03-09 and sits below the `2021-01-01` archive floor, so production
+    will not see it either. Both are harmless (a lookup, not a constraint) but
+    the seed should be built from what the ingest can actually produce, not
+    from a raw scan of the archive. See the `SOURCE` truncation trap in
+    `docs/data-sources.md`.
 
 Also open and blocked on RBI rather than on us: **DNS access and existing
 subscription status**, needed for the Phase 5 sending identity. The ask starts
