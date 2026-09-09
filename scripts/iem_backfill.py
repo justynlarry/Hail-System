@@ -310,6 +310,36 @@ def main(argv=None):
                     bytes=len(body), lines=len(lines),
                 )
 
+                # IEM validates fmt (a bad value returns 422) but silently
+                # IGNORES unknown filter parameters -- ?stat=CO returns HTTP 200
+                # and every LSR in the country.  Verified 2026-09-09: a single
+                # transposed character produced 27 NJ rows, 13 KS, 11 TX, with
+                # CO fourth on the list.  Nothing upstream reports this, so
+                # filter correctness has to be checked in the response.
+                #
+                # Overflow rows are excluded on purpose.  A row with an
+                # unquoted comma in CITY shifts every later column by one, so
+                # COUNTY lands in STATE and the 2018 archive row reads
+                # STATE='GARFIELD'.  Asserting on those would end the run on
+                # each of the 76 known malformed rows -- the very thing the
+                # field-count check runs first to prevent.  They still reach
+                # parse_row and still become rejects.  An ignored filter
+                # produces thousands of WELL-FORMED out-of-state rows, so
+                # nothing is lost by ignoring the malformed ones here.
+                wrong_state = {
+                    row["STATE"].strip()
+                    for row in csv.DictReader(lines, restkey=RESTKEY)
+                    if not row.get(RESTKEY)
+                    and row.get("STATE")
+                    and row["STATE"].strip() != IEM_STATE
+                }
+                if wrong_state:
+                    raise ValueError(
+                        f"response contains states other than {IEM_STATE}: "
+                        f"{sorted(wrong_state)} -- check the filter parameter "
+                        f"name"
+                    )
+
                 # iem_ingest_rejects.raw_row needs the original text verbatim.
                 #
                 # Do NOT zip lines[1:] against the reader.  A quoted REMARK may
