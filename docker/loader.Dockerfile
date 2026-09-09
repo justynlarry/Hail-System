@@ -13,9 +13,11 @@
 # converter that emits SQL text and never links against the server.  Pinned
 # anyway so a PGDG refresh cannot change the loader underneath us.
 
+# expired-metadata workaround, bullseye EOL as of 2026-09-07, remove when the base image rebases.
+
 FROM postgis/postgis:16-3.4
 
-RUN apt-get update \
+RUN apt-get -o Acquire::Check-Valid-Until=false update \
  && apt-get install -y --no-install-recommends \
         postgis=3.5.2+dfsg-1.pgdg110+1 \
  && rm -rf /var/lib/apt/lists/*
