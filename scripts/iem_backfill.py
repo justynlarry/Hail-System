@@ -58,9 +58,12 @@ HTTP_BACKOFF = 2
 
 COMMIT_CHUNK = 4000
 
-# Archive floor is fixed, not rolling, at 5 years.
+# Archive floor is a fixed date, not a rolling window.  Set to the practical
+# start of the IEM LSR archive for Colorado -- the earliest report is
+# 2004-01-26.  Only drives the below_archive_floor WARNING; an earlier --start
+# is still honoured.  See decision-log 2026-09-10 (supersedes 2026-09-04).
 
-ARCHIVE_FLOOR = datetime(2021, 1, 1, tzinfo=timezone.utc)
+ARCHIVE_FLOOR = datetime(2004, 1, 1, tzinfo=timezone.utc)
 
 VALID_TYPES_SQL = "SELECT report_type, report_text FROM report_types"
 

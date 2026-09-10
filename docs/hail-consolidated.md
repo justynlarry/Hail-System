@@ -19,15 +19,18 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-09-09**, commit `83b83bc` plus an
-uncommitted working tree. Since the 2026-09-08 sync the project gained the first
-ingest script and its first real backfill, a loaded `coverage_zips`, a USPS
-zip/city reference, and a `planning/` vs `config/` split separating generic data
-from per-customer configuration.
+Last synced against the repo: **2026-09-10**, commit `6114bf3` plus the
+uncommitted working tree that carries this sync. Since the 2026-09-08 sync the
+project gained the first ingest script and five real backfill runs that walk the
+archive floor back to 2004, the archive-floor move itself (2021-01-01 →
+2004-01-01, decision-log 2026-09-10), a USPS zip/city reference,
+`scripts/load_coverage.sh`, a `planning/` vs `config/` split separating generic
+data from per-customer configuration, and a stdlib test suite for the parser.
 
-Everything below was verified on a running stack rather than read off the
-source. Where a number appears — 183, 33,791, 37,104 — it came from a query on
-2026-09-09.
+Everything below was verified against the **`hail-dev`** stack rather than read
+off the source. Where a number appears — 176,957, 33,791, 37,104 — it came from
+a query on 2026-09-09/10. A few facts are per-machine deployment state rather
+than project state (the territory load, most notably); those are marked inline.
 
 ---
 
@@ -51,8 +54,9 @@ The pitch is deliberately narrow: *"hail of X size was reported near this
 listing."* It reports a public record. It never claims damage.
 
 **Scale.** Single developer (Justyn). Two machines — a `hail-dev` VM and the
-production OptiPlex (§9). Four or five user accounts,
-probably ever. ~135,856 storm report rows for ten years of Colorado.
+production OptiPlex (§9). Four or five user accounts, probably ever. **176,957
+storm report rows** on `hail-dev` after the backfill, 2004-01-26 to 2026-09-07 —
+about 23 years of Colorado, not ten.
 
 ---
 
@@ -61,7 +65,7 @@ probably ever. ~135,856 storm report rows for ten years of Colorado.
 **Phase 1 — IEM ingest. Phase 0 is closed. The backfill has run; nothing runs
 unattended yet.**
 
-### Infrastructure — verified on a running stack, 2026-09-08 and 2026-09-09
+### Infrastructure — verified on a running stack, 2026-09-08 through 2026-09-10
 
 - **`docker-compose.yml`** defines three services on one network, `hailnet`:
   - `postgis` — stock `postgis/postgis:16-3.4`, the only long-running service.
@@ -113,24 +117,58 @@ The database is `weather-property`. The hyphen means it must be double-quoted in
 any literal SQL that names it, which is why `010` grants `CONNECT` through
 `format('... %I ...', current_database())` instead.
 
-### Ingest and territory — new on 2026-09-09
+### Ingest and territory — 2026-09-09 / 2026-09-10
 
 - **`scripts/iem_backfill.py`** — the first ingest script. Imports
-  `iem_parse.py`, writes the `ingest_runs` row before the fetch, and rejects to
-  `iem_ingest_rejects`. **It has run for real:** `run_id = 4`, 2021-01-01 →
-  2026-09-09, **84,268 rows seen, 1 skipped**. That single skip is the
-  unquoted-comma `CITY` row from 2026-08-31 that disproved the 2018 hypothesis.
+  `iem_parse.py`, writes the `ingest_runs` row before the fetch, rejects to
+  `iem_ingest_rejects`, and pulls from the IEM archive **over HTTP** (there is no
+  file-input mode). **It has run eight times on `hail-dev`** — runs 1–3 were
+  window tests, runs 4–8 are the backfill proper, walking the window start back
+  from 2021 to 2003:
+
+  | run | window requested | seen | inserted | skipped |
+  |---|---|--:|--:|--:|
+  | 4 | 2021-01-01 → 2026-09-09 | 84,268 | 79,358 | 1 |
+  | 5 | 2018-02-01 → 2018-05-01 | 4,526 | 4,364 | 27 |
+  | 6 | 2018-01-01 → 2026-09-09 | 122,954 | 32,462 | 76 |
+  | 7 | 2016-01-01 → 2026-09-09 | 135,909 | 12,569 | 76 |
+  | 8 | 2003-01-01 → 2016-01-01 | 47,189 | 46,800 | 2 |
+
+  Total in `iem_data`: **176,957 rows, 2004-01-26 → 2026-09-07** (2003 was the
+  requested floor; no report exists before 2004-01-26). The overlapping windows
+  on runs 6 and 7 insert nothing for the range already loaded — the `iem_data`
+  natural key makes re-ingest idempotent, which is why "seen" so far exceeds
+  "inserted" there. Run 4's single skip is the unquoted-comma `CITY` row from
+  2026-08-31 that disproved the 2018 hypothesis. Run 8's two skips are the first
+  `unknown_report_type` rejects against real data (§7). Rejects are **not**
+  deduplicated across runs, so the ~76 malformed 2018 rows are re-rejected under
+  each wide run's `run_id`; that is the design.
+
+- **The archive floor is `2004-01-01`, moved there on 2026-09-10** (decision-log
+  entry, superseding the 2026-09-04 fixed-`2021-01-01` decision). The *fixed
+  date, not a rolling window* principle is unchanged — only the date moved, to
+  the practical bottom of the IEM LSR archive for Colorado. The floor is a
+  backfill/replay concept only: `ARCHIVE_FLOOR` in `iem_backfill.py` drives just
+  the `below_archive_floor` warning, and the nightly job never reads it (rolling
+  `recent=` window). Two rows below the old floor came into scope with the move:
+  the 2019 `DEPT OF` truncated `SOURCE` value (open question 13), and the
+  pre-2016 `unknown_report_type` rejects in §7.
+
 - **`scripts/load_coverage.sh`** — loads one customer's territory into
   `coverage_zips`. Separate from `load_reference.sh` on purpose, and takes the
   zip list as an **argument** so a second installation needs no code change.
-- **`coverage_zips` is populated: 183 rows.** It was empty until today, which is
-  why a coverage-filtered `ST_DWithin` returned **0 rows with no error** — the
-  inner join eliminated everything. Same silent-empty-join shape as the SRID
-  trap. Now returns 5 for a point in Fort Collins, out of 7 nearby ZCTAs.
+- **`coverage_zips` — loader and config exist; not loaded on `hail-dev`.** The
+  table is **empty here (0 rows)**. It was loaded to **183 rows** on the
+  workstation from the 193-entry `config/coverage_zips.txt` — the other 10 have
+  no ZCTA polygon and are uninsertable by design (§7) — and `load_coverage.sh`
+  reproduces that. Until it is run, a coverage-filtered `ST_DWithin` returns
+  **0 rows with no error**: the inner join eliminates everything, the same
+  silent-empty-join shape as the SRID trap. `load_coverage.sh` refuses to run
+  against an empty `zcta_boundaries` for the same reason.
 - **`planning/zip_city_names.csv`** — 37,104 USPS zip → city names, all states,
   supplying `area_name`. Static reference, deliberately not a pipeline.
-- **`config/`** — new directory holding per-customer configuration. The one file
-  in it is `coverage_zips.txt`, moved from
+- **`config/`** — directory holding per-customer configuration. The one file in
+  it is `coverage_zips.txt`, moved from
   `planning/rbi-zip-code-coverage-area-list.txt`.
 
 **The generic/specific split is now visible in the tree**, not just in comments:
@@ -145,15 +183,19 @@ any literal SQL that names it, which is why `010` grants `CONNECT` through
 
 - Full written design: schema, decision log, data-source notes, phase plan
 - TIGER 2025 national ZCTA and county shapefiles under `data/raw/tiger/`
-- Ten years of Colorado LSR CSV at `data/lsr_201601010000_202608312359.csv`
+- Colorado LSR archive CSVs at `data/lsr_201601010000_202608312359.csv`
+  (2016–2026) and `data/lsr_2003_2015.csv` — reference copies for inspection;
+  `iem_backfill.py` pulls from the IEM archive over HTTP, not from these files
 - Derived reference CSVs in `reference/` — statistical evidence, not load input
 - `sql/001`–`009`: DDL for all seventeen tables
 - `scripts/build_reference_tables.py`, `zcat-data-check.py`, `load_reference.sh`
 - `scripts/iem_parse.py` — the shared row parser both ingest scripts will import
 - **Initial `roof_relevant` set:** 12 of 37 types, 5 with magnitude floors
   (HAIL 1.00″, TSTM WND GST / NON-TSTM WND GST 58 mph, HIGH SUST WINDS 40 mph,
-  HEAVY SNOW 6″). 17.8% of the archive — 24,124 of 135,856 reports. `SNOW` is
-  excluded and that single call set the scale: with it, the set would be 82.9%.
+  HEAVY SNOW 6″). Against the 176,957-row backfill corpus that is **38,935 rows,
+  22.0%** (was 24,124 / 17.8% against the old 135,856-row ten-year extract).
+  `SNOW` is excluded and that single call still sets the scale: include it and
+  the set is 143,497 rows, 81.1%.
 - **Phase 0's "done when" met 2026-09-03** — zips within 5 miles of an arbitrary
   lat/lon, 21 zips around the office point in ~22 ms. That number depends on a
   second index: the buffer query casts to `geography` to work in metres, and a
@@ -178,12 +220,16 @@ any literal SQL that names it, which is why `010` grants `CONNECT` through
 ### Not built
 
 The **nightly** ingest script and its systemd timer (the backfill exists; the
-recurring job does not), any web UI, any RentCast client, any sending path, any
-`report_sources` seed, and **any test suite at all** — there is no `tests/`
-directory, no test runner, and no test dependency. Deliberate: test
-infrastructure is not Phase 0/1 groundwork. `iem_parse.py` is pure and takes its
-`valid_types` as an argument, so it is already shaped for testing with no
-fixtures and no database whenever that becomes phase-appropriate.
+recurring job does not), any web UI, any RentCast client, any sending path, and
+any `report_sources` seed.
+
+A **parser test suite now exists** — `tests/test_iem_parse.py`, 44 cases, run
+with `python3 -m unittest discover`, all passing on 2026-09-10. It is pure
+stdlib `unittest` against `iem_parse.py`: no runner and no test dependency added
+(`requirements.txt` is still just `psycopg`). Each case is a §7 trap or a
+contract the ingest depends on. This is the "whenever that becomes
+phase-appropriate" the earlier sync anticipated — `iem_parse.py` takes its
+`valid_types` as an argument, so the suite needs no fixtures and no database.
 
 **Do not build ahead of the current phase.**
 
@@ -286,7 +332,7 @@ ASCII ER diagram is in `docs/db-schema-diagram.md`.
 |---|---|
 | `report_sources` | 36 rows when seeded; **currently empty** — the table exists, the loader does not fill it. What a reporting source is and how far to trust it — `confidence_tier`, `is_automated`. **No FK from `iem_data`**: source is free text typed at NWS offices and an FK would break the nightly ingest. A lookup, joined on `report_source_norm`, never a constraint. |
 | `zcta_boundaries` | 33,791 Census ZCTA polygons, nationwide, EPSG 4326. `centroid` is generated with `ST_PointOnSurface`, not `ST_Centroid`, so it cannot fall outside a C-shaped zip. Two GiST indexes, one on `geom` and one on `(geom::geography)` — see §2. Loaded once, never written to. **No foreign keys** — joined spatially. |
-| `coverage_zips` | RBI's service territory. **Loaded 2026-09-09: 183 rows**, from a 193-entry list — the other 10 have no ZCTA polygon and are uninsertable by design (§7). Keyed on `zcta5` with an FK to `zcta_boundaries`. `area_name` comes from USPS; `reason` is deliberately left NULL by the loader. Ours, and it will be edited — retirement is a marked row, never a delete. |
+| `coverage_zips` | RBI's service territory. **Empty on `hail-dev`; loaded to 183 rows on the workstation** from the 193-entry `config/coverage_zips.txt` — the other 10 have no ZCTA polygon and are uninsertable by design (§7). `load_coverage.sh` reproduces the load. Keyed on `zcta5` with an FK to `zcta_boundaries`. `area_name` comes from USPS; `reason` is deliberately left NULL by the loader. Ours, and it will be edited — retirement is a marked row, never a delete. |
 
 ### Property side
 | Table | What it holds |
@@ -426,8 +472,10 @@ These have already bitten. Do not re-discover them.
 
 ### IEM
 - **`MAG` contains the literal string `None`** as its null marker — 3,353 of
-  135,856 rows. Coerced to 0 it produces 629 magnitude-zero flash floods and
-  549 magnitude-zero tornadoes.
+  135,856 rows in the original ten-year extract. Coerced to 0 it produces 629
+  magnitude-zero flash floods and 549 magnitude-zero tornadoes. After the
+  backfill, 5,320 of 176,957 `iem_data` rows carry a null magnitude — the
+  `None`s plus the types that legitimately have no magnitude unit.
 - **`Decimal()` accepts `'NaN'` and `'Infinity'`.** Neither raises
   `InvalidOperation`, so a naive parse passes them straight through. Two
   distinct consequences, and `iem_parse.py` now guards both with `is_finite()`
@@ -445,14 +493,25 @@ These have already bitten. Do not re-discover them.
 - **`TYPECODE` is not unique.** Nine codes map to two texts each — `R` is both
   RAIN and HEAVY RAIN, `S` both SNOW and HEAVY SNOW. The key is
   `(report_type, report_text)`.
-- **76 rows have unquoted commas inside `CITY`** (`BISON LAKE, GLENWOOD 15`)
-  — 75 from 2018 and **one from 2026-08-31, so this is ongoing, not a
-  historical artifact** (see the 2026-09-09 reversal entry),
-  giving 17 fields instead of 16. Never split on commas — but a real CSV parser
-  **detects** these and cannot **repair** them. The quotes were never written,
-  so the field boundary is unrecoverable. They are rejected as
-  `field_count_mismatch`, and `raw_row` keeping the line verbatim is what makes
-  that non-lossy.
+- **`unknown_report_type` has fired against real data for the first time** —
+  run 8, the 2003–2016 window: `('5', 'ICE STORM')` from 2006-12-20 and
+  `('X', 'WALL CLOUD')` from 2010-08-04. Both are legitimate historical IEM
+  type/text pairs absent from the curated 37 in `report_types`, so the composite
+  FK rejects them; they are the only two rows the backfill has lost this way. A
+  *recurring* version — a pair that shows up in nightly data — is a
+  `report_types` seed gap to fix, not a parser bug; a one-off from a 2006 ice
+  storm is a rejected row and nothing more. The reject enumeration stays closed
+  at five; three of the five have now fired.
+- **Unquoted commas inside `CITY`** (`BISON LAKE, GLENWOOD 15`) give 17 fields
+  instead of 16 — 75 from 2018 and **one from 2026-08-31, so this is ongoing,
+  not a historical artifact** (see the 2026-09-09 reversal entry). Never split on
+  commas — but a real CSV parser **detects** these and cannot **repair** them.
+  The quotes were never written, so the field boundary is unrecoverable. They are
+  rejected as `field_count_mismatch`, and `raw_row` keeping the line verbatim is
+  what makes that non-lossy. **Across the five backfill runs on `hail-dev` this
+  reason has fired 180 times** — the same ~76 rows re-rejected under each wide
+  run's `run_id`, which is by design (rejects are never deduplicated across
+  runs). It is the only reject reason the backfill hit until run 8.
 - **A misspelled IEM filter parameter is silently ignored, not rejected.**
   Verified against 2018-06-19 (177 reports, 142 hail): `type=HAIL` → 142 rows
   and `magge=1.75` → 75 rows, but `typetext=HAIL` → **177** and
@@ -475,6 +534,11 @@ These have already bitten. Do not re-discover them.
 - **`UGC` is null before mid-2022.** Added July 2022, ~99% coverage since.
 - **`SOURCE` is free text with case variants.** Normalize; match on
   `report_source_norm`.
+- **`county` is free text with case variants too — and has no normalized
+  column.** `iem_data` carries a generated `report_source_norm` but nothing
+  equivalent for `county`: `EL PASO` (10,299 rows) and `El Paso` (2,549) are
+  distinct values, and 64 county groups differ only by case. Browse-by-county
+  (open question 4) has to `upper()` both sides or it splits a county in two.
 - **Single-quote IEM URLs in bash.** Unquoted, `&` backgrounds the job and
   truncates the query string — curl succeeds and returns the wrong data.
 - **Colorado WFOs are `BOU`, `PUB`, `GJT`, plus `GLD` and `CYS` on the borders.**
@@ -484,6 +548,13 @@ These have already bitten. Do not re-discover them.
   single LSR. Five reports out of 85,049. Inert today because `SNOW` is
   `roof_relevant = FALSE`, but a magnitude floor on SNOW would admit exactly
   these rows first. Look at this before that flag is ever flipped.
+- **Hail reports skew to the eastern plains, and most hail days are thin.** By
+  county the top of the HAIL distribution is EL PASO, WELD, YUMA, KIT CARSON,
+  PUEBLO, LARIMER, LOGAN, WASHINGTON — plains and the Palmer Divide, not the
+  Front Range metro. And 382 of 1,468 Denver-local hail days (26%) carry exactly
+  one report, so a confidence label that leans on report count will read "thin"
+  more often than not. Neither is a defect; both shape how the browse UI and the
+  confidence tier should be framed.
 
 ### USPS ZIP_Locale_Detail
 
@@ -591,6 +662,14 @@ These are newer and cost real time on 2026-09-08.
   `/var/lib/apt/lists`, so a bare `apt-get install` reports "unable to locate
   package" and looks exactly like the package does not exist. The `apt-get
   update` is the whole fix.
+- **The base image is Debian bullseye, and bullseye went EOL 2026-09-07.** The
+  next day `loader.Dockerfile`'s `apt-get update` began failing on expired
+  `Release` metadata; `apt-get -o Acquire::Check-Valid-Until=false update` is the
+  workaround now in the file. This is a standing problem, not a one-off: every
+  `postgis/postgis` tag checked (including `:16-3.4`, the one in use) is still
+  bullseye-based, so there is no clean fix until upstream rebases onto bookworm.
+  The pinned client package (`postgis=3.5.2+dfsg-1.pgdg110+1`, `pgdg110` =
+  Debian 11) has to be bumped in the same move. Tracked in `decision-log.md`.
 
 ---
 
@@ -734,12 +813,15 @@ scripts/
   build_reference_tables.py   derives reference CSVs from the raw LSR archive
   zcat-data-check.py          checks coverage zips against the TIGER .dbf
   iem_parse.py                shared row parser; both ingest scripts import it
-  iem_backfill.py             historical ingest; has run (run_id 4, 84,268 rows)
+  iem_backfill.py             historical ingest; has run 8x (runs 4-8 = backfill, 176,957 rows)
   load_reference.sh           idempotent loader: report_types CSV + ZCTA shapefile
   load_coverage.sh            idempotent loader: one customer's territory
+tests/
+  __init__.py                 empty; makes unittest discovery work
+  test_iem_parse.py           44 stdlib unittest cases against iem_parse.py
 docker/
   ingest.Dockerfile           python:3.12-slim + psycopg, runs as non-root
-  loader.Dockerfile           postgis image + the pinned postgis client package
+  loader.Dockerfile           postgis image + pinned client pkg; bullseye-EOL apt workaround
 reference/                    gitignored — derived statistical CSVs, DNC lists
 data/                         gitignored — raw LSR archive, TIGER shapefiles
 planning/                     GENERIC national seed data + working notes
@@ -751,7 +833,8 @@ config/                       PER-CUSTOMER configuration; see its README
   README.md                   the generic/specific split, stated
 ```
 
-**No `tests/` directory exists.** See §2.
+**`tests/` holds one file** — `test_iem_parse.py`, stdlib `unittest`, no runner
+dependency. See §2.
 
 ### Running it
 
@@ -846,15 +929,17 @@ Unresolved. Each is cheaper to settle now than after there is data.
     empty lookup returns NULL tiers and the UI shows "unrated" rather than
     erroring.
     **Complication found 2026-09-09:** `reference/sources.csv` holds 36 rows,
-    but only **35** distinct `upper(trim())` values appear in well-formed
-    archive rows. The 36th is `DEPARTMENT OF HIG`, harvested from the single
-    malformed 2026-08-31 row — a row the ingest **rejects**, so that value can
-    never arrive through `iem_data` and seeding it would create a lookup entry
-    nothing ever joins to. The other truncated variant, `DEPT OF`, is from
-    2019-03-09 and sits below the `2021-01-01` archive floor, so production
-    will not see it either. Both are harmless (a lookup, not a constraint) but
-    the seed should be built from what the ingest can actually produce, not
-    from a raw scan of the archive. See the `SOURCE` truncation trap in
+    two of them truncated singletons — `DEPARTMENT OF HIG` (from the malformed
+    2026-08-31 row the ingest **rejects**, so it can never arrive through
+    `iem_data`) and `DEPT OF` (from 2019-03-09).
+    **Update 2026-09-10:** `DEPT OF` is no longer unreachable. The archive floor
+    moved to `2004-01-01` (§2, decision-log 2026-09-10), so the 2019-03-09 row is
+    now in `iem_data` (1 row, alongside 2,655 well-formed `DEPT OF HIGHWAYS`). The
+    producible-source set is now 35 of the 36 — everything except
+    `DEPARTMENT OF HIG`, which only ever appeared in a row the ingest rejects.
+    Both truncated values are harmless either way (a lookup, not a constraint),
+    but the seed should still be built from what the ingest can actually produce,
+    not from a raw scan of the archive. See the `SOURCE` truncation trap in
     `docs/data-sources.md`.
 
 Also open and blocked on RBI rather than on us: **DNS access and existing

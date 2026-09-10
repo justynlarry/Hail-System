@@ -1682,3 +1682,46 @@ it "the field that will be empty in six months if it is not filled in now."
 Writing `'bulk import'` into all 183 rows would fill it with something worse than
 empty — text that looks like an answer and tells nobody why the territory is in
 scope. NULL is honestly unanswered; a placeholder is a lie that survives.
+
+---
+
+## 2026-09-10 — The archive floor moves to `2004-01-01`
+
+**Supersedes the 2026-09-04 entry "The archive floor is a fixed `2021-01-01`,
+not a rolling five years."** The *fixed date, not a rolling window* half of that
+decision still holds and is the reason this is a one-line change; only the date
+moves.
+
+The 2021 floor was a round number with no data reason behind it — "about five
+years back" at the time it was written. The backfill has since been run to the
+practical bottom of the IEM LSR archive for Colorado: `iem_data` now holds
+176,957 rows from **2004-01-26** (the earliest report that exists) to present.
+The load walked down through overlapping windows — runs 4–8 — and each earlier
+window inserted only its new rows, because the `iem_data` natural key makes
+re-ingest idempotent. Runs below the old floor emitted the `below_archive_floor`
+warning and proceeded; the constant was never a hard block.
+
+**Why keep the extra ~17 years rather than trim back to 2021:**
+
+- It is already loaded and verified. Removing it would be a deliberate delete of
+  storm history, which every other decision here forbids.
+- The cost is nil. 177k rows is small, the spatial indexes make date range
+  irrelevant to query cost, and nothing downstream filters on a floor.
+- It may be useful. A house hit in 2008 and again in 2023 is a stronger outreach
+  story than the 2023 hit alone, and that pattern is invisible with a 2021 floor.
+
+**What this changes:** `ARCHIVE_FLOOR` in `scripts/iem_backfill.py` is now
+`2004-01-01`, so `below_archive_floor` fires only for a genuinely
+pre-archive `--start`. The example range in `data-sources.md` is updated to
+match. Two rows that sit below the old floor are now in scope and were noted as
+downstream effects at the time: the `DEPT OF` truncated `SOURCE` value from
+2019-03-09 (`report_sources` seed, open question 13 in `hail-consolidated.md`),
+and the pre-2016 `unknown_report_type` rejects `('5', 'ICE STORM')` and
+`('X', 'WALL CLOUD')` — one-off historical type/text pairs, not a seed gap.
+
+**What this does not change:** the nightly job. It fetches a rolling `recent=`
+window in seconds and never reads `ARCHIVE_FLOOR`; the floor is a backfill and
+replay concept only.
+
+**Related:** *Storm report history is never trimmed* (2026-09-01); *`sql/` is a
+build directory until the backfill runs; additive after* (2026-09-04).

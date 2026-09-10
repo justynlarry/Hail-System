@@ -25,7 +25,7 @@ https://mesonet.agron.iastate.edu/cgi-bin/request/gis/lsr.py
 | Job | Window parameter |
 |---|---|
 | Nightly | `recent=108000` — a rolling window **in SECONDS**. 108000 = 30 hours. |
-| Backfill / replay | `sts=2021-01-01T00:00Z&ets=2026-01-01T00:00Z` — explicit UTC range |
+| Backfill / replay | `sts=2004-01-01T00:00Z&ets=2026-01-01T00:00Z` — explicit UTC range. `2004-01-01` is the archive floor (decision-log 2026-09-10); the earliest Colorado report is 2004-01-26. |
 
 **`recent` is seconds, not hours, and `hours=` does not exist.** `hours=30`
 returns **HTTP 422, "GET start time parameters missing"** — it is not an
