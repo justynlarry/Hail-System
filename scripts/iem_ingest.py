@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
 
-"""Nightly ingest of IEM Local Storm Reports
+"""Nightly ingest of IEM Local Storm Reports.
 
-Pulls a rolling/overlapping time window, the natural key allows
-discard of records already in the database.  Computes its own
-window from the clock, and runs from systemd timer.
+Computes a rolling window from the clock and runs from a systemd timer; the
+natural key discards what is already held, so the window overlaps freely.
 
     python3 scripts/iem_ingest.py
-    python3 scripts/iem_ingest.py --hours 72
+    python3 scripts/iem_ingest.py --hours 72     # widen after an outage
 
 Shares iem_common.py with iem_backfill.py.
 
-rows_seen will likely exceed rows_inserted.
+THE OVERLAP IS THE RECOVERY MECHANISM.  The default 30h against a daily timer
+means one missed night self-heals on the next run; two consecutive misses leave
+a hole only a replay closes, which is why the timer carries Persistent=true.
+Expect rows_seen >> rows_inserted -- if they are equal the overlap is not
+overlapping, and that raises no error.
 
+KNOWN GAP: the window filters on VALID (when the storm happened), not on when
+IEM received the report, so a report entered days late falls outside every
+nightly window.  A weekly `iem_backfill.py --mode replay` over the last ~30 days
+closes it -- and a replay that inserts rows is how we learn late entry happens.
 """
 
 import argparse
