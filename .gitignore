@@ -37,3 +37,4 @@ data/
 __pycache__/
 *.pyc
 .~lock.*#
+output/
