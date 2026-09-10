@@ -39,7 +39,7 @@ arbitrary lat/lon.
 - Handle the known traps: literal `None`, unquoted commas, composite type key
 - Five-year backfill
 - Buffer query: report → affected zips at a configurable radius
-- Nightly cron, with failure alerting through Irin
+- Nightly systemd timer, with failure alerting through Irin
 - **Radius vs. coverage test:** how many Front Range zips does 3 / 5 / 10 miles
   actually produce? Settles whether zip-scoped pulls filter anything
 
