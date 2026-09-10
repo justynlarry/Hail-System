@@ -1,0 +1,48 @@
+source,display_name,confidence_tier,is_automated,notes
+COCORAHS,CoCoRaHS,high,false,"Trained volunteer network with rain gauges and hail pads. Largest single source in the archive."
+TRAINED SPOTTER,Trained Spotter,high,false,"SKYWARN-trained. Second largest source."
+MESONET,Mesonet Station,high,true,"Automated. Measures wind and precipitation; does NOT measure hail size."
+PUBLIC,Public,low,false,"Untrained walk-up report. Largest low-tier source by volume."
+CO-OP OBSERVER,NWS Co-op Observer,high,false,"Long-running official volunteer observer program."
+ASOS,ASOS,high,true,"Automated Surface Observing System. Wind and precip only; no hail sizing."
+NWS EMPLOYEE,NWS Employee,high,false,
+AWOS,AWOS,high,true,"Automated Weather Observing System. Wind and precip only; no hail sizing."
+DEPT OF HIGHWAYS,Department of Highways,moderate,false,"Official capacity, no meteorological training."
+AMATEUR RADIO,Amateur Radio,low,false,"Relay, often secondhand. The operator may not be the observer."
+LAW ENFORCEMENT,Law Enforcement,moderate,false,
+BROADCAST MEDIA,Broadcast Media,low,false,"Often relaying a viewer report."
+STORM CHASER,Storm Chaser,moderate,false,"Experience varies widely and the field does not distinguish."
+EMERGENCY MNGR,Emergency Manager,moderate,false,
+CAIC,Colorado Avalanche Information Center,high,false,"State agency; snow and avalanche specialists."
+SNOTEL,SNOTEL,high,true,"Automated NRCS snow telemetry. Snow water equivalent; no hail sizing."
+OFFICIAL NWS OBS,Official NWS Observation,high,false,
+OTHER FEDERAL,Other Federal Agency,moderate,false,
+SKI AREA,Ski Area,moderate,false,"Snow observations are their business; other types are incidental."
+AVALANCHE FCSTR,Avalanche Forecaster,high,false,
+USGS,USGS,high,,"Agency attribution. May be a person or a gauge; the field does not say."
+911 CALL CENTER,911 Call Center,moderate,false,"Relaying a caller report."
+FIRE DEPT/RESCUE,Fire Department / Rescue,moderate,false,
+UTILITY COMPANY,Utility Company,moderate,false,
+COUNTY OFFICIAL,County Official,moderate,false,
+PARK/FOREST SRVC,Park / Forest Service,moderate,false,
+UNKNOWN,Unknown,low,,"Explicitly unknown upstream. Distinct from a source we failed to seed."
+NWS OFFICE,NWS Office,high,false,
+NEWSPAPER,Newspaper,low,false,"Secondhand and often days later."
+AIRPLANE PILOT,Airplane Pilot,low,false,"Good for aviation phenomena; poor for surface events."
+NWS STORM SURVEY,NWS Storm Survey,high,false,"Post-event ground survey by NWS staff."
+USGS RAIN GAUGE,USGS Rain Gauge,high,true,"Automated. Precipitation only."
+LOCAL OFFICIAL,Local Official,moderate,false,
+W CO COOP SITE,Western Colorado Co-op Site,high,false,"Co-op observer site."
+SOCIAL MEDIA,Social Media,low,false,"Origin and timing both uncertain."
+CDOT,Colorado Department of Transportation,moderate,false,"Same organization as DEPT OF HIGHWAYS under a later name."
+UNOFFICIAL STATI,Unofficial Station (truncated),unrated,,"Truncated upstream. Likely an unofficial weather station; not confirmed."
+POST OFFICE,Post Office,moderate,false,
+AVIATION SITE,Aviation Site,moderate,,"May be automated or staffed; the field does not say."
+ASOS/AWOS,ASOS / AWOS,high,true,"Combined attribution. Wind and precip only; no hail sizing."
+PARK SERVICE,Park Service,moderate,false,"Variant of PARK/FOREST SRVC."
+CITY OFFICIAL,City Official,moderate,false,
+FOREST SERVICE,Forest Service,moderate,false,"Variant of PARK/FOREST SRVC."
+INSURANCE CO,Insurance Company,low,false,"Has a direct interest in a hail report existing. Rated on incentive, not competence."
+RAWS,RAWS,high,true,"Automated remote weather station, wildfire oriented."
+DEPT OF,Department of (truncated),unrated,,"Truncated upstream, 2019-03-09. Cannot be resolved to an organization."
+EMERGENCY MANAGER,Emergency Manager,moderate,false,"Variant of EMERGENCY MNGR."
