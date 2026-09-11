@@ -19,9 +19,8 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-09-11**, commit `bc9991c` plus the
-uncommitted `systemd/` unit files this sync describes. Since the 2026-09-10
-sync the project gained the first ingest script and five real backfill runs
+Last synced against the repo: **2026-09-11**, commit `21463df`. Since the
+2026-09-10 sync the project gained the first ingest script and five real backfill runs
 that walk the archive floor back to 2004, the archive-floor move itself
 (2021-01-01 → 2004-01-01, decision-log 2026-09-10), a USPS zip/city reference,
 `scripts/load_coverage.sh`, a `planning/` vs `config/` split separating generic
