@@ -19,13 +19,17 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-09-10**, commit `6114bf3` plus the
-uncommitted working tree that carries this sync. Since the 2026-09-08 sync the
-project gained the first ingest script and five real backfill runs that walk the
-archive floor back to 2004, the archive-floor move itself (2021-01-01 →
-2004-01-01, decision-log 2026-09-10), a USPS zip/city reference,
-`scripts/load_coverage.sh`, a `planning/` vs `config/` split separating generic
-data from per-customer configuration, and a stdlib test suite for the parser.
+Last synced against the repo: **2026-09-11**, commit `9d48760`. Since the
+2026-09-10 sync the project gained the first ingest script and five real
+backfill runs that walk the archive floor back to 2004, the archive-floor move
+itself (2021-01-01 → 2004-01-01, decision-log 2026-09-10), a USPS zip/city
+reference, `scripts/load_coverage.sh`, a `planning/` vs `config/` split
+separating generic data from per-customer configuration, a stdlib test suite
+for the parser, and — 2026-09-11 — `scripts/export_storm_zips.py` plus a fourth
+Compose service, `app`, scoped to the `hail_app` role so that script (and
+future read-only reporting scripts) can reach `report_sources`,
+`zcta_boundaries`, and `coverage_zips` without widening `hail_ingest`'s grants.
+See "Storm-zip export and the `app` service" under §2.
 
 Everything below was verified against the **`hail-dev`** stack rather than read
 off the source. Where a number appears — 176,957, 33,791, 37,104 — it came from
@@ -67,13 +71,18 @@ unattended yet.**
 
 ### Infrastructure — verified on a running stack, 2026-09-08 through 2026-09-10
 
-- **`docker-compose.yml`** defines three services on one network, `hailnet`:
+- **`docker-compose.yml`** defines four services on one network, `hailnet`:
   - `postgis` — stock `postgis/postgis:16-3.4`, the only long-running service.
     Named volume `pgdata`; `./sql` mounted read-only at `/sql`.
   - `ingest` — `python:3.12-slim` + `psycopg[binary]==3.2.3`. Behind the
     `tools` profile, so `docker compose up` does not start it.
   - `loader` — the postgis image plus the `postgis` client package for
     `shp2pgsql`. Repo bind-mounted read-only at `/repo`. Also `tools`.
+  - `app` — added 2026-09-11. Same image shape as `ingest`
+    (`python:3.12-slim` + `psycopg`, non-root), but connects as `hail_app`
+    instead of `hail_ingest`, for read-only reporting/export scripts. `./output`
+    bind-mounted at `/app/output` so exported files survive `--rm`. Also
+    `tools`.
 - **The schema is not auto-applied.** `./sql` is mounted at `/sql`, *not* at
   `/docker-entrypoint-initdb.d`, so `docker compose up` yields an empty
   database. Applying it is an explicit step, and order matters — `010` last.
@@ -89,7 +98,7 @@ application's own login model enforced in Python:
 |---|---|---|
 | `hail_admin` | `postgis` superuser, and the `loader` service | Everything. Runs DDL and provisioning. |
 | `hail_ingest` | the `ingest` service | `SELECT` on `report_types`; `SELECT, INSERT` on `iem_data` and `iem_ingest_rejects`; `SELECT, INSERT, UPDATE` on `ingest_runs`. No `DELETE` anywhere. |
-| `hail_app` | the future web UI | The three cost stages: read reference and weather, write property/matching/sending/operations. No `DELETE` anywhere. |
+| `hail_app` | the future web UI, and (2026-09-11) the `app` Compose service | The three cost stages: read reference and weather, write property/matching/sending/operations. No `DELETE` anywhere. |
 
 **Verified by trying it, not by reading the grants.** From inside the ingest
 container as `hail_ingest`: `send_log`, `dnc_list`, `email_templates` and
@@ -178,6 +187,41 @@ any literal SQL that names it, which is why `010` grants `CONNECT` through
 | Holds | national seeds — `report_types.csv`, `zip_city_names.csv` | this customer's `coverage_zips.txt` |
 | Loaded by | `load_reference.sh` | `load_coverage.sh` |
 | Replaced for a second customer | never | entirely |
+
+### Storm-zip export and the `app` service — 2026-09-11
+
+- **`scripts/export_storm_zips.py`** — one row per **report-zip pair** (not per
+  zip) for one storm day, in `America/Denver` local time, filterable by
+  `--type` (`report_text`) and `--radius` (default `DEFAULT_ZIP_RADIUS_MILES`
+  from `tuning.py`). Joins `iem_data` to `report_types` (composite key,
+  `report_type` alone is not unique — §7), `report_sources` (`LEFT JOIN`, a
+  source with no lookup row yields a `NULL` tier rather than dropping the
+  report), `zcta_boundaries` via `ST_DWithin`, and `coverage_zips` (excluding
+  retired rows). No magnitude floor — every report in range is exported,
+  `NULL` magnitude included, so the triggering threshold can still be decided
+  later. Writes CSV with `lineterminator='\n'` (§7) to `./output/`.
+  **This is half of the Phase 1 "done when" bar** in `phases.md` — "a
+  spreadsheet of affected zip codes ... for a real storm from last month" — the
+  other half being the nightly job running unattended for a week, which is
+  still not built.
+- **It cannot run under the `ingest` service.** `hail_ingest` has `SELECT` only
+  on `report_types` (plus its write path); `report_sources`, `zcta_boundaries`,
+  and `coverage_zips` all belong to `hail_app`'s grants (`010_roles.sql`).
+  Running the script as `hail_ingest` fails with
+  `psycopg.errors.InsufficientPrivilege: permission denied for table
+  report_sources` — correct behavior from the grants, not a bug, but a real gap:
+  no Compose service was credentialed as `hail_app` yet.
+- **New `app` service + `docker/app.Dockerfile`** close that gap: same shape as
+  `ingest` (`python:3.12-slim`, `psycopg`, non-root `uid 1000`), `PGUSER:
+  hail_app`, kept as its own service rather than folded into `ingest` so
+  `hail_ingest` stays scoped tight to the nightly write path on purpose (see
+  the `ingest` service comment in `docker-compose.yml`: "a bug here cannot
+  reach `send_log` even by trying"). `./output:/app/output` is a bind mount, not
+  a build-time `COPY`, because the CSV has to survive the container being
+  removed (`docker compose run --rm`) — a build-time copy would still leave the
+  file trapped in an ephemeral container filesystem. It works with no `chown`
+  because the container's `app` user and the host's `hail-user` are both
+  `uid 1000` — see §7.
 
 ### Built before this sync, unchanged
 
@@ -670,6 +714,24 @@ These are newer and cost real time on 2026-09-08.
   bullseye-based, so there is no clean fix until upstream rebases onto bookworm.
   The pinned client package (`postgis=3.5.2+dfsg-1.pgdg110+1`, `pgdg110` =
   Debian 11) has to be bumped in the same move. Tracked in `decision-log.md`.
+- **`COPY` into an image is a build-time snapshot, not a live view.** `ingest`
+  and `app` both `COPY scripts ./scripts/` with no bind mount, so a script
+  edited (or newly added) on the host is invisible in the container — including
+  `python3: can't open file ... No such file or directory` for a script that
+  demonstrably exists on disk — until `docker compose build <service>` runs
+  again. `loader` does not have this trap because it bind-mounts `.:/repo:ro`
+  instead.
+- **A container's own filesystem does not survive `--rm`, and its `WORKDIR` is
+  root-owned even when the process drops to a non-root user.** `export_storm_zips.py`
+  writing to `./output` (relative, so `/app/output` inside the container) hit
+  `PermissionError` because `/app` is created by `root` during the build,
+  before `USER app` switches away from it — and even chowning it would only
+  have produced a CSV that vanishes the moment `--rm` deletes the container.
+  The fix is a bind mount (`./output:/app/output`) to a host directory that
+  already exists, not a permissions fix inside the image. It requires no
+  `chown` on either side here specifically because both `useradd
+  --uid 1000 app` (in the Dockerfile) and the host account (`hail-user`) land on
+  `uid 1000` — a different host UID would need one side adjusted to match.
 
 ---
 
@@ -782,7 +844,7 @@ systemd, forfeiting journald capture, `systemctl --failed`, and `OnFailure=`.
 ```
 CLAUDE.md                     rules for AI assistants — read first
 README.md                     currently empty
-docker-compose.yml            postgis + ingest + loader on hailnet
+docker-compose.yml            postgis + ingest + loader + app on hailnet
 .dockerignore                 keeps data/ and secrets out of the build context
 .env                          gitignored — three passwords, nothing else
 .env.example                  same keys, no values
@@ -814,6 +876,9 @@ scripts/
   zcat-data-check.py          checks coverage zips against the TIGER .dbf
   iem_parse.py                shared row parser; both ingest scripts import it
   iem_backfill.py             historical ingest; has run 8x (runs 4-8 = backfill, 176,957 rows)
+  iem_common.py               shared network/DB machinery both ingest scripts import
+  tuning.py                   read-time tuning constants (radius, etc.), reasoning in comments
+  export_storm_zips.py        CSV export, one row per report-zip pair, one storm day (2026-09-11)
   load_reference.sh           idempotent loader: report_types CSV + ZCTA shapefile
   load_coverage.sh            idempotent loader: one customer's territory
 tests/
@@ -822,6 +887,8 @@ tests/
 docker/
   ingest.Dockerfile           python:3.12-slim + psycopg, runs as non-root
   loader.Dockerfile           postgis image + pinned client pkg; bullseye-EOL apt workaround
+  app.Dockerfile              same shape as ingest.Dockerfile; connects as hail_app (2026-09-11)
+output/                       gitignored — CSVs from export_storm_zips.py, bind-mounted into `app`
 reference/                    gitignored — derived statistical CSVs, DNC lists
 data/                         gitignored — raw LSR archive, TIGER shapefiles
 planning/                     GENERIC national seed data + working notes

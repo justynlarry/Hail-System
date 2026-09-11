@@ -1725,3 +1725,37 @@ replay concept only.
 
 **Related:** *Storm report history is never trimmed* (2026-09-01); *`sql/` is a
 build directory until the backfill runs; additive after* (2026-09-04).
+
+---
+
+## 2026-09-11 — Read-only reporting scripts get their own Compose service, `app`
+
+`scripts/export_storm_zips.py` needs `SELECT` on `report_sources`,
+`zcta_boundaries`, and `coverage_zips`. None of those are in `hail_ingest`'s
+grants (`sql/010_roles.sql`) — running the script under the existing `ingest`
+service failed with `permission denied for table report_sources`. Added a
+fourth Compose service, `app`, plus `docker/app.Dockerfile` (same shape as
+`ingest.Dockerfile`), connecting as `hail_app` instead.
+
+**Why a new service instead of adding grants to `hail_ingest` or reusing
+`ingest`:** `hail_ingest` is deliberately scoped tight to the nightly write
+path — the `ingest` service comment in `docker-compose.yml` already states the
+intent: "a bug here cannot reach `send_log` even by trying." Widening its
+grants to cover a reporting script's read needs would erode that boundary for
+every future ingest change, not just this one. `hail_app` already had exactly
+the grants this kind of script needs, because it is meant to be the eventual
+web UI's role — a read-only export script is the same shape of consumer, just
+without a browser in front of it yet.
+
+**Why a bind mount for `./output` rather than a build-time `COPY`:** the script
+writes its CSV to a relative `output/` path, which resolves inside the
+container's own filesystem without a mount. `docker compose run --rm` deletes
+that filesystem on exit, so the file would never reach the host at all — this
+is not a permissions question, it is a "where does the byte actually end up"
+question. `./output:/app/output` fixes both: the file survives `--rm`, and
+because the Dockerfile's `useradd --uid 1000 app` matches the host account's
+`uid 1000`, no `chown` is needed on either side.
+
+**Related:** *Nothing sends email automatically, ever* (2026-09-01) — the same
+shape of reasoning (least privilege per service/role) applied here to reads
+instead of sends.
