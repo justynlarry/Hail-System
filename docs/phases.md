@@ -140,3 +140,38 @@ archive goes back to 2003, and wind events are abundant year-round.
 - Handoff notes and escalation expectations (business hours, not on call)
 
 **Done when:** someone else in the office has sent a real batch without help.
+
+---
+
+## Not on the roadmap
+
+Ideas recorded so they are findable, not because they are owed. Nothing here
+has a **When:** — each has a **trigger** instead, and absent that trigger the
+right amount of work to do on it is none.
+
+### Radar-derived hail size (NOAA MRMS / MESH)
+
+NOAA publishes MRMS MESH — a gridded estimate of maximum hail size — free,
+with an archive going back years. It would answer the sparse-coverage problem
+directly: 382 of 1,468 Denver-local hail days carry exactly one report, and
+the HAIL distribution skews to the eastern plains rather than the Front Range
+metro. A grid has no such gaps, because it does not depend on someone being
+outside and choosing to call it in.
+
+**Why it is not a near-term item, beyond the data volume.** National grids
+every two minutes is heavy, and heavier than anything this system currently
+touches — but the cost that matters is not storage. **MESH is a radar-derived
+estimate, not a report**, and this project's central claim is that a report
+was filed. "Hail of this size was reported near this listing" survives a
+homeowner, an agent, or an attorney asking where the number came from; "our
+radar model estimated 1.75 inches over your roof" is a different sentence
+making a different promise, and it is the sentence a contractor-built system
+would reach for. Adopting MESH is therefore a change to the product's claim
+first and an ingest problem second. It would need its own decision-log entry
+on that point alone, and the tiered confidence label would need somewhere
+honest to put an estimate alongside human reports without the two blurring.
+
+**Trigger:** sparse coverage turning out to be a real operational limit in the
+pilot — storms RBI knows happened that the browse cannot show — rather than a
+known property of the data we have already accounted for. Phase 6 at the
+earliest.
