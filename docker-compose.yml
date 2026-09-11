@@ -75,6 +75,28 @@ services:
         condition: service_healthy
     profiles: ["tools"]
 
+  # Read-only reporting/export scripts, connects as hail_app, which has SELECT on report_types,
+  # report_sources, zcta_boundaries, iem_data, and coverage zips -> see sql/010_roles.sql.
+  # Kept separate from 'ingest' on purpose due to scoping
+  app:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    environment:
+      PGHOST: postgis
+      PGDATABASE: weather-property
+      PGUSER: hail_app
+      PGPASSWORD: ${HAIL_APP_PASSWORD:?HAIL_APP_PASSWORD is not set -- see .env.example}
+    volumes:
+      - ./output:/app/output
+    networks:
+      - hailnet
+    depends_on:
+      postgis:
+        condition: service_healthy
+    profiles: ["tools"]
+
+
 
 networks:
   hailnet:
