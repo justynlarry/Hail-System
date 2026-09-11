@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the nightly IEM ingest at 10:00 UTC
+Documentation=file:///home/hail-user/hail-system/docs/hail-consolidated.md
+
+[Timer]
+OnCalendar=*-*-* 10:00:00
+
+Persistent=true
+AccuracySec=1min
+Unit=iem_ingest.service
+
+[Install]
+WantedBy=timers.target

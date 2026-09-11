@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the IEM replay of the last 30 days
+Documentation=file:///home/hail-user/hail-system/docs/hail-consolidated.md
+
+[Timer]
+OnCalendar=Sun *-*-* 11:00:00
+
+Persistent=true
+AccuracySec=1min
+Unit=iem_weekly_replay.service
+
+[Install]
+WantedBy=timers.target

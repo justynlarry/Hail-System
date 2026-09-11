@@ -1,0 +1,22 @@
+[Unit]
+Description=Weekly IEM replay of last 30 days
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=hail-user
+Group=hail-user
+WorkingDirectory=/home/hail-user/hail-system/
+Environment=HOME=/home/hail-user
+
+ExecStart=/bin/sh -c '/usr/bin/docker compose run --rm ingest python3 scripts/iem_backfill.py --mode replay --start $(date -u -d "30 days ago" +%%Y-%%m-%%d) --end $(date -u -d "tomorrow" +%%Y-%%m-%%d)'
+
+TimeoutStartSec=1800
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=timers.target

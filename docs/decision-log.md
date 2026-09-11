@@ -1759,3 +1759,163 @@ because the Dockerfile's `useradd --uid 1000 app` matches the host account's
 **Related:** *Nothing sends email automatically, ever* (2026-09-01) — the same
 shape of reasoning (least privilege per service/role) applied here to reads
 instead of sends.
+
+---
+
+## 2026-09-10 — Shared ingest machinery extracted into `iem_common.py`
+
+`iem_backfill.py` and `iem_ingest.py` differ only in how they decide which
+window(s) to request: the backfill takes an explicit date range and chops it
+into monthly chunks; the nightly computes a rolling window from the clock.
+Everything after that — the request, the run-lifecycle bookkeeping, the row
+loop, the counters — is identical, and now lives once, in `iem_common.py`.
+
+**The seam is `perform_run(mode, window_start, window_end, windows)`.**
+`windows` is an iterable of `(chunk_start, chunk_end, url)` — that tuple is the
+*only* thing the two scripts supply differently. `window_start`/`window_end`
+are recorded in `ingest_runs` as what was asked for, not how it was chopped up.
+
+**Why:** the same argument as the shared row parser (`iem_parse.py`, already
+unit-tested): the exercised path (backfill, run by hand, watched) and the
+unattended path (nightly, run by a timer, unwatched) must not diverge. A bug
+fixed in one and not the other is exactly the failure mode a shared module
+rules out by construction.
+
+---
+
+## 2026-09-10 — `tuning.py`: both the zip radius and the match radius are `5.0` miles, and there is no settings table yet
+
+Answers open questions 2 and 3 (`hail-consolidated.md`) for the radius knobs
+specifically — the broader "is there a settings table at all" question stays
+open for the other candidates (frequency-cap window, monthly API ceiling,
+warmup limit).
+
+**Evidence for `5.0`:** same-day report-pair distances look flat in raw
+counts, but pair counts grow with ring area — normalizing by radius shows
+report density halving between 1 and 3 miles, and halving again by 10 miles.
+The flat histogram was geometry, not weather; the normalized signal supports a
+tight number. Cost, measured against `coverage_zips` from a 200-report hail
+sample: 5.1 / 9.4 / 15.1 / 18.2 ZCTAs per report at 3 / 5 / 8 / 10 miles —
+roughly linear, not quadratic, because a report near the territory edge only
+picks up zips on one side.
+
+**Why two constants at the same value instead of one:** `DEFAULT_ZIP_RADIUS_MILES`
+bounds what we *look at* (and therefore how many RentCast lookups a pull
+costs); `DEFAULT_MATCH_RADIUS_MILES` bounds what we *claim* in an email a
+homeowner might question. They start equal, but only the match radius has to
+survive that conversation, so collapsing them into one name would hide that
+they can diverge later.
+
+**Why a module, not a settings table, for now:** a handful of values, each
+with a single consumer, changing rarely, worth version-controlling with the
+reasoning attached. A table adds operational overhead and drops the git
+history. **What forces the move:** a non-developer needing to change a value,
+a second consumer needing the same number, or the frequency cap specifically —
+that one *must* be enforced in the database and cannot live in a Python
+constant.
+
+---
+
+## 2026-09-10 — `report_sources` seeded with 47 rows, built from what ingest actually produced
+
+Closes the data half of open question 13. `planning/report_sources.csv` is one
+row per distinct `report_source_norm` value observed in `iem_data` as of
+2026-09-10 — not a raw scan of every value IEM could theoretically send —
+verified as an exact 47/47 match against `SELECT DISTINCT report_source_norm
+FROM iem_data`, zero unmatched either direction.
+
+**Verified against the live archive (176,966 rows):** `high`-tier sources cover
+**84.7%** of it by volume, because `COCORAHS` and `TRAINED SPOTTER` alone are
+**53.0%** (28.5% + 24.5%). **The tier is a filter, not a headline** — a UI
+should surface source names, not just tiers, since two sources carry most of
+the archive's weight on their own.
+
+**Why the tier is not a universal confidence signal:** what a source is good
+at depends on the event type. An automated station (`MESONET`, 15.2% of the
+archive) measures wind and precipitation well and does not size hail at all —
+`report_qualifier = 'M'` on a hail report tracks *reporter training*, not
+instrument measurement (`hail-consolidated.md` §7). Tier and qualifier answer
+different questions and neither substitutes for the other.
+
+---
+
+## 2026-09-11 — `export_storm_zips.py`: one row per report-zip pair, local-day window, no magnitude floor
+
+1. **One row per report-zip pair, not per zip, for now.** A busy storm day
+   produces many report-zip pairs without a correspondingly large number of
+   distinct zips. Aggregating to one row per zip is the natural next step once
+   there is a consumer that wants it that way; this script exists to show the
+   shape of the data (magnitude, source, distance, time) individually first.
+2. **`--date` is a local Denver calendar date, converted to a UTC range at
+   query time**, not a UTC calendar date. A Front Range storm at 8pm MDT is
+   02:00 UTC the following day; filtering on UTC calendar date would split one
+   storm's reports across two exports. `denver_day_bounds()` builds the range
+   from two independently-resolved local-midnight instants — see the DST
+   subtraction trap in `hail-consolidated.md` §7, which does not affect this
+   window's correctness but would affect any *duration* computed from it later.
+3. **No magnitude floor.** Every report of the requested type is exported,
+   `NULL` magnitude included, so what should trigger outreach can still be
+   decided later from real exported data rather than guessed at in the query.
+4. **Coverage zips only, no override flag, retired zips excluded explicitly**
+   (`c.removed_at IS NULL`) — consistent with storm reports never being
+   filtered at ingest and coverage being edited by marking rows, not deleting
+   them.
+
+---
+
+## 2026-09-11 — systemd units: copied not symlinked, `TimeoutStartSec` sized to the retry budget, no `OnFailure=` yet
+
+**Copied with `install -m 644`, not symlinked**, into `/etc/systemd/system/`.
+A symlink from `/home/hail-user/hail-system/systemd/` was refused by SELinux —
+`init_t` (systemd) cannot read a target labelled `user_home_t`. A file created
+directly at the destination path picks up that path's default context
+(`systemd_unit_file_t`) automatically; a symlink keeps the label of wherever it
+actually lives. Relabeling the repo directory with `semanage fcontext` was
+rejected as the fix, because that would be a fact about one machine's SELinux
+policy, not something a fresh clone carries with it — copying is portable,
+relabeling is not. **Cost:** the repo and the installed copies can now drift
+silently; there is no enforced link, only the habit of re-copying after an
+edit.
+
+**`TimeoutStartSec` must exceed the ingest script's own worst-case retry
+time, not just its steady-state run time.** `HTTP_TIMEOUT=120`,
+`HTTP_ATTEMPTS=3`, backoff `HTTP_BACKOFF ** attempt` slept between attempts
+but not after the last one — 2s, then 4s. Worst case is 3 × 120s + 2s + 4s ≈
+366s, roughly 6 minutes, dominated by the timeout budget rather than the
+backoff. The systemd default (90s) would SIGTERM a run that was still
+correctly retrying and record a timeout instead of the real upstream cause.
+Set to 900 on `iem_ingest.service` and 1800 on `iem_weekly_replay.service`,
+which can make several such fetches — the replay chunks its 30-day window by
+month.
+
+**`OnFailure=` deliberately omitted from both services.** There is no
+notification path built yet for it to trigger — adding the directive now would
+be automation with nowhere to go, not a safety net. Revisit once there is
+somewhere for a failure to be sent.
+
+**Related:** *`set -euo pipefail` is the standard for shell in this repo*
+(2026-09-08) — same instinct (fail loud, don't let a wrapper mask the real
+cause) applied to the process-supervision layer instead of shell scripts.
+
+---
+
+## 2026-09-11 — Weekly replay closes a gap the nightly window structurally cannot
+
+The nightly window filters on `VALID` (IEM's event time — when the storm
+happened), not on when IEM received or published the report. A report entered
+into IEM's system days after its storm falls outside every nightly window that
+already passed, and the natural-key overlap that makes re-ingest safe cannot
+retroactively catch it — there is no "re-check yesterday" without deliberately
+looking again. It is not late; **it is permanently missed** unless something
+re-queries the recent past.
+
+**The weekly replay (`iem_backfill.py --mode replay` over the last 30 days,
+Sundays at 11:00 UTC, an hour after the nightly) is both the fix and the
+measurement.** A replay run that inserts zero new rows says late entry did not
+happen that week; one that inserts rows *is* the evidence that it does — first
+observed on 2026-09-11's manual run (`run_id=18`, 413 seen, 6 inserted against
+data the nightly had already passed over).
+
+**Related:** *Backfill and nightly are two scripts over one parser module*
+(2026-09-04); *A run that skipped rows still exits 0* (2026-09-04) — same
+reasoning extended from malformed rows to structurally-late ones.

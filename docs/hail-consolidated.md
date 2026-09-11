@@ -19,17 +19,20 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-09-11**, commit `9d48760`. Since the
-2026-09-10 sync the project gained the first ingest script and five real
-backfill runs that walk the archive floor back to 2004, the archive-floor move
-itself (2021-01-01 → 2004-01-01, decision-log 2026-09-10), a USPS zip/city
-reference, `scripts/load_coverage.sh`, a `planning/` vs `config/` split
-separating generic data from per-customer configuration, a stdlib test suite
-for the parser, and — 2026-09-11 — `scripts/export_storm_zips.py` plus a fourth
-Compose service, `app`, scoped to the `hail_app` role so that script (and
-future read-only reporting scripts) can reach `report_sources`,
-`zcta_boundaries`, and `coverage_zips` without widening `hail_ingest`'s grants.
-See "Storm-zip export and the `app` service" under §2.
+Last synced against the repo: **2026-09-11**, commit `bc9991c` plus the
+uncommitted `systemd/` unit files this sync describes. Since the 2026-09-10
+sync the project gained the first ingest script and five real backfill runs
+that walk the archive floor back to 2004, the archive-floor move itself
+(2021-01-01 → 2004-01-01, decision-log 2026-09-10), a USPS zip/city reference,
+`scripts/load_coverage.sh`, a `planning/` vs `config/` split separating generic
+data from per-customer configuration, a stdlib test suite for the parser, and
+— 2026-09-11 — `scripts/export_storm_zips.py` plus a fourth Compose service,
+`app`, scoped to the `hail_app` role (see "Storm-zip export and the `app`
+service" under §2). **Also 2026-09-11: Phase 1's plumbing is complete** — both
+`iem_ingest.timer` and `iem_weekly_replay.timer` are installed and verified
+end to end on `hail-dev` (see "systemd units" under §2 and the corresponding
+entries in §7) — closing the mechanism half of Phase 1's "done when" bar; only
+the week of unattended running remains.
 
 Everything below was verified against the **`hail-dev`** stack rather than read
 off the source. Where a number appears — 176,957, 33,791, 37,104 — it came from
@@ -223,6 +226,67 @@ any literal SQL that names it, which is why `010` grants `CONNECT` through
   because the container's `app` user and the host's `hail-user` are both
   `uid 1000` — see §7.
 
+### systemd units — 2026-09-11
+
+Two timers installed and armed on `hail-dev`, `systemd/*.service` and
+`systemd/*.timer` in the repo:
+
+- **`iem_ingest.timer`** — `OnCalendar=*-*-* 10:00:00` UTC (`Persistent=true`),
+  runs `iem_ingest.service`, which invokes `docker compose run --rm ingest
+  python3 scripts/iem_ingest.py` as `hail-user`. `TimeoutStartSec=900`.
+- **`iem_weekly_replay.timer`** — `OnCalendar=Sun *-*-* 11:00:00`, an hour
+  after the nightly, so a replay never races an ingest run. Runs
+  `iem_backfill.py --mode replay` over a rolling 30 days, dates computed at run
+  time through `/bin/sh -c` (systemd does not expand `$(...)` itself).
+  `TimeoutStartSec=1800`.
+
+**Verified by running, not by reading:** a manual `systemctl start
+iem_ingest.service` produced a real `run_id` in journald end to end
+(`fetch_ok` → `complete`), proving `WorkingDirectory` finds `.env`, `hail-user`
+reaches the Docker socket from a systemd context (not just a login shell), and
+the compose healthcheck gate holds. A manual run of the replay
+(`run_id=18`) produced `window_start=2026-08-12T00:00:00+00:00,
+window_end=2026-09-12T00:00:00+00:00` — confirming both the `%%`-escaped
+`date` arithmetic resolves correctly under systemd's specifier expansion, and
+that `--end $(date -u -d tomorrow ...)` (exclusive) correctly includes today,
+where `--end today` would have silently stopped at last midnight.
+
+**Three install-time failures, each informative:**
+
+- **SELinux (`init_t`) refused to read units symlinked from
+  `/home/hail-user/hail-system/systemd/`** — `user_home_t` is not a label
+  `systemd` (`init_t`) may read. Fixed by copying with `install -m 644` into
+  `/etc/systemd/system/` instead of symlinking. A file *created* at that path
+  picks up the directory's default context (`systemd_unit_file_t`)
+  automatically; a symlink's target keeps the label of wherever it actually
+  lives. **This means the repo and the installed copies can drift silently**
+  — there is no enforced link between them, only a habit of re-copying after
+  an edit.
+- **A hyphen instead of an underscore in the timer's `Unit=` name**
+  (`iem-ingest.service` vs. the installed `iem_ingest.service`) made systemd
+  refuse to start the timer outright — *"Refusing to start, unit
+  iem-ingest.service to trigger not loaded"* — rather than arming a timer that
+  fires into nothing. Fixed in the repo copy.
+- **The default `TimeoutStartSec` (90s) undercuts the ingest script's own retry
+  budget.** `HTTP_TIMEOUT=120` and `HTTP_ATTEMPTS=3` in `iem_common.py`, with
+  `HTTP_BACKOFF ** attempt` sleeps of 2s then 4s between attempts (not before
+  the last one) — worst case is 3 × 120s + 2s + 4s ≈ 366s, roughly 6 minutes,
+  not the ~14s of backoff alone. Set to 900 on the nightly and 1800 on the
+  weekly replay (which can make several such fetches, chunked by month).
+  Undersized, systemd would SIGTERM a still-retrying run and record a timeout
+  instead of the real cause.
+
+**Also observed, not previously written up:** the journal shows one
+`iem_ingest.service` start (21:00:27–28, before `run_id=16`) logging
+`Unknown key 'Wantedby' in section [Install], ignoring` — an earlier installed
+copy had the `[Install]` directive miscapitalized (`Wantedby` vs. the required
+`WantedBy`). systemd does not treat this as fatal, only ignores the key
+silently, so the service still ran — but with no `[Install]` in effect, only
+harmless for a unit that is timer-triggered rather than boot-enabled directly.
+Self-corrected by the next re-copy; the repo and installed files now agree.
+`iem_weekly_replay.service` is also missing the `Documentation=` line the
+other three units carry — a completeness gap, not a functional one.
+
 ### Built before this sync, unchanged
 
 - Full written design: schema, decision log, data-source notes, phase plan
@@ -263,9 +327,7 @@ any literal SQL that names it, which is why `010` grants `CONNECT` through
 
 ### Not built
 
-The **nightly** ingest script and its systemd timer (the backfill exists; the
-recurring job does not), any web UI, any RentCast client, any sending path, and
-any `report_sources` seed.
+Any web UI, any RentCast client, and any sending path.
 
 A **parser test suite now exists** — `tests/test_iem_parse.py`, 44 cases, run
 with `python3 -m unittest discover`, all passing on 2026-09-10. It is pure
@@ -279,6 +341,14 @@ phase-appropriate" the earlier sync anticipated — `iem_parse.py` takes its
 
 **Phase 1 is done when** a spreadsheet of affected zip codes can be produced for
 a real storm from last month, and the nightly job has run unattended for a week.
+**Both mechanisms now exist, verified 2026-09-11:** `export_storm_zips.py`
+produces the spreadsheet (§2, "Storm-zip export and the `app` service"), and
+`iem_ingest.timer` / `iem_weekly_replay.timer` are installed and armed on
+`hail-dev`, confirmed by a manual run (`run_id=17`) and `systemctl
+list-timers` showing correct next-elapse times. **The bar is not yet met** —
+the criterion is a week of *unattended* running, and the clock on that starts
+today, not at the moment the timer file was written. See "systemd units" under
+§2 for what was installed and §7 for what went wrong installing it.
 
 ---
 
@@ -657,7 +727,7 @@ These have already bitten. Do not re-discover them.
 - **New Construction is not worth outreach** — a brand-new roof is not a hail
   claim.
 
-### Shell, Docker, and psql
+### Shell, Docker, systemd, and psql
 
 These are newer and cost real time on 2026-09-08.
 
@@ -732,6 +802,27 @@ These are newer and cost real time on 2026-09-08.
   `chown` on either side here specifically because both `useradd
   --uid 1000 app` (in the Dockerfile) and the host account (`hail-user`) land on
   `uid 1000` — a different host UID would need one side adjusted to match.
+- **Subtracting two aware `datetime`s does not mean what it looks like it
+  means when a fixed-offset assumption meets a DST-observing zone.** Given
+  `s = datetime.combine(day, time.min, tzinfo=DISPLAY_TZ)` and `e =
+  datetime.combine(day + timedelta(days=1), time.min, tzinfo=DISPLAY_TZ)`,
+  `e - s` is **always exactly 24h**, on every day of the year, including the
+  two DST-transition days where the real elapsed time in Denver is 23h
+  (2026-03-08, spring forward) or 25h (2026-11-01, fall back). Verified by
+  running it. **This does not make `denver_day_bounds` wrong for its actual
+  job** — `s` and `e` are each independently resolved to the correct absolute
+  UTC instant for local midnight on their own date, and that is what reaches
+  Postgres as the `TIMESTAMPTZ` bound, so the query window is correct. The trap
+  is for anything written *later* that computes a *duration* from
+  `window_start`/`window_end` — an elapsed-time log field, a health check, a
+  "did this take too long" comparison — since that computation silently
+  ignores the DST offset change one to two days a year. Convert to UTC before
+  subtracting for elapsed time; never subtract two local-zone-aware values
+  directly for that purpose.
+- **`systemd-analyze calendar '<expr>'` validates an `OnCalendar` expression
+  and prints its next elapse** — the check to run before trusting a timer,
+  because a malformed expression installs cleanly and produces a timer that
+  simply never fires, with nothing in the journal to say so.
 
 ---
 
@@ -898,6 +989,11 @@ planning/                     GENERIC national seed data + working notes
 config/                       PER-CUSTOMER configuration; see its README
   coverage_zips.txt           RBI's 193 zips (was planning/rbi-zip-code-...)
   README.md                   the generic/specific split, stated
+systemd/                      unit files; installed by copy, not symlink (2026-09-11)
+  iem_ingest.service           oneshot, docker compose run ingest, TimeoutStartSec=900
+  iem_ingest.timer             OnCalendar=*-*-* 10:00:00 UTC, Persistent=true
+  iem_weekly_replay.service    30-day replay via iem_backfill.py --mode replay
+  iem_weekly_replay.timer      OnCalendar=Sun *-*-* 11:00:00, an hour after the nightly
 ```
 
 **`tests/` holds one file** — `test_iem_parse.py`, stdlib `unittest`, no runner
