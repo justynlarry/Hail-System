@@ -1919,3 +1919,156 @@ data the nightly had already passed over).
 **Related:** *Backfill and nightly are two scripts over one parser module*
 (2026-09-04); *A run that skipped rows still exits 0* (2026-09-04) — same
 reasoning extended from malformed rows to structurally-late ones.
+
+---
+
+## 2026-09-14 — Phase 2 UI is reached over Tailscale, not a Cloudflare tunnel
+
+The web container publishes to `127.0.0.1:8000` only. Access during Phase 2 is
+`tailscale serve --bg 8000` on `hail-dev`, giving
+`https://hail-dev.<tailnet>.ts.net` with a certificate from Tailscale's CA.
+Nothing listens on the LAN or the WAN.
+
+**Why:** the entire user base during Phase 2 is one person who is already on the
+tailnet, so this costs no setup and nothing to install. The loopback binding
+matters independently of Tailscale: Docker writes iptables rules ahead of
+firewalld's zones, so `-p 8000:8000` would open the port on every interface the
+host has regardless of firewalld being closed. Binding to loopback removes the
+interface a wrong rule could apply to, rather than relying on a firewall that
+Docker bypasses.
+
+**Supersedes:** `server-setup.md`, which states that firewalld stays closed
+because the UI arrives through a Cloudflare tunnel. There is no tunnel in Phase
+2.
+
+**Cost:** if office LAN access (`192.168.1.x`, plain HTTP) is ever used as a
+stopgap for staff, passwords cross the wire in clear text. Acceptable against
+this threat model, unacceptable as a permanent arrangement, and recorded here so
+the interim does not become the default by inattention.
+
+**Revisit:** Phase 6, when staff use the system. Cloudflare Access is *less*
+client-side work for them than Tailscale — a browser and an email code, nothing
+installed — and it is not blocked on RBI controlling DNS, since a tunnel runs on
+any domain in our own Cloudflare account. That reverses the natural assumption
+that the tunnel is the heavier option.
+
+**Unchanged by this:** the application still needs its own login. Tailscale and
+Access both authenticate a device or a person to the network; neither tells the
+application which `emp_id` to write into `api_pulls`.
+
+---
+
+## 2026-09-14 — "City" in the UI means the USPS city of an affected zip
+
+Grouping by city uses `coverage_zips.area_name`. It is a property of the zip in
+range, not of the report.
+
+**Why:** `iem_data` has no city column, and IEM's `CITY` field would not serve as
+one anyway — it is a position relative to a landmark (`2 SW Great Divide`), which
+is why it was never stored. `area_name` is the only place name in the system.
+
+The distinction is invisible on screen: a column headed "City" reads as "where
+the hail was reported," and it actually means "one of our cities had a zip within
+the radius." For outreach that is the better question, but it is a different
+claim than the label implies.
+
+**Cost:** a single report within range of zips in two cities appears under both.
+Correct — property in both was affected — but it means reports-by-city sums to
+more than the report count, the same one-to-many shape as the export's
+report-zip pairs.
+
+---
+
+## 2026-09-14 — County comes from TIGER county polygons
+
+`tl_2025_us_county` is loaded into a new `county_boundaries` table, by the same
+path as the ZCTA load, and county is derived spatially.
+
+**Why:** all three existing sources fail, each differently. `iem_data.county` is
+free text with 64 county groups differing only by case (`EL PASO` 10,299 rows,
+`El Paso` 2,549), so browse-by-county silently halves counts unless every query
+remembers to `upper()` both sides. `nws_geo_code` (UGC) is unambiguous but null
+before mid-2022, which rules it out for a 22-year archive. `properties.county_fips`
+describes a property, not a report, and has no rows yet. A polygon lookup is
+authoritative across all 22 years and produces a zip→county crosswalk as a
+by-product.
+
+**Supersedes:** parking-lot item 4, which proposed a `county_norm` generated
+column. That fixes case collisions and nothing else — not the pre-2022 gap, not
+the report-location-versus-affected-zip mismatch.
+
+**Traps that apply, both already documented:** TIGER ships NAD83, so the load
+needs `-s 4269:4326` or the geometry lands in the wrong SRID and every spatial
+predicate silently returns nothing; and `-c` versus `-d` on a re-run, which
+determines whether the table is recreated or appended to.
+
+**Cost:** a new table, a loader change, and an additive migration. `004_weather.sql`
+is frozen post-backfill and is not edited.
+
+---
+
+## 2026-09-14 — Flask with server-rendered Jinja templates
+
+**Why:** FastAPI's advantages are async I/O concurrency, pydantic request
+validation, and generated OpenAPI docs. None of the three applies here. There is
+no async workload — Phase 3's RentCast pull is one person waiting on one
+foreground request. Form handling in a server-rendered app is a template
+concern rather than a schema concern. And there is no third-party consumer to
+publish an API contract to. Server rendering also means no build step, no npm,
+and no second language in the repository, which matters more for a system one
+person maintains than any framework feature under discussion.
+
+**Note for when the map is built** (nice-to-have, post-completion): it is a
+`<script>` tag over an ordinary route emitting `ST_AsGeoJSON`, not a reason to
+revisit this. ZCTA polygons carry thousands of coordinate pairs each, so the
+route must `ST_Simplify` at query time or the payload becomes the bottleneck.
+That simplification is display-only and is never applied to geometry the
+matching uses.
+
+---
+
+## 2026-09-14 — Password hashing via `hashlib.scrypt`; `SECRET_KEY` joins `.env`
+
+**Why:** scrypt is a memory-hard KDF in the Python standard library, so Phase 2
+adds no dependency for authentication. argon2id is the stronger current
+recommendation but is a C extension, and the standing rule is that dependencies
+are proposed before they are installed.
+
+**Supersedes:** `database-schema.md`, which names bcrypt or argon2 for
+`users.password_hash`.
+
+**Storage format:** the hash column stores the parameters alongside the digest
+(n, r, p, salt). Storing a bare digest makes existing passwords unverifiable the
+first time a parameter is raised, which is a thing that should be possible to do
+without a password reset for every user.
+
+**Cost:** `SECRET_KEY` becomes the fourth value in `.env`, under the same rule as
+the others — secrets only, never configuration. Rotating it invalidates every
+session at once.
+
+---
+
+## 2026-09-14 — Repository becomes a package; `scripts/` keeps its entrypoint names
+
+`hailsys/` holds importable code (`tuning.py`, `db.py`, `iem/`, `queries/`,
+`web/`). `scripts/` keeps every existing filename and becomes thin entrypoints.
+
+**Why the filenames are preserved:** the systemd units invoke
+`scripts/iem_ingest.py` by path. A move that does not touch them cannot break the
+nightly, which is mid-clock on Phase 1's unattended week.
+
+**Why `tuning.py` keeps its name:** it describes what the file holds — values
+that were reasoned about and may need re-tuning — better than `config.py` would,
+and it avoids collision with Flask's own `config`.
+
+**Trap this introduces:** running `python3 scripts/iem_ingest.py` puts `scripts/`
+on `sys.path`, not the repository root, so `import hailsys` fails with a
+module-not-found error that reads as though the package is absent while it sits
+one directory over. `ENV PYTHONPATH=/app` in all three Dockerfiles fixes it
+without changing how anything is invoked.
+
+**Verification, in this order:** capture a baseline export CSV for a fixed date
+and radius *before* the move; move; add `PYTHONPATH`; rebuild all three images
+(the build-context snapshot trap otherwise makes a correctly-moved file look
+missing); run the 44 parser tests; re-run the export and `diff` against the
+baseline; `sudo systemctl start iem_ingest.service` and confirm a new `run_id`.
