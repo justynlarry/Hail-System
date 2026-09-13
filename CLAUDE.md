@@ -35,7 +35,8 @@ Do not build ahead of the current phase.
 - Rocky Linux VM on Proxmox, single Dell OptiPlex, on RBI's office network
 - PostgreSQL + PostGIS
 - Python backend
-- Web UI, reachable via Cloudflare tunnel
+- Web UI, reached over Tailscale for Phase 2 (Cloudflare tunnel revisited at
+  Phase 6 — see `docs/decision-log.md`, 2026-09-14)
 - Deployed with Ansible where practical
 
 ## Non-negotiable rules

@@ -619,12 +619,14 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
 - **Phase 2 UI is reached over Tailscale, not a Cloudflare tunnel.** The web
   container publishes to `127.0.0.1:8000` only; `tailscale serve --bg 8000` on
   `hail-dev` fronts it. Costs nothing to set up because the entire Phase 2 user
-  base is one person already on the tailnet. **`server-setup.md` updated to
-  match, 2026-09-14** — its Firewall section now explains the loopback bind
-  and `tailscale serve` rather than the old Cloudflare-tunnel reasoning. **Revisit
-  at Phase 6**: Cloudflare Access is *less* client-side work for staff (a
-  browser and an email code) and does not need RBI's DNS, reversing the
-  assumption that the tunnel is the heavier option.
+  base is one person already on the tailnet. **`server-setup.md` and
+  `CLAUDE.md` updated to match, 2026-09-14** — the former's Firewall section
+  now explains the loopback bind and `tailscale serve` rather than the old
+  Cloudflare-tunnel reasoning, and the latter's Stack bullet says Tailscale
+  instead of Cloudflare tunnel. **Revisit at Phase 6**: Cloudflare Access is
+  *less* client-side work for staff (a browser and an email code) and does
+  not need RBI's DNS, reversing the assumption that the tunnel is the heavier
+  option.
 - **"City" in the UI means the USPS city of an affected zip** —
   `coverage_zips.area_name`, a property of the zip in range, not of the report.
 - **County comes from TIGER county polygons**, not free text or UGC. A new
