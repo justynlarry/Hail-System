@@ -684,7 +684,7 @@ Logins. Four or five rows, probably ever.
 | `emp_id` | Surrogate PK |
 | `user_name` | UNIQUE, login |
 | `emp_fname`, `emp_lname`, `emp_email` | Identity |
-| `password_hash` | bcrypt or argon2. **Never anything reversible** — people reuse passwords, so a weak store is a liability to the user personally, not just to the system |
+| `password_hash` | `hashlib.scrypt` — memory-hard and stdlib, so Phase 2 adds no dependency (decision-log 2026-09-14). The column stores the parameters (n, r, p, salt) alongside the digest, so raising them later does not make existing hashes unverifiable. **Never anything reversible** — people reuse passwords, so a weak store is a liability to the user personally, not just to the system |
 | `role` | `admin` / `sender` / `viewer` / `system` |
 | `is_active` | Disable, never delete |
 | `created_at`, `created_by` | Self-FK, nullable for the first account |

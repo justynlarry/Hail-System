@@ -86,12 +86,25 @@ sudo systemctl status systemd-journald
 ```
 
 ## Firewall
-Rocky enables `firewalld` by default. The web UI is reached through a Cloudflare
-tunnel, which is outbound-only, so no inbound ports should need opening.
+Rocky enables `firewalld` by default. Left closed — nothing needs an inbound
+port opened on the LAN or WAN.
 
-Left as-is deliberately. Note that Docker writes iptables rules directly and can
-publish a container port past firewalld's zones — so a `-p` in a compose file is
-not covered by the assumption above.
+**Phase 2:** the web container binds to `127.0.0.1:8000` only, and
+`tailscale serve --bg 8000` (see "Install Tailscale" below) fronts it over the
+tailnet instead of publishing a port anywhere firewalld would see it. The
+earlier plan was a Cloudflare tunnel; Phase 2 uses Tailscale instead because
+the entire user base during Phase 2 is one person already on the tailnet, and
+it costs nothing to set up (decision-log 2026-09-14). **This is an interim
+arrangement, not the final one** — revisit at Phase 6, when staff need access:
+Cloudflare Access is less client-side setup for them (a browser and an email
+code, nothing installed) and does not depend on RBI controlling DNS, which
+reverses the assumption that the tunnel is the heavier option.
+
+Left as-is deliberately regardless of which one fronts it. Note that Docker
+writes iptables rules directly and can publish a container port past
+firewalld's zones — so a `-p` in a compose file is not covered by the
+assumption above, which is also why the web container binds to loopback
+rather than a wildcard address.
 
 ## SELinux Configuration
 *Should be okay out of the box, but Docker will need to be configured correctly:*
@@ -138,6 +151,11 @@ sudo tailscale up
 ```
 The install script only installs the daemon. `tailscale up` is what authenticates
 the node and joins it to the tailnet — it prints a URL to open in a browser.
+
+**Two uses on this box.** File movement between machines (below), and, from
+Phase 2 on, fronting the web UI: `tailscale serve --bg 8000` against the
+loopback-bound container gives `https://<hostname>.<tailnet>.ts.net` with a
+Tailscale-issued certificate — see "Firewall" above.
 
 ### *Not necessary on EVERY server, but to move files untracked in git*
 

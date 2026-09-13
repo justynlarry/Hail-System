@@ -619,12 +619,12 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
 - **Phase 2 UI is reached over Tailscale, not a Cloudflare tunnel.** The web
   container publishes to `127.0.0.1:8000` only; `tailscale serve --bg 8000` on
   `hail-dev` fronts it. Costs nothing to set up because the entire Phase 2 user
-  base is one person already on the tailnet. **Supersedes `server-setup.md`**,
-  which still states firewalld stays closed because the UI arrives through a
-  tunnel — that file has not been updated to match (see §9). **Revisit at
-  Phase 6**: Cloudflare Access is *less* client-side work for staff (a browser
-  and an email code) and does not need RBI's DNS, reversing the assumption that
-  the tunnel is the heavier option.
+  base is one person already on the tailnet. **`server-setup.md` updated to
+  match, 2026-09-14** — its Firewall section now explains the loopback bind
+  and `tailscale serve` rather than the old Cloudflare-tunnel reasoning. **Revisit
+  at Phase 6**: Cloudflare Access is *less* client-side work for staff (a
+  browser and an email code) and does not need RBI's DNS, reversing the
+  assumption that the tunnel is the heavier option.
 - **"City" in the UI means the USPS city of an affected zip** —
   `coverage_zips.area_name`, a property of the zip in range, not of the report.
 - **County comes from TIGER county polygons**, not free text or UGC. A new
@@ -639,8 +639,9 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
 - **Password hashing via `hashlib.scrypt`; `SECRET_KEY` joins `.env`.**
   Memory-hard and stdlib, so Phase 2 adds no dependency. The hash column stores
   parameters alongside the digest so raising them later does not require a
-  password reset for every user. **Supersedes `database-schema.md`**, which
-  names bcrypt or argon2 for `users.password_hash`.
+  password reset for every user. **`database-schema.md` updated to match,
+  2026-09-14** — the `password_hash` row now names scrypt instead of bcrypt
+  or argon2.
 - **The repo becomes a package.** `hailsys/` holds importable code
   (`tuning.py`, `db.py`, `iem/`, `queries/`, `web/`); `scripts/` keeps every
   existing filename as a thin entrypoint, because the systemd units invoke
@@ -945,10 +946,10 @@ duplication costs to maintain.
 Build steps for a machine from bare metal are in `docs/server-setup.md`: static
 IP via `nmcli`, Podman removed before Docker CE goes on, timezone set to UTC,
 `/var/log/journal` created for persistence with `SystemMaxUse` capped,
-`firewalld` left closed because the UI arrives through the tunnel. **That last
-line is stale as of the 2026-09-14 decision below** — Phase 2 has no tunnel —
-and `server-setup.md` itself has not been edited to say so; firewalld staying
-closed is still correct, but the reason given for it is not.
+`firewalld` left closed. **Updated 2026-09-14** to explain the current reason —
+the web container binds to loopback and `tailscale serve` fronts it, so
+nothing ever reaches a real interface for firewalld to gate — rather than the
+earlier Cloudflare-tunnel reasoning, which no longer applies in Phase 2 (§6).
 
 ### The rest of the stack
 
