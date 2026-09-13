@@ -2072,3 +2072,33 @@ and radius *before* the move; move; add `PYTHONPATH`; rebuild all three images
 (the build-context snapshot trap otherwise makes a correctly-moved file look
 missing); run the 44 parser tests; re-run the export and `diff` against the
 baseline; `sudo systemctl start iem_ingest.service` and confirm a new `run_id`.
+
+---
+
+## 2026-09-14 — One connection seam in `hailsys/db.py`; `dict_row` now, no pool
+
+Every query acquires its connection through a single context manager. Rows come
+back as dicts. No connection pool in Phase 2.
+
+**Why `dict_row` now:** default psycopg rows are tuples, so call sites index by
+position. The day a column is added to the middle of a `SELECT`, every consumer
+keeps running and returns the wrong field — a quiet wrong answer rather than a
+loud error. Setting the row factory once, before there are call sites, costs
+nothing; changing it after there are is a sweep through every one of them.
+
+**Why no pool:** at three to five users the saving is a few milliseconds per
+request, and a pool is not free. It holds connections open, so it hands out dead
+sockets after the `postgis` container restarts unless a `check=` callback is
+configured — a pool without one is less reliable than no pool. And a pool created
+before gunicorn forks gives every worker copies of the same sockets; it works
+today only because `preload_app` defaults to false, and would break silently the
+day someone sets it true to save memory.
+
+**Triggers that would force one**, recorded instead of a phase number: a route
+holding a connection open across slow non-database work, sustained concurrency
+above the gunicorn worker count, or connection setup measurably showing up in a
+real timing. Note that the sizing variable is in-flight requests, not headcount.
+
+**When a pool does arrive, the ingest scripts keep a plain connect.** A one-shot
+process that opens one connection and exits gains nothing from pooling. `db.py`
+ends with two entry points, and that is correct rather than a wart.
