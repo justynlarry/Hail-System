@@ -19,19 +19,28 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-09-11**, commit `21463df`. Since the
-2026-09-10 sync the project gained the first ingest script and five real backfill runs
-that walk the archive floor back to 2004, the archive-floor move itself
-(2021-01-01 → 2004-01-01, decision-log 2026-09-10), a USPS zip/city reference,
-`scripts/load_coverage.sh`, a `planning/` vs `config/` split separating generic
-data from per-customer configuration, a stdlib test suite for the parser, and
-— 2026-09-11 — `scripts/export_storm_zips.py` plus a fourth Compose service,
-`app`, scoped to the `hail_app` role (see "Storm-zip export and the `app`
-service" under §2). **Also 2026-09-11: Phase 1's plumbing is complete** — both
-`iem_ingest.timer` and `iem_weekly_replay.timer` are installed and verified
-end to end on `hail-dev` (see "systemd units" under §2 and the corresponding
-entries in §7) — closing the mechanism half of Phase 1's "done when" bar; only
-the week of unattended running remains.
+Last synced against the repo: **2026-09-14**, commit `e6ac284`. Since the
+2026-09-11 sync (commit `21463df`), Phase 1's own work gained one more piece —
+`scripts/status.sh`, four read-only operator checks whose exit status doubles
+as the nightly-health verdict (see "Operational tooling and Phase 2 planning"
+under §2) — and the project otherwise moved into **Phase 2 planning**, which
+is a documentation phase, not a building one: nothing below changes what runs
+on `hail-dev` today. `docs/parking-lot.md` was committed (the Phase 1
+open-items list, carried by hand until now) and then reconciled against
+`database-schema.md`'s 12 open questions — one resolved, one confirmed still
+open, ten filed as new items. Six Phase 2 decisions were recorded in the
+decision log — Tailscale over a Cloudflare tunnel for Phase 2 access,
+USPS-city grouping, county from TIGER polygons, Flask over FastAPI, scrypt
+password hashing, and the `hailsys/` package layout — plus a seventh,
+`hailsys/db.py`'s connection design (`dict_row`, no pool). See §6 for the
+condensed decisions and §10 for what is and is not built yet.
+
+**Also 2026-09-11 (carried from the last sync, unchanged since): Phase 1's
+plumbing is complete** — both `iem_ingest.timer` and `iem_weekly_replay.timer`
+are installed and verified end to end on `hail-dev` (see "systemd units" under
+§2 and the corresponding entries in §7) — closing the mechanism half of
+Phase 1's "done when" bar; only the week of unattended running remains, and as
+of this sync (2026-09-14) that clock has not yet run its course.
 
 Everything below was verified against the **`hail-dev`** stack rather than read
 off the source. Where a number appears — 176,957, 33,791, 37,104 — it came from
@@ -336,6 +345,34 @@ contract the ingest depends on. This is the "whenever that becomes
 phase-appropriate" the earlier sync anticipated — `iem_parse.py` takes its
 `valid_types` as an argument, so the suite needs no fixtures and no database.
 
+### Operational tooling and Phase 2 planning — 2026-09-11 through 2026-09-14
+
+- **`scripts/status.sh`** — four read-only checks against the running stack
+  (recent runs, stored row counts, reject reasons, nightly staleness) without
+  opening `psql` by hand. Exit status doubles as the nightly-health verdict —
+  0 if a nightly completed within `STALE_HOURS`, 1 if not — so it can be wired
+  into a notifier later without being rewritten.
+- **`docs/parking-lot.md`** committed 2026-09-14, closing a real time cost:
+  before it existed, at least one finding was re-derived from scratch because
+  it was read out of a derived summary rather than the decision log, where it
+  had already been recorded four days earlier. Now 21 numbered items plus
+  "Also worth carrying" (standing facts about the data — confidence-tier
+  skew, thin-report days, dedup rate — not decisions) and "Not on the
+  roadmap" (MRMS/MESH, triggered rather than scheduled).
+- **Reconciled against `database-schema.md`'s 12 open questions**, same day:
+  county (question 4) resolved by the TIGER-polygon decision below; role
+  visibility (question 11) checked and confirmed still open; the other ten
+  filed as parking-lot items 12–21. One of those ten — out-of-state reports —
+  had a declarative source title that made a genuinely open question ("should
+  ingest widen past `state=CO`?") read as an already-settled fact; it was
+  refiled as a question and cross-linked to the decision-log entry that
+  actually settled the adjacent, narrower point (§6).
+- **Six Phase 2 decisions recorded**, none yet built: Tailscale access,
+  USPS-city grouping, TIGER county, Flask, scrypt hashing, and the `hailsys/`
+  package layout. A seventh followed the same day: the `hailsys/db.py`
+  connection design. All seven are condensed in §6; none of them changes
+  anything currently running on `hail-dev`.
+
 **Do not build ahead of the current phase.**
 
 **Phase 1 is done when** a spreadsheet of affected zip codes can be produced for
@@ -576,6 +613,50 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
 - **IP:** Justyn owns the code; RBI is licensed a running system on their
   hardware. Generic components live separately from RBI-specific config so the
   legal boundary follows a file boundary.
+
+**Phase 2 decisions, recorded 2026-09-14, none yet built:**
+
+- **Phase 2 UI is reached over Tailscale, not a Cloudflare tunnel.** The web
+  container publishes to `127.0.0.1:8000` only; `tailscale serve --bg 8000` on
+  `hail-dev` fronts it. Costs nothing to set up because the entire Phase 2 user
+  base is one person already on the tailnet. **Supersedes `server-setup.md`**,
+  which still states firewalld stays closed because the UI arrives through a
+  tunnel — that file has not been updated to match (see §9). **Revisit at
+  Phase 6**: Cloudflare Access is *less* client-side work for staff (a browser
+  and an email code) and does not need RBI's DNS, reversing the assumption that
+  the tunnel is the heavier option.
+- **"City" in the UI means the USPS city of an affected zip** —
+  `coverage_zips.area_name`, a property of the zip in range, not of the report.
+- **County comes from TIGER county polygons**, not free text or UGC. A new
+  `county_boundaries` table, loaded the same way as the ZCTA load, gives an
+  authoritative zip→county crosswalk across all 22 years, which
+  `iem_data.county` (case variants) and `nws_geo_code` (null before mid-2022)
+  cannot. **Resolves** parking-lot item 4 / open question 4.
+- **Flask with server-rendered Jinja, not FastAPI.** None of FastAPI's three
+  advantages — async concurrency, pydantic validation, generated API docs —
+  apply: there is no async workload, form handling is a template concern here,
+  and there is no third-party API consumer.
+- **Password hashing via `hashlib.scrypt`; `SECRET_KEY` joins `.env`.**
+  Memory-hard and stdlib, so Phase 2 adds no dependency. The hash column stores
+  parameters alongside the digest so raising them later does not require a
+  password reset for every user. **Supersedes `database-schema.md`**, which
+  names bcrypt or argon2 for `users.password_hash`.
+- **The repo becomes a package.** `hailsys/` holds importable code
+  (`tuning.py`, `db.py`, `iem/`, `queries/`, `web/`); `scripts/` keeps every
+  existing filename as a thin entrypoint, because the systemd units invoke
+  `scripts/iem_ingest.py` by path and a move that does not touch them cannot
+  break the nightly. **Decided, not yet done** — see §10 for the current
+  (still-flat) tree and the verification order the move requires.
+- **One connection seam in `hailsys/db.py`; `dict_row` rows, no pool in
+  Phase 2.** Every query acquires its connection through a single context
+  manager; rows come back as dicts so a column added mid-`SELECT` cannot
+  silently shift what a positional index returns. No pool: at three to five
+  users the saving is milliseconds, and a pool held open across a `postgis`
+  container restart hands out dead sockets without a `check=` callback.
+  Triggers recorded instead of a phase number: a route holding a connection
+  across slow non-database work, sustained concurrency above the gunicorn
+  worker count, or measured connection-setup cost. The ingest scripts keep a
+  plain `connect()` regardless — one-shot processes gain nothing from pooling.
 
 ---
 
@@ -864,17 +945,22 @@ duplication costs to maintain.
 Build steps for a machine from bare metal are in `docs/server-setup.md`: static
 IP via `nmcli`, Podman removed before Docker CE goes on, timezone set to UTC,
 `/var/log/journal` created for persistence with `SystemMaxUse` capped,
-`firewalld` left closed because the UI arrives through the tunnel.
+`firewalld` left closed because the UI arrives through the tunnel. **That last
+line is stale as of the 2026-09-14 decision below** — Phase 2 has no tunnel —
+and `server-setup.md` itself has not been edited to say so; firewalld staying
+closed is still correct, but the reason given for it is not.
 
 ### The rest of the stack
 
 - **PostgreSQL 16 + PostGIS 3.4**, in Docker, database `weather-property`
 - **Python 3.12** backend, stdlib and boring dependencies preferred;
   `psycopg[binary]==3.2.3` is currently the only dependency
-- Web UI reachable via **Cloudflare tunnel** (outbound-only, so no inbound
-  ports — but note Docker writes iptables rules directly and a published `-p`
-  bypasses firewalld's zones)
-- **Tailscale** for host-to-host file movement
+- **Web UI (Phase 2, decided 2026-09-14, not yet built): Flask**,
+  server-rendered Jinja templates, reached via `tailscale serve` against a
+  loopback-bound container — see §6. A Cloudflare tunnel was the earlier plan
+  and is revisited at Phase 6, not before.
+- **Tailscale** for host-to-host file movement, and (Phase 2) for reaching the
+  web UI itself
 - Deployed with **Ansible** where practical
 - Monitoring through an existing instance called **Irin**
 
@@ -949,6 +1035,7 @@ docs/
   server-setup.md             bare-metal Rocky build, step by step
   command-ref.md              Justyn's own Docker/Postgres/type notes
   schema-review.md            re-runnable review prompt for sql/ + the loader
+  parking-lot.md              21 numbered open items, resolution-tracked (2026-09-14)
 sql/                          apply in order; 010 must be last
   001_extensions.sql          postgis
   002_users.sql               users (+ the bootstrap system account)
@@ -971,6 +1058,7 @@ scripts/
   export_storm_zips.py        CSV export, one row per report-zip pair, one storm day (2026-09-11)
   load_reference.sh           idempotent loader: report_types CSV + ZCTA shapefile
   load_coverage.sh            idempotent loader: one customer's territory
+  status.sh                   four read-only operator checks; exit code = nightly-health verdict (2026-09-11)
 tests/
   __init__.py                 empty; makes unittest discovery work
   test_iem_parse.py           44 stdlib unittest cases against iem_parse.py
@@ -997,6 +1085,15 @@ systemd/                      unit files; installed by copy, not symlink (2026-0
 
 **`tests/` holds one file** — `test_iem_parse.py`, stdlib `unittest`, no runner
 dependency. See §2.
+
+**The tree above is still flat, on purpose.** The `hailsys/` package layout
+(§6) is decided, not built — there is no `hailsys/` directory yet, and
+`scripts/*.py` still hold the code they always have. When the move happens,
+`scripts/` keeps every current filename as a thin entrypoint, `PYTHONPATH=/app`
+is added to all three Dockerfiles, and the verification order is: baseline
+export CSV, move, add `PYTHONPATH`, rebuild all three images, run the 44
+parser tests, re-diff the export, then a manual `iem_ingest.service` start to
+confirm a new `run_id`.
 
 ### Running it
 
@@ -1026,6 +1123,11 @@ table would report all 193 zips as unmatched, insert nothing, and exit 0.
 ## 11. Open questions
 
 Unresolved. Each is cheaper to settle now than after there is data.
+**`docs/parking-lot.md` is now the actively-tracked version of this list** —
+resolution status, dependencies between items, and cross-references to the
+schema-review pass live there, not here. This section is left as a condensed
+snapshot; where the two disagree, the parking lot wins, same as anywhere else
+this file summarizes a source.
 
 1. **Is a "storm" a first-class entity?** The UI concept is *"Hail — August 24 —
    14 neighborhoods,"* which today is a `GROUP BY`, not a table. A real
@@ -1038,9 +1140,11 @@ Unresolved. Each is cheaper to settle now than after there is data.
    the same footprint.
 3. **Is there a settings table at all?** Radius default, frequency-cap window,
    monthly API ceiling, warmup limit — none of these currently has a home.
-4. **How are counties handled for browse-by-county?** Three county sources exist
-   (`nws_geo_code` UGC, `iem_data.county` free text, `properties.county_fips`).
-   A crosswalk would reconcile them.
+4. **Resolved 2026-09-14.** ~~How are counties handled for browse-by-county?~~
+   County now comes from TIGER county polygons (§6) — a `county_boundaries`
+   table gives an authoritative crosswalk across all 22 years, which none of
+   the three original sources (`nws_geo_code` UGC, `iem_data.county` free
+   text, `properties.county_fips`) could do alone.
 5. **Does the frequency cap have a hard floor?** Decided in principle — a short
    window nobody can click past, plus a soft warning above it. The numbers are
    unset and the floor must live in the database.
@@ -1073,12 +1177,20 @@ Unresolved. Each is cheaper to settle now than after there is data.
     look at, but "did last night's ingest run" is an operator question, not a
     browsing one. `hail_app` currently holds `SELECT` on `ingest_runs` and
     `iem_ingest_rejects`, which is a provisional answer, not a decided one.
-12. **Out-of-state reports are excluded permanently.** Ingest queries
-    `state=CO`, so a report over the Wyoming or Nebraska line is never fetched.
-    **No buffer radius recovers it** — the radius widens the search around a
-    stored report, and these are never stored. Cheap to widen later (re-ingest
-    is idempotent); the reason to decide it deliberately is that nothing will
-    ever surface the gap — no row, no reject, no count.
+    **Checked against the 2026-09-14 decisions and still open** — the
+    Tailscale-access entry (§6) touches the same territory but explicitly
+    declines to answer it, noting only that the application still needs its
+    own login regardless of network access.
+12. **Should ingest widen past `state=CO`?** (Retitled 2026-09-14 — the
+    original phrasing, "out-of-state reports are excluded permanently," stated
+    the current default as if it were the decision, which it is not; only the
+    default is settled.) Ingest queries `state=CO` — a decision made
+    2026-09-04, over a WFO list, and that entry already flags this exact
+    consequence and defers it here. A report over the Wyoming or Nebraska line
+    is never fetched. **No buffer radius recovers it** — the radius widens the
+    search around a stored report, and these are never stored. Cheap to widen
+    later (re-ingest is idempotent); the reason to decide it deliberately is
+    that nothing will ever surface the gap — no row, no reject, no count.
     **New as of 2026-09-08:** IEM exposes bounding-box parameters (`north`,
     `south`, `east`, `west`, added 2024-10-24), so this question now has a
     mechanism attached rather than only a description — a box crossing the state
