@@ -45,6 +45,13 @@ question and have simply never been read by anyone else.
 
 **When:** Phase 2, when a UI exists.
 
+**Checked against the 2026-09-14 decision-log entries** (schema-review
+mapping): still open. The Tailscale-access entry touches the same territory —
+device/network auth versus application identity — but its "unchanged by this"
+paragraph explicitly declines to say which role sees `ingest_runs`; it only
+confirms the application still needs its own login. Not resolved by that
+entry or any other from that day.
+
 ## 2. `nws_issuer` is NOT NULL and unguarded
 
 `iem_data.nws_issuer` is `NOT NULL`, but `iem_parse.parse_row` returns
@@ -99,6 +106,14 @@ Adding a `county_norm` generated column is a schema change to a post-backfill
 file, so it is an additive migration, not an edit to `004_weather.sql`.
 
 **When:** Phase 2, when browse-by-county is built.
+
+**Resolved 2026-09-14.** See `docs/decision-log.md`, "County comes from TIGER
+county polygons" — `tl_2025_us_county` is loaded as `county_boundaries` and
+county is derived spatially, by the same path as the ZCTA load. That entry
+supersedes the `county_norm` proposal here: it fixes the pre-2022 UGC gap and
+the report-location-versus-affected-zip mismatch, neither of which a
+normalized column would have touched. Kept here rather than deleted, per this
+file's own rule that the reasoning is worth more than the conclusion.
 
 ## 5. Workable hail days swing 10–42 per year
 
@@ -228,6 +243,184 @@ has somewhere to live. The email wording rule stands: the message claims a
 **report**, never damage.
 
 **When:** Phase 5, when templates are written.
+
+## 12. Is a "storm" a first-class entity, or just a query?
+
+The UI concept is *"Hail — August 24 — 14 neighborhoods."* That groups many
+individual reports into one event. Currently that grouping is a query
+(`GROUP BY date, report_text`), not a table.
+
+A real `storm_events` table would let someone name an event, attach a campaign
+to it, and report on it as a unit. `send_log` would reference the event as
+well as the match. The cost is a clustering rule — what makes two reports part
+of the same storm? Same day? Same day and type? Spatial proximity?
+
+Deferring is safe as long as the query-based grouping stays consistent. But if
+it becomes a table later, matches made before it exists have no event to
+belong to — a backfill problem created by waiting, not avoided by it.
+
+**When:** Phase 2, if the storm browser needs to name or campaign against an
+event rather than only group by query. *(`database-schema.md`, open question 1)*
+
+## 13. Buffer radius default — value, storage, and the per-type asymmetry
+
+`storm_listing_matches.radius_used` records what was used per match, but
+nothing states a default, or where it would live — a constant in config, a row
+in a settings table, or a per-user preference.
+
+Also unanswered: does the radius vary by event type? Hail swaths and
+straight-line wind damage do not share a footprint. This leaves an asymmetry
+unaddressed: `report_types.min_magnitude` already gives the magnitude floor a
+per-type column; the radius has no equivalent. Same shape of question,
+answered two different ways — either the radius belongs on `report_types`
+next to `min_magnitude`, or `min_magnitude` belongs wherever the radius
+default eventually lives.
+
+**Depends on item 14** — whether there is a settings table at all.
+
+**When:** Phase 2 capacity planning, alongside item 14. *(`database-schema.md`,
+open question 2)*
+
+## 14. Is there a settings table at all?
+
+Radius default, frequency-cap window, monthly API ceiling, warmup send limit —
+none of these has a home today. A settings table means tuning them without a
+deploy, the same argument that already justified putting `roof_relevant` in
+`report_types` instead of in code.
+
+**When:** Phase 2 — items 13 and 15 (frequency-cap floor) are both blocked on
+this being decided first. *(`database-schema.md`, open question 3)*
+
+## 15. Does the frequency cap have a hard floor?
+
+Decided in principle: a short window nobody can click past, plus a soft
+warning above it. The actual numbers are unset, and the hard floor needs
+enforcing in the database rather than the application, or it is not really a
+floor.
+
+**Depends on item 14** — the settings table is where the window value would
+live.
+
+**When:** Phase 5, when sending is built. *(`database-schema.md`, open
+question 5)*
+
+## 16. Merge field vocabulary — where is it stored?
+
+Established that the merge-field list for email templates should be reference
+data, not a hardcoded list, but it is not yet designed. Likely a small table:
+placeholder name, source expression, whether it's required.
+
+**When:** Phase 5, when templates are written — same phase as item 11 (hail
+size names), which needs the same table. *(`database-schema.md`, open
+question 6)*
+
+## 17. What happens to a listing that goes inactive after a match?
+
+A match points at a listing that may since have sold. Does the browser still
+show it? Does it still get emailed? Probably worth surfacing `list_status` at
+send time and letting the sender decide, but the rule is unstated today.
+
+**When:** Phase 3, when matches start getting made against real listings.
+*(`database-schema.md`, open question 7)*
+
+## 18. Retention policy for `raw_payload`
+
+The `JSONB` of every RentCast response is cheap at current volume but grows
+without bound. No policy set — probably fine indefinitely, worth revisiting if
+`listings` gets large.
+
+**When:** revisit only if `listings` size or storage becomes a real cost. A
+trigger item, not a deadline. *(`database-schema.md`, open question 8)*
+
+## 19. Does outreach ever fall back to the office email when an agent has none?
+
+`listingAgent.email` is frequently missing; `office_email_norm` and
+`list_office_email_norm` exist so a batch can be pre-flighted against
+`dnc_list` either way. Whether we would ever *send* to an office address is
+unsettled.
+
+Suppression already handles this correctly — the check runs against the
+address actually used, not against a person, so a suppressed `info@` inbox is
+safe by construction. **The frequency cap does not:** fifteen agents at one
+brokerage with no email of their own all resolve to a single `info@` inbox,
+each with its own `realtor_id`, so a per-realtor cap counts fifteen separate
+sends and the shared inbox receives fifteen emails from one batch — and a
+shared inbox is the least tolerant recipient on a list.
+
+If this is ever built, two things change: the cap needs a per-address window
+alongside the per-realtor one, and `send_log` needs to record whether the
+recipient was a person or an office. Without that column, `realtor_id`
+quietly stops meaning "who we emailed" and starts meaning "who this was
+about" — a different fact under the same name.
+
+**When:** Phase 5, when sending is built. *(`database-schema.md`, open
+question 9)*
+
+## 20. Should append-only be enforced by the database, not just convention?
+
+`send_log` and `email_templates` are append-only by convention and by code —
+no trigger, no rule, no `REVOKE`. Every other rule this project treats as
+load-bearing lives in the database; this is the one exception.
+
+Options, cheapest first: `REVOKE UPDATE, DELETE` from the application role
+(but that also blocks the legitimate provider-status update on `send_log`); a
+`BEFORE UPDATE OR DELETE` trigger allowing only status columns to change; or
+splitting status updates into a separate table so the log itself is
+genuinely insert-only.
+
+**Explicitly deferred to Phase 5** in `database-schema.md` — deciding now
+would mean designing against a guess of the real update pattern.
+
+**When:** Phase 5. *(`database-schema.md`, open question 10)*
+
+## 21. Should ingest widen past `state=CO`?
+
+Filed under this heading rather than the source's own — *"Out-of-state reports
+are excluded permanently"* — because that title states a fact, not a question,
+unlike the other eleven `database-schema.md` open questions. A closed thing
+filed as PL-21 would read as owed when it isn't. Full body, quoted, before
+deciding where it belongs:
+
+> The ingest queries `state=CO`. A storm report a few miles into Wyoming or
+> Nebraska is never fetched, never stored, and therefore never matched.
+>
+> **No buffer radius recovers this.** The radius widens the search *around a
+> stored report*; these reports do not exist in `iem_data` to widen around.
+> Every other coverage question in this schema is a read-time tuning
+> parameter — this one is decided at ingest, which makes it the exception.
+>
+> The exposure is real but narrow: hail does not stop at a survey line, and a
+> storm three miles into Wyoming that crosses into a covered ZCTA produces
+> listings we would want and reports we do not have. `coverage_zips` runs to
+> the northern border, so the affected band is the top edge of the territory.
+>
+> Options, cheapest first: add the neighbouring states to the query and let
+> `coverage_zips` keep filtering at read time, which costs storage and
+> nothing else; or switch to a bounding box, which is what
+> `docs/data-sources.md` already recommends for production and which ignores
+> state lines entirely.
+>
+> **Same shape as the archive floor** — quiet, permanent, and cheap to widen
+> later, because the `iem_data` natural key makes re-ingest idempotent. A
+> wider re-run inserts only what is new. The reason to settle it deliberately
+> is that nothing will ever surface the gap: a report that was never fetched
+> leaves no row, no reject, and no count to notice.
+
+**Decided: stays in the open-question registry, retitled, not folded into the
+decision log alone.** The `state=CO` filter is already a decision-log entry —
+*`state=CO`, not a WFO list* (2026-09-04), which chose the parameter over a
+WFO list. That entry already names this exact consequence and defers it here,
+in its own words: "**Open consequence, not settled scope**... Carried as open
+question 12 in `docs/database-schema.md`." So the current CO-only behavior is
+settled and belongs to that entry, not this one. What's still undecided is
+only whether to widen the geographic scope — add neighboring states, or move
+to a bounding box — and neither has been chosen. That's a real open question,
+just misfiled under a declarative title in the source document.
+
+**When:** before Phase 3 — `coverage_zips` already reaches the border, and a
+RentCast pull near it would spend real money against a report set already
+known to be incomplete. *(`database-schema.md`, open question 12; decision-log
+2026-09-04)*
 
 ---
 
