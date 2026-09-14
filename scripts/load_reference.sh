@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Load reference data: report_types (CSV), report_sources (CSV) and
-# zcta_boundaries (TIGER shapefile).
+# Load reference data: report_types (CSV), report_sources (CSV),
+# zcta_boundaries (TIGER shapefile), and county_boundaries (TIGER shapefile).
 
 # SAFE to re-run.  All loads go through staging tables and INSERT ... ON
 # CONFLICT DO NOTHING, second run won't duplicate records.
@@ -28,8 +28,9 @@ CSV="${CSV:-planning/report_types.csv}"
 # every value has a lookup row and none is seeded that nothing joins to.
 SOURCES_CSV="${SOURCES_CSV:-planning/report_sources.csv}"
 # TIGER unzips into a directory named after the archive; the .shp is one level
-# down, not beside it.
+# down, not beside it.  Same for the county shapefile below.
 SHP="${SHP:-data/raw/tiger/tl_2025_us_zcta520/tl_2025_us_zcta520.shp}"
+COUNTY_SHP="${COUNTY_SHP:-data/raw/tiger/tl_2025_us_county/tl_2025_us_county.shp}"
 export PGHOST="${PGHOST:-postgis}"
 export PGUSER="${PGUSER:-hail_admin}"
 
@@ -51,10 +52,12 @@ command -v shp2pgsql	>/dev/null || fail "shp2pgsql not found (postgis-client)"
 [[ -f "$CSV" ]] || fail "CSV not found: $CSV"
 [[ -f "$SOURCES_CSV" ]] || fail "CSV not found: $SOURCES_CSV"
 [[ -f "$SHP" ]] || fail "Shapefile not found: $SHP"
+[[ -f "$COUNTY_SHP" ]] || fail "Shapefile not found: $COUNTY_SHP"
 
-
-for ext in dbf shx prj; do
-    [[ -f "${SHP%.shp}.${ext}" ]] || fail "missing ${SHP%.shp}.${ext}"
+for shp in "$SHP" "$COUNTY_SHP"; do
+    for ext in dbf shx prj; do
+        [[ -f "${shp%.shp}.${ext}" ]] || fail "missing ${shp%.shp}.${ext}"
+    done
 done
 
 # Check the CONNECTION before checking for tables.  Piping psql into grep throws
@@ -65,7 +68,7 @@ done
 psql -v ON_ERROR_STOP=1 -d "$DB" -qtAc 'SELECT 1' >/dev/null \
     || fail "cannot connect to database '$DB' as '$PGUSER' at '$PGHOST' -- check PGPASSWORD in .env"
 
-for t in report_types report_sources zcta_boundaries users; do
+for t in report_types report_sources zcta_boundaries users county_boundaries; do
     found=$(psql -v ON_ERROR_STOP=1 -d "$DB" -qtAc \
         "SELECT 1 FROM information_schema.tables WHERE table_name = '$t'") \
         || fail "query failed while checking for table $t"
@@ -256,6 +259,29 @@ DROP TABLE zcta_stage;
 COMMIT;
 SQL
 
+log "loading counties from $COUNTY_SHP (reprojecting $SRID_IN -> $SRID_OUT)"
+
+psql -v ON_ERROR_STOP=1 -d "$DB" -qc "DROP TABLE IF EXISTS county_stage;"
+
+shp2pgsql -s "${SRID_IN}:${SRID_OUT}" -g geom -c -D -W LATIN1 \
+    "$COUNTY_SHP" county_stage \
+    | psql -v ON_ERROR_STOP=1 -d "$DB" -q
+
+log "merging staging into county_boundaries"
+
+psql -v ON_ERROR_STOP=1 -d "$DB" -q <<'SQL'
+BEGIN;
+
+INSERT INTO county_boundaries (county_fips, state_fips, name, geom)
+SELECT geoid, statefp, name, ST_Multi(geom)
+FROM county_stage
+ON CONFLICT (county_fips) DO NOTHING;
+
+DROP TABLE county_stage;
+
+COMMIT;
+SQL
+
 # ------ Verify ------
 # Print the counts to make sure the load landed
 
@@ -283,11 +309,13 @@ SELECT count(*) AS zctas,
        count(*) FILTER (WHERE zcta5 LIKE '80%' OR zcta5 LIKE '81%') AS colorado
 FROM   zcta_boundaries;
 
+SELECT count(*) AS counties FROM county_boundaries;
+
 -- Every Geometry must be 4326
 
 SELECT f_table_name, f_geometry_column, type, srid
 FROM   geometry_columns
-WHERE  f_table_name= 'zcta_boundaries';
+WHERE  f_table_name IN ('zcta_boundaries', 'county_boundaries');
 SQL
 
 log "done"
