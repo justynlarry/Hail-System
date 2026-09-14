@@ -21,10 +21,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.modules.setdefault("psycopg", types.ModuleType("psycopg"))
 
-from iem_common import (  # noqa: E402  (imports follow the sys.path edit above)
+from hailsys.iem.common import (  # noqa: E402  (imports follow the sys.path edit above)
     IEM_STATE,
     Counters,
     archive_url,
@@ -34,7 +34,7 @@ from iem_common import (  # noqa: E402  (imports follow the sys.path edit above)
     log_event,
     recent_url,
 )
-from iem_parse import RESTKEY  # noqa: E402
+from hailsys.iem.parse import RESTKEY  # noqa: E402
 
 
 HEADER = (
@@ -269,7 +269,7 @@ class TestLoadLines(unittest.TestCase):
         self.assertGreaterEqual(conn.commits, 1)
 
     def test_commit_and_checkpoint_on_the_chunk_boundary(self):
-        import iem_common
+        import hailsys.iem.common as iem_common
         original = iem_common.COMMIT_CHUNK
         iem_common.COMMIT_CHUNK = 2
         self.addCleanup(setattr, iem_common, "COMMIT_CHUNK", original)
@@ -286,7 +286,7 @@ class TestPerformRunFailurePath(unittest.TestCase):
     integration run never reaches this."""
 
     def test_failed_row_carries_committed_counts_then_reraises(self):
-        import iem_common
+        import hailsys.iem.common as iem_common
 
         calls = []
 

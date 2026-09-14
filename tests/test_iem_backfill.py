@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.modules.setdefault("psycopg", types.ModuleType("psycopg"))
 
 from iem_backfill import (  # noqa: E402  (imports follow the sys.path edit above)

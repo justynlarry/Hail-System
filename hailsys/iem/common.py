@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 
 import psycopg
 
-from iem_parse import RESTKEY, parse_row
+from hailsys.iem.parse import RESTKEY, parse_row
 
 # ------ ------  ------ ------  ------ ------  ------ ------  ------ ------
 # IEM ENDPOINT

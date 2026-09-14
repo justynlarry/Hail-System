@@ -17,9 +17,9 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from iem_parse import (  # noqa: E402  (import follows the sys.path edit above)
+from hailsys.iem.parse import (  # noqa: E402  (import follows the sys.path edit above)
     QUALIFIER_DOMAIN,
     REASON_BAD_COORDINATE,
     REASON_BAD_MAGNITUDE,

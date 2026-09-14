@@ -24,7 +24,7 @@ import argparse
 import sys
 from datetime import datetime, timezone
 
-from iem_common import archive_url, configure_logging, log_event, perform_run
+from hailsys.iem.common import archive_url, configure_logging, log_event, perform_run
 
 import logging
 

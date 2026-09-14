@@ -35,8 +35,8 @@ from zoneinfo import ZoneInfo
 
 import psycopg
 
-from iem_common import configure_logging, log_event
-from tuning import DEFAULT_ZIP_RADIUS_MILES, miles_to_metres
+from hailsys.iem.common import configure_logging, log_event
+from hailsys.tuning import DEFAULT_ZIP_RADIUS_MILES, miles_to_metres
 
 # Display Timezone:  Records are stored using UTC, this is the
 # only place that time is converted, and it is converted to

@@ -26,7 +26,7 @@ import argparse
 import sys
 from datetime import datetime, timedelta, timezone
 
-from iem_common import configure_logging, perform_run, recent_url
+from hailsys.iem.common import configure_logging, perform_run, recent_url
 
 # 30 Hour window, buffer of 6 hours overlap from previous run
 
