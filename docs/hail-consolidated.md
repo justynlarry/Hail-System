@@ -19,12 +19,12 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-09-14**, commit `fc8273a`. Since the
+Last synced against the repo: **2026-09-14**, commit `65f5e36`. Since the
 2026-09-11 sync (commit `21463df`), Phase 1's own work gained one more piece —
 `scripts/status.sh`, four read-only operator checks whose exit status doubles
 as the nightly-health verdict (see "Operational tooling and Phase 2 planning"
 under §2) — and the project otherwise moved into **Phase 2 planning**, which
-is a documentation phase, not a building one, with two exceptions below.
+is a documentation phase, not a building one, with three exceptions below.
 `docs/parking-lot.md` was committed (the Phase 1 open-items list, carried by
 hand until now) and then reconciled against `database-schema.md`'s 12 open
 questions — one resolved, one confirmed still open, ten filed as new items.
@@ -36,19 +36,24 @@ and, same day, pulling the storm query itself into `hailsys/queries/storms.py`
 behind two projections (`pairs`, `zips`). That last one **resolves
 parking-lot item 6 (PL-06)**. See §6 for the condensed decisions.
 
-**The two exceptions: the `hailsys/` package move and the storm-query
-extraction are built, not just decided.** `hailsys/tuning.py` and
-`hailsys/iem/{common,parse}.py` exist, `scripts/*.py` import from them,
-`ingest.Dockerfile`/`app.Dockerfile` were updated and all three images
-rebuilt, and the move was verified end to end (88 tests pass, the storm-zip
-export re-run is byte-identical to a pre-move baseline, and a manual
-`iem_ingest.service` start produced a clean new `run_id`). On top of that,
-`hailsys/db.py` (the connection seam) and `hailsys/queries/storms.py` (the
-join/filter core behind both export projections) are now real files with a
-real call site: `export_storm_zips.py` contains no SQL and gained a
-`--format pairs|zips` flag, verified against the same byte-identical-baseline
-standard. `hailsys/web/` remains undecided-into-code — Phase 2 web-app
-pieces, not part of either move. See §10 for the current tree.
+**The three exceptions: the `hailsys/` package move, the storm-query
+extraction, and the county-from-TIGER-polygons decision are built, not just
+decided.** `hailsys/tuning.py` and `hailsys/iem/{common,parse}.py` exist,
+`scripts/*.py` import from them, `ingest.Dockerfile`/`app.Dockerfile` were
+updated and all three images rebuilt, and the move was verified end to end
+(88 tests pass, the storm-zip export re-run is byte-identical to a
+pre-move baseline, and a manual `iem_ingest.service` start produced a clean
+new `run_id`). On top of that, `hailsys/db.py` (the connection seam) and
+`hailsys/queries/storms.py` (the join/filter core behind both export
+projections) are now real files with a real call site: `export_storm_zips.py`
+contains no SQL and gained a `--format pairs|zips` flag, verified against the
+same byte-identical-baseline standard. And `sql/012_counties.sql` (additive,
+since `004_weather.sql` is frozen post-backfill) adds `county_boundaries`;
+`load_reference.sh` now loads it the same way as `zcta_boundaries`, run
+against `hail-dev` and verified: 3,235 counties, all geometry at SRID 4326.
+**Resolves database-schema.md open question 4 / parking-lot item 4.**
+`hailsys/web/` remains undecided-into-code — Phase 2 web-app pieces, not part
+of any of the three. See §10 for the current tree.
 
 **Also 2026-09-11 (carried from the last sync, unchanged since): Phase 1's
 plumbing is complete** — both `iem_ingest.timer` and `iem_weekly_replay.timer`
@@ -390,18 +395,18 @@ phase-appropriate" the earlier sync anticipated — `iem_parse.py` takes its
   ingest widen past `state=CO`?") read as an already-settled fact; it was
   refiled as a question and cross-linked to the decision-log entry that
   actually settled the adjacent, narrower point (§6).
-- **Eight Phase 2 decisions recorded**, first six not yet built: Tailscale access,
-  USPS-city grouping, TIGER county, Flask, scrypt hashing, and the `hailsys/`
-  package layout. A seventh followed the same day: the `hailsys/db.py`
-  connection design — and an eighth, also the same day: pulling the storm
-  query into `hailsys/queries/storms.py` behind `pairs`/`zips` projections,
-  resolving **PL-06**. All eight are condensed in §6. Unlike the first six,
-  the last two did not stay decisions-on-paper — `db.py` and
-  `queries/storms.py` are both built and are what `export_storm_zips.py`
-  now runs on, so this pair *does* change something currently running on
-  `hail-dev`: the export's SQL moved out of the script and its output
-  filenames changed shape. See "Storm-zip export and the `app` service"
-  above.
+- **Eight Phase 2 decisions recorded**: Tailscale access, USPS-city grouping,
+  TIGER county, Flask, scrypt hashing, and the `hailsys/` package layout,
+  plus a seventh the same day — the `hailsys/db.py` connection design — and
+  an eighth, also the same day: pulling the storm query into
+  `hailsys/queries/storms.py` behind `pairs`/`zips` projections, resolving
+  **PL-06**. All eight are condensed in §6. Three of the eight did not stay
+  decisions-on-paper: the `hailsys/` package layout (verified 2026-09-11),
+  TIGER county (`sql/012_counties.sql` plus the `load_reference.sh` load,
+  verified against `hail-dev` — 3,235 counties, resolving open question 4 /
+  parking-lot item 4), and `db.py` together with `queries/storms.py`, which
+  `export_storm_zips.py` now actually runs on. Only Tailscale access,
+  USPS-city grouping, Flask, and scrypt hashing remain undecided-into-code.
 
 **Do not build ahead of the current phase.**
 
@@ -663,7 +668,11 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
   `county_boundaries` table, loaded the same way as the ZCTA load, gives an
   authoritative zip→county crosswalk across all 22 years, which
   `iem_data.county` (case variants) and `nws_geo_code` (null before mid-2022)
-  cannot. **Resolves** parking-lot item 4 / open question 4.
+  cannot. **Resolves** parking-lot item 4 / open question 4. **Built and
+  verified, 2026-09-14** — `sql/012_counties.sql` (additive; `004_weather.sql`
+  is frozen post-backfill) adds the table, `load_reference.sh` loads it by
+  the same reproject/stage/merge pattern as `zcta_boundaries`, and a run
+  against `hail-dev` landed 3,235 counties, all geometry at SRID 4326.
 - **Flask with server-rendered Jinja, not FastAPI.** None of FastAPI's three
   advantages — async concurrency, pydantic validation, generated API docs —
   apply: there is no async workload, form handling is a template concern here,
@@ -1118,6 +1127,7 @@ sql/                          apply in order; 010 must be last
   009_ingest.sql              ingest_runs, iem_ingest_rejects
   010_roles.sql               hail_ingest / hail_app roles, grants, passwords
   011_ingest.sql              additive COMMENT fix; 001-009 are frozen post-backfill
+  012_counties.sql            county_boundaries; additive, same reason as 011 (2026-09-14)
 hailsys/                      importable package, moved out of scripts/ (2026-09-14)
   __init__.py                 empty
   tuning.py                   read-time tuning constants (radius, etc.), reasoning in comments
@@ -1135,7 +1145,7 @@ scripts/
   iem_backfill.py             historical ingest; has run 8x (runs 4-8 = backfill, 176,957 rows); imports hailsys.iem.common
   iem_ingest.py                the nightly, rolling-window ingest; imports hailsys.iem.common
   export_storm_zips.py        CSV export, one storm day, --format pairs|zips (2026-09-14); no SQL of its own — imports hailsys.db, hailsys.queries.storms, hailsys.iem.common, hailsys.tuning
-  load_reference.sh           idempotent loader: report_types CSV + ZCTA shapefile
+  load_reference.sh           idempotent loader: report_types CSV, report_sources CSV, ZCTA shapefile, county shapefile (2026-09-14)
   load_coverage.sh            idempotent loader: one customer's territory
   status.sh                   four read-only operator checks; exit code = nightly-health verdict (2026-09-11)
 tests/
@@ -1234,11 +1244,13 @@ this file summarizes a source.
    the same footprint.
 3. **Is there a settings table at all?** Radius default, frequency-cap window,
    monthly API ceiling, warmup limit — none of these currently has a home.
-4. **Resolved 2026-09-14.** ~~How are counties handled for browse-by-county?~~
-   County now comes from TIGER county polygons (§6) — a `county_boundaries`
-   table gives an authoritative crosswalk across all 22 years, which none of
-   the three original sources (`nws_geo_code` UGC, `iem_data.county` free
-   text, `properties.county_fips`) could do alone.
+4. **Resolved and built, 2026-09-14.** ~~How are counties handled for
+   browse-by-county?~~ County now comes from TIGER county polygons (§6) — a
+   `county_boundaries` table gives an authoritative crosswalk across all 22
+   years, which none of the three original sources (`nws_geo_code` UGC,
+   `iem_data.county` free text, `properties.county_fips`) could do alone.
+   `sql/012_counties.sql` and the `load_reference.sh` load are done, not just
+   decided — verified against `hail-dev`, 3,235 counties.
 5. **Does the frequency cap have a hard floor?** Decided in principle — a short
    window nobody can click past, plus a soft warning above it. The numbers are
    unset and the floor must live in the database.

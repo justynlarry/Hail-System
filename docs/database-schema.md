@@ -968,9 +968,12 @@ the same path as the ZCTA load, gives an authoritative zip→county crosswalk
 across all 22 years — something none of the three sources below can do alone.
 Supersedes the `county_norm` generated-column proposal in parking-lot item 4,
 which would only have fixed the case-variant problem, not the pre-2022 UGC gap
-or the report-location-versus-affected-zip mismatch. **Decided, not yet
-built** — `county_boundaries` does not exist in `sql/` yet; `004_weather.sql`
-is frozen post-backfill, so it lands as an additive migration when it is.
+or the report-location-versus-affected-zip mismatch. **Built and verified.**
+`sql/012_counties.sql` adds `county_boundaries` as the additive migration
+`004_weather.sql` (frozen post-backfill) could not hold; `load_reference.sh`
+now loads it the same way as `zcta_boundaries` — reproject NAD83 → WGS84,
+stage, merge with `ON CONFLICT DO NOTHING`. Run against `hail-dev`: 3,235
+counties loaded, all geometry at SRID 4326.
 
 Original question, kept for context: three sources of county exist:
 `iem_data.nws_geo_code` (UGC, null before mid-2022), `iem_data.county` (free
