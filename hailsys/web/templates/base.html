@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{% block title %}Hail System{% endblock %}</title>
+        <style>
+          body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 60rem; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { text-align: left; padding: 0.4rem 0.8rem; border-bottom: 1px solid #ddd; }
+          th { font-weight: 600; }
+          td.num { text-align: right; }
+        </style>
+    </head>
+    <body>
+    <h1>{% block heading %}Hail {% endblock %}</h1>
+    {% block content %}{% endblock %}
+    </body>
+</html>
