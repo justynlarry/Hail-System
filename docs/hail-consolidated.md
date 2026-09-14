@@ -67,6 +67,22 @@ off the source. Where a number appears — 176,957, 33,791, 37,104 — it came f
 a query on 2026-09-09/10. A few facts are per-machine deployment state rather
 than project state (the territory load, most notably); those are marked inline.
 
+**That claim needs a caveat, added 2026-09-14.** Two paragraphs in this file —
+§2's `coverage_zips` bullet and the table row in §5 — said `coverage_zips` was
+empty on `hail-dev`, in the same regeneration that carried "Resolved since
+last sync: `coverage_zips` is no longer empty" a few lines below them. A live
+count (`SELECT count(*) FROM coverage_zips WHERE removed_at IS NULL`) settled
+it at 183, matching the "resolved" note. The interesting failure isn't the
+stale numbers — it's that a full regeneration of this file carried the wrong
+paragraphs forward instead of catching them, which means whatever produced
+that version was working from the old text, not from the database. The table
+in the "Authoritative file" list above tells you when the log wins over this
+summary; it does not cover this case, because no file was wrong — only this
+summary was, in a way only a live query against `hail-dev` could adjudicate.
+Numbers in this file that describe current database state are a claim about
+that moment's regeneration, not a standing guarantee — re-check against
+`hail-dev` before relying on one for anything that matters.
+
 ---
 
 ## 1. What this is
@@ -197,14 +213,15 @@ any literal SQL that names it, which is why `010` grants `CONNECT` through
 - **`scripts/load_coverage.sh`** — loads one customer's territory into
   `coverage_zips`. Separate from `load_reference.sh` on purpose, and takes the
   zip list as an **argument** so a second installation needs no code change.
-- **`coverage_zips` — loader and config exist; not loaded on `hail-dev`.** The
-  table is **empty here (0 rows)**. It was loaded to **183 rows** on the
-  workstation from the 193-entry `config/coverage_zips.txt` — the other 10 have
-  no ZCTA polygon and are uninsertable by design (§7) — and `load_coverage.sh`
-  reproduces that. Until it is run, a coverage-filtered `ST_DWithin` returns
-  **0 rows with no error**: the inner join eliminates everything, the same
-  silent-empty-join shape as the SRID trap. `load_coverage.sh` refuses to run
-  against an empty `zcta_boundaries` for the same reason.
+- **`coverage_zips` — loaded on `hail-dev`.** **183 rows**, confirmed by a
+  live count against the database (`SELECT count(*) FROM coverage_zips WHERE
+  removed_at IS NULL`), from the 193-entry `config/coverage_zips.txt` — the
+  other 10 have no ZCTA polygon and are uninsertable by design (§7).
+  `load_coverage.sh` reproduces this load. Before it has been run, a
+  coverage-filtered `ST_DWithin` would return **0 rows with no error** — the
+  inner join eliminates everything, the same silent-empty-join shape as the
+  SRID trap — which is why `load_coverage.sh` itself refuses to run against
+  an empty `zcta_boundaries`.
 - **`planning/zip_city_names.csv`** — 37,104 USPS zip → city names, all states,
   supplying `area_name`. Static reference, deliberately not a pipeline.
 - **`config/`** — directory holding per-customer configuration. The one file in
@@ -515,9 +532,9 @@ ASCII ER diagram is in `docs/db-schema-diagram.md`.
 ### Reference
 | Table | What it holds |
 |---|---|
-| `report_sources` | 36 rows when seeded; **currently empty** — the table exists, the loader does not fill it. What a reporting source is and how far to trust it — `confidence_tier`, `is_automated`. **No FK from `iem_data`**: source is free text typed at NWS offices and an FK would break the nightly ingest. A lookup, joined on `report_source_norm`, never a constraint. |
+| `report_sources` | **Loaded on `hail-dev`: 47 rows** (18 high / 19 moderate / 8 low / 2 unrated / 5 unknown_automation; 0 unmatched against `iem_data.report_source_norm`), from the curated seed `planning/report_sources.csv`. What a reporting source is and how far to trust it — `confidence_tier`, `is_automated`. **No FK from `iem_data`**: source is free text typed at NWS offices and an FK would break the nightly ingest. A lookup, joined on `report_source_norm`, never a constraint. |
 | `zcta_boundaries` | 33,791 Census ZCTA polygons, nationwide, EPSG 4326. `centroid` is generated with `ST_PointOnSurface`, not `ST_Centroid`, so it cannot fall outside a C-shaped zip. Two GiST indexes, one on `geom` and one on `(geom::geography)` — see §2. Loaded once, never written to. **No foreign keys** — joined spatially. |
-| `coverage_zips` | RBI's service territory. **Empty on `hail-dev`; loaded to 183 rows on the workstation** from the 193-entry `config/coverage_zips.txt` — the other 10 have no ZCTA polygon and are uninsertable by design (§7). `load_coverage.sh` reproduces the load. Keyed on `zcta5` with an FK to `zcta_boundaries`. `area_name` comes from USPS; `reason` is deliberately left NULL by the loader. Ours, and it will be edited — retirement is a marked row, never a delete. |
+| `coverage_zips` | RBI's service territory. **Loaded on `hail-dev`: 183 rows** from the 193-entry `config/coverage_zips.txt` — the other 10 have no ZCTA polygon and are uninsertable by design (§7). `load_coverage.sh` reproduces the load. Keyed on `zcta5` with an FK to `zcta_boundaries`. `area_name` comes from USPS; `reason` is deliberately left NULL by the loader. Ours, and it will be edited — retirement is a marked row, never a delete. |
 
 ### Property side
 | Table | What it holds |
@@ -1303,12 +1320,21 @@ this file summarizes a source.
     line would store the Wyoming report in the first place. This does not
     reopen the 2026-09-04 `state=CO` decision; it means choosing to leave the
     gap is now a choice between two available options.
-13. **`report_sources` has DDL but no seed.** Nothing reads a confidence tier
-    until there is ingested data to rate, so this is Phase 1 work — but it is
-    the one table whose absence is invisible, because a `LEFT JOIN` against an
-    empty lookup returns NULL tiers and the UI shows "unrated" rather than
-    erroring.
-    **Complication found 2026-09-09:** `reference/sources.csv` holds 36 rows,
+13. **Resolved and built.** ~~`report_sources` has DDL but no seed.~~
+    `planning/report_sources.csv` is the curated 47-row seed (commit `5e3eb53`,
+    "Seed report_sources; fold the loader into load_reference.sh") and
+    `load_reference.sh` loads it. Confirmed loaded on `hail-dev`, 2026-09-14:
+    47 rows, 0 unmatched against `iem_data.report_source_norm`.
+
+    Original question, kept for context: nothing reads a confidence tier
+    until there is ingested data to rate, so this was Phase 1 work — but it
+    was the one table whose absence would have been invisible, because a
+    `LEFT JOIN` against an empty lookup returns NULL tiers and the UI shows
+    "unrated" rather than erroring.
+    **Complication found 2026-09-09**, resolved by building the seed from
+    what the ingest actually produces rather than from this file:
+    `reference/sources.csv` (a *different* file — the statistical extract,
+    not the curated seed) holds 36 rows,
     two of them truncated singletons — `DEPARTMENT OF HIG` (from the malformed
     2026-08-31 row the ingest **rejects**, so it can never arrive through
     `iem_data`) and `DEPT OF` (from 2019-03-09).
