@@ -2102,3 +2102,48 @@ real timing. Note that the sizing variable is in-flight requests, not headcount.
 **When a pool does arrive, the ingest scripts keep a plain connect.** A one-shot
 process that opens one connection and exits gains nothing from pooling. `db.py`
 ends with two entry points, and that is correct rather than a wart.
+
+---
+
+## 2026-09-14 — The storm query lives in `hailsys/queries/storms.py`
+
+The joins, coverage rule, distance expression and local-day boundary are written
+once. Two projections sit over them: `pairs`, one row per report-zip pair, and
+`zips`, the same query grouped by coverage zip. `export_storm_zips.py` keeps
+argument parsing, logging and CSV writing, and contains no SQL.
+
+**Why now rather than when RentCast needs it:** the browse UI is a second
+consumer of this exact question, and a CSV that disagrees with the screen it was
+downloaded from is a failure with no good diagnosis. Extracting it while there is
+one consumer costs an afternoon; extracting it after two have diverged costs the
+reconciliation as well. Same argument that produced `iem_common.py`.
+
+**Aggregate projection** (supersedes the sketch in PL-06, which proposed
+`min(distance_miles)` alone): `report_count`, `nearest_miles`, `farthest_miles`,
+`first_report`, `last_report`, `max_magnitude`, `min_magnitude`, `sources`.
+
+**Why the time span rather than the distance span.** PL-06 asked what "nearest
+distance" means for a zip touched by two cells 30 miles apart. `max(distance_miles)`
+is a weak discriminator: inside a 5-mile radius the spread is bounded, and a
+large rural zip produces a wide spread from a single cell anyway. Two separate
+cells almost always differ by hours, while one cell produces reports minutes
+apart — so `first_report`/`last_report` is what actually exposes a second event.
+`report_count` and `sources` are carried because the confidence display needs
+them regardless.
+
+**Known property of `report_count`:** it counts stored rows, so it inherits the
+~0.7% natural-key deduplication. A zip showing 3 reports is showing three stored
+rows, not necessarily three the IEM received. Conservative direction, and the
+right one for a number a homeowner may eventually read.
+
+**Filenames are now suffixed** — `storm_zips_<date>_<type>_pairs.csv` and
+`..._zips.csv`. A filename that does not name its format is ambiguous the moment
+a second format exists. Note this renames the existing `pairs` output; nothing
+outside `output/` referenced the old name.
+
+**Verified:** `pairs` byte-identical to the pre-move baseline for 2026-06-24
+HAIL at radius 5.0; `zips` returns 45 rows whose `report_count` sums to 64; 88
+tests pass.
+
+**Pulled forward with this:** `hailsys/db.py`, since this created the project's
+first call site for a connection. Its design is the 2026-09-14 seam entry.
