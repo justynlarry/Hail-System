@@ -909,8 +909,15 @@ gets typed — "show me the rejects for run N" — has nothing to use. Same shap
 
 # Open questions
 
-Unresolved as of this writing. Each one is cheaper to settle now than after
-there is data.
+Unresolved as of this writing, except where marked resolved below. Each one is
+cheaper to settle now than after there is data.
+
+**`docs/parking-lot.md` carries the actively-tracked version of most of these**
+— ten of the twelve are filed there as items 12–21, cross-referenced back to
+the question number here, and item 4 and item 1 (question 4 and question 11)
+were reconciled directly against this list on 2026-09-14. Where the two
+disagree, the parking lot wins — same convention `docs/hail-consolidated.md`
+§11 uses for its own condensed copy.
 
 ### 1. Is a "storm" a first-class entity?
 
@@ -955,10 +962,21 @@ that justified `roof_relevant`.
 
 ### 4. How are counties handled for browse-by-county?
 
-Three sources of county exist: `iem_data.nws_geo_code` (UGC, null before mid-2022),
-`iem_data.county` (free text), and `properties.county_fips` (Census). A crosswalk
-table would reconcile them. Whether county *geometry* is also needed depends on
-whether counties are ever drawn on a map.
+**Resolved 2026-09-14.** See decision-log, "County comes from TIGER county
+polygons": a new `county_boundaries` table, loaded from `tl_2025_us_county` by
+the same path as the ZCTA load, gives an authoritative zip→county crosswalk
+across all 22 years — something none of the three sources below can do alone.
+Supersedes the `county_norm` generated-column proposal in parking-lot item 4,
+which would only have fixed the case-variant problem, not the pre-2022 UGC gap
+or the report-location-versus-affected-zip mismatch. **Decided, not yet
+built** — `county_boundaries` does not exist in `sql/` yet; `004_weather.sql`
+is frozen post-backfill, so it lands as an additive migration when it is.
+
+Original question, kept for context: three sources of county exist:
+`iem_data.nws_geo_code` (UGC, null before mid-2022), `iem_data.county` (free
+text), and `properties.county_fips` (Census). A crosswalk table would
+reconcile them. Whether county *geometry* is also needed depends on whether
+counties are ever drawn on a map.
 
 ### 5. Does the frequency cap have a hard floor?
 
@@ -1067,7 +1085,13 @@ that page exists rather than after.
 
 ---
 
-### 12. Out-of-state reports are excluded permanently
+### 12. Should ingest widen past `state=CO`?
+
+*(Retitled 2026-09-14 — see parking-lot item 21. The original title, "out-of-
+state reports are excluded permanently," stated the current default as if it
+were the decision, which it is not. The `state=CO` filter itself was decided
+2026-09-04 (decision-log, "`state=CO`, not a WFO list") and is settled; only
+whether to widen it is open.)*
 
 The ingest queries `state=CO`. A storm report a few miles into Wyoming or
 Nebraska is never fetched, never stored, and therefore never matched.
