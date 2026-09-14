@@ -94,6 +94,46 @@ GROUP BY c.zcta5, c.area_name
 ORDER BY c.zcta5
 """
 
+# One row per (local storm day, report type). Browse List's Unit:
+# A day that had Hail, Wind, or Both, each as a separate item to view
+
+RECENT_DAYS_SQL = F"""
+SELECT
+    ({LOCAL_TIME_EXPR})::date AS storm_date,
+    i.report_text,
+    t.mag_unit,
+    count(DISTINCT i.iem_id) AS report_count,
+    count(DISTINCT c.zcta5) AS zip_count,
+    max(i.magnitude) AS max_magnitude
+{_FROM_WHERE}
+    AND (NOT %(actionable_only)s
+        OR (t.roof_relevant
+            AND (t.min_magnitude IS NULL OR i.magnitude >= t.min_magnitude)))
+GROUP BY storm_date, i.report_text, t.mag_unit
+ORDER BY storm_date DESC, report_count DESC
+limit %(limit)s
+"""
+
+RECENT_DAYS_COLUMNS = [
+    "storm_date", "report_text", "mag_unit",
+    "report_count", "zip_count", "max_magnitude",
+]
+
+
+def fetch_recent_days(conn, *, radius_m, window_start, window_end,
+                      report_text, actionable_only, limit):
+    with conn.cursor() as cur:
+        cur.execute(RECENT_DAYS_SQL, {
+            "radius_m": radius_m,
+            "window_start": window_start,
+            "window_end": window_end,
+            "report_text": report_text,
+            "actionable_only": actionable_only,
+            "limit": limit,
+        })
+        return cur.fetchall()
+
+
 PAIRS_COLUMNS = [
     "zcta5", "area_name", "iem_id", "local_time", "utc_datetime",
     "report_type", "report_text", "magnitude", "mag_unit", "distance_miles",

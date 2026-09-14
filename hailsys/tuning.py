@@ -17,6 +17,9 @@ second consumer needs the same number.  The frequency cap is the one that
 forces the table -- it has to be enforced in the database and cannot live here.
 """
 
+from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta, time
+
 METRES_PER_MILE = 1609.344
 
 # How far from a storm report to collect Zip Code Tabulation Areas (ZCTAs).
@@ -54,9 +57,23 @@ DEFAULT_MATCH_RADIUS_MILES = 5.0
 # from SQL, which a Python constant is not.  Not added now because there is no
 # wind analysis to base a number on.
 
+DISPLAY_TZ = ZoneInfo("America/Denver")
 
 def miles_to_metres(miles):
     """PostGIS geography predicates work in metres, but the unit of record here
     is miles -- matching storm_listing_matches.distance_miles and radius_used.
     """
     return miles * METRES_PER_MILE
+
+def denver_day_bounds(day):
+    """UTC half-open range covering one Calendar Day in Denver
+
+    If a storm occurs later in the day, the UTC will record it as
+    the next day, this portion counters that problem.
+
+    The end bound is built by combining the next date with midnight,
+    not by adding the timedelta(days=1) to the start.
+    """
+    start = datetime.combine(day, time.min, tzinfo=DISPLAY_TZ)
+    end = datetime.combine(day + timedelta(days=1), time.min, tzinfo=DISPLAY_TZ)
+    return start, end

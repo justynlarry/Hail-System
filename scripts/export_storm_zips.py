@@ -32,9 +32,8 @@ not deleting them.
 import argparse
 import csv
 import sys
-from datetime import datetime, time, timedelta
+from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from hailsys.db import get_connection
 from hailsys.iem.common import configure_logging, log_event
@@ -44,15 +43,14 @@ from hailsys.queries.storms import (
     fetch_pairs,
     fetch_zips,
 )
-from hailsys.tuning import DEFAULT_ZIP_RADIUS_MILES, miles_to_metres
+from hailsys.tuning import DEFAULT_ZIP_RADIUS_MILES, denver_day_bounds, miles_to_metres
+
 
 # Display Timezone:  Records are stored using UTC, this is the
 # only place that time is converted, and it is converted to
 # a named zone instead of a fixed offset to account for
 # Daylight Savings (MDT/MST) which is dependent on the time
 # of year.
-
-DISPLAY_TZ = ZoneInfo("America/Denver")
 
 OUTPUT_DIR = Path("output")
 
@@ -107,19 +105,6 @@ def parse_args(argv=None):
         parser.error("--radius must be positive")
 
     return args
-
-def denver_day_bounds(day):
-    """UTC half-open range covering one Calendar Day in Denver
-
-    If a storm occurs later in the day, the UTC will record it as
-    the next day, this portion counters that problem.
-
-    The end bound is built by combining the next date with midnight,
-    not by adding the timedelta(days=1) to the start.
-    """
-    start = datetime.combine(day, time.min, tzinfo=DISPLAY_TZ)
-    end = datetime.combine(day + timedelta(days=1), time.min, tzinfo=DISPLAY_TZ)
-    return start, end
 
 def output_path(directory, day, report_text, fmt):
     label = (report_text or "ALL").replace("/", "-").replace(" ","_")
