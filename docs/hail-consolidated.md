@@ -19,30 +19,36 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-09-14**, commit `d70b74d`. Since the
+Last synced against the repo: **2026-09-14**, commit `fc8273a`. Since the
 2026-09-11 sync (commit `21463df`), Phase 1's own work gained one more piece —
 `scripts/status.sh`, four read-only operator checks whose exit status doubles
 as the nightly-health verdict (see "Operational tooling and Phase 2 planning"
 under §2) — and the project otherwise moved into **Phase 2 planning**, which
-is a documentation phase, not a building one, with one exception below.
+is a documentation phase, not a building one, with two exceptions below.
 `docs/parking-lot.md` was committed (the Phase 1 open-items list, carried by
 hand until now) and then reconciled against `database-schema.md`'s 12 open
 questions — one resolved, one confirmed still open, ten filed as new items.
-Six Phase 2 decisions were recorded in the decision log — Tailscale over a
+Eight Phase 2 decisions were recorded in the decision log — Tailscale over a
 Cloudflare tunnel for Phase 2 access, USPS-city grouping, county from TIGER
-polygons, Flask over FastAPI, scrypt password hashing, and the `hailsys/`
-package layout — plus a seventh, `hailsys/db.py`'s connection design
-(`dict_row`, no pool). See §6 for the condensed decisions.
+polygons, Flask over FastAPI, scrypt password hashing, the `hailsys/`
+package layout, `hailsys/db.py`'s connection design (`dict_row`, no pool),
+and, same day, pulling the storm query itself into `hailsys/queries/storms.py`
+behind two projections (`pairs`, `zips`). That last one **resolves
+parking-lot item 6 (PL-06)**. See §6 for the condensed decisions.
 
-**The one exception: the `hailsys/` package move itself is built, not just
-decided.** `hailsys/tuning.py` and `hailsys/iem/{common,parse}.py` exist,
-`scripts/*.py` import from them, `ingest.Dockerfile`/`app.Dockerfile` were
-updated and all three images rebuilt, and the move was verified end to end
-(88 tests pass, the storm-zip export re-run is byte-identical to a
-pre-move baseline, and a manual `iem_ingest.service` start produced a clean
-new `run_id`). `hailsys/db.py`, `queries/`, and `web/` remain undecided-into-
-code — Phase 2 web-app pieces, not part of this move. See §10 for the current
-tree.
+**The two exceptions: the `hailsys/` package move and the storm-query
+extraction are built, not just decided.** `hailsys/tuning.py` and
+`hailsys/iem/{common,parse}.py` exist, `scripts/*.py` import from them,
+`ingest.Dockerfile`/`app.Dockerfile` were updated and all three images
+rebuilt, and the move was verified end to end (88 tests pass, the storm-zip
+export re-run is byte-identical to a pre-move baseline, and a manual
+`iem_ingest.service` start produced a clean new `run_id`). On top of that,
+`hailsys/db.py` (the connection seam) and `hailsys/queries/storms.py` (the
+join/filter core behind both export projections) are now real files with a
+real call site: `export_storm_zips.py` contains no SQL and gained a
+`--format pairs|zips` flag, verified against the same byte-identical-baseline
+standard. `hailsys/web/` remains undecided-into-code — Phase 2 web-app
+pieces, not part of either move. See §10 for the current tree.
 
 **Also 2026-09-11 (carried from the last sync, unchanged since): Phase 1's
 plumbing is complete** — both `iem_ingest.timer` and `iem_weekly_replay.timer`
@@ -210,20 +216,28 @@ any literal SQL that names it, which is why `010` grants `CONNECT` through
 
 ### Storm-zip export and the `app` service — 2026-09-11
 
-- **`scripts/export_storm_zips.py`** — one row per **report-zip pair** (not per
-  zip) for one storm day, in `America/Denver` local time, filterable by
-  `--type` (`report_text`) and `--radius` (default `DEFAULT_ZIP_RADIUS_MILES`
-  from `tuning.py`). Joins `iem_data` to `report_types` (composite key,
-  `report_type` alone is not unique — §7), `report_sources` (`LEFT JOIN`, a
-  source with no lookup row yields a `NULL` tier rather than dropping the
-  report), `zcta_boundaries` via `ST_DWithin`, and `coverage_zips` (excluding
-  retired rows). No magnitude floor — every report in range is exported,
-  `NULL` magnitude included, so the triggering threshold can still be decided
-  later. Writes CSV with `lineterminator='\n'` (§7) to `./output/`.
-  **This is half of the Phase 1 "done when" bar** in `phases.md` — "a
-  spreadsheet of affected zip codes ... for a real storm from last month" — the
-  other half being the nightly job running unattended for a week, which is
-  still not built.
+- **`scripts/export_storm_zips.py`** — for one storm day, in `America/Denver`
+  local time, filterable by `--type` (`report_text`) and `--radius` (default
+  `DEFAULT_ZIP_RADIUS_MILES` from `tuning.py`), plus **`--format pairs|zips`
+  (added 2026-09-14, default `pairs`)**. `pairs` is one row per
+  **report-zip pair**; `zips` is the same query grouped by coverage zip —
+  `report_count`, `nearest_miles`/`farthest_miles`, `first_report`/
+  `last_report`, `max_magnitude`/`min_magnitude`, `sources`. Both projections
+  share one join/filter core in `hailsys/queries/storms.py`: `iem_data` to
+  `report_types` (composite key, `report_type` alone is not unique — §7),
+  `report_sources` (`LEFT JOIN`, a source with no lookup row yields a `NULL`
+  tier rather than dropping the report), `zcta_boundaries` via `ST_DWithin`,
+  and `coverage_zips` (excluding retired rows). No magnitude floor — every
+  report in range is exported, `NULL` magnitude included, so the triggering
+  threshold can still be decided later. The script itself now holds no SQL —
+  argument parsing, logging, and CSV writing only, connection acquired through
+  `hailsys/db.py`. Writes CSV with `lineterminator='\n'` (§7) to `./output/`,
+  filename now suffixed by format (`storm_zips_<date>_<type>_pairs.csv` /
+  `..._zips.csv`) since an unsuffixed name stopped being unique the moment a
+  second format existed. **This is half of the Phase 1 "done when" bar** in
+  `phases.md` — "a spreadsheet of affected zip codes ... for a real storm from
+  last month" — the other half being the nightly job running unattended for a
+  week, which is still not built.
 - **It cannot run under the `ingest` service.** `hail_ingest` has `SELECT` only
   on `report_types` (plus its write path); `report_sources`, `zcta_boundaries`,
   and `coverage_zips` all belong to `hail_app`'s grants (`010_roles.sql`).
@@ -376,11 +390,18 @@ phase-appropriate" the earlier sync anticipated — `iem_parse.py` takes its
   ingest widen past `state=CO`?") read as an already-settled fact; it was
   refiled as a question and cross-linked to the decision-log entry that
   actually settled the adjacent, narrower point (§6).
-- **Six Phase 2 decisions recorded**, none yet built: Tailscale access,
+- **Eight Phase 2 decisions recorded**, first six not yet built: Tailscale access,
   USPS-city grouping, TIGER county, Flask, scrypt hashing, and the `hailsys/`
   package layout. A seventh followed the same day: the `hailsys/db.py`
-  connection design. All seven are condensed in §6; none of them changes
-  anything currently running on `hail-dev`.
+  connection design — and an eighth, also the same day: pulling the storm
+  query into `hailsys/queries/storms.py` behind `pairs`/`zips` projections,
+  resolving **PL-06**. All eight are condensed in §6. Unlike the first six,
+  the last two did not stay decisions-on-paper — `db.py` and
+  `queries/storms.py` are both built and are what `export_storm_zips.py`
+  now runs on, so this pair *does* change something currently running on
+  `hail-dev`: the export's SQL moved out of the script and its output
+  filenames changed shape. See "Storm-zip export and the `app` service"
+  above.
 
 **Do not build ahead of the current phase.**
 
@@ -665,9 +686,10 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
   `PYTHONPATH` half; without the `COPY` there was nothing at that path to
   find), all three images rebuilt, 88 tests pass, the re-run export was
   byte-identical to the baseline, and a manual `iem_ingest.service` start
-  produced a new `run_id` (24) that completed clean. `db.py`, `queries/`, and
-  `web/` are still ahead — Phase 2 web-app pieces, not part of this move. See
-  §10 for the current tree.
+  produced a new `run_id` (24) that completed clean. `web/` is still ahead —
+  a Phase 2 web-app piece, not part of this move. `db.py` and `queries/` were
+  undecided-into-code at this point in the sync but were built the same day —
+  see the next two entries and §10 for the current tree.
 - **One connection seam in `hailsys/db.py`; `dict_row` rows, no pool in
   Phase 2.** Every query acquires its connection through a single context
   manager; rows come back as dicts so a column added mid-`SELECT` cannot
@@ -678,6 +700,33 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
   across slow non-database work, sustained concurrency above the gunicorn
   worker count, or measured connection-setup cost. The ingest scripts keep a
   plain `connect()` regardless — one-shot processes gain nothing from pooling.
+  **Built the same day**, not just decided: `export_storm_zips.py` is its
+  first real call site.
+- **The storm query lives in `hailsys/queries/storms.py`.** The joins,
+  coverage rule, distance expression, and local-day boundary are written
+  once; `pairs` (one row per report-zip pair) and `zips` (the same query
+  grouped by coverage zip) are two projections over that one core, so
+  `export_storm_zips.py` keeps argument parsing, logging, and CSV writing and
+  contains no SQL. Done now — a second consumer (the browse UI) rather than
+  waiting for RentCast to need it — because a CSV that disagrees with the
+  screen it was downloaded from is a failure with no good diagnosis, and
+  extracting after two consumers have diverged costs the reconciliation on
+  top of the extraction. Same argument that produced `iem_common.py`.
+  **Resolves parking-lot item 6 (PL-06).** The `zips` aggregate answers
+  PL-06's open sub-question — what "nearest distance" means for a zip touched
+  by two cells 30 miles apart — with a time span (`first_report`/
+  `last_report`) rather than a distance span: two separate storm cells almost
+  always differ by hours, while one cell's reports land minutes apart, so the
+  time span is the stronger discriminator, and `max(distance_miles)` is weak
+  inside a bounded 5-mile radius regardless. `report_count` inherits the
+  ~0.7% natural-key dedup rate (§7) — it counts stored rows, not necessarily
+  every row IEM sent — which is the conservative direction for a number a
+  homeowner may eventually see. Verified: `pairs` byte-identical to the
+  pre-extraction baseline for 2026-06-24 HAIL at radius 5.0; `zips` returns 45
+  rows whose `report_count` sums to 64; 88 tests pass. Output filenames are
+  now suffixed by format (`storm_zips_<date>_<type>_pairs.csv` /
+  `..._zips.csv`) since a name that doesn't say which format it is stops
+  being unambiguous the moment a second format exists.
 
 ---
 
@@ -1072,16 +1121,20 @@ sql/                          apply in order; 010 must be last
 hailsys/                      importable package, moved out of scripts/ (2026-09-14)
   __init__.py                 empty
   tuning.py                   read-time tuning constants (radius, etc.), reasoning in comments
+  db.py                       connection seam: one context manager, dict_row rows, no pool (2026-09-14)
   iem/
     __init__.py                empty
     common.py                  shared network/DB machinery both ingest scripts import
     parse.py                   shared row parser; both ingest scripts import it
+  queries/
+    __init__.py                empty
+    storms.py                  join/filter core + pairs/zips projections behind export_storm_zips.py (2026-09-14)
 scripts/
   build_reference_tables.py   derives reference CSVs from the raw LSR archive
   zcat-data-check.py          checks coverage zips against the TIGER .dbf
   iem_backfill.py             historical ingest; has run 8x (runs 4-8 = backfill, 176,957 rows); imports hailsys.iem.common
   iem_ingest.py                the nightly, rolling-window ingest; imports hailsys.iem.common
-  export_storm_zips.py        CSV export, one row per report-zip pair, one storm day; imports hailsys.iem.common, hailsys.tuning
+  export_storm_zips.py        CSV export, one storm day, --format pairs|zips (2026-09-14); no SQL of its own — imports hailsys.db, hailsys.queries.storms, hailsys.iem.common, hailsys.tuning
   load_reference.sh           idempotent loader: report_types CSV + ZCTA shapefile
   load_coverage.sh            idempotent loader: one customer's territory
   status.sh                   four read-only operator checks; exit code = nightly-health verdict (2026-09-11)
@@ -1092,7 +1145,7 @@ docker/
   ingest.Dockerfile           python:3.12-slim + psycopg; COPY hailsys + scripts, PYTHONPATH=/app (2026-09-14); runs as non-root
   loader.Dockerfile           postgis image + pinned client pkg; bullseye-EOL apt workaround; bind-mounts the repo, no PYTHONPATH needed
   app.Dockerfile              same shape as ingest.Dockerfile; connects as hail_app (2026-09-11)
-output/                       gitignored — CSVs from export_storm_zips.py, bind-mounted into `app`
+output/                       gitignored — CSVs from export_storm_zips.py (pairs/zips), bind-mounted into `app`
 reference/                    gitignored — derived statistical CSVs, DNC lists
 data/                         gitignored — raw LSR archive, TIGER shapefiles
 planning/                     GENERIC national seed data + working notes
@@ -1129,6 +1182,12 @@ was deliberately left alone: it bind-mounts the whole repo at `/repo` and
 never runs the Python ingest scripts, so neither the `COPY` nor
 `PYTHONPATH=/app` (which wouldn't even resolve against its `/repo`
 `WORKDIR`) does anything there.
+
+**`hailsys/db.py` and `hailsys/queries/storms.py` (§6) are also done and
+verified, 2026-09-14**, same-day follow-on to the package move above.
+`export_storm_zips.py` now imports both and contains no SQL of its own;
+`app.Dockerfile` needed no change since it already copies the whole
+`hailsys/` tree. Resolves parking-lot item 6 (PL-06).
 
 ### Running it
 
