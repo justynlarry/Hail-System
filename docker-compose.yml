@@ -96,6 +96,25 @@ services:
         condition: service_healthy
     profiles: ["tools"]
 
+  web:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    command: gunicorn --bind 0.0.0.0:8000 --workers 2 hailsys.wsgi:app
+    environment:
+      PGHOST: postgis
+      PGDATABASE: weather-property
+      PGUSER: hail_app
+      PGPASSWORD: ${HAIL_APP_PASSWORD:?HAIL_APP_PASSWORD is not set --see .env.example}
+    ports:
+      - "127.0.0.1:8000:8000"
+    networks:
+      - hailnet
+    depends_on:
+      postgis:
+        condition: service_healthy
+    restart: unless-stopped
+
 
 
 networks:
