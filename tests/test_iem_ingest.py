@@ -14,6 +14,7 @@ from datetime import timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.modules.setdefault("psycopg", types.ModuleType("psycopg"))
 
 import iem_ingest  # noqa: E402  (import follows the sys.path edit above)

@@ -19,21 +19,30 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-09-14**, commit `e6ac284`. Since the
+Last synced against the repo: **2026-09-14**, commit `d70b74d`. Since the
 2026-09-11 sync (commit `21463df`), Phase 1's own work gained one more piece —
 `scripts/status.sh`, four read-only operator checks whose exit status doubles
 as the nightly-health verdict (see "Operational tooling and Phase 2 planning"
 under §2) — and the project otherwise moved into **Phase 2 planning**, which
-is a documentation phase, not a building one: nothing below changes what runs
-on `hail-dev` today. `docs/parking-lot.md` was committed (the Phase 1
-open-items list, carried by hand until now) and then reconciled against
-`database-schema.md`'s 12 open questions — one resolved, one confirmed still
-open, ten filed as new items. Six Phase 2 decisions were recorded in the
-decision log — Tailscale over a Cloudflare tunnel for Phase 2 access,
-USPS-city grouping, county from TIGER polygons, Flask over FastAPI, scrypt
-password hashing, and the `hailsys/` package layout — plus a seventh,
-`hailsys/db.py`'s connection design (`dict_row`, no pool). See §6 for the
-condensed decisions and §10 for what is and is not built yet.
+is a documentation phase, not a building one, with one exception below.
+`docs/parking-lot.md` was committed (the Phase 1 open-items list, carried by
+hand until now) and then reconciled against `database-schema.md`'s 12 open
+questions — one resolved, one confirmed still open, ten filed as new items.
+Six Phase 2 decisions were recorded in the decision log — Tailscale over a
+Cloudflare tunnel for Phase 2 access, USPS-city grouping, county from TIGER
+polygons, Flask over FastAPI, scrypt password hashing, and the `hailsys/`
+package layout — plus a seventh, `hailsys/db.py`'s connection design
+(`dict_row`, no pool). See §6 for the condensed decisions.
+
+**The one exception: the `hailsys/` package move itself is built, not just
+decided.** `hailsys/tuning.py` and `hailsys/iem/{common,parse}.py` exist,
+`scripts/*.py` import from them, `ingest.Dockerfile`/`app.Dockerfile` were
+updated and all three images rebuilt, and the move was verified end to end
+(88 tests pass, the storm-zip export re-run is byte-identical to a
+pre-move baseline, and a manual `iem_ingest.service` start produced a clean
+new `run_id`). `hailsys/db.py`, `queries/`, and `web/` remain undecided-into-
+code — Phase 2 web-app pieces, not part of this move. See §10 for the current
+tree.
 
 **Also 2026-09-11 (carried from the last sync, unchanged since): Phase 1's
 plumbing is complete** — both `iem_ingest.timer` and `iem_weekly_replay.timer`
@@ -644,12 +653,21 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
   password reset for every user. **`database-schema.md` updated to match,
   2026-09-14** — the `password_hash` row now names scrypt instead of bcrypt
   or argon2.
-- **The repo becomes a package.** `hailsys/` holds importable code
-  (`tuning.py`, `db.py`, `iem/`, `queries/`, `web/`); `scripts/` keeps every
-  existing filename as a thin entrypoint, because the systemd units invoke
-  `scripts/iem_ingest.py` by path and a move that does not touch them cannot
-  break the nightly. **Decided, not yet done** — see §10 for the current
-  (still-flat) tree and the verification order the move requires.
+- **The repo becomes a package.** `hailsys/` holds importable code;
+  `scripts/` keeps every existing filename as a thin entrypoint, because the
+  systemd units invoke `scripts/iem_ingest.py` by path and a move that does
+  not touch them cannot break the nightly. **Done and verified 2026-09-14**
+  for the ingest side — `hailsys/tuning.py` and `hailsys/iem/{common,parse}.py`
+  exist, `scripts/{iem_backfill,iem_ingest,export_storm_zips}.py` import from
+  them, and the move was verified per the order below: baseline export CSV
+  captured first, `ingest.Dockerfile` and `app.Dockerfile` updated (`COPY
+  hailsys ./hailsys/` plus `ENV PYTHONPATH=/app` — the decision only named the
+  `PYTHONPATH` half; without the `COPY` there was nothing at that path to
+  find), all three images rebuilt, 88 tests pass, the re-run export was
+  byte-identical to the baseline, and a manual `iem_ingest.service` start
+  produced a new `run_id` (24) that completed clean. `db.py`, `queries/`, and
+  `web/` are still ahead — Phase 2 web-app pieces, not part of this move. See
+  §10 for the current tree.
 - **One connection seam in `hailsys/db.py`; `dict_row` rows, no pool in
   Phase 2.** Every query acquires its connection through a single context
   manager; rows come back as dicts so a column added mid-`SELECT` cannot
@@ -1051,23 +1069,28 @@ sql/                          apply in order; 010 must be last
   009_ingest.sql              ingest_runs, iem_ingest_rejects
   010_roles.sql               hail_ingest / hail_app roles, grants, passwords
   011_ingest.sql              additive COMMENT fix; 001-009 are frozen post-backfill
+hailsys/                      importable package, moved out of scripts/ (2026-09-14)
+  __init__.py                 empty
+  tuning.py                   read-time tuning constants (radius, etc.), reasoning in comments
+  iem/
+    __init__.py                empty
+    common.py                  shared network/DB machinery both ingest scripts import
+    parse.py                   shared row parser; both ingest scripts import it
 scripts/
   build_reference_tables.py   derives reference CSVs from the raw LSR archive
   zcat-data-check.py          checks coverage zips against the TIGER .dbf
-  iem_parse.py                shared row parser; both ingest scripts import it
-  iem_backfill.py             historical ingest; has run 8x (runs 4-8 = backfill, 176,957 rows)
-  iem_common.py               shared network/DB machinery both ingest scripts import
-  tuning.py                   read-time tuning constants (radius, etc.), reasoning in comments
-  export_storm_zips.py        CSV export, one row per report-zip pair, one storm day (2026-09-11)
+  iem_backfill.py             historical ingest; has run 8x (runs 4-8 = backfill, 176,957 rows); imports hailsys.iem.common
+  iem_ingest.py                the nightly, rolling-window ingest; imports hailsys.iem.common
+  export_storm_zips.py        CSV export, one row per report-zip pair, one storm day; imports hailsys.iem.common, hailsys.tuning
   load_reference.sh           idempotent loader: report_types CSV + ZCTA shapefile
   load_coverage.sh            idempotent loader: one customer's territory
   status.sh                   four read-only operator checks; exit code = nightly-health verdict (2026-09-11)
 tests/
   __init__.py                 empty; makes unittest discovery work
-  test_iem_parse.py           44 stdlib unittest cases against iem_parse.py
+  test_iem_parse.py           stdlib unittest cases against hailsys/iem/parse.py
 docker/
-  ingest.Dockerfile           python:3.12-slim + psycopg, runs as non-root
-  loader.Dockerfile           postgis image + pinned client pkg; bullseye-EOL apt workaround
+  ingest.Dockerfile           python:3.12-slim + psycopg; COPY hailsys + scripts, PYTHONPATH=/app (2026-09-14); runs as non-root
+  loader.Dockerfile           postgis image + pinned client pkg; bullseye-EOL apt workaround; bind-mounts the repo, no PYTHONPATH needed
   app.Dockerfile              same shape as ingest.Dockerfile; connects as hail_app (2026-09-11)
 output/                       gitignored — CSVs from export_storm_zips.py, bind-mounted into `app`
 reference/                    gitignored — derived statistical CSVs, DNC lists
@@ -1086,17 +1109,26 @@ systemd/                      unit files; installed by copy, not symlink (2026-0
   iem_weekly_replay.timer      OnCalendar=Sun *-*-* 11:00:00, an hour after the nightly
 ```
 
-**`tests/` holds one file** — `test_iem_parse.py`, stdlib `unittest`, no runner
-dependency. See §2.
+**`tests/` holds four files** — stdlib `unittest`, no runner dependency, 88
+cases total across `test_iem_parse.py`, `test_iem_common.py`,
+`test_iem_backfill.py`, and `test_iem_ingest.py`. The last three import
+`iem_backfill`/`iem_ingest` from `scripts/` directly (not a package, so via a
+`sys.path.insert`) while those modules import `hailsys` at the repo root —
+each of those three test files inserts *both* paths.
 
-**The tree above is still flat, on purpose.** The `hailsys/` package layout
-(§6) is decided, not built — there is no `hailsys/` directory yet, and
-`scripts/*.py` still hold the code they always have. When the move happens,
-`scripts/` keeps every current filename as a thin entrypoint, `PYTHONPATH=/app`
-is added to all three Dockerfiles, and the verification order is: baseline
-export CSV, move, add `PYTHONPATH`, rebuild all three images, run the 44
-parser tests, re-diff the export, then a manual `iem_ingest.service` start to
-confirm a new `run_id`.
+**The `hailsys/` package move (§6) is done and verified, 2026-09-14.** The
+tree above reflects the actual layout: `hailsys/tuning.py` and
+`hailsys/iem/{common,parse}.py` hold the code, `scripts/*.py` keep their
+filenames and import from `hailsys`, and `ingest.Dockerfile` / `app.Dockerfile`
+both gained a `COPY hailsys ./hailsys/` alongside `ENV PYTHONPATH=/app` — the
+decision only named the `PYTHONPATH` half; without the `COPY`, `PYTHONPATH`
+would have pointed at a directory that didn't exist in the image, which the
+build-context snapshot trap the decision warned about would have made look
+like a caching problem rather than a missing instruction. `loader.Dockerfile`
+was deliberately left alone: it bind-mounts the whole repo at `/repo` and
+never runs the Python ingest scripts, so neither the `COPY` nor
+`PYTHONPATH=/app` (which wouldn't even resolve against its `/repo`
+`WORKDIR`) does anything there.
 
 ### Running it
 
