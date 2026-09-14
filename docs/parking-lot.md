@@ -157,6 +157,9 @@ alongside it, or a distinct-report count, covers that.
 
 **When:** when the RentCast step needs a zip list to spend against.
 
+- **PL-06** — Aggregated one-row-per-zip export. Resolved 2026-09-14, see
+  decision-log "The storm query lives in `hailsys/queries/storms.py`".
+
 ## 7. mPING arrives as `PUBLIC`
 
 Several reports in the archive carry remarks like *"Report from mPING: Half
