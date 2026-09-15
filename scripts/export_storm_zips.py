@@ -6,6 +6,7 @@
     python3 scripts/export_storm_zips.py --date 2026-06-24 --type HAIL
     python3 scripts/export_storm_zips.py --date 2026-06-24 --radius 8
     python3 scripts/export_storm_zips.py --date 2026-06-24 --format zips
+    python3 scripts/export_storm_zips.py --date 2026-06-24 --actionable-only
 
 --format pairs (default): one row per REPORT-ZIP PAIR, not per zip.  A single
 report typically falls within the radius of several coverage zips, and a
@@ -98,6 +99,11 @@ def parse_args(argv=None):
         help="pairs: one row per report-zip pair (default). "
              "zips: one row per coverage zip, aggregated.",
     )
+    parser.add_argument(
+        "--actionable-only", action="store_true",
+        help="--format zips only: count only reports that are roof-relevant "
+             "and at or above the type's magnitude floor.",
+    )
 
     args = parser.parse_args(argv)
 
@@ -129,14 +135,17 @@ def main(argv=None):
 
     fetch, columns = FORMATS[args.format]
 
+    kwargs = dict(
+        radius_m=radius_m,
+        window_start=window_start,
+        window_end=window_end,
+        report_text=args.report_text,
+    )
+    if args.format == "zips":
+        kwargs["actionable_only"] = args.actionable_only
+
     with get_connection() as conn:
-        rows = fetch(
-            conn,
-            radius_m=radius_m,
-            window_start=window_start,
-            window_end=window_end,
-            report_text=args.report_text,
-        )
+        rows = fetch(conn, **kwargs)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     path = output_path(args.output_dir, args.date, args.report_text, args.format)
