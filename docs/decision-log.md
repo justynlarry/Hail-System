@@ -2147,3 +2147,158 @@ tests pass.
 
 **Pulled forward with this:** `hailsys/db.py`, since this created the project's
 first call site for a connection. Its design is the 2026-09-14 seam entry.
+
+---
+
+## 2026-09-15 — Correction: `loader.Dockerfile` needed neither `COPY hailsys` nor `PYTHONPATH`
+
+*Repository becomes a package* (2026-09-14) says "`ENV PYTHONPATH=/app` in all
+three Dockerfiles fixes it." That overstates it. Checked, not assumed:
+`docker/loader.Dockerfile` has neither line. Only `app.Dockerfile` and
+`ingest.Dockerfile` do.
+
+**Why the loader is exempt rather than merely forgotten:** it runs no
+`hailsys` Python at all — the image is `psql` and `shp2pgsql` against a
+bind-mounted repository (`volumes: - .:/repo:ro,Z` in `docker-compose.yml`),
+not a build-time `COPY`. A bind mount means there is nothing copied to go
+stale and nothing to `import`, so neither the trap this entry describes nor
+its fix applies to that image. Mounting rather than copying is also why the
+loader was never touched by the build-context-snapshot trap the verification
+steps call out — there is no snapshot for a bind mount to disagree with.
+
+Left the original entry as written, per this file's own rule. Recorded here
+instead, so the next person copying the "all three" line does not have to
+re-derive which two it actually means.
+
+---
+
+## 2026-09-15 — Zip detail loads lazily, into the row, as a fetched HTML fragment
+
+The recent-storm-days list is one row per (day, type). Seeing which zips a
+row touched had three candidate shapes: render every row's zip breakdown
+eagerly on page load, link out to a separate detail page per row, or fetch
+the breakdown into the row itself only when asked.
+
+**Lazy fetch, not eager render.** Eager means running `fetch_zips` — a real
+`ZIPS_SQL` query — once per row in the list regardless of whether anyone
+ever looks at it. A busy stretch can put a dozen-plus rows on screen at
+once; paying for all of them to answer a question almost none of them will
+be asked is the wrong default.
+
+**Lazy fetch, not a detail page.** The point of this list is to glance
+across several days and drill into a few. Chasing each one through a full
+page load and a back button is worse friction than the list not expanding
+at all — it breaks exactly the "browse, then look closer" flow the page
+exists for.
+
+**Mechanics:** each row carries a hidden sibling `<tr>`. The `+` button
+toggles it and, on first expand only, fetches
+`GET /storms/zips?date=...&type=...` and drops the response straight into
+the cell with `innerHTML`. `cell.dataset.loaded` guards the fetch so
+collapsing and re-expanding afterward is free — no second request.
+
+**The fragment-template convention: a leading underscore means "not a
+page."** `_zips.html` has no `{% extends %}` and no `<html>` — it is the
+`<table>` fragment and nothing else, meant to be dropped into an existing
+DOM, not requested on its own by a person. `storm_zips()` is the one route
+under `/storms/...` that does not return a full page, and the filename
+says so before the route body does. The convention: a template named with a
+leading underscore is includable, not routable-as-a-destination — the same
+signal a leading underscore carries in other languages for "not part of the
+public surface."
+
+**Why this does not reopen *Flask with server-rendered Jinja templates*
+(2026-09-14).** That entry's own "Note for when the map is built" already
+named this shape as compatible: "a `<script>` tag over an ordinary route,"
+not a reason to revisit. The zip fragment is the same idea at a smaller
+scale — a route that returns HTML instead of JSON, fetched by 42 lines of
+vanilla JavaScript in `static/storms.js`, no framework, no bundler, no
+second build step. With JavaScript disabled the list still renders and
+still reads correctly; only the expand-in-place behavior is lost.
+
+**Related:** *Flask with server-rendered Jinja templates* (2026-09-14).
+
+---
+
+## 2026-09-15 — `_ACTIONABLE` pulled into the shared query core, after the day list and its own zip detail disagreed
+
+*The storm query lives in `hailsys/queries/storms.py`* (2026-09-14) built
+`_FROM_WHERE` specifically so every projection agrees on the join, the
+coverage rule, and the window. It does not, by itself, cover a filter that
+only some projections apply — and one such filter was written outside it,
+which reopened exactly the disagreement the shared core exists to close.
+
+**What happened.** The actionable-only rule —
+`t.roof_relevant AND (t.min_magnitude IS NULL OR magnitude >= min_magnitude)`
+— was appended directly onto `RECENT_DAYS_SQL`, after `_FROM_WHERE`, rather
+than folded into the shared core. `ZIPS_SQL`, the query behind a row's zip
+drill-down, had no equivalent clause at all.
+
+**The consequence, concretely:** a day can appear on an "actionable only"
+list because it has one actionable report. Expanding that row ran `ZIPS_SQL`
+unfiltered, so the drill-down's `report_count`, `nearest_miles`,
+`first_report`/`last_report` were computed over every report at that
+location that day, actionable or not — a wider set than the one the list
+used to decide the day belonged on screen at all. The list and the
+drill-down underneath it were silently answering two different questions
+about the same day.
+
+**Why this is the seam lesson, not just a bug:** the shared core was built
+to stop two consumers of "which storm days/zips matter" from diverging, and
+they diverged anyway, because the rule that mattered here lived outside the
+one place both projections were guaranteed to read from. The generalization
+worth keeping: the seam has to include every rule a projection *might*
+independently apply, not only the join/filter core that was obviously
+shared when `_FROM_WHERE` was written.
+
+**Fix:** `_ACTIONABLE` is now its own string beside `_FROM_WHERE`, and both
+`RECENT_DAYS_SQL` and `ZIPS_SQL` interpolate it. `fetch_zips()` picked up a
+required, keyword-only `actionable_only` argument to match. Its one caller
+outside the web view — `scripts/export_storm_zips.py --format zips` — broke
+until it gained a corresponding `--actionable-only` flag; `--format pairs`
+needed no change, because `PAIRS_SQL` does not interpolate `_ACTIONABLE`.
+
+**`PAIRS_SQL` still omits `_ACTIONABLE`, deliberately — this is not the same
+gap recurring.** The pairs export exists to show a storm day's raw shape,
+unfiltered, and it has no second consumer yet to disagree with. Give it the
+rule only when the export itself grows an `--actionable` flag, and fold it
+into `_ACTIONABLE` at that point rather than writing a third copy.
+
+**Related:** *The storm query lives in `hailsys/queries/storms.py`*
+(2026-09-14).
+
+---
+
+## 2026-09-15 — County-by-polygon lookup verified: index scan, sub-millisecond warm
+
+Closes the verification *County comes from TIGER county polygons*
+(2026-09-14) asserted but did not measure. The entire argument against
+storing county on `iem_data` rests on the query-time polygon lookup staying
+cheap, so it needed a number, not just a plan.
+
+**Note on the number itself:** an earlier session is recorded as having
+measured this at ~11ms, but that EXPLAIN output was never committed to this
+log and could not be found to verify against. Rather than copy a figure
+that cannot be checked, the numbers below are freshly measured against the
+live database today. The conclusion is the same either way.
+
+`EXPLAIN (ANALYZE, BUFFERS)`, live archive (176,973 `iem_data` rows, 3,235
+counties nationwide in `county_boundaries`), joining
+`iem_data.geom` to `county_boundaries.geom` via `ST_Contains` — no query
+module writes this join yet; this verifies the lookup is cheap before one is
+built, not after:
+
+| Case | Cold | Warm |
+|---|---|---|
+| One report (`iem_id = 1`) | 6.7 ms | 0.55 ms |
+| One full storm day, 9 reports (2026-08-27) | 27.1 ms | 1.97 ms |
+
+**Every plan uses `Index Scan using county_boundaries_geom_gix`, never a
+sequential scan** — the GiST index built alongside the table (2026-09-14
+entry) is what the planner actually reaches for. Same shape of proof as *The
+buffer query needs a geography index, not the geometry one* (2026-09-03):
+an index only helps if the query it is verified against actually uses it,
+and only measuring confirms that rather than assuming it.
+
+**Related:** *County comes from TIGER county polygons* (2026-09-14); *The
+buffer query needs a geography index, not the geometry one* (2026-09-03).
