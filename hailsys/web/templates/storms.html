@@ -3,9 +3,9 @@
 {% block heading %}Recent storm days{% endblock %}
 
 {% block content %}
+<script src="{{ url_for('static', filename='storms.js') }}" defer></script>
 {% if rows %}
 
-<script src="{{ url_for('static', filename='storms.js') }}" defer></script>
 <table>
     <thead>
         <tr>
