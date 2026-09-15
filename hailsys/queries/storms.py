@@ -28,6 +28,12 @@ DISTANCE_EXPR = "(ST_Distance(i.geom::geography, z.geom::geography) / 1609.344)"
 # named zone (not a fixed offset) so DST (MDT/MST) is handled automatically.
 LOCAL_TIME_EXPR = "(i.utc_datetime AT TIME ZONE 'America/Denver')"
 
+_ACTIONABLE = """
+    AND (NOT %(actionable_only)s
+        OR (t.roof_relevant
+            AND (t.min_magnitude IS NULL OR i.magnitude >= t.min_magnitude)))
+"""
+
 _FROM_WHERE = """
 FROM iem_data i
 JOIN report_types t
@@ -90,6 +96,7 @@ SELECT
     min(i.magnitude) AS min_magnitude,
     string_agg(DISTINCT i.report_source, ', ') AS sources
 {_FROM_WHERE}
+{_ACTIONABLE}
 GROUP BY c.zcta5, c.area_name
 ORDER BY c.zcta5
 """
@@ -97,7 +104,15 @@ ORDER BY c.zcta5
 # One row per (local storm day, report type). Browse List's Unit:
 # A day that had Hail, Wind, or Both, each as a separate item to view
 
-RECENT_DAYS_SQL = F"""
+RECENT_DAYS_SQL = f"""
+WITH days AS (
+    SELECT ({LOCAL_TIME_EXPR})::date AS storm_date
+    {_FROM_WHERE}
+    {_ACTIONABLE}
+    GROUP BY storm_date
+    ORDER BY storm_date DESC
+    LIMIT %(limit)s
+)
 SELECT
     ({LOCAL_TIME_EXPR})::date AS storm_date,
     i.report_text,
@@ -106,12 +121,10 @@ SELECT
     count(DISTINCT c.zcta5) AS zip_count,
     max(i.magnitude) AS max_magnitude
 {_FROM_WHERE}
-    AND (NOT %(actionable_only)s
-        OR (t.roof_relevant
-            AND (t.min_magnitude IS NULL OR i.magnitude >= t.min_magnitude)))
+{_ACTIONABLE}
+    AND ({LOCAL_TIME_EXPR})::date IN (SELECT storm_date FROM days)
 GROUP BY storm_date, i.report_text, t.mag_unit
 ORDER BY storm_date DESC, report_count DESC
-limit %(limit)s
 """
 
 RECENT_DAYS_COLUMNS = [
@@ -159,13 +172,15 @@ def fetch_pairs(conn, *, radius_m, window_start, window_end, report_text):
         return cur.fetchall()
 
 
-def fetch_zips(conn, *, radius_m, window_start, window_end, report_text):
+def fetch_zips(conn, *, radius_m, window_start, window_end, report_text,
+               actionable_only):
     with conn.cursor() as cur:
         cur.execute(ZIPS_SQL, {
             "radius_m": radius_m,
             "window_start": window_start,
             "window_end": window_end,
             "report_text": report_text,
+            "actionable_only": actionable_only,
         })
         return cur.fetchall()
 
@@ -179,5 +194,5 @@ ORDER BY report_text
 def fetch_report_types(conn):
     with conn.cursor() as cur:
         cur.execute(REPORT_TYPES_SQL)
-        return[row["report_text"] for row in cur.fetchall()]
+        return [row["report_text"] for row in cur.fetchall()]
     
