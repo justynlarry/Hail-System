@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, abort, request
 
 from hailsys.db import get_connection
 from hailsys.queries import storms
@@ -35,3 +35,26 @@ def index():
         )
 
     return render_template("storms.html", rows=rows)
+
+@bp.route("/storms/zips")
+def storm_zips():
+    # Query Parameters, not path segments.  report_text contains spaces and
+    # slashes ('NON-TSTM WIND GST'), slash segment is a route boundary.
+    try:
+        day = datetime.strptime(request.args["date"], "%Y-%m-%d").date()
+    except (KeyError, ValueError):
+        abort(400)
+
+    report_text = request.args.get("type") or None
+    window_start, window_end = denver_day_bounds(day)
+
+    with get_connection() as conn:
+        rows = storms.fetch_zips(
+            conn,
+            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            window_start=window_start,
+            window_end=window_end,
+            report_text=report_text,
+        )
+
+    return render_template("_zips.html", rows=rows)
