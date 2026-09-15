@@ -425,6 +425,46 @@ RentCast pull near it would spend real money against a report set already
 known to be incomplete. *(`database-schema.md`, open question 12; decision-log
 2026-09-04)*
 
+## 22. Map — side-by-side with the storm list
+
+Leaflet from a CDN, no build step, consistent with the server-rendered
+decision. Three layers: the 183 coverage zips as a static pre-generated
+GeoJSON fixture in `static/`, simplified once by a script and cached by the
+browser; report points for the selected day, colored by `report_source`; and
+a 5-mile `L.circle` per report, in metres so it stays true at every zoom. Zip
+data on hover, not labels — 183 labels collapse into mush at metro zoom. No
+reprojection needed: everything is already 4326, which is what Leaflet
+expects.
+
+**Why the fixture matters more than it sounds.** The service area is stable,
+so the polygons aren't per-request data. That moves the `ST_Simplify`
+tolerance from a runtime decision made on every query to a one-time choice
+made while looking at the output — and it keeps the rule that simplification
+is display-only, never applied to the geometry the matching uses.
+
+**Known caveat:** color-by-source is honest about what's stored, not how it
+was collected. See item 7 (PL-07) — mPING taps and phone calls both arrive as
+`PUBLIC`.
+
+**When:** after items 10 and 12, at the close of Phase 2.
+
+## 23. Address lookup — "did this address get hit?"
+
+A one-off tool: paste an address, get the reports near it. Different unit of
+analysis from everything else built — the coverage-zip join drops out
+entirely, since the question is "did a report fall within X miles of this
+point" rather than "which of our zips were in range."
+
+The blocker is geocoding. Nothing in the system converts a street address to
+coordinates. RentCast returns coordinates for properties it knows, which
+covers listings but not an arbitrary address a coworker types in, so a
+standalone version needs a geocoder — a new external dependency, an API key,
+and a rate limit to respect.
+
+**When:** Phase 3, alongside RentCast, when addresses have coordinates
+attached. A manual lat/long entry form would work sooner if someone needs it
+before then.
+
 ---
 
 ## Also worth carrying
