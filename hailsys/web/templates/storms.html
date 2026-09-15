@@ -33,7 +33,6 @@
 {% if rows %}
     <table>   
     <thead>
-
         <tr>
             <th>Date</th>
             <th>Type</th>
@@ -45,6 +44,12 @@
     <tbody>
         {% for row in rows %}
         <tr>
+            <td>
+                <button class="expand"
+                    data-date="{{ row.storm_date }}"
+                    data-type="{{ row.report_text}}"
+                    data-actionable="{{ '1' if actionable_only else '' }}">+</button>
+            </td>
             <td>{{ row.storm_date }}</td>
             <td>{{ row.report_text }}</td>
             <td class="num">{{ row.report_count }}</td>
@@ -54,6 +59,9 @@
                   {{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}
                 {% endif %}
             </td>
+        </tr>
+        <tr hidden>
+            <td colspan="6"></td>
         </tr>
         {% endfor %}
     </tbody>
