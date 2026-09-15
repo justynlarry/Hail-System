@@ -168,3 +168,16 @@ def fetch_zips(conn, *, radius_m, window_start, window_end, report_text):
             "report_text": report_text,
         })
         return cur.fetchall()
+
+REPORT_TYPES_SQL = """
+SELECT DISTINCT report_text
+FROM report_types
+WHERE roof_relevant
+ORDER BY report_text
+"""
+
+def fetch_report_types(conn):
+    with conn.cursor() as cur:
+        cur.execute(REPORT_TYPES_SQL)
+        return[row["report_text"] for row in cur.fetchall()]
+    
