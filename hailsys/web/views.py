@@ -78,6 +78,12 @@ def storm_zips():
         abort(400)
 
     report_text = request.args.get("type") or None
+
+    if "submitted" in request.args:
+        actionable_only = "actionable" in request.args
+    else:
+        actionable_only = True
+
     window_start, window_end = denver_day_bounds(day)
 
     with get_connection() as conn:
@@ -87,6 +93,7 @@ def storm_zips():
             window_start=window_start,
             window_end=window_end,
             report_text=report_text,
+            actionable_only=actionable_only,
         )
 
     return render_template("_zips.html", rows=rows)
