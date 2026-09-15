@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Sign In{% endblock %}
+{% block heading %}Sign In{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    {% for message in messages %}
+      <p class="error">{{ message }}</p>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<form method="post" action="{{ url_for('main.login') }}">
+    <p>
+        <label for="user_name">Username</label><br>
+        <input type="text" id="user_name" name="user_name"
+                autocomplete="username" autofocus required>
+    </p>
+    <p>
+        <label for="password">Password</label><br>
+        <input type="password" id="password" name="password"
+               autocomplete="current-password" required>
+    </p>
+    <p><button type="submit">Sign In</button></p>
+</form>
+{% endblock %}
