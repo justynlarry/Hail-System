@@ -7,7 +7,15 @@
         <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     </head>
     <body>
-    <h1>{% block heading %}Hail {% endblock %}</h1>
+    {% if session.emp_id %}
+    <p class="userbar">
+        Signed in as {{ session.user_name }}
+        <form method="post" action="{{ url_for('main.logout') }}">
+            <button type="submit">Sign Out</button>
+        </form>
+    </p>
+    {% endif %}
+      <h1>{% block heading %}Hail {% endblock %}</h1>
     {% block content %}{% endblock %}
     </body>
 </html>
