@@ -1,0 +1,4 @@
+.error { color: #b00020; }
+
+.userbar { display: flex; gap: 1rem; align-items: center; font-size: 0.9rem; }
+.userbar form { margin: 0; }
