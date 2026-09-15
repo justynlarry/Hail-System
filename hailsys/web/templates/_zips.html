@@ -1,0 +1,32 @@
+{% if rows %}
+<table>
+    <thead>
+        <tr>
+            <th>Zip</th>
+            <th>City (zip)</th>
+            <th class="num">Reports</th>
+            <th class="num">Nearest</th>
+            <th class="num">Max</th>
+            <th>First</th>
+            <th>Last</th>
+            <th>Sources</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td>{{ row.zcta5 }}</td>
+            <td>{{ row.area_name }}</td>
+            <td class="num">{{ row.report_count }}</td>
+            <td class="num">{{ row.nearest_miles }}</td>
+            <td class="num">{{ row.max_magnitude }}</td>
+            <td>{{ row.first_report.strftime('%H:%M') }}</td>
+            <td>{{ row.last_report.strftime('%H:%M') }}</td>
+            <td>{{ row.sources }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No Zips for this day.</p>
+{% endif %}
