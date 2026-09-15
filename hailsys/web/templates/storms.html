@@ -4,10 +4,36 @@
 
 {% block content %}
 <script src="{{ url_for('static', filename='storms.js') }}" defer></script>
-{% if rows %}
+    <form method="get" action="{{ url_for('main.index') }}" class="filters">
+        <input type="hidden" name="submitted" value="1">
 
-<table>
+        <label for="days">Last</label>
+        <select id="days" name="days">
+            {% for n in day_ranges %}
+            <option value="{{ n }}" {% if n == selected_days %}selected{% endif %}>{{ n }} days</option>
+            {% endfor %}
+        </select>
+
+        <label for="type">Type</label>
+            <select id="type" name="type">
+                <option value="">All</option>
+                {% for t in types %}
+                <option value="{{ t }}" {% if t == selected_type %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+
+        <label>
+            <input type="checkbox" name="actionable" value="1"
+                    {% if actionable_only %}checked{% endif %}>
+            Actionable Only
+        </label>
+
+        <button type="submit">Apply</button>
+    </form>
+{% if rows %}
+    <table>   
     <thead>
+
         <tr>
             <th>Date</th>
             <th>Type</th>
