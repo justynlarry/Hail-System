@@ -16,12 +16,13 @@ _R = 8
 _P = 1
 _SALT_BYTES = 16
 _DKLEN = 32
+_MAXMEM = 64 * 1024 * 1024
 
 def hash_password(password):
     salt = os.urandom(_SALT_BYTES)
     digest = hashlib.scrypt(
         password.encode("utf-8"), salt=salt,
-        n=_N, r=_R, p=_P, dklen=_DKLEN,
+        n=_N, r=_R, p=_P, dklen=_DKLEN, maxmem=_MAXMEM,
     )
     return "scrypt${}${}${}${}${}".format(
         _N, _R, _P,
@@ -49,6 +50,7 @@ def verify_password(password, stored):
         salt=b64decode(salt_b64),
         n=int(n), r=int(r), p=int(p),
         dklen=len(expected),
+        maxmem=_MAXMEM,
     )
 
     # compare_digest - not ==
@@ -58,6 +60,6 @@ def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
         if session.get("emp_id") is None:
-            return redirect(url_for("main.logic"))
+            return redirect(url_for("main.login"))
         return view(*args, **kwargs)
     return wrapped
