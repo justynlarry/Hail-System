@@ -203,3 +203,42 @@ def territory():
         selected_type=report_text,
         actionable_only=actionable_only,
     )
+
+@bp.route("/territory/days")
+@login_required
+def territory_days():
+    area_name = request.args.get("area_name")
+    if not area_name:
+        abort(400)
+
+    today = datetime.now(DISPLAY_TZ).date()
+
+    try:
+        days = int(request.args.get("days", 90))
+    except ValueError:
+        days = 90
+    if days not in DAY_RANGES:
+        days = 90
+
+    report_text = request.args.get("type") or None
+
+    if "submitted" in request.args:
+        actionable_only = "actionable" in request.args
+    else:
+        actionable_only = True
+
+    window_start, _ = denver_day_bounds(today - timedelta(days=days))
+    _, window_end = denver_day_bounds(today)
+
+    with get_connection() as conn:
+        rows = storms.fetch_city_days(
+            conn,
+            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            window_start=window_start,
+            window_end=window_end,
+            report_text=report_text,
+            actionable_only=actionable_only,
+            area_name=area_name,
+        )
+
+    return render_template("_city_days.html", rows=rows)

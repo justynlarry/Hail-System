@@ -39,3 +39,4 @@ __pycache__/
 .~lock.*#
 output/
 spatial_ref_sys
+.vscode/

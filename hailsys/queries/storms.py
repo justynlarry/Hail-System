@@ -194,9 +194,9 @@ PAIRS_COLUMNS = [
 ]
 
 ZIPS_COLUMNS = [
-    "zcta5", "area_name", "report_count", "nearest_miles", "farthest_miles",
-    "first_report", "last_report", "max_magnitude", "min_magnitude",
-    "sources", "mag_unit", "report_text",
+    "zcta5", "area_name", "report_text", "mag_unit", "report_count",
+    "nearest_miles", "farthest_miles", "first_report", "last_report",
+    "max_magnitude", "min_magnitude", "sources", 
 ]
 
 
@@ -234,4 +234,37 @@ def fetch_report_types(conn):
     with conn.cursor() as cur:
         cur.execute(REPORT_TYPES_SQL)
         return [row["report_text"] for row in cur.fetchall()]
-    
+
+
+CITY_DAYS_SQL = f"""
+SELECT
+    ({LOCAL_TIME_EXPR})::date AS storm_date,
+    i.report_text,
+    t.mag_unit,
+    count(DISTINCT i.iem_id)    AS report_count,
+    count(DISTINCT c.zcta5)     AS zip_count,
+    max(i.magnitude)            AS max_magnitude
+{_FROM_WHERE}
+{_ACTIONABLE}
+    AND c.area_name = %(area_name)s
+GROUP BY storm_date, i.report_text, t.mag_unit
+ORDER BY storm_date DESC
+"""
+
+CITY_DAYS_COLUMNS = [
+    "storm_date", "report_text", "mag_unit",
+    "report_count", "zip_count", "max_magnitude",
+]
+
+def fetch_city_days(conn, *, radius_m, window_start, window_end, report_text,
+                    actionable_only, area_name):
+    with conn.cursor() as cur:
+        cur.execute(CITY_DAYS_SQL, {
+            "radius_m": radius_m,
+            "window_start": window_start,
+            "window_end":window_end,
+            "report_text": report_text,
+            "actionable_only": actionable_only,
+            "area_name": area_name,
+        })
+        return cur.fetchall()
