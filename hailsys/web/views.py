@@ -1,6 +1,9 @@
+import csv
+import io
+
 from datetime import datetime, timedelta
 
-from flask import flash, redirect, Blueprint, render_template, abort, request, session, url_for
+from flask import flash, redirect, Blueprint, render_template, abort, request, session, url_for, Response
 
 from hailsys.web.auth import login_required, verify_password
 
@@ -242,3 +245,51 @@ def territory_days():
         )
 
     return render_template("_city_days.html", rows=rows)
+
+@bp.route("/export.csv")
+@login_required
+def export_csv():
+    today = datetime.now(DISPLAY_TZ).date()
+
+    try:
+        days = int(request.args.get("days", 90))
+    except ValueError:
+        days = 90
+    if days not in DAY_RANGES:
+        days = 90
+
+    report_text = request.args.get("type") or None
+
+    if "submitted" in request.args:
+        actionable_only = "actionable" in request.args
+    else:
+        actionable_only = True
+
+    window_start, _ = denver_day_bounds(today - timedelta(days=days))
+    _, window_end = denver_day_bounds(today)
+
+    with get_connection() as conn:
+        rows = storms.fetch_zips(
+            conn,
+            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            window_start=window_start,
+            window_end=window_end,
+            report_text=report_text,
+            actionable_only=actionable_only,
+        )
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(storms.ZIPS_COLUMNS)
+    writer.writerows(
+        [row[col] for col in storms.ZIPS_COLUMNS] for row in rows
+    )
+
+    label = (report_text or "ALL").replace("/", "-").replace(" ", "_")
+    filename = f"storm_zips_{today.isoformat()}_{label}_{days}d.csv"
+
+    return Response(
+        buffer.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

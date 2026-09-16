@@ -29,6 +29,7 @@
         </label>
 
         <button type="submit">Apply</button>
+        <a href="{{ url_for('main.export_csv') }}?{{ request.query_string.decode() }}">Download CSV</a>
     </form>
 {% if rows %}
     <table>   
