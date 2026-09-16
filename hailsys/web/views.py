@@ -20,6 +20,7 @@ bp = Blueprint("main", __name__)
 
 DAY_RANGES = (30, 90, 365)
 GROUP_BYS = ("zip", "city")
+POINTS_SQL_LIMIT = 2000
 
 @bp.route("/")
 @login_required
@@ -293,3 +294,59 @@ def export_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@bp.route("/map/points.geojson")
+@login_required
+def map_points():
+    today = datetime.now(DISPLAY_TZ).date()
+
+    try:
+        days = int(request.args.get("days", 90))
+    except ValueError:
+        days = 90
+    if days not in DAY_RANGES:
+        days = 90
+
+    report_text = request.args.get("type") or None
+
+    if "submitted" in request.args:
+        actionable_only = "actionable" in request.args
+    else:
+        actionable_only = True
+
+    window_start, _ = denver_day_bounds(today - timedelta(days=days))
+    _, window_end = denver_day_bounds(today)
+
+    with get_connection() as conn:
+        rows = storms.fetch_report_points(
+            conn,
+            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            window_start=window_start,
+            window_end=window_end,
+            report_text=report_text,
+            actionable_only=actionable_only,
+            limit=POINTS_SQL_LIMIT,
+        )
+
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {
+                    "iem_id": r["iem_id"],
+                    "local_time": r["local_time"].strftime("%m-%d-%Y %H:%M"),
+                    "report_text": r["report_text"],
+                    "magnitude": float(r["magnitude"]) if r["magnitude"] is not None else None,
+                    "mag_unit": r["mag_unit"],
+                    "report_source": r["report_source"],
+                },
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [float(r["longitude"]), float(r["latitude"])],
+                },
+            }
+            for r in rows
+        ],
+    }
