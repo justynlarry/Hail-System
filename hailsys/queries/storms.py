@@ -124,7 +124,8 @@ SELECT
     t.mag_unit,
     count(DISTINCT i.iem_id) AS report_count,
     count(DISTINCT c.zcta5) AS zip_count,
-    max(i.magnitude) AS max_magnitude
+    max(i.magnitude) AS max_magnitude,
+    string_agg(DISTINCT i.report_source, ', ' ORDER BY i.report_source) AS sources
 {_FROM_WHERE}
 {_ACTIONABLE}
     AND ({LOCAL_TIME_EXPR})::date IN (SELECT storm_date FROM days)
@@ -168,7 +169,7 @@ def fetch_cities(conn, *, radius_m, window_start, window_end, report_text,
 
 RECENT_DAYS_COLUMNS = [
     "storm_date", "report_text", "mag_unit",
-    "report_count", "zip_count", "max_magnitude",
+    "report_count", "zip_count", "max_magnitude", "sources",
 ]
 
 

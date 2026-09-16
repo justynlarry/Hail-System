@@ -40,6 +40,7 @@
             <th class="num">Reports</th>
             <th class="num">Zips</th>
             <th class="num">Max</th>
+            <th>Sources</th>
         </tr>
     </thead>
     <tbody>
@@ -61,9 +62,10 @@
                   {{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}
                 {% endif %}
             </td>
+            <td>{{ row.sources }}</td>
         </tr>
         <tr hidden>
-            <td colspan="6"></td>
+            <td colspan="7"></td>
         </tr>
         {% endfor %}
     </tbody>
