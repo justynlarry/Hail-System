@@ -269,3 +269,37 @@ def fetch_city_days(conn, *, radius_m, window_start, window_end, report_text,
             "area_name": area_name,
         })
         return cur.fetchall()
+
+REPORT_POINTS_SQL = f"""
+SELECT DISTINCT ON (i.iem_id)
+    i.iem_id,
+    i.latitude,
+    i.longitude,
+    {LOCAL_TIME_EXPR} AS local_time,
+    i.report_text,
+    i.magnitude,
+    t.mag_unit,
+    i.report_source
+{_FROM_WHERE}
+{_ACTIONABLE}
+ORDER BY i.iem_id, i.utc_datetime DESC
+LIMIT %(limit)s
+"""
+
+REPORT_POINTS_COLUMNS = [
+    "iem_id", "latitude", "longitude", "local_time",
+    "report_text", "magnitude", "mag_unit", "report_source",
+]
+
+def fetch_report_points(conn, *, radius_m, window_start, window_end,
+                        report_text, actionable_only, limit):
+    with conn.cursor() as cur:
+        cur.execute(REPORT_POINTS_SQL, {
+            "radius_m": radius_m,
+            "window_start": window_start,
+            "window_end": window_end,
+            "report_text": report_text,
+            "actionable_only": actionable_only,
+            "limit": limit,
+        })
+        return cur.fetchall()
