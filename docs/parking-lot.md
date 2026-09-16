@@ -430,7 +430,7 @@ known to be incomplete. *(`database-schema.md`, open question 12; decision-log
 Leaflet from a CDN, no build step, consistent with the server-rendered
 decision. Three layers: the 183 coverage zips as a static pre-generated
 GeoJSON fixture in `static/`, simplified once by a script and cached by the
-browser; report points for the selected day, colored by `report_source`; and
+browser; report points for the selected range, colored by `report_source`; and
 a 5-mile `L.circle` per report, in metres so it stays true at every zoom. Zip
 data on hover, not labels — 183 labels collapse into mush at metro zoom. No
 reprojection needed: everything is already 4326, which is what Leaflet
@@ -446,24 +446,45 @@ is display-only, never applied to the geometry the matching uses.
 was collected. See item 7 (PL-07) — mPING taps and phone calls both arrive as
 `PUBLIC`.
 
-**When:** after items 10 and 12, at the close of Phase 2.
+**When:** close of Phase 2.
 
 ## 23. Address lookup — "did this address get hit?"
 
 A one-off tool: paste an address, get the reports near it. Different unit of
 analysis from everything else built — the coverage-zip join drops out
-entirely, since the question is "did a report fall within X miles of this
-point" rather than "which of our zips were in range."
+entirely, since the question is whether a report fell within X miles of one
+point, not which of our zips were in range.
 
 The blocker is geocoding. Nothing in the system converts a street address to
-coordinates. RentCast returns coordinates for properties it knows, which
-covers listings but not an arbitrary address a coworker types in, so a
+coordinates, and RentCast only returns them for properties it already knows,
+which covers listings but not an arbitrary address a coworker types in. A
 standalone version needs a geocoder — a new external dependency, an API key,
-and a rate limit to respect.
+and a rate limit to respect. A manual lat/long entry form needs none of
+that and is a single `ST_DWithin`.
 
-**When:** Phase 3, alongside RentCast, when addresses have coordinates
-attached. A manual lat/long entry form would work sooner if someone needs it
-before then.
+**When:** Phase 3, when addresses have coordinates attached.
+
+## 24. Replace the "Last N days" dropdown with a date picker
+
+Explicit start and end dates, rather than a fixed set of ranges (30/90/365).
+
+**When:** with item 10, which needs range parsing anyway — a territory browse
+grouped by zip or city is naturally scoped to an explicit date range, not one
+of three preset day counts.
+
+## 25. The match view can only show listings already pulled
+
+RentCast pulls cost money and the monthly ceiling has no settled home yet
+(open question 3 in `database-schema.md`; item 5's "runaway-bug tripwire"
+framing), so a date toggle on the match view filters existing
+`properties`/`listings` rows — it does not trigger a new pull.
+
+The page must say so explicitly, or a date range with no pull history reads
+as "no listings were affected" rather than "this range was never queried."
+Those are different facts and the second one is silent by default: an empty
+result set looks the same either way unless the page names which one it is.
+
+**When:** Phase 3, when the match view is built.
 
 ---
 
