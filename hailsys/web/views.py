@@ -16,6 +16,7 @@ from hailsys.tuning import (
 bp = Blueprint("main", __name__)
 
 DAY_RANGES = (30, 90, 365)
+GROUP_BYS = ("zip", "city")
 
 @bp.route("/")
 @login_required
@@ -141,3 +142,64 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("main.login"))
+
+
+
+@bp.route("/territory")
+@login_required
+def territory():
+    today = datetime.now(DISPLAY_TZ).date()
+
+    group_by = request.args.get("group_by", "city")
+    if group_by not in GROUP_BYS:
+        group_by = "city"
+
+    try:
+        days = int(request.args.get("days", 90))
+    except ValueError:
+        days = 90
+    if days not in DAY_RANGES:
+        days = 90
+
+    report_text = request.args.get("type") or None
+
+    if "submitted" in request.args:
+        actionable_only = "actionable" in request.args
+    else:
+        actionable_only = True
+
+    window_start, _ = denver_day_bounds(today - timedelta(days=days))
+    _, window_end = denver_day_bounds(today)
+
+    with get_connection() as conn:
+        if group_by == "city":
+            rows = storms.fetch_cities(
+                conn,
+                radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+                window_start=window_start,
+                window_end=window_end,
+                report_text=report_text,
+                actionable_only=actionable_only,
+            )
+        else:
+            rows = storms.fetch_zips(
+                conn,
+                radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+                window_start=window_start,
+                window_end=window_end,
+                report_text=report_text,
+                actionable_only=actionable_only,
+            )
+        types = storms.fetch_report_types(conn)
+
+    return render_template(
+        "territory.html",
+        rows=rows,
+        types=types,
+        group_by=group_by,
+        group_bys=GROUP_BYS,
+        day_ranges=DAY_RANGES,
+        selected_days=days,
+        selected_type=report_text,
+        actionable_only=actionable_only,
+    )

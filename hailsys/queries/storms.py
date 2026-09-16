@@ -82,7 +82,10 @@ ORDER BY c.zcta5, i.utc_datetime, distance_miles
 """
 
 # One row per coverage zip, aggregated across every report-zip pair that
-# touches it.
+# touches it. Grouped by report_text and mag_unit too, so a zip that saw
+# both Hail and Wind on the same day is returned as two rows, not blurred
+# into one -- intentional, do not collapse this back to
+# `GROUP BY c.zcta5, c.area_name`.
 ZIPS_SQL = f"""
 SELECT
     c.zcta5,
@@ -97,7 +100,7 @@ SELECT
     string_agg(DISTINCT i.report_source, ', ') AS sources
 {_FROM_WHERE}
 {_ACTIONABLE}
-GROUP BY c.zcta5, c.area_name
+GROUP BY c.zcta5, c.area_name, i.report_text, t.mag_unit
 ORDER BY c.zcta5
 """
 
@@ -126,6 +129,40 @@ SELECT
 GROUP BY storm_date, i.report_text, t.mag_unit
 ORDER BY storm_date DESC, report_count DESC
 """
+
+CITIES_SQL = f"""
+SELECT
+    c.area_name,
+    i.report_text,
+    t.mag_unit,
+    count(DISTINCT c.zcta5)                     AS zip_count,
+    count(DISTINCT ({LOCAL_TIME_EXPR})::date)   AS day_count,
+    count(DISTINCT i.iem_id)                    AS report_count,
+    max(i.magnitude)                            AS max_magnitude,
+    min({LOCAL_TIME_EXPR})::date                AS first_day,
+    max({LOCAL_TIME_EXPR})::date                AS last_day
+{_FROM_WHERE}
+{_ACTIONABLE}
+GROUP BY c.area_name, i.report_text, t.mag_unit
+ORDER BY report_count DESC, c.area_name
+"""
+
+CITIES_COLUMNS = [
+    "area_name", "report_text", "mag_unit", "zip_count", "day_count",
+    "report_count", "max_magnitude", "first_day", "last_day"
+]
+
+def fetch_cities(conn, *, radius_m, window_start, window_end, report_text,
+                actionable_only):
+    with conn.cursor() as cur:
+        cur.execute(CITIES_SQL, {
+            "radius_m": radius_m,
+            "window_start": window_start,
+            "window_end": window_end,
+            "report_text": report_text,
+            "actionable_only": actionable_only,
+        })
+        return cur.fetchall()
 
 RECENT_DAYS_COLUMNS = [
     "storm_date", "report_text", "mag_unit",
