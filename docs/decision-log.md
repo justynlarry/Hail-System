@@ -2362,3 +2362,71 @@ yet.
 (2026-09-01); *No "currently being viewed" state tracking* (2026-09-01) —
 same instinct, showing a fact rather than encoding a lock, applied here to
 contact state instead of concurrent editing.
+
+---
+
+## 2026-09-16 — `confidence_tier` stays out of the UI, and radar size is not a severity signal
+
+Two decisions from one study. Evidence:
+**`docs/analysis/radar-verification-2026-09.md`**, which checked 2,538
+coverage-area hail reports against ten years of NEXRAD Level-III hail
+detections from NCEI SWDI — radar-derived and fully independent of the LSR
+network.
+
+**`report_sources.confidence_tier` is not surfaced in the browse or match
+views.** The column stays, the seed stays, the `LEFT JOIN` stays. Nothing
+displays it.
+
+**Why:** it would be displaying a distinction that is not there. Public
+reports corroborate against radar at 93.5%, trained spotter reports at 92.4% —
+a 1.09-point gap with p = 0.32, and the two converge to 94.6% and 94.7% once
+four days of missing radar archive are excluded. The premise behind showing a
+tier was that `PUBLIC` — roughly half our hail reports — is the weak input. It
+is not, and the sign is the other way round.
+
+Showing a tier anyway would be worse than useless. A sender who sees
+"moderate" next to a public report will discount it, and would be discounting
+a report the evidence says is as good as the trained one. That is a real cost
+paid for a distinction that does not exist.
+
+**This is a display decision, not a data decision.** The tier remains useful
+for exactly what it was built for — an internal handle for spotting whether
+some *specific* source is degenerate, the way `mPING`-as-`PUBLIC`
+(parking-lot item 7) would need to be found. It is not a per-report quality
+score and must not become one by appearing next to reports.
+
+**Reversal condition, stated so this is not permanent by default:** a
+per-source rate that separates by more than its confidence interval, on a
+sample that supports the claim. COCORAHS is the live candidate — nominally
+lower, but n = 119 gives a ±5-point band and that is not a finding. Rerun
+against a longer archive before ever quoting a COCORAHS deficit.
+
+**Radar-estimated hail size is not adopted as a severity signal.** Where a
+report and a radar signature coincide, radar `MAXSIZE` correlates with the
+reported magnitude at only r = 0.24–0.38, and exceeds the report on ~44% of
+pairs. Medians agree exactly; individual pairs are close to a coin flip.
+
+**Why this matters beyond this study:** it removes the cheap version of the
+MRMS/MESH idea in `parking-lot.md` ("Not on the roadmap"). That entry defers
+MESH on the grounds that a radar estimate is a different *claim* than a filed
+report, and rightly treats the volume as the lesser objection. This adds a
+second, independent reason: at the resolution we would want it — how big was
+the hail at *this* address — the radar number does not carry the information.
+So MESH is not a shortcut to per-listing severity, and if that trigger ever
+fires it must not be justified on severity grounds.
+
+**What this does not decide.** Whether radar could corroborate a report's
+*existence* at the storm-day level is untouched and looks more promising —
+~95% of our reports have a signature nearby. But that number is a forward-only
+rate, inflated by five overlapping radars re-detecting the same cell every
+volume scan, and the reverse direction was deliberately not computed because
+it needs an event-clustering rule first. Do not quote 95% as symmetric
+agreement; the write-up says why at length.
+
+**Related:** *`report_sources` is a lookup, with no foreign key from
+`iem_data`* (2026-09-03) — unchanged; this decides what is *shown*, not what
+is stored or joined. `parking-lot.md` item 7 (mPING arrives as `PUBLIC`) and
+the "Radar-derived hail size (NOAA MRMS / MESH)" entry under *Not on the
+roadmap*. `hail-consolidated.md` §7 notes that the thin per-day report counts
+shape "how the confidence tier should be framed" — this is that framing:
+not framed, because there is nothing to frame.
