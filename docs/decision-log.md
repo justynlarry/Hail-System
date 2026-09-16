@@ -2302,3 +2302,63 @@ and only measuring confirms that rather than assuming it.
 
 **Related:** *County comes from TIGER county polygons* (2026-09-14); *The
 buffer query needs a geography index, not the geometry one* (2026-09-03).
+
+---
+
+## 2026-09-15 — The storm browser and the RentCast match view are separate pages
+
+`/` (the storm browser) answers "what has hit, and where" — date and type
+filters, expandable per-zip detail, and eventually a map. It is the page a
+user lands on after login. The RentCast match view, built in Phase 3, is a
+separate page answering a different question: "which listings does a storm
+touch, and who has been contacted."
+
+**Why separate pages, not one page with a mode switch:** the two have
+different units. A storm-browser row is a query over `iem_data` and
+`coverage_zips` — a storm day, a zip, a city. A match-view row is a query
+over `storm_listing_matches`, `listings`, and `realtors` — a listing. Folding
+both into one page behind a toggle means one URL answers two unrelated
+questions depending on hidden state, and neither filtered view could be
+bookmarked on its own — a link to "hail, last 90 days, type HAIL" and a link
+to "uncontacted listings for the 08-26 storm" need to be two addresses, not
+one address in two modes.
+
+**Consequence for parking-lot item 10** (a date-range territory browse
+grouped by zip or city): it is now the answer to "which of our zips got hit
+this season," a question asked with no listings in mind — squarely the storm
+browser's question, not the match view's. **Whether it needs its own page
+under the storm browser, or lives as a view within the existing
+recent-storm-days page, is unsettled** and left for when it is built.
+
+**Related:** *Flask with server-rendered Jinja templates* (2026-09-14);
+parking-lot item 10 (territory browse) and item 12 (is a storm a first-class
+entity).
+
+---
+
+## 2026-09-15 — Contact state is shown as history, not a boolean
+
+The match view (Phase 3) displays prior sends inline next to the agent —
+"contacted 08-28 re: 08-26 hail" — rather than greying out or marking a
+listing "done."
+
+**Why:** `send_log` records a send to an agent, about a listing, referencing
+a report. "Already contacted" is ambiguous about which of those three the
+question is scoped to. Scoped to the listing, a second storm's legitimate
+outreach reads as suppressed even though the report is new. Scoped to the
+storm, the same agent getting a second letter about the same address two
+weeks later — a plausible legitimate resend — looks identical to a
+duplicate.
+
+**The right rule depends on the frequency cap, which is undecided**
+(parking-lot item 15; `database-schema.md` open question 5). Encoding a
+grey-out now would choose that policy by accident, inside a display
+decision, before the cap itself is designed. History over a boolean lets a
+person read the actual sequence of prior contact and judge for themselves,
+rather than trusting a status field that bakes in a rule nobody has chosen
+yet.
+
+**Related:** *Sending goes through a queue; `queued` is a real status*
+(2026-09-01); *No "currently being viewed" state tracking* (2026-09-01) —
+same instinct, showing a fact rather than encoding a lock, applied here to
+contact state instead of concurrent editing.
