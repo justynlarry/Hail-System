@@ -89,6 +89,7 @@ services:
       PGPASSWORD: ${HAIL_APP_PASSWORD:?HAIL_APP_PASSWORD is not set -- see .env.example}
     volumes:
       - ./output:/app/output
+      - ./hailsys/web/static:/app/hailsys/web/static
     networks:
       - hailnet
     depends_on:
