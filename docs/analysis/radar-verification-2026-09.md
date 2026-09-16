@@ -224,6 +224,81 @@ problem. And the box margin exceeds the widest tolerance, so no edge effect.
 
 ---
 
+## A lone report is not a weaker report
+
+Follow-up on the same matched data, no new tolerances. The concern:
+`hail-consolidated.md` §7 records that 382 of 1,468 Denver-local hail days
+carry exactly one report, so if single-report days corroborate worse, a large
+share of the targeting data would be weaker than the headline suggests — and a
+lone `PUBLIC` report is the sharpest version of that case.
+
+Grouping is by **local Denver day**, the only place in this study where the
+timezone matters; the matching itself stays UTC on both sides. The reports
+export is hail-only, so grouping by day and report type collapses to grouping
+by day.
+
+| Reports that day | Days | Match rate | 95% CI | n |
+|---|---|---|---|---|
+| 1 | 69 | 97.1% | [90.0, 99.2] | 69 |
+| 2–3 | 73 | 97.0% | [93.2, 98.7] | 168 |
+| 4–10 | 75 | 94.3% | [91.8, 96.0] | 472 |
+| 11+ | 66 | 94.7% | [93.5, 95.6] | 1,778 |
+
+**No deficit for lone reports** — they run slightly higher, every interval
+overlaps, and the 2.4-point spread is not even monotonic (11+ sits above
+4–10), which is what noise looks like. Single-report days are 69 of 283 here
+(24%), close to the 26% in §7, so the bucket is not an artifact of the
+coverage restriction.
+
+### The gap exclusion has to key on the UTC day, not just the local day
+
+This nearly produced a wrong answer and is the reusable lesson of the
+follow-up. **A UTC day with zero SWDI rows spans two local days, each of which
+usually does have rows from the adjacent UTC day.** Keying the gap test on
+local day alone therefore retains 46 of the 50 gap reports while still scoring
+them 0/50.
+
+| Exclusion | 1 | 2–3 | 4–10 | 11+ | Spread |
+|---|---|---|---|---|---|
+| None | 95.7% | 96.4% | 92.7% | 92.5% | 3.2 pts |
+| Local day only — *insufficient* | 97.1% | 96.4% | 93.5% | 92.5% | 4.6 pts |
+| **Local and UTC** | **97.1%** | **97.0%** | **94.3%** | **94.7%** | **2.4 pts** |
+
+Excluding on local day alone makes the gradient look *worse*, because it
+strips the four single-report gap reports while leaving 46 in the busy-day
+bucket. In this data that leak is a single storm — UTC 2016-07-08 splitting
+into local 2016-07-07 (22 reports) and 2016-07-08 (19) — landing entirely in
+11+ and depressing it, which flatters the single-report bucket by comparison.
+The 4.6-point version is mostly an artifact of the archive.
+
+Worth noting the direction: the worry was that gap days would be
+over-represented among *quiet* days and manufacture a deficit for lone
+reports. They concentrated in the *busy* bucket instead and manufactured an
+advantage. Either way the fix is the same — exclude on both keys — but the
+error would not have been caught by checking only the bucket one was worried
+about.
+
+### The lone-PUBLIC cell is too small to carry a claim
+
+| Source | Match rate | 95% CI | n |
+|---|---|---|---|
+| TRAINED SPOTTER | 97.5% | [87.1, 99.6] | 40 |
+| PUBLIC | 95.0% | [76.4, 99.1] | 20 |
+| STORM CHASER | 100.0% | [51.0, 100.0] | 4 |
+| 5 other sources | 100.0% | [20.7, 100.0] | 1 each |
+
+**n = 20 gives a 23-point confidence band, and that is the finding.** One
+report either way moves the cell five points. Lone `PUBLIC` against `PUBLIC`
+on a multi-report day is 95.0% versus 94.6%, p = 0.94.
+
+So a lone public hail report is not a weaker signal than one from a crowded
+storm day — but **the honest form of that sentence is "this data cannot detect
+a difference at n = 20," not "there is no difference."** The sample would miss
+anything short of roughly a 15-point gap. If the lone-PUBLIC case ever drives
+a real decision, it needs more years before it can be leaned on.
+
+---
+
 ## Radar size does not predict reported size
 
 At 5 mi / 30 min, taking the nearest signature that carries a size (`-999`
@@ -275,6 +350,7 @@ python3 coverage_bbox.py   # derives the box from TIGER + config/coverage_zips.t
 python3 reduce.py          # ~4 min, streams 6.5 GB -> output/radar-reduced/
 python3 match.py           # the sweep grid, per-source tables, size comparison
 python3 checks.py          # significance, size/year breakdowns, the gap analysis
+python3 by_day_density.py  # reports-per-local-day buckets, the lone-report case
 ```
 
 `reduce.py` is the only slow step. `match.py` runs in about five seconds.
