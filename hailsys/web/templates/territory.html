@@ -45,46 +45,51 @@
 <p>Nothing Matches These Filters</p>
 
 {% elif group_by == 'city' %}
-<table>
-    <thead>
-        <tr>
-            <th></th>
-            <th>City (zip)</th>
-            <th>Type</th>
-            <th class="num">Zips</th>
-            <th class="num">Days</th>
-            <th class="num">Reports</th>
-            <th class="num">Max</th>
-            <th>First</th>
-            <th>Last</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for row in rows %}
-        <tr>
-            <td>
-                <button class="expand"
-                    data-endpoint="/territory/days"
-                    data-area="{{ row.area_name }}"
-                    data-type="{{ selected_type or '' }}"
-                    data-days="{{ selected_days}}"
-                    data-actionable="{{ '1' if actionable_only else '' }}">+</button>
-            </td>
-            <td>{{ row.area_name }}</td>
-            <td>{{ row.report_text }}</td>
-            <td class="num">{{ row.zip_count }}</td>
-            <td class="num">{{ row.day_count }}</td>
-            <td class="num">{{ row.report_count }}</td>
-            <td class="num">{{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}</td>
-            <td>{{ row.first_day }}</td>
-            <td>{{ row.last_day }}</td>
-        </tr>
-        <tr hidden>
-            <td colspan="9"></td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<div class="split">
+    <div class="split-table">
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>City (zip)</th>
+                    <th>Type</th>
+                    <th class="num">Zips</th>
+                    <th class="num">Days</th>
+                    <th class="num">Reports</th>
+                    <th class="num">Max</th>
+                    <th>First</th>
+                    <th>Last</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>
+                        <button class="expand"
+                            data-endpoint="/territory/days"
+                            data-area="{{ row.area_name }}"
+                            data-type="{{ selected_type or '' }}"
+                            data-days="{{ selected_days}}"
+                            data-actionable="{{ '1' if actionable_only else '' }}">+</button>
+                    </td>
+                    <td>{{ row.area_name }}</td>
+                    <td>{{ row.report_text }}</td>
+                    <td class="num">{{ row.zip_count }}</td>
+                    <td class="num">{{ row.day_count }}</td>
+                    <td class="num">{{ row.report_count }}</td>
+                    <td class="num">{{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}</td>
+                    <td>{{ row.first_day }}</td>
+                    <td>{{ row.last_day }}</td>
+                </tr>
+                <tr hidden>
+                    <td colspan="9"></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="split-map"><div id="map"></div></div>
+</div>
 <p class="note">
     A report within range of zips in two cities counts under both, so reports here
     may sum to more than the actual total number of reports.
