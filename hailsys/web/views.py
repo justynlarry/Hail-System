@@ -341,6 +341,7 @@ def map_points():
                     "magnitude": float(r["magnitude"]) if r["magnitude"] is not None else None,
                     "mag_unit": r["mag_unit"],
                     "report_source": r["report_source"],
+                    "report_source_norm": r["report_source_norm"],
                 },
                 "geometry": {
                     "type": "Point",

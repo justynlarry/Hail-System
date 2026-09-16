@@ -279,7 +279,8 @@ SELECT DISTINCT ON (i.iem_id)
     i.report_text,
     i.magnitude,
     t.mag_unit,
-    i.report_source
+    i.report_source,
+    i.report_source_norm
 {_FROM_WHERE}
 {_ACTIONABLE}
 ORDER BY i.iem_id, i.utc_datetime DESC
@@ -289,6 +290,7 @@ LIMIT %(limit)s
 REPORT_POINTS_COLUMNS = [
     "iem_id", "latitude", "longitude", "local_time",
     "report_text", "magnitude", "mag_unit", "report_source",
+    "report_source_norm",
 ]
 
 def fetch_report_points(conn, *, radius_m, window_start, window_end,

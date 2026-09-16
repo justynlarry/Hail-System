@@ -4,6 +4,7 @@
 
 {% block content %}
 
+<script src="{{ url_for('static', filename='map.js') }}" defer></script>
 <script src="{{ url_for('static', filename='storms.js') }}" defer></script>
 
 <form method="get" action="{{ url_for('main.territory') }}" class="filters">
