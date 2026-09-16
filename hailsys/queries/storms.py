@@ -90,6 +90,8 @@ ZIPS_SQL = f"""
 SELECT
     c.zcta5,
     c.area_name,
+    i.report_text,
+    t.mag_unit,
     count(DISTINCT i.iem_id) AS report_count,
     round(min({DISTANCE_EXPR})::numeric, 2) AS nearest_miles,
     round(max({DISTANCE_EXPR})::numeric, 2) AS farthest_miles,
@@ -194,7 +196,7 @@ PAIRS_COLUMNS = [
 ZIPS_COLUMNS = [
     "zcta5", "area_name", "report_count", "nearest_miles", "farthest_miles",
     "first_report", "last_report", "max_magnitude", "min_magnitude",
-    "sources",
+    "sources", "mag_unit", "report_text",
 ]
 
 

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Territory{% endblock %}
+{% block heading %}Territory{% endblock %}
+
+{% block content %}
+<form method="get" action="{{ url_for('main.territory') }}" class="filters">
+    <input type="hidden" name="submitted" value="1">
+
+    <label for="group_by">Group By</label>
+    <select id="group_by" name="group_by">
+        {% for g in group_bys %}
+        <option value="{{ g }}" {% if g == group_by %}selected{% endif %}>{{ g }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="days">Last</label>
+    <select id="days" name="days">
+        {% for n in day_ranges %}
+        <option value="{{ n }}" {% if n == selected_days %}selected{% endif %}>{{ n }} days</option>
+        {% endfor %}
+    </select>
+
+    <label for="type">Type</label>
+    <select id="type" name="type">
+        <option value="">All</option>
+        {% for t in types %}
+        <option value="{{ t }}" {% if t == selected_type %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+    </select>
+
+    <label>
+        <input type="checkbox" name="actionable" value="1"
+                {% if actionable_only %}checked{% endif %}>
+        Actionable Only
+    </label>
+
+    <button type="submit">Apply</button>
+</form>
+
+{% if not rows %}
+<p>Nothing Matches These Filters</p>
+
+{% elif group_by == 'city' %}
+<table>
+    <thead>
+        <tr>
+            <th>City (zip)</th>
+            <th>Type</th>
+            <th class="num">Zips</th>
+            <th class="num">Days</th>
+            <th class="num">Reports</th>
+            <th class="num">Max</th>
+            <th>First</th>
+            <th>Last</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td>{{ row.area_name }}</td>
+            <td>{{ row.report_text }}</td>
+            <td class="num">{{ row.zip_count }}</td>
+            <td class="num">{{ row.day_count }}</td>
+            <td class="num">{{ row.report_count }}</td>
+            <td class="num">{{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}</td>
+            <td>{{ row.first_day }}</td>
+            <td>{{ row.last_day }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<p class="note">
+    A report within range of zips in two cities counts under both, so reports here
+    may sum to more than the actual total number of reports.
+</p>
+
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>Zip</th>
+            <th>City </th>
+            <th>Type</th>
+            <th class="num">Reports</th>
+            <th class="num">Nearest</th>
+            <th class="num">Max</th>
+            <th>First</th>
+            <th>Last</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td>{{ row.zcta5 }}</td>
+            <td>{{ row.area_name }}</td>
+            <td>{{ row.report_text }}</td>
+            <td class="num">{{ row.report_count }}</td>
+            <td class="num">{{ row.nearest_miles }}</td>
+            <td class="num">{{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}</td>
+            <td>{{ row.first_report.strftime('%Y-%m-%d') }}</td>
+            <td>{{ row.last_report.strftime('%Y-%m-%d') }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}
