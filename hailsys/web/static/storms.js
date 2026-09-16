@@ -18,16 +18,14 @@ document.addEventListener('click', function (event) {
     if (cell.dataset.loaded) return;
 
     cell.textContent = 'Loading\u2026';
-    const params = new URLSearchParams({
-        date: button.dataset.date,
-        type: button.dataset.type,
-        submitted: '1',
-    });
+    const params = new URLSearchParams({ submitted: '1' });
+    if (button.dataset.date) params.set('date', button.dataset.date);
+    if (button.dataset.type) params.set('type', button.dataset.type);
+    if (button.dataset.area) params.set('area_name', button.dataset.area);
+    if (button.dataset.days) params.set('days', button.dataset.days);
+    if (button.dataset.actionable === '1') params.set('actionable', '1');
 
-    if (button.dataset.actionable === '1') {
-        params.set('actionable', '1');
-    }
-    fetch('/storms/zips?' + params)
+    fetch(button.dataset.endpoint + '?' + params)
     .then(function (response) {
         if (!response.ok) throw new Error('HTTP ' + response.status);
         return response.text();

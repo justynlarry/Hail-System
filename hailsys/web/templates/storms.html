@@ -34,6 +34,7 @@
     <table>   
     <thead>
         <tr>
+            <th></th>
             <th>Date</th>
             <th>Type</th>
             <th class="num">Reports</th>
@@ -46,6 +47,7 @@
         <tr>
             <td>
                 <button class="expand"
+                    data-endpoint="/storms/zips"
                     data-date="{{ row.storm_date }}"
                     data-type="{{ row.report_text}}"
                     data-actionable="{{ '1' if actionable_only else '' }}">+</button>

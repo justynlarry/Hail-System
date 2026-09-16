@@ -3,6 +3,9 @@
 {% block heading %}Territory{% endblock %}
 
 {% block content %}
+
+<script src="{{ url_for('static', filename='storms.js') }}" defer></script>
+
 <form method="get" action="{{ url_for('main.territory') }}" class="filters">
     <input type="hidden" name="submitted" value="1">
 
@@ -78,6 +81,7 @@
 <table>
     <thead>
         <tr>
+            <th></th>
             <th>Zip</th>
             <th>City </th>
             <th>Type</th>
@@ -91,6 +95,14 @@
     <tbody>
         {% for row in rows %}
         <tr>
+            <td>
+                <button class="expand"
+                    data-endpoint="/territory/days"
+                    data-area="{{ row.area_name }}"
+                    data-type="{{ selected_type or '' }}"
+                    data-days="{{ selected_days}}"
+                    data-actionable="{{ '1' if actionable_only else '' }}">+</button>
+            </td>
             <td>{{ row.zcta5 }}</td>
             <td>{{ row.area_name }}</td>
             <td>{{ row.report_text }}</td>
@@ -99,6 +111,9 @@
             <td class="num">{{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}</td>
             <td>{{ row.first_report.strftime('%Y-%m-%d') }}</td>
             <td>{{ row.last_report.strftime('%Y-%m-%d') }}</td>
+        </tr>
+        <tr hidden>
+            <td colspan="9"></td>
         </tr>
         {% endfor %}
     </tbody>
