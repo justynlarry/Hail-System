@@ -2676,3 +2676,13 @@ covered.
 
 **Related:** *Map: Leaflet, no tile layer* (2026-09-16). Resolves
 `parking-lot.md` item 28.
+
+---
+
+## 2026-09-17 — Ingest stays state=CO-only; no widening
+
+RBI is licensed only in Colorado, so out-of-state hail reports have no
+business use regardless of geographic proximity. This is a licensing
+constraint, not a coverage gap to eventually close. Resolves parking-lot
+item 21 / database-schema.md open question 12 — closed, not deferred. The
+`state=CO` filter (2026-09-04 entry) stands as originally chosen.

@@ -294,6 +294,24 @@ geographic area.
   agent fields.
 - **New Construction is not worth outreach.** A brand-new roof is not a hail claim.
 
+### HTTP status codes
+
+Recorded ahead of the Phase 3 RentCast client so the error-handling design
+has this to build against, rather than being worked out live against a paid
+API. Not built yet — no code reads these codes today.
+
+| Code | What it actually means | User-facing text |
+|---|---|---|
+| 401 | Bad or missing API key | "RentCast rejected our API key. This is a configuration problem, not something a retry fixes — check RENTCAST_KEY." |
+| 403 | Key restricted, or a billing/subscription issue | "RentCast declined this request — check the account's billing status or key restrictions on the RentCast dashboard." |
+| 404 | Not an error — zero listings matched the query | No popup. A normal empty result, not a failure — worth naming because it inverts the usual REST convention where 404 means "broken." |
+| 429 | Sent requests faster than 20/sec, per key | "RentCast asked us to slow down. Retrying automatically." Should self-heal — see below. |
+| 500 | RentCast's server had an internal error | "RentCast had an error on their end. Safe to retry — try again in a minute." |
+| 504 | RentCast's server timed out | "RentCast didn't respond in time. Safe to retry." |
+| 400 | Malformed/invalid query parameter | "Something about this request wasn't valid — likely a bad zip or filter value." Shouldn't happen if the params are built correctly, but worth a message if it does. |
+| 405 | Wrong HTTP method | Shouldn't ever fire — we only `GET`. If it does: "Unexpected response from RentCast — this points at a bug in our request, not RBI's data." |
+| (none) | Network failure — timeout, DNS, connection refused, on our end | "Couldn't reach RentCast at all — check network/DNS, or RentCast may be down." Distinct from the above: there is no HTTP response to read a code from. |
+
 ### Not used
 
 Property records, valuation/AVM, rent estimates, market statistics, rental

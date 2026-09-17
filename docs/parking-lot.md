@@ -425,6 +425,13 @@ RentCast pull near it would spend real money against a report set already
 known to be incomplete. *(`database-schema.md`, open question 12; decision-log
 2026-09-04)*
 
+**Resolved 2026-09-17.** See `docs/decision-log.md`, "Ingest stays
+state=CO-only; no widening" — RBI is licensed only in Colorado, so an
+out-of-state report has no business use regardless of geographic proximity.
+That is a licensing constraint on the business, not a data gap on our side,
+so neither of the two widening options above is being built. Closed, not
+deferred — the `state=CO` filter (2026-09-04) stands as originally chosen.
+
 ## 22. Map — side-by-side with the storm list
 
 Leaflet from a CDN, no build step, consistent with the server-rendered

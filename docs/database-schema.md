@@ -1155,6 +1155,12 @@ re-run inserts only what is new. The reason to settle it deliberately is that
 nothing will ever surface the gap: a report that was never fetched leaves no
 row, no reject, and no count to notice.
 
+**Resolved 2026-09-17.** See decision-log, "Ingest stays state=CO-only; no
+widening" — RBI is licensed only in Colorado, so an out-of-state report has
+no business use regardless of proximity to the border. A licensing
+constraint, not a coverage gap, so neither widening option above is being
+built. Closed, not deferred.
+
 ---
 
 # Deliberate non-goals

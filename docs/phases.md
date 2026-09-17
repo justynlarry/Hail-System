@@ -62,6 +62,8 @@ storm from last month, and the nightly job has run unattended for a week.
 **Done when:** someone other than the developer can log in, find last spring's
 worst hail, and download it as a spreadsheet.
 
+**Closed 2026-09-17.**
+
 This phase has standalone value. Knowing where hail hit is useful whether or not
 a single email ever goes out.
 
@@ -70,9 +72,11 @@ a single email ever goes out.
 ## Phase 3 — Listings
 **~15–25 hrs · 2–2.5 weeks**
 
-- RentCast client with pagination and error handling
-- Pre-pull estimate: zip count and projected call count shown before confirming
-- `api_pulls` / `api_call_log` written on every pull
+**Begun 2026-09-17.**
+
+- RentCast client with pagination and error handling — `hailsys/rentcast/client.py`, started
+- Pre-pull estimate: zip count and projected call count shown before confirming — `hailsys/rentcast/estimate.py`, started
+- `api_pulls` / `api_call_log` written on every pull — schema link in place (`sql/013_pull_storm_link.sql`), no write path yet
 - "Pulled recently" warning per zip
 - Properties, listings, realtors upsert logic
 - Storm→listing matching with distance and radius recorded

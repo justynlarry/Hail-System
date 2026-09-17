@@ -129,10 +129,19 @@ ten.
 
 ## 2. Where the project actually stands
 
-**Phase 1 — IEM ingest, mechanism complete, unattended-week clock one day from
-running out. Phase 0 is closed. Phase 2 — the storm-browser web app — is
-substantially built, not merely planned.** See "The web app" below for what
-Phase 2 actually shipped.
+**Phases 0 and 1 are closed. Phase 2 — the storm-browser web app — is closed,
+2026-09-17.** Phase 3 — RentCast listings — is in its beginning stages: a
+sale-listings API client and a pre-pull cost estimate exist, plus a schema
+change linking a pull back to the storm it was pulled for. See "The web app"
+below for what Phase 2 shipped, and "Phase 3 begins" below for what's here so
+far.
+
+**On "closed":** this is Justyn's call, recorded here, not a re-verification
+against the phase's own "done when" bar. The gaps this file had flagged as of
+the last check — no second real account has ever logged in, no CSRF
+protection, county grouping never wired into the territory browse UI — were
+still true at that check and are not claimed fixed by this entry. They carry
+forward as open items against a closed phase, not as blockers reopening it.
 
 ### Infrastructure — verified on a running stack, 2026-09-08 through 2026-09-10
 
@@ -582,10 +591,13 @@ decide, not silently patched:
   live, if brief, exposure rather than a theoretical one. **Left open** —
   a real fix, not a doc fix.
 - **Phase 2's own "done when" — "someone *other than the developer* can log
-  in ... and download it as a spreadsheet" — is not yet demonstrated.** The
-  mechanism exists; only one real account (`justyn`, the developer) has ever
-  been created. The Funnel demo let someone *view* the app, not necessarily
-  log into it as themselves. **Left open.**
+  in ... and download it as a spreadsheet" — was not independently
+  demonstrated before the phase was called closed (2026-09-17, Justyn's
+  call, see §2 top).** The mechanism exists; only one real account
+  (`justyn`, the developer) had ever been created as of the last check. The
+  Funnel demo let someone *view* the app, not necessarily log into it as
+  themselves. **Left open** — carried forward as a real gap against a closed
+  phase, not reopened by closing it.
 - **County grouping was never wired into the UI**, though `county_boundaries`
   has existed and been loaded since 2026-09-14. `territory()`'s `GROUP_BYS`
   is `("zip", "city")` only — `phases.md`'s Phase 2 checklist ("group by
@@ -608,6 +620,51 @@ decide, not silently patched:
 - **`database-schema.md` said "Seventeen tables" and had no field-level entry
   for `county_boundaries`** (§5). **Fixed this session** — the header now
   says eighteen and `county_boundaries` has its own table section.
+
+### Phase 3 begins — 2026-09-17
+
+`hailsys/rentcast/` exists: `client.py` (sale-listings search — pagination,
+throttling to RentCast's 20 req/sec, and error classification into
+`RentCastAuthError` / `RentCastValidationError` / `RentCastServerError` /
+`RentCastConnectionError`), `estimate.py` (pre-pull cost estimate — zip count
+and a projected call count, built on `hailsys.queries.storms.fetch_zips` and
+`api_call_log` history), and `sql/013_pull_storm_link.sql` (additive: gives
+`api_pulls` a nullable `storm_date`/`report_text` pair, `CHECK`-enforced
+both-or-neither, so a pull can be traced back to the storm day it was pulled
+for). Nothing calls any of this yet — no pull orchestration, no UI, no
+`api_pulls`/`api_call_log` writes.
+
+**Both `client.py` and `estimate.py` shipped broken and were fixed over
+several review passes, not written correct the first time — worth recording
+as a pattern, not just a result.** `client.py`'s first draft had an
+unterminated string that kept the whole module from parsing, half a dozen
+misspelled names that would have raised `NameError` on first real use, and
+401/403/400/405 all routing to the wrong exception class despite the correct
+classes already existing with correct messages — see decision-log-style
+detail in the commit (`420717a`), though **no dated decision-log entry
+covers this file**, only the commit message; the Phase 3 build is ahead of
+its own paper trail the same way Phase 2's build got two days ahead of
+`decision-log.md`/`parking-lot.md` in September. `estimate.py`'s first draft
+didn't parse at all — a duplicate-parameter signature with no closing colon,
+and a body that was never actually indented into the function, so the one
+line that mattered (the call to `fetch_zips`) never ran. Both are fixed and
+verified (parse, import, and for `client.py`, each exception's `user_message`
+checked directly) as of this sync.
+
+**`sql/013_pull_storm_link.sql` applied to `hail-dev` ahead of being
+committed**, during review — verified correct (matches the file exactly,
+checked against `\d api_pulls`) but worth knowing if `hail-dev`'s schema is
+ever diffed against a fresh apply of `sql/*.sql` in commit order before this
+file lands in git. **One real finding from that test:** the file's last
+statement has no trailing `;` — harmless when applied the normal way
+(`psql -f` treats EOF as an implicit terminator, confirmed), but every other
+file in `sql/` terminates its last statement explicitly. Also unresolved:
+no `BEGIN;`/`COMMIT;` wrapping the four statements (a convention `001`–`009`
+and `011` observed and `012` dropped without a recorded reason, and `013`
+follows `012`), and no FK-level tie from `report_text` to `report_types` —
+consistent with how the web app already treats `report_text` as a
+free-standing filter value (§2, "The web app"), not a new gap this file
+introduces.
 
 **Do not build ahead of the current phase.**
 
@@ -1419,6 +1476,8 @@ sql/                          apply in order; 010 must be last
   010_roles.sql               hail_ingest / hail_app roles, grants, passwords
   011_ingest.sql              additive COMMENT fix; 001-009 are frozen post-backfill
   012_counties.sql            county_boundaries; additive, same reason as 011 (2026-09-14)
+  013_pull_storm_link.sql     api_pulls gains storm_date/report_text, CHECK'd as a pair;
+                               additive, same reason as 011/012 (2026-09-17, Phase 3)
 hailsys/                      importable package, moved out of scripts/ (2026-09-14)
   __init__.py                 empty
   tuning.py                   read-time tuning constants (radius, etc.), reasoning in comments
@@ -1458,6 +1517,12 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
         marker-shadow.png         markers (map.js draws circleMarker/circle, not L.marker) —
                                shipped because leaflet.css references them, harmless if 404
   wsgi.py                    two lines: `from hailsys.web import create_app; app = create_app()`
+  rentcast/                  Phase 3, begun 2026-09-17; nothing calls this package yet
+    __init__.py                empty
+    client.py                  sale-listings search: pagination, throttle to 20 req/sec,
+                               RentCastAuthError/ValidationError/ServerError/ConnectionError
+    estimate.py                pre-pull estimate: zip count + projected call count, from
+                               fetch_zips and api_call_log history
 scripts/
   build_reference_tables.py   derives reference CSVs from the raw LSR archive
   zcat-data-check.py          checks coverage zips against the TIGER .dbf
@@ -1617,22 +1682,27 @@ this file summarizes a source.
     Tailscale-access entry (§6) touches the same territory but explicitly
     declines to answer it, noting only that the application still needs its
     own login regardless of network access.
-12. **Should ingest widen past `state=CO`?** (Retitled 2026-09-14 — the
-    original phrasing, "out-of-state reports are excluded permanently," stated
-    the current default as if it were the decision, which it is not; only the
-    default is settled.) Ingest queries `state=CO` — a decision made
-    2026-09-04, over a WFO list, and that entry already flags this exact
-    consequence and defers it here. A report over the Wyoming or Nebraska line
-    is never fetched. **No buffer radius recovers it** — the radius widens the
-    search around a stored report, and these are never stored. Cheap to widen
-    later (re-ingest is idempotent); the reason to decide it deliberately is
-    that nothing will ever surface the gap — no row, no reject, no count.
-    **New as of 2026-09-08:** IEM exposes bounding-box parameters (`north`,
-    `south`, `east`, `west`, added 2024-10-24), so this question now has a
-    mechanism attached rather than only a description — a box crossing the state
-    line would store the Wyoming report in the first place. This does not
-    reopen the 2026-09-04 `state=CO` decision; it means choosing to leave the
-    gap is now a choice between two available options.
+12. **Resolved, 2026-09-17.** ~~Should ingest widen past `state=CO`?~~
+    (Retitled 2026-09-14 — the original phrasing, "out-of-state reports are
+    excluded permanently," stated the current default as if it were the
+    decision, which it is not; only the default is settled.) Ingest queries
+    `state=CO` — a decision made 2026-09-04, over a WFO list, and that entry
+    already flags this exact consequence and defers it here. A report over
+    the Wyoming or Nebraska line is never fetched. **No buffer radius
+    recovers it** — the radius widens the search around a stored report, and
+    these are never stored. **New as of 2026-09-08:** IEM exposes
+    bounding-box parameters (`north`, `south`, `east`, `west`, added
+    2024-10-24), giving this question a mechanism, not just a description —
+    a box crossing the state line would store the Wyoming report in the
+    first place.
+
+    **Resolution:** neither widening option is being built. RBI is licensed
+    only in Colorado, so an out-of-state report has no business use
+    regardless of geographic proximity — a licensing constraint, not a data
+    gap. **Resolves parking-lot item 21 / database-schema.md open question
+    12 — closed, not deferred.** The `state=CO` filter (2026-09-04) stands
+    as originally chosen. See decision-log, "Ingest stays state=CO-only; no
+    widening."
 13. **Resolved and built.** ~~`report_sources` has DDL but no seed.~~
     `planning/report_sources.csv` is the curated 47-row seed (commit `5e3eb53`,
     "Seed report_sources; fold the loader into load_reference.sh") and
