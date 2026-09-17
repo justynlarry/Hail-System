@@ -2686,3 +2686,68 @@ business use regardless of geographic proximity. This is a licensing
 constraint, not a coverage gap to eventually close. Resolves parking-lot
 item 21 / database-schema.md open question 12 — closed, not deferred. The
 `state=CO` filter (2026-09-04 entry) stands as originally chosen.
+
+---
+
+## 2026-09-17 — RentCast client: stdlib urllib, Active-only, daysOld server-side
+
+`hailsys/rentcast/client.py`. No new dependency — `urllib.error` already
+splits cleanly into "RentCast responded with a status" vs. "never got a
+response," which is the same split the UI error-popup design needs, so
+`requests` wasn't buying anything on top of that for one GET endpoint.
+`status=Active` scoping, learned from the prior system's 25k-record incident
+(its `rentcast.py:69`). Pagination stops on `len(page) < 500` rather than
+inspecting listing dates client-side — the prior system's early-exit assumed
+page order tracked `listedDate`, but RentCast sorts by `lastSeenDate`; using
+`daysOld` as a server-side filter avoids the assumption entirely. Throttled
+to 20 req/sec (RentCast's hard per-key limit); retries with exponential
+backoff on 429/500/503/504; RentCast's 404 is treated as zero results, not a
+failure. `RentCastError` and subclasses carry `.attempts`/`.status` so cost
+bookkeeping survives a failed call, not just a successful one — every
+physical request is counted toward `api_pulls.actual_api_calls`, retries
+included, since RentCast doesn't document whether a failed request is
+excluded from billing and this errs toward not understating spend.
+
+---
+
+## 2026-09-17 — Storm identity: api_pulls links to a (date, report_text) window, not one iem_data row
+
+`sql/013_pull_storm_link.sql` (applied). A storm has never been a single row
+anywhere in this codebase — `hailsys/queries/storms.py`'s `fetch_zips` takes
+a date window and a `report_text`, never an `iem_id`, because one hail day is
+usually several scattered reports. `api_pulls.iem_id` stays NULL for a
+storm-browser pull; `storm_date`/`report_text` (nullable, paired by a CHECK
+constraint) record what was actually clicked instead. No change to
+`iem_data` or the storm-grouping query — this only extends how a pull is
+traced back to its origin.
+
+---
+
+## 2026-09-17 — Pull orchestration: continue past a bad zip, abort past a bad key
+
+`hailsys/rentcast/pull.py`. A single zip's RentCast failure (bad param,
+transient 5xx) logs that zip's real `http_status` to `api_call_log` and
+moves on to the next zip — money already spent on prior zips isn't
+discarded, and the gap is diagnosable rather than silent. An auth failure
+(401/403) aborts the whole pull instead — a bad key fails identically on
+every remaining zip, so there's nothing to gain by trying them.
+`api_pulls.api_status = 'complete'` means the run finished, not that every
+zip succeeded — per-zip truth lives in `api_call_log.http_status`; the
+column is deliberately not overloaded to mean both. An upsert failure (bad
+data from RentCast, e.g. `NotNullViolation`) aborts the whole pull the same
+way an auth failure does, for the same reason — our own code will fail
+identically on the next zip too.
+
+---
+
+## 2026-09-17 — Learning: a failed statement poisons the whole transaction until rolled back
+
+Found during testing, not designed for in advance: once any statement in a
+psycopg transaction raises, every subsequent statement on that connection
+raises `InFailedSqlTransaction` — including the one meant to record the
+failure — until an explicit `conn.rollback()`. `pull.py`'s upsert-failure
+branch now rolls back before calling `_finish_pull`, or the `api_pulls` row
+was left stuck at `'running'` forever with the real error swallowed by a
+second, unrelated one. General pattern worth carrying forward to any future
+code that catches a DB exception and tries to write anything afterward on
+the same connection.
