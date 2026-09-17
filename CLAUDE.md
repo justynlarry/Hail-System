@@ -102,6 +102,18 @@ These have already bitten us. Do not re-discover them.
 - Failures should be loud. Silent partial success is worse than an error.
 - Comment the *why*, not the *what*, especially around the traps above.
 
+## Ask before editing
+
+Verification questions are not work requests. "What's the status of X",
+"is Y still open", "does the log have an entry for Z" ask you to read and
+report, not to fix what you find. Report what's there, name what's missing,
+and stop.
+
+Propose the change and wait for a yes before editing any file — code, SQL,
+or docs. This holds even when the fix is obvious and already agreed in
+principle, because priorities shift between the decision and the moment,
+and an item that was next last week may have been deprioritized since.
+
 ## Working style
 
 The user is teaching himself as this is built — Bash, Docker, Python, Postgres.
