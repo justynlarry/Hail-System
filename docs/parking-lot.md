@@ -486,6 +486,85 @@ result set looks the same either way unless the page names which one it is.
 
 **When:** Phase 3, when the match view is built.
 
+## 26. PDF export with table and map
+
+Depends on how the map got built; the three options are a headless-browser
+print, a server-side static map render, or a `@media print` stylesheet.
+
+**When:** after the map.
+
+## 27. CSV header labels
+
+`"Closest Report (mi)"` / `"Farthest Report (mi)"` (0 = inside the zip),
+`mag_unit` folded into the magnitude values, timestamps as
+`MM-DD-YYYY HH:MM:SS`. Applies to both the CLI and web exports, since they
+share `ZIPS_COLUMNS`.
+
+**When:** before the PDF.
+
+## 28. Vendor Leaflet into `static/` instead of the CDN
+
+**When:** before prod deployment.
+
+## 29. Extract the repeated filter parsing
+
+Five routes now duplicate the `days`/`type`/`actionable` parsing block.
+
+**When:** next time a route needs it.
+
+## 30. Bind-mount `hailsys/` into the `app` service
+
+So one-off checks reflect the working tree rather than the last build. Cost
+us time twice.
+
+**When:** soon; dev-only.
+
+## 31. Derive column lists from `cur.description`
+
+Rather than maintaining them alongside the SQL. `ZIPS_COLUMNS` and
+`ZIPS_SQL` have drifted twice, and the symptom is a blank cell, not an
+error.
+
+**When:** when a third projection drifts.
+
+## 32. `StrictUndefined` in the Jinja environment
+
+Missing template variables currently render blank rather than raising,
+which has produced two silently-wrong pages.
+
+**When:** soon.
+
+## 33. `REPORT_POINTS_SQL`'s `LIMIT` keeps the lowest `iem_id`, not the most recent reports
+
+Because `DISTINCT ON` pins the `ORDER BY`.
+
+**When:** if the map ever hits the 2000 cap.
+
+## 34. A favicon
+
+To stop the 404 on every page load.
+
+**When:** whenever.
+
+## 35. Reverse direction of the radar analysis — signatures with no report
+
+Needs event clustering; five overlapping radars re-detecting every ~5
+minutes make raw counts meaningless.
+
+**When:** only if the forward result raises a question it can answer.
+
+## 36. `CLAUDE.md` is stale
+
+Claims the ingest scripts and test suite don't exist.
+
+**When:** next docs pass.
+
+## 37. Verify whether the 10 zip-less coverage zips are the already-removed rows
+
+If so, there's no silent-match problem.
+
+**When:** next docs pass.
+
 ---
 
 ## Also worth carrying

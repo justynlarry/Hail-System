@@ -2430,3 +2430,215 @@ the "Radar-derived hail size (NOAA MRMS / MESH)" entry under *Not on the
 roadmap*. `hail-consolidated.md` §7 notes that the thin per-day report counts
 shape "how the confidence tier should be framed" — this is that framing:
 not framed, because there is nothing to frame.
+
+---
+
+## 2026-09-16 — `ZIPS_SQL` groups by report type
+
+Previously one row per zip regardless of report type. That produced the same
+mixed-unit magnitude problem the city view would later hit: `max(magnitude)`
+across a HAIL row and a NON-TSTM WND GST row on the same zip reports one
+number against whichever unit the planner happened to return, which is
+meaningless when the two types use different scales.
+
+**Fix:** `ZIPS_SQL`'s `GROUP BY` now includes `i.report_text` (`t.mag_unit`
+alongside it, so the aggregate and its unit travel together), so a zip that
+saw both hail and wind in the window returns two rows instead of one row
+with an ambiguous max.
+
+**Consequence for the CLI export.** `scripts/export_storm_zips.py --format
+zips` changes shape: the unfiltered case now emits one row per zip per
+report type rather than one row per zip. The filtered case (a single
+`--type`) is unaffected by construction, since only one report type can
+appear in that result set — verified at 46 lines for 2026-06-24 HAIL,
+unchanged from before the grouping change.
+
+**Related:** *The storm query lives in `hailsys/queries/storms.py`*
+(2026-09-14); *`_ACTIONABLE` pulled into the shared query core*
+(2026-09-15) — same family of bug, a rule applied in only one projection.
+
+---
+
+## 2026-09-16 — Territory browse is its own page, grouped by city-and-type
+
+`/territory` answers "which places got hit" — a different question from the
+storm list's "what happened when." The storm browser groups by day;
+territory groups by place.
+
+**Why city grouping carries `report_text`, not just `area_name`:** the same
+mixed-unit problem `ZIPS_SQL` was just fixed for shows up again one level up.
+A city with 1.5″ hail and a 70 mph gust in the same window would report
+`max(magnitude) = 70` against whichever unit happened to come back first — a
+number that means nothing without knowing which type produced it. Grouping
+by `(area_name, report_text, mag_unit)` keeps the magnitude and its unit
+attached to the type that produced it, the same fix as `ZIPS_SQL`.
+
+**Zip mode needed no new SQL.** `ZIPS_SQL` already accepted any window, not
+only a single day — the single-day assumption lived in the caller
+(`storm_zips()`, which always supplied one day's bounds), not in the query.
+Territory's zip-grouped view calls `fetch_zips` with the page's own
+date-range window, and the query itself needed no change.
+
+**The city→zip fan-out is disclosed, not hidden.** A report in range of
+coverage zips that sit in two different cities counts under both, so a
+page's sum of `report_count` across cities can exceed the actual report
+total for that window. The page carries a footnote saying so, rather than
+the number quietly failing to add up.
+
+**Related:** *`ZIPS_SQL` groups by report type* (2026-09-16); *The storm
+browser and the RentCast match view are separate pages* (2026-09-15) — same
+reasoning against folding a second grouping into a mode switch, applied one
+level down. Answers parking-lot item 10.
+
+---
+
+## 2026-09-16 — CSV export from the UI returns zip-level detail
+
+`/export.csv` reuses `fetch_zips` — the same query behind territory's
+zip-grouped view — with the page's current filters passed through via
+`request.query_string`, not re-derived from the form fields.
+
+**Why zip-level, not the day list:** the day list is something you read — a
+summary to decide where to look. The zip export is what you act on — the
+actual list a planner takes to RentCast. Exporting the day list would hand
+someone a table they'd still have to turn into zips by hand; exporting zip
+detail hands them the thing the next step actually consumes.
+
+**Why the query string, not a re-read of the form:** the export link sits
+next to Apply and points at whatever the page is currently showing.
+Reusing `request.query_string` means the download matches what's on screen
+without a second source of truth for "which filters are active" to drift
+out of sync with the first.
+
+**Related:** *`ZIPS_SQL` groups by report type* (2026-09-16); *`_ACTIONABLE`
+pulled into the shared query core* (2026-09-15) — the `actionable_only` flag
+this route reads has already caused one cross-projection disagreement, which
+is why it's read with the same `"submitted"`-gated default as every other
+route rather than a route-specific rule.
+
+---
+
+## 2026-09-16 — Radar verification follow-up: lone reports don't corroborate worse, and 2 miles is below the datasets' joint resolution
+
+Follow-up on the same matched data behind *`confidence_tier` stays out of
+the UI, and radar size is not a severity signal* (2026-09-16 above), no new
+tolerances. Full detail in `docs/analysis/radar-verification-2026-09.md`.
+
+**The concern:** `hail-consolidated.md` §7 records 382 of 1,468 Denver-local
+hail days carrying exactly one report — if single-report days corroborate
+worse against radar, a large share of the targeting data is weaker than the
+headline rate suggests, and a lone `PUBLIC` report is the sharpest version
+of that case.
+
+**Result: no deficit.** Grouped by local Denver day: 1 report/day matches at
+97.1% (n=69), 2–3 at 97.0%, 4–10 at 94.3%, 11+ at 94.7%. Lone reports run
+slightly *higher*, every confidence interval overlaps, and the 2.4-point
+spread isn't even monotonic — 11+ sits above 4–10 — which is what noise
+looks like, not a gradient.
+
+**A correction that mattered along the way.** The archive-gap exclusion
+(days with zero SWDI rows anywhere in the box) has to key on the UTC day,
+not the local day. A UTC day with no radar rows spans two local days, each
+of which usually *does* have rows from the adjacent UTC day — keying on
+local day alone retained 46 of the 50 gap reports while still scoring them
+0. In this data that leak landed mostly in the busy-day bucket (one storm,
+UTC 2016-07-08, splitting into two local days), *flattering* the lone-report
+bucket by comparison — the opposite of the failure being guarded against.
+Both exclusion keys land on the same headline number, but only excluding on
+both gives an honest per-bucket breakdown, and the direction of the error
+would not have been caught by checking only the bucket one was worried
+about.
+
+**The lone-`PUBLIC` cell specifically is too small to carry a claim.** n=20,
+a 23-point confidence band — one report either way moves the cell 5 points.
+Lone `PUBLIC` (95.0%) versus `PUBLIC` on a multi-report day (94.6%) is
+p = 0.94. Honest form: *this data cannot detect a difference at n=20*, not
+*there is no difference*. Needs more years of archive before this specific
+case can be leaned on for anything.
+
+**Separately, from the tolerance sweep: 2 miles is a resolution floor, not a
+finding.** Widening 2→5 miles at fixed 30 minutes adds 15.6 points;
+widening 15→60 minutes at fixed 5 miles adds only 2.9 — distance does the
+work, time does almost none, except at the 2-mile row, which is unstable.
+LSR positions are geocoded to town centroids and offsets like "2 NW
+Durango," exported coordinates are quantized to ~0.4 mi on their own, and a
+radar signature is a storm-cell centroid *aloft*, displaced by advection and
+storm tilt from where the hail actually lands. Two miles is below the joint
+resolution of the two datasets — which is why the existing 5-mile buffer
+radius (`tuning.py`, 2026-09-10) is the right scale to verify against in the
+first place, not a compromise from a tighter one.
+
+**Related:** *`confidence_tier` stays out of the UI, and radar size is not a
+severity signal* (2026-09-16); *`tuning.py`: both the zip radius and the
+match radius are `5.0` miles* (2026-09-10).
+
+---
+
+## 2026-09-16 — Map: Leaflet, no tile layer
+
+Leaflet, loaded from a CDN with no build step, consistent with the
+server-rendered-Jinja decision (2026-09-14). No basemap tile layer: a tile
+layer means a third-party request on every pan, with its own terms of use,
+and the coverage polygons already serve as the basemap.
+
+**Coverage polygons are a static, pre-generated GeoJSON fixture, not a
+query.** `scripts/build_coverage_geojson.py` runs
+`ST_SimplifyPreserveTopology` at 0.0005° (~55 m at this latitude) once, by
+eye. Measured against the live database: the same 183 zips as unsimplified
+GeoJSON run 4.18 MB; simplified, the fixture is 418 kB — a 10× reduction,
+written to `static/coverage.geojson` for the browser to cache. **Why a fixture and
+not per-request simplification:** the service area is stable — 183 zips,
+edited rarely — so simplifying on every request would recompute an answer
+that doesn't change between edits. **The simplified geometry is
+display-only and never touches matching** — `ST_DWithin` and every other
+spatial predicate in `storms.py` runs against `zcta_boundaries.geom`
+directly, never against the simplified fixture.
+
+**Report points are colored by `report_source_norm`, not raw
+`report_source`.** The raw field is free text typed at individual NWS
+offices with inconsistent case (`Public`, `PUBLIC`, `public`) — matching
+color keys against it silently miscolors anything not cased exactly like the
+key, the same class of bug the `report_sources` join has always guarded
+against by matching on the normalized column instead. The tooltip still
+shows the raw `report_source`, since the human-readable form — not the
+normalized join key — is what should be displayed.
+
+**5-mile radius circles use `L.circle`, not `L.circleMarker`.** `L.circle`
+takes a radius in metres and draws a true circle on the ground;
+`L.circleMarker` takes pixels and would grow or shrink with zoom, which
+would misrepresent how far 5 miles actually is at whatever zoom level
+someone is looking at. Circles are drawn `interactive: false` so they don't
+intercept hover events meant for the report markers layered on top of them.
+
+**Known caveat, already on record:** color-by-source is honest about what's
+stored, not how a report was collected — parking-lot item 7 (mPING taps and
+phone calls both arrive as `PUBLIC`).
+
+**Related:** *Flask with server-rendered Jinja templates* (2026-09-14);
+*`confidence_tier` stays out of the UI, and radar size is not a severity
+signal* (2026-09-16) — same instinct, not asserting a distinction the data
+doesn't support, applied to marker color instead of a tier badge.
+Parking-lot item 22 (map).
+
+---
+
+## 2026-09-16 — Access for the demo: Tailscale Funnel, temporarily
+
+`tailscale serve`, the mechanism chosen for Phase 2 (2026-09-14 entry), is
+tailnet-only — a non-technical viewer would need to install a Tailscale
+client to reach it, which isn't realistic to ask of someone previewing a
+demo.
+
+**Funnel makes the same hostname publicly reachable over TLS**, for the
+duration of the demo. **Consequence:** with Funnel on, network-level access
+control is gone — the application's own login becomes the *only* gate
+between the public internet and the system, which raises the priority of
+CSRF protection on every state-changing route, not only the send path Phase
+5 will eventually add.
+
+**Turn it off after.** This is not a reversal of the Phase 6 tunnel timing
+(2026-09-14 entry's question stands as originally decided) — it's a
+temporary widening for one demo, reverted once the demo ends.
+
+**Related:** *Phase 2 UI is reached over Tailscale, not a Cloudflare
+tunnel* (2026-09-14).
