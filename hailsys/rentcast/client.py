@@ -29,6 +29,11 @@ class RentCastError(Exception):
     safe to show a person in a popup"""
     user_message = "Rentcast request failed for an unknown reason."
 
+    def __init__(self, message, *, attempts=0, status=None):
+        super().__init__(message)
+        self.attempts = attempts
+        self.status = status
+
 class RentCastAuthError(RentCastError):
     """401/403: a retry won't fix this"""
     user_message = ("Rentcast rejected this request (Bad API key, billing "
@@ -53,8 +58,8 @@ class RentCastServerError(RentCastError):
     }
     user_message = "RentCast is unavailable or rate-limiting. Safe to retry shortly."
 
-    def __init__(self, message, status=None):
-        super().__init__(message)
+    def __init__(self, message, *, attempts=0, status=None):
+        super().__init__(message, attempts=attempts, status=status)
         if status in self._MESSAGES:
             self.user_message = self._MESSAGES[status]
 
@@ -88,14 +93,16 @@ def _get(params: dict) -> list:
 
     attempt = 0
     while True:
+        attempt += 1
         _throttle()
         try:
             with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
                 data = json.loads(response.read())
                 if not isinstance(data, list):
                     logger.error("event=rentcast_unexpected_shape type=%s", type(data).__name__)
-                    return []
-                return data
+                    return [], attempt
+                return data, attempt
+
         except urllib.error.HTTPError as exc:
             status = exc.code
             try:
@@ -104,63 +111,78 @@ def _get(params: dict) -> list:
                 body = {}
 
             if status == 404:
-                return []
+                return [], attempt
             
             if status in (401, 403):
                 # A retry can't fix a bad key or a billing/restriction
-                # issue, so this raises immediately -- 'attempt' is still
-                # 0 here and stays out of the message on purpose.
+                # issue, so this raises immediately -- 'attempt' is 1 here,
+                # the one request that was ever going to be made.
                 logger.error("event=rentcast_auth_error status=%s body=%r", status, body)
-                raise RentCastAuthError(f"status={status}") from exc
+                raise RentCastAuthError(f"status={status} body={body}", 
+                                        attempts=attempt, status=status) from exc
 
             if status in (400, 405):
                 # Same reasoning as 401/403: a malformed request or wrong
                 # method won't succeed on retry, so this is immediate too.
                 logger.error("event=rentcast_validation_error status=%s body=%r params=%r",
                               status, body, params)
-                raise RentCastValidationError(f"status={status}") from exc
+                raise RentCastValidationError(f"status={status} body={body}",
+                                                attempts=attempt, status=status) from exc
 
             if status in RETRYABLE_STATUSES:
-                attempt += 1
-                if attempt > MAX_RETRIES:
+                if attempt >= MAX_RETRIES + 1:
                     logger.error("event=rentcast_retries_exhausted status=%s body=%r", status, body)
                     raise RentCastServerError(
-                        f"status={status} after {attempt} attempts", status=status
+                        f"status={status} after {attempt} attempts",
+                        attempts=attempt, status=status
                     ) from exc
                 backoff = RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
                 logger.warning("event=rentcast_retry status=%s attempt=%d/%d sleep=%.1fs",
                                 status, attempt, MAX_RETRIES, backoff)
                 time.sleep(backoff)
                 continue
+
             logger.error("event=rentcase_unexpected_status status=%s body=%r", status, body)
-            raise RentCastError(f"unexpected status={status} body={body}") from exc
+            raise RentCastError(f"unexpected status={status} body={body}",
+                                attempts=attempt, status=status) from exc
 
         except urllib.error.URLError as exc:
-            attempt += 1
-            if attempt > MAX_RETRIES:
-                logger.error("event=rentcast_unreachable attempts=%d reason %s", attempt, exc.reason)
-                raise RentCastConnectionError(str(exc.reason)) from exc
+            if attempt >= MAX_RETRIES + 1:
+                logger.error("event=rentcast_unreachable attempts=%d reason=%s", attempt, exc.reason)
+                raise RentCastConnectionError(str(exc.reason), attempts=attempt) from exc
             backoff = RETRY_BACKOFF_BASE * (2 **(attempt - 1))
-            logger.warning("event=rentcast_unreachable_retry reason %s attempt=%d sleep=%.1fs",
+            logger.warning("event=rentcast_unreachable_retry reason=%s attempt=%d sleep=%.1fs",
                             exc.reason, attempt, backoff)
             time.sleep(backoff)
             continue
 
-def search_sale_listings(zip_code: str, status: str = "Active", days_old: int | None = None):
-    """Yield every sale listing for one zip code and one status value.
-    'days_old' maps to RentCast's filter"""
+def search_sale_listings(zip_code: str, status: str = "Active", 
+                        days_old: int | None = None) -> tuple[list, int]:
+    """Fetch every listing for one zip/status/days_old combination
+    Returns (listings, calls_made).  On failure, re-raises whatever _get
+    raised, but with .attempts adjusted to include every call already made
+    """
+    listings = []
+    calls_made = 0
     offset = 0
     while True:
         params = {"zipCode": zip_code, "status": status,
                   "limit": MAX_PAGE_SIZE, "offset": offset}
         if days_old is not None:
             params["daysOld"] = days_old
-        
-        page = _get(params)
+        try:
+            page, attempts = _get(params)
+        except RentCastError as exc:
+            exc.attempts = calls_made + exc.attempts
+            raise
+
+        calls_made += attempts
         if not page:
-            return
-        yield from page
+            break
+        listings.extend(page)
         if len(page) < MAX_PAGE_SIZE:
-            return
+            break
         offset += MAX_PAGE_SIZE
+        
+    return listings, calls_made
 
