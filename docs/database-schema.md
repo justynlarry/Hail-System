@@ -133,7 +133,7 @@ setting it correctly.
 ---
 # Tables
 
-Seventeen tables. Grouped by which half of the system they belong to.
+Eighteen tables. Grouped by which half of the system they belong to.
 
 ---
 
@@ -304,6 +304,41 @@ systems fails silently — the join runs, returns too few rows, and never errors
 ZCTAs are the Census approximation of USPS zip codes. They do not match exactly
 at the edges, and some PO-box-only zips have no ZCTA. Fine for finding storm
 areas; not authoritative for mail.
+
+
+### `county_boundaries`
+
+Added `sql/012_counties.sql`, 2026-09-14 — additive, since `004_weather.sql` is
+frozen post-backfill. County shapes from Census TIGER/Line, nationwide. Loaded
+once, never written to, same load path as `zcta_boundaries` (reproject
+NAD83 → WGS84, stage, merge with `ON CONFLICT DO NOTHING`).
+
+| Field | Purpose |
+|---|---|
+| `county_fips` | 5-digit FIPS code, PK |
+| `state_fips` | 2-digit state FIPS, redundant with the leading digits of `county_fips` but kept as its own column rather than parsed out on every use |
+| `name` | County name, as TIGER has it |
+| `geom` | `GEOMETRY(MultiPolygon, 4326)`. One GiST index, `county_boundaries_geom_gix` — no separate geography index yet, because nothing has needed a distance predicate against it, only containment (see below) |
+
+**No foreign keys.** Joined spatially, like `zcta_boundaries` — nothing
+enforces a relationship between a report and a county in the schema.
+
+**Why this table exists rather than trusting a column already on `iem_data`.**
+Three other county sources exist and all fall short: `nws_geo_code` (UGC) is
+null before mid-2022; `iem_data.county` is free text with case variants (`EL
+PASO` vs. `El Paso`, 64 such groups); and neither answers "which county is
+*this zip* in," which is the actual browse-by-county question — a report's
+county and an affected zip's county are not always the same thing. See open
+question 4, below, for the full resolution history.
+
+**Verified cheap to query, not just present.** `EXPLAIN (ANALYZE, BUFFERS)`
+against the live archive: an `ST_Contains` join from `iem_data.geom` always
+plans as `Index Scan using county_boundaries_geom_gix`, 0.55 ms warm for one
+report, 1.97 ms warm for a 9-report storm day (decision-log, 2026-09-15).
+**Loaded on `hail-dev`: 3,235 rows**, confirmed by a live count.
+
+**Not yet consumed anywhere.** No query joins against it yet — the web app's
+territory browse groups by `zip` or `city` only, not county.
 
 
 ### `coverage_zips`

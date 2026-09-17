@@ -19,69 +19,83 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-09-14**, commit `65f5e36`. Since the
-2026-09-11 sync (commit `21463df`), Phase 1's own work gained one more piece —
-`scripts/status.sh`, four read-only operator checks whose exit status doubles
-as the nightly-health verdict (see "Operational tooling and Phase 2 planning"
-under §2) — and the project otherwise moved into **Phase 2 planning**, which
-is a documentation phase, not a building one, with three exceptions below.
-`docs/parking-lot.md` was committed (the Phase 1 open-items list, carried by
-hand until now) and then reconciled against `database-schema.md`'s 12 open
-questions — one resolved, one confirmed still open, ten filed as new items.
-Eight Phase 2 decisions were recorded in the decision log — Tailscale over a
-Cloudflare tunnel for Phase 2 access, USPS-city grouping, county from TIGER
-polygons, Flask over FastAPI, scrypt password hashing, the `hailsys/`
-package layout, `hailsys/db.py`'s connection design (`dict_row`, no pool),
-and, same day, pulling the storm query itself into `hailsys/queries/storms.py`
-behind two projections (`pairs`, `zips`). That last one **resolves
-parking-lot item 6 (PL-06)**. See §6 for the condensed decisions.
+Last synced against the repo: **2026-09-17**, commit `e22c02f`. Since the
+2026-09-14 sync (commit `65f5e36`), the project did not stay in planning —
+**Phase 2's storm-browser web app got built**, in 52 commits with zero updates
+to this file along the way. Two small patches landed right after the last
+sync (`b46596a`, `8246532`, fixing `county_boundaries` and `coverage_zips`
+drift this file itself had introduced) and then this file went stale for the
+entire build: a Flask app (auth, the recent-storm-days browser, a territory
+browse grouped by city or zip, a lazy-loaded zip/day drill-down, a CSV export,
+a Leaflet map, and a NEXRAD radar-verification study that changed what the UI
+shows) shipped before anyone reconciled it here. `decision-log.md` and
+`parking-lot.md` were brought current two days into that gap (`7dfb8d6`,
+2026-09-16 dated entries) — this file was not. **The gap itself is the
+finding worth carrying forward**: a doc that summarizes decisions and
+parking-lot items but is regenerated on its own schedule can drift a full
+phase behind the two files it depends on, silently, because nothing forces
+the three to move together. See "The web app — built, Phase 2 substantially
+underway" under §2 for what actually exists, and the loose ends flagged at
+the end of that section for what this sync found still disagreeing with
+itself.
 
-**The three exceptions: the `hailsys/` package move, the storm-query
-extraction, and the county-from-TIGER-polygons decision are built, not just
-decided.** `hailsys/tuning.py` and `hailsys/iem/{common,parse}.py` exist,
-`scripts/*.py` import from them, `ingest.Dockerfile`/`app.Dockerfile` were
-updated and all three images rebuilt, and the move was verified end to end
-(88 tests pass, the storm-zip export re-run is byte-identical to a
-pre-move baseline, and a manual `iem_ingest.service` start produced a clean
-new `run_id`). On top of that, `hailsys/db.py` (the connection seam) and
-`hailsys/queries/storms.py` (the join/filter core behind both export
-projections) are now real files with a real call site: `export_storm_zips.py`
-contains no SQL and gained a `--format pairs|zips` flag, verified against the
-same byte-identical-baseline standard. And `sql/012_counties.sql` (additive,
-since `004_weather.sql` is frozen post-backfill) adds `county_boundaries`;
-`load_reference.sh` now loads it the same way as `zcta_boundaries`, run
-against `hail-dev` and verified: 3,235 counties, all geometry at SRID 4326.
-**Resolves database-schema.md open question 4 / parking-lot item 4.**
-`hailsys/web/` remains undecided-into-code — Phase 2 web-app pieces, not part
-of any of the three. See §10 for the current tree.
+Eight Phase 2 decisions were recorded in the decision log **as of the last
+sync** — Tailscale over a Cloudflare tunnel for Phase 2 access, USPS-city
+grouping, county from TIGER polygons, Flask over FastAPI, scrypt password
+hashing, the `hailsys/` package layout, `hailsys/db.py`'s connection design
+(`dict_row`, no pool), and pulling the storm query itself into
+`hailsys/queries/storms.py` behind two projections (`pairs`, `zips`),
+resolving **parking-lot item 6 (PL-06)**. **Ten more were recorded
+2026-09-15 and 2026-09-16**, covering the query-core fixes the two-projection
+design didn't by itself prevent, the storm-browser/match-view page split, the
+map, the CSV export, and the radar-verification findings that dropped
+`confidence_tier` from the UI. See §6 for all eighteen, condensed.
 
-**Also 2026-09-11 (carried from the last sync, unchanged since): Phase 1's
-plumbing is complete** — both `iem_ingest.timer` and `iem_weekly_replay.timer`
-are installed and verified end to end on `hail-dev` (see "systemd units" under
-§2 and the corresponding entries in §7) — closing the mechanism half of
-Phase 1's "done when" bar; only the week of unattended running remains, and as
-of this sync (2026-09-14) that clock has not yet run its course.
+**Everything decided in the 2026-09-14 sync is now built, not just decided**
+— the `hailsys/` package move, `hailsys/db.py`, `hailsys/queries/storms.py`,
+`county_boundaries` (`sql/012_counties.sql`, loaded, 3,235 counties, all SRID
+4326, resolving database-schema.md open question 4 / parking-lot item 4), and
+now Flask itself, scrypt auth, and the Tailscale-serve deployment path. See
+§10 for the current tree.
+
+**Phase 1's "done when" bar is one day from fully met, verified by running,
+not by reading a timer file.** `iem_ingest.timer` has fired automatically at
+10:00 UTC every day from 2026-09-12 through 2026-09-17 — six consecutive
+unattended nightly runs, all `run_status = complete`, confirmed against
+`ingest_runs` and cross-checked in `journalctl` rather than assumed from
+`systemctl list-timers` alone. The timer has been `active (waiting)` without
+interruption since installation at 2026-09-11 21:04:16 UTC; one more
+automatic firing (2026-09-18 10:00 UTC) completes the seven days Phase 1's
+"done when" calls for. See "Nightly timer: the unattended week, checked" under
+§2.
 
 Everything below was verified against the **`hail-dev`** stack rather than read
-off the source. Where a number appears — 176,957, 33,791, 37,104 — it came from
-a query on 2026-09-09/10. A few facts are per-machine deployment state rather
-than project state (the territory load, most notably); those are marked inline.
+off the source. Where a number appears — 177,100, 33,791, 3,235, 37,104 — it
+came from a query on 2026-09-17 unless marked otherwise. A few facts are
+per-machine deployment state rather than project state (the territory load,
+most notably); those are marked inline.
 
-**That claim needs a caveat, added 2026-09-14.** Two paragraphs in this file —
-§2's `coverage_zips` bullet and the table row in §5 — said `coverage_zips` was
-empty on `hail-dev`, in the same regeneration that carried "Resolved since
-last sync: `coverage_zips` is no longer empty" a few lines below them. A live
-count (`SELECT count(*) FROM coverage_zips WHERE removed_at IS NULL`) settled
-it at 183, matching the "resolved" note. The interesting failure isn't the
-stale numbers — it's that a full regeneration of this file carried the wrong
-paragraphs forward instead of catching them, which means whatever produced
+**That claim needs a caveat, added 2026-09-14, still true.** Two paragraphs in
+this file once said `coverage_zips` was empty on `hail-dev` in the same
+regeneration that carried "Resolved since last sync: `coverage_zips` is no
+longer empty" a few lines below them — a full regeneration that carried
+stale paragraphs forward instead of catching them, because whatever produced
 that version was working from the old text, not from the database. The table
 in the "Authoritative file" list above tells you when the log wins over this
-summary; it does not cover this case, because no file was wrong — only this
+summary; it does not cover that case, because no file was wrong — only this
 summary was, in a way only a live query against `hail-dev` could adjudicate.
-Numbers in this file that describe current database state are a claim about
-that moment's regeneration, not a standing guarantee — re-check against
-`hail-dev` before relying on one for anything that matters.
+**This sync repeats the same discipline for a new instance of the same risk:**
+`docs/parking-lot.md` item 28 ("Vendor Leaflet into `static/` instead of the
+CDN") was built earlier in this same session, before this file was
+regenerated — `hailsys/web/static/leaflet.css`/`leaflet.js`/`images/` are
+committed (`e22c02f`) and `base.html` points at them instead of `unpkg.com`.
+Rather than let that sit as an unlogged fact the way the last sync's stale
+paragraphs did, `decision-log.md` gained a dated entry for it and
+`parking-lot.md` item 28 is now marked resolved, both later in this same
+session — appending to those files, not rewriting their history, per their
+own conventions. Numbers in this file that describe current database state
+are a claim about that moment's regeneration, not a standing guarantee —
+re-check against `hail-dev` before relying on one for anything that matters.
 
 ---
 
@@ -105,16 +119,20 @@ The pitch is deliberately narrow: *"hail of X size was reported near this
 listing."* It reports a public record. It never claims damage.
 
 **Scale.** Single developer (Justyn). Two machines — a `hail-dev` VM and the
-production OptiPlex (§9). Four or five user accounts, probably ever. **176,957
-storm report rows** on `hail-dev` after the backfill, 2004-01-26 to 2026-09-07 —
-about 23 years of Colorado, not ten.
+production OptiPlex (§9). Four or five user accounts, probably ever — **one
+exists today**, `justyn`, `role = admin`. **177,100 storm report rows** on
+`hail-dev` as of 2026-09-17 (176,957 after the backfill, plus six days of live
+nightly ingest since), 2004-01-26 to present — about 23 years of Colorado, not
+ten.
 
 ---
 
 ## 2. Where the project actually stands
 
-**Phase 1 — IEM ingest. Phase 0 is closed. The backfill has run; nothing runs
-unattended yet.**
+**Phase 1 — IEM ingest, mechanism complete, unattended-week clock one day from
+running out. Phase 0 is closed. Phase 2 — the storm-browser web app — is
+substantially built, not merely planned.** See "The web app" below for what
+Phase 2 actually shipped.
 
 ### Infrastructure — verified on a running stack, 2026-09-08 through 2026-09-10
 
@@ -259,7 +277,8 @@ any literal SQL that names it, which is why `010` grants `CONNECT` through
   second format existed. **This is half of the Phase 1 "done when" bar** in
   `phases.md` — "a spreadsheet of affected zip codes ... for a real storm from
   last month" — the other half being the nightly job running unattended for a
-  week, which is still not built.
+  week, which at the time of this note (2026-09-11) was not yet built. **It is
+  now** — see "Nightly timer: the unattended week, checked" below.
 - **It cannot run under the `ingest` service.** `hail_ingest` has `SELECT` only
   on `report_types` (plus its write path); `report_sources`, `zcta_boundaries`,
   and `coverage_zips` all belong to `hail_app`'s grants (`010_roles.sql`).
@@ -378,9 +397,11 @@ other three units carry — a completeness gap, not a functional one.
   from the USPS delivery file — and it corrected one label in the 2026-09-03
   decision entry. See §7.
 
-### Not built
+### Not built, as of the 2026-09-14 sync
 
-Any web UI, any RentCast client, and any sending path.
+Any web UI, any RentCast client, and any sending path. **Superseded 2026-09-17
+for the first of the three** — the web UI is now built; see "The web app"
+below. RentCast and sending remain untouched, Phase 3 and Phase 5 work.
 
 A **parser test suite now exists** — `tests/test_iem_parse.py`, 44 cases, run
 with `python3 -m unittest discover`, all passing on 2026-09-10. It is pure
@@ -422,21 +443,183 @@ phase-appropriate" the earlier sync anticipated — `iem_parse.py` takes its
   TIGER county (`sql/012_counties.sql` plus the `load_reference.sh` load,
   verified against `hail-dev` — 3,235 counties, resolving open question 4 /
   parking-lot item 4), and `db.py` together with `queries/storms.py`, which
-  `export_storm_zips.py` now actually runs on. Only Tailscale access,
-  USPS-city grouping, Flask, and scrypt hashing remain undecided-into-code.
+  `export_storm_zips.py` now actually runs on. At the time of this note
+  (2026-09-14), Tailscale access, USPS-city grouping, Flask, and scrypt
+  hashing remained undecided-into-code. **All four are built now** — see
+  "The web app" below, built 2026-09-14 through 2026-09-16.
+
+### Nightly timer: the unattended week, checked — 2026-09-17
+
+`systemctl status iem_ingest.timer`: `active (waiting)` continuously since
+**2026-09-11 21:04:16 UTC**, no gaps, no restarts. `ingest_runs` shows an
+automatic `10:00:00 UTC` `nightly` run, `run_status = complete`, on every one
+of **2026-09-12, 13, 14, 15, 16, and 17** — six unattended days in a row. The
+three extra rows on 2026-09-14 (`run_id` 22–24, all timestamped 00:04, minutes
+apart) are not the timer misfiring — `journalctl` shows three manual
+`systemctl start iem_ingest.service` invocations that day, matching the
+already-recorded package-move verification (§6, "The repo becomes a
+package"), whose last one is the `run_id=24` that entry names. `iem_weekly_
+replay.timer` fired once on schedule (2026-09-13 11:00 UTC) and is next due
+2026-09-20. **One more automatic firing — 2026-09-18 10:00 UTC — completes
+the seven unattended days Phase 1's "done when" calls for.** This is checked
+by running the actual commands above, not inferred from the timer file having
+been installed a week ago.
+
+### The web app — built, Phase 2 substantially underway — 2026-09-14 through 2026-09-16
+
+Not decided-into-code anymore. `hailsys/web/` is a working Flask app, `web` is
+a real `docker-compose.yml` service, and it has been reachable on `hail-dev`
+since 2026-09-11.
+
+- **Auth.** `hailsys/web/auth.py`: `hashlib.scrypt` (n=2¹⁵, r=8, p=1, 32-byte
+  digest, per-hash-stored parameters, per the 2026-09-14 decision), a
+  `login_required` decorator that redirects to `main.login`, and
+  `verify_password` refusing outright on the literal `"!"` `password_hash`
+  the `users` CHECK constraint uses to mark the `system` account
+  unauthenticatable — an explicit refusal, not a parse error left to fall
+  through. `scripts/create_user.py` is the only way to create one: a CLI,
+  run as `hail_admin`, `getpass`-prompted twice with a 12-character floor,
+  explicitly a **placeholder until Phase 4** builds a real admin UI. **Live
+  on `hail-dev` today: two rows in `users`** — `system` (`role=system`,
+  inactive, unauthenticatable by design) and `justyn` (`role=admin`, active,
+  `last_login_at` populated). No second real account has been created.
+- **Routes**, all under `hailsys/web/views.py`, one blueprint (`main`):
+  `/` (recent-storm-days browser — day range 30/90/365, report-type filter,
+  an "actionable only" checkbox defaulting **on** unless the form was
+  actually submitted), `/storms/zips` (lazy-loaded HTML fragment, one storm
+  day's zip breakdown), `/territory` (`group_by=city|zip`, same filters,
+  the map lives only in `city` mode), `/territory/days` (a city's day-by-day
+  fragment, same lazy-fetch pattern), `/export.csv` (zip-level CSV,
+  streamed from `fetch_zips`), `/map/points.geojson` (a `FeatureCollection`
+  of report points, capped at 2,000 rows), plus `/login` and `/logout`.
+  Every route but `/login` is `@login_required`.
+- **The query core absorbed two cross-projection bugs after the 2026-09-14
+  extraction, both instructive.** `_ACTIONABLE` was first written directly
+  into `RECENT_DAYS_SQL` rather than the shared `_FROM_WHERE` — so expanding
+  an "actionable only" day's zip detail silently ran unfiltered, answering a
+  wider question than the list that produced it. And `ZIPS_SQL`'s original
+  `GROUP BY c.zcta5, c.area_name` let a zip with both hail and wind in one
+  window collapse into one row with `max(magnitude)` against whichever
+  type's unit happened to sort first — the exact mixed-unit trap `report_
+  types.mag_unit` exists to prevent, reintroduced one join downstream of it.
+  Both are fixed: `_ACTIONABLE` is now its own interpolated fragment beside
+  `_FROM_WHERE` that every projection needing it includes explicitly, and
+  `ZIPS_SQL`/`CITIES_SQL` group by `(report_text, mag_unit)` too. **The
+  generalization, not just the fix:** a shared query core only closes the
+  disagreement it was built to close; a rule added later that only some
+  projections apply has to be added to the shared seam deliberately; it does
+  not inherit protection just for being adjacent to one. `hailsys/queries/
+  storms.py` now holds six SQL strings — `PAIRS_SQL`, `ZIPS_SQL`,
+  `RECENT_DAYS_SQL`, `CITIES_SQL`, `CITY_DAYS_SQL`, `REPORT_POINTS_SQL` — all
+  built on the same `_FROM_WHERE` / `DISTANCE_EXPR` / `LOCAL_TIME_EXPR`.
+  `PAIRS_SQL` still omits `_ACTIONABLE` on purpose — one consumer, nothing yet
+  to disagree with it.
+- **The map** (`static/map.js`, on `/territory?group_by=city`): Leaflet, no
+  tile layer — the 183 coverage polygons serve as the basemap, loaded from a
+  **pre-generated static fixture**, `static/coverage.geojson`
+  (`scripts/build_coverage_geojson.py`, `ST_SimplifyPreserveTopology` at
+  0.0005°, run by eye, cutting 4.18 MB to 418 kB; simplification is
+  display-only and never touches `zcta_boundaries.geom` in any matching
+  query). Report points and their 5-mile rings come from `/map/points.
+  geojson`; points are colored by `report_source_norm`, never raw
+  `report_source` (free text, inconsistent case — the same normalization
+  discipline the `report_sources` join has always required), though the
+  tooltip shows the human-readable raw value. Rings are `L.circle` (true
+  metres, correct at every zoom) marked `interactive: false` so they never
+  steal a hover from a point drawn on top of them.
+- **CSV export** (`/export.csv`) reuses `fetch_zips` — the same query behind
+  territory's zip-grouped view, not the day list — because a zip list is
+  what a planner actually takes to RentCast next, and reads its filters from
+  `request.query_string` rather than re-deriving them from form fields, so
+  the download can never show different filters than the page it was
+  clicked from.
+- **A NEXRAD radar-verification study** (`docs/analysis/radar-verification-
+  2026-09.md` plus five scripts under `docs/analysis/radar-verification-2026-
+  09/`) checked 2,538 coverage-area hail reports against ten years of NCEI
+  SWDI Level-III hail detections — independent of the LSR network — and
+  changed what the UI shows as a direct result: **`confidence_tier` is not
+  displayed anywhere.** `PUBLIC` reports corroborate at 93.5%, `TRAINED
+  SPOTTER` at 92.4% — the premise that `PUBLIC` (roughly half the archive)
+  is the weak input runs the wrong way, and a tier label next to a report
+  would make a sender discount evidence the data says is just as good.
+  Lone-report days (382 of 1,468 Denver-local hail days carry exactly one
+  report — §7) do not corroborate worse either: 97.1% at n=69 for one-report
+  days versus 94.3–94.7% for busier ones, no real gradient. Radar-estimated
+  `MAXSIZE` was not adopted as a severity signal (r = 0.24–0.38 against
+  reported magnitude). And the tolerance sweep found 2 miles sits below the
+  two datasets' joint positional resolution, which is why the existing
+  5-mile buffer (`tuning.py`) is the right scale to have verified against.
+  Full reasoning and the corrected UTC-vs-local-day exclusion bug are in §6.
+- **`web` in `docker-compose.yml`**: `docker/app.Dockerfile` image, `gunicorn
+  --bind 0.0.0.0:8000 --workers 2 hailsys.wsgi:app`, bound to
+  `127.0.0.1:8000` only — nothing reaches a real interface, per the Tailscale
+  decision — with `./hailsys:/app/hailsys:ro` bind-mounted for dev so an edit
+  is live without a rebuild (parking-lot item 30). `requirements.txt` gained
+  `flask==3.1.3` and `gunicorn`. The `app` (export) service separately picked
+  up a bind mount of `./hailsys/web/static`, for the same reason `./output`
+  was mounted in the 2026-09-11 sync: `build_coverage_geojson.py` writes into
+  that directory, and without the mount the file would land inside a
+  container filesystem that `--rm` deletes.
+- **Access for a demo, 2026-09-16: Tailscale Funnel, and it has since been
+  turned back off.** `tailscale serve` (the Phase 2 mechanism) is tailnet-only;
+  Funnel made the same hostname briefly reachable over public TLS so a
+  non-technical viewer could see it without installing Tailscale. **Checked
+  today, not assumed:** `tailscale funnel status` and `tailscale serve
+  status` both currently report `(tailnet only)` — Funnel is off, as the
+  decision-log entry said it would be reverted. While it was on, the
+  application's own login was briefly the *only* gate between the internet
+  and the system, which the same entry flags as raising the priority of
+  CSRF protection.
+
+**What this sync found disagreeing with itself.** Two of the five below were
+fixed in the same session, in the file where each actually belongs, rather
+than papered over here; three remain open and are left for a person to
+decide, not silently patched:
+
+- **No CSRF protection exists anywhere in the app** — `grep -ri csrf hailsys/`
+  returns nothing but the decision-log sentence that raised its priority.
+  `/logout` is a bare POST with no token, and the Funnel window made this a
+  live, if brief, exposure rather than a theoretical one. **Left open** —
+  a real fix, not a doc fix.
+- **Phase 2's own "done when" — "someone *other than the developer* can log
+  in ... and download it as a spreadsheet" — is not yet demonstrated.** The
+  mechanism exists; only one real account (`justyn`, the developer) has ever
+  been created. The Funnel demo let someone *view* the app, not necessarily
+  log into it as themselves. **Left open.**
+- **County grouping was never wired into the UI**, though `county_boundaries`
+  has existed and been loaded since 2026-09-14. `territory()`'s `GROUP_BYS`
+  is `("zip", "city")` only — `phases.md`'s Phase 2 checklist ("group by
+  city, county, **or zip**") is still one option short of what it describes.
+  **Left open** — a real feature, not a doc fix.
+- **`phases.md` named a Cloudflare tunnel under the Phase 2 checklist**, three
+  days after the 2026-09-14 decision (Tailscale over Cloudflare) updated
+  `CLAUDE.md` and `server-setup.md` but not this one. **Fixed this session**
+  — the bullet now names Tailscale and points at the decision-log entry.
+- **Zero test coverage for anything under `hailsys/web/`.** All 88 tests
+  (unchanged this sync) exercise `hailsys/iem/*` — the ingest/parse side.
+  `auth.py`, `views.py`, and `queries/storms.py` — including the two
+  cross-projection bugs just fixed by hand — have no automated coverage.
+  **Left open** — writing tests is real work, not a doc fix.
+- **Parking-lot item 28 (vendor Leaflet locally) was built earlier in this
+  same session** (`e22c02f`), before `decision-log.md` or `parking-lot.md`
+  had a word to say about it. **Fixed this session** — a dated decision-log
+  entry now exists and parking-lot item 28 is marked resolved, both by
+  appending, per each file's own convention, not by rewriting history.
+- **`database-schema.md` said "Seventeen tables" and had no field-level entry
+  for `county_boundaries`** (§5). **Fixed this session** — the header now
+  says eighteen and `county_boundaries` has its own table section.
 
 **Do not build ahead of the current phase.**
 
 **Phase 1 is done when** a spreadsheet of affected zip codes can be produced for
 a real storm from last month, and the nightly job has run unattended for a week.
-**Both mechanisms now exist, verified 2026-09-11:** `export_storm_zips.py`
+**The first half has been true since 2026-09-11**: `export_storm_zips.py`
 produces the spreadsheet (§2, "Storm-zip export and the `app` service"), and
-`iem_ingest.timer` / `iem_weekly_replay.timer` are installed and armed on
-`hail-dev`, confirmed by a manual run (`run_id=17`) and `systemctl
-list-timers` showing correct next-elapse times. **The bar is not yet met** —
-the criterion is a week of *unattended* running, and the clock on that starts
-today, not at the moment the timer file was written. See "systemd units" under
-§2 for what was installed and §7 for what went wrong installing it.
+the web app's own `/export.csv` (above) is a second, independent way to get
+one. **The second half is one day from true, verified 2026-09-17**: see
+"Nightly timer: the unattended week, checked" above — six of the seven
+required unattended days have run clean, with the next automatic firing due
+2026-09-18 10:00 UTC.
 
 ---
 
@@ -520,8 +703,14 @@ privilege list can be read against this diagram.
 
 ## 5. The data model
 
-Seventeen tables. Full field-level detail is in `docs/database-schema.md`; an
-ASCII ER diagram is in `docs/db-schema-diagram.md`.
+**Eighteen tables** — seventeen from `sql/001`–`009`, plus `county_boundaries`
+(`sql/012_counties.sql`, 2026-09-14). **Drift found this sync, fixed as part
+of it:** `database-schema.md` said "Seventeen tables" and had no field-level
+entry for `county_boundaries` at all — only prose under its open-question 4.
+Both fixed today: the header now says eighteen, and `county_boundaries` has
+its own `### county_boundaries` section, same shape as `zcta_boundaries`.
+Full field-level detail is in `docs/database-schema.md`; an ASCII ER diagram
+is in `docs/db-schema-diagram.md`.
 
 ### Weather side
 | Table | What it holds |
@@ -535,6 +724,7 @@ ASCII ER diagram is in `docs/db-schema-diagram.md`.
 | `report_sources` | **Loaded on `hail-dev`: 47 rows** (18 high / 19 moderate / 8 low / 2 unrated / 5 unknown_automation; 0 unmatched against `iem_data.report_source_norm`), from the curated seed `planning/report_sources.csv`. What a reporting source is and how far to trust it — `confidence_tier`, `is_automated`. **No FK from `iem_data`**: source is free text typed at NWS offices and an FK would break the nightly ingest. A lookup, joined on `report_source_norm`, never a constraint. |
 | `zcta_boundaries` | 33,791 Census ZCTA polygons, nationwide, EPSG 4326. `centroid` is generated with `ST_PointOnSurface`, not `ST_Centroid`, so it cannot fall outside a C-shaped zip. Two GiST indexes, one on `geom` and one on `(geom::geography)` — see §2. Loaded once, never written to. **No foreign keys** — joined spatially. |
 | `coverage_zips` | RBI's service territory. **Loaded on `hail-dev`: 183 rows** from the 193-entry `config/coverage_zips.txt` — the other 10 have no ZCTA polygon and are uninsertable by design (§7). `load_coverage.sh` reproduces the load. Keyed on `zcta5` with an FK to `zcta_boundaries`. `area_name` comes from USPS; `reason` is deliberately left NULL by the loader. Ours, and it will be edited — retirement is a marked row, never a delete. |
+| `county_boundaries` | 3,235 Census TIGER county polygons, nationwide, EPSG 4326, GiST-indexed the same way as `zcta_boundaries`. **Loaded on `hail-dev`: 3,235 rows.** Added `sql/012_counties.sql`, 2026-09-14 — an authoritative zip→county crosswalk across all 22 years of the archive, resolving database-schema.md open question 4 / parking-lot item 4. **Not yet surfaced anywhere in the web UI** — the territory browse's `group_by` only offers `zip` and `city` (§2). No foreign keys — joined spatially, like `zcta_boundaries`. |
 
 ### Property side
 | Table | What it holds |
@@ -558,7 +748,7 @@ ASCII ER diagram is in `docs/db-schema-diagram.md`.
 ### Operations
 | Table | What it holds |
 |---|---|
-| `users` | Logins. Roles `admin` / `sender` / `viewer`, plus `system` — a non-login account, bootstrapped in `sql/002`, that owns machine-initiated rows (automatic bounce and complaint suppressions, the legacy DNC import). Constrained in the database so it cannot be activated or given a real password. Unlike the other three it is **not a cost stage**. |
+| `users` | Logins. Roles `admin` / `sender` / `viewer`, plus `system` — a non-login account, bootstrapped in `sql/002`, that owns machine-initiated rows (automatic bounce and complaint suppressions, the legacy DNC import). Constrained in the database so it cannot be activated or given a real password. Unlike the other three it is **not a cost stage**. **Live on `hail-dev`: 2 rows** — `system` and `justyn` (`admin`, active, created via `scripts/create_user.py`, the Phase 4-placeholder CLI — see §2). |
 | `api_pulls` | One row per user-initiated RentCast pull. Records `estimated_api_calls` vs. `actual_api_calls` side by side; `api_status` tracks the run. `iem_id` is nullable — a pull need not be tied to one storm. |
 | `api_call_log` | One row per zip within a pull. Powers the "this zip was pulled recently" warning. |
 | `ingest_runs` | One row per execution of an IEM ingest script (`nightly` / `backfill` / `replay`). Records the UTC window actually requested plus `rows_seen` / `rows_inserted` / `rows_skipped`. No `emp_id` — system-initiated. Written before the work starts, like `api_pulls`. **The alert that matters is the absence of a row**, which is why it is a table and not log output. |
@@ -666,7 +856,9 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
   hardware. Generic components live separately from RBI-specific config so the
   legal boundary follows a file boundary.
 
-**Phase 2 decisions, recorded 2026-09-14, none yet built:**
+**Phase 2 decisions, recorded 2026-09-14 — all eight are now built** (§2, "The
+web app"), not just the three (`hailsys/` layout, TIGER county, `db.py`/
+`queries/storms.py`) already built at the time these were first written up:
 
 - **Phase 2 UI is reached over Tailscale, not a Cloudflare tunnel.** The web
   container publishes to `127.0.0.1:8000` only; `tailscale serve --bg 8000` on
@@ -712,10 +904,12 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
   `PYTHONPATH` half; without the `COPY` there was nothing at that path to
   find), all three images rebuilt, 88 tests pass, the re-run export was
   byte-identical to the baseline, and a manual `iem_ingest.service` start
-  produced a new `run_id` (24) that completed clean. `web/` is still ahead —
-  a Phase 2 web-app piece, not part of this move. `db.py` and `queries/` were
-  undecided-into-code at this point in the sync but were built the same day —
-  see the next two entries and §10 for the current tree.
+  produced a new `run_id` (24) that completed clean. At the time of this note
+  (2026-09-14), `web/` was still ahead — a Phase 2 web-app piece, not part of
+  this move — and `db.py`/`queries/` were undecided-into-code but built the
+  same day; see the next two entries. **`web/` was built two days later**
+  (2026-09-14 through 2026-09-16) — see "The web app" under §2 and §10 for
+  the current tree.
 - **One connection seam in `hailsys/db.py`; `dict_row` rows, no pool in
   Phase 2.** Every query acquires its connection through a single context
   manager; rows come back as dicts so a column added mid-`SELECT` cannot
@@ -753,6 +947,77 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
   now suffixed by format (`storm_zips_<date>_<type>_pairs.csv` /
   `..._zips.csv`) since a name that doesn't say which format it is stops
   being unambiguous the moment a second format exists.
+
+**Ten more decisions, recorded 2026-09-15 and 2026-09-16, all built the same
+day as decided — condensed from `decision-log.md`:**
+
+- **Zip detail loads lazily, as a fetched HTML fragment, not eagerly or as a
+  separate page** (2026-09-15). Running `fetch_zips` for every row on
+  screen regardless of whether anyone opens it is the wrong default for a
+  list that can carry a dozen-plus rows; a full page-and-back-button per row
+  is worse friction than not expanding at all. Convention: a template named
+  with a leading underscore (`_zips.html`) is includable, not a page —
+  no `{% extends %}`, no `<html>`.
+- **`_ACTIONABLE` pulled into the shared query core** (2026-09-15), after
+  `RECENT_DAYS_SQL` and `ZIPS_SQL` silently disagreed about which reports
+  counted for the same "actionable only" day (§2). The lesson generalized:
+  a shared seam only protects the rules it was built around, not every rule
+  a later projection might apply independently.
+- **County-by-polygon lookup verified: index scan, sub-millisecond warm**
+  (2026-09-15). `EXPLAIN (ANALYZE, BUFFERS)` against the live 176,973-row
+  archive: 0.55 ms warm for one report, 1.97 ms warm for a 9-report storm
+  day, always via `Index Scan using county_boundaries_geom_gix`, never a
+  sequential scan. Closes a measurement the original county decision
+  asserted but never recorded.
+- **The storm browser and the RentCast match view are separate pages**
+  (2026-09-15). Different units — a storm-browser row is a query over
+  `iem_data`/`coverage_zips`; a match-view row (Phase 3) is a query over
+  `storm_listing_matches`/`listings`/`realtors`. One page behind a mode
+  toggle would make neither filtered view bookmarkable. Answers parking-lot
+  item 10's page-placement question in the direction later confirmed by
+  territory (below): its own page under the storm browser, not the match
+  view.
+- **Contact state is shown as history, not a boolean** (2026-09-15, Phase 3
+  design). "Already contacted" is ambiguous about whether it's scoped to the
+  listing, the agent, or the storm; showing the actual `send_log` sequence
+  lets a person judge, rather than baking in a frequency-cap policy
+  (parking-lot item 15, still undecided) inside a display decision.
+- **`confidence_tier` stays out of the UI, and radar size is not adopted as a
+  severity signal** (2026-09-16), from the NEXRAD radar-verification study
+  (§2). The column, seed, and `LEFT JOIN` all stay — nothing about storage
+  changes — but nothing displays the tier, because the evidence says the
+  distinction it would imply (`PUBLIC` reports are weaker) runs the wrong
+  direction. Stated reversal condition: a per-source rate that separates by
+  more than its confidence interval, on a sample large enough to support the
+  claim — not yet met for any source, including the nominally-lower
+  COCORAHS (n=119, too small).
+- **`ZIPS_SQL` groups by report type** (2026-09-16). Fixed the same
+  mixed-unit `max(magnitude)` bug the type-carrying `mag_unit` column exists
+  to prevent, reintroduced one join downstream by a `GROUP BY` that didn't
+  carry `report_text` — see §2 for the full mechanism.
+- **Territory browse is its own page, grouped by city-and-type** (2026-09-16).
+  Answers parking-lot item 10. City grouping carries `report_text` for the
+  same mixed-unit reason as `ZIPS_SQL`. The city→zip fan-out (a report near
+  two cities' zips counts under both) is disclosed on the page as a
+  footnote rather than silently making the totals not add up.
+- **CSV export from the UI returns zip-level detail, filtered by the page's
+  own query string** (2026-09-16) — the thing a planner acts on next, not
+  the day-list summary, and never a second source of truth for which
+  filters are active. See §2.
+- **Map: Leaflet, no tile layer, points colored by `report_source_norm`**
+  (2026-09-16). Coverage polygons are a pre-generated static fixture
+  (`build_coverage_geojson.py`, `ST_SimplifyPreserveTopology`, 4.18 MB → 418
+  kB), display-only and never touching the matching geometry. Colors key on
+  the normalized source column for the same reason every other join in this
+  system does; the raw value still shows in the tooltip. 5-mile rings use
+  `L.circle` (true metres) marked non-interactive so they never block a
+  point's hover. See §2 for the full writeup.
+- **Access for the demo: Tailscale Funnel, temporarily** (2026-09-16).
+  `tailscale serve` is tailnet-only; Funnel briefly made the same hostname
+  reachable over public TLS for one non-technical viewer, which also
+  briefly made the application's own login the sole gate — raising CSRF's
+  priority (still not implemented, §2) — and was turned off after. Verified
+  off as of this sync (§2).
 
 ---
 
@@ -1051,12 +1316,15 @@ earlier Cloudflare-tunnel reasoning, which no longer applies in Phase 2 (§6).
 - **PostgreSQL 16 + PostGIS 3.4**, in Docker, database `weather-property`
 - **Python 3.12** backend, stdlib and boring dependencies preferred;
   `psycopg[binary]==3.2.3` is currently the only dependency
-- **Web UI (Phase 2, decided 2026-09-14, not yet built): Flask**,
-  server-rendered Jinja templates, reached via `tailscale serve` against a
-  loopback-bound container — see §6. A Cloudflare tunnel was the earlier plan
-  and is revisited at Phase 6, not before.
+- **Web UI (Phase 2, decided 2026-09-14, built and running since):
+  Flask**, server-rendered Jinja templates, `gunicorn` in its own
+  `docker-compose.yml` service (`web`), reached via `tailscale serve` against
+  a loopback-bound container — see §2 and §6. A Cloudflare tunnel was the
+  earlier plan and is revisited at Phase 6, not before. Briefly widened to
+  the public internet via Tailscale Funnel for a demo (2026-09-16), then
+  reverted — see §2.
 - **Tailscale** for host-to-host file movement, and (Phase 2) for reaching the
-  web UI itself
+  web UI itself, including Funnel for the one-off demo above
 - Deployed with **Ansible** where practical
 - Monitoring through an existing instance called **Irin**
 
@@ -1116,14 +1384,14 @@ systemd, forfeiting journald capture, `systemctl --failed`, and `OnFailure=`.
 ```
 CLAUDE.md                     rules for AI assistants — read first
 README.md                     currently empty
-docker-compose.yml            postgis + ingest + loader + app on hailnet
+docker-compose.yml            postgis + ingest + loader + app + web on hailnet
 .dockerignore                 keeps data/ and secrets out of the build context
-.env                          gitignored — three passwords, nothing else
+.env                          gitignored — three passwords plus FLASK_SECRET_KEY
 .env.example                  same keys, no values
-requirements.txt              psycopg[binary]==3.2.3
+requirements.txt              psycopg[binary]==3.2.3, flask==3.1.3, gunicorn (2026-09-11)
 docs/
   hail-consolidated.md        this file
-  database-schema.md          field-level data model, 17 tables, open questions
+  database-schema.md          field-level data model, 18 tables, open questions
   db-schema-diagram.md        ASCII ER diagram
   decision-log.md             dated, append-only; supersede, never rewrite
   data-sources.md             IEM / TIGER / RentCast endpoints and traps
@@ -1131,7 +1399,13 @@ docs/
   server-setup.md             bare-metal Rocky build, step by step
   command-ref.md              Justyn's own Docker/Postgres/type notes
   schema-review.md            re-runnable review prompt for sql/ + the loader
-  parking-lot.md              21 numbered open items, resolution-tracked (2026-09-14)
+  parking-lot.md              37 numbered open items, one (28) resolved
+                               2026-09-17, resolution-tracked (2026-09-16)
+  analysis/
+    radar-verification-2026-09.md   NEXRAD corroboration study behind the
+                               confidence_tier / map-color decisions (§2, §6)
+    radar-verification-2026-09/     its five scripts (paths/coverage_bbox/
+                               match/reduce/by_day_density/checks.py)
 sql/                          apply in order; 010 must be last
   001_extensions.sql          postgis
   002_users.sql               users (+ the bootstrap system account)
@@ -1155,7 +1429,35 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
     parse.py                   shared row parser; both ingest scripts import it
   queries/
     __init__.py                empty
-    storms.py                  join/filter core + pairs/zips projections behind export_storm_zips.py (2026-09-14)
+    storms.py                  join/filter core + six projections (pairs, zips, recent_days,
+                               cities, city_days, report_points) behind both export_storm_zips.py
+                               and the web app (2026-09-14 through 2026-09-16)
+  web/
+    __init__.py                Flask app factory (create_app); imports views inside the
+                               factory, not at module scope, so the package stays importable
+                               without a configured app
+    auth.py                    scrypt hash/verify, login_required decorator (2026-09-14)
+    views.py                   the `main` blueprint: /, /storms/zips, /territory,
+                               /territory/days, /export.csv, /map/points.geojson,
+                               /login, /logout (2026-09-14 through 2026-09-16)
+    templates/
+      base.html                 nav + userbar shell; pulls in vendored Leaflet (2026-09-17)
+      login.html
+      storms.html                the recent-storm-days browser
+      territory.html             city/zip grouped browse + the map (city mode only)
+      _zips.html                 fragment: one storm day's zip breakdown
+      _city_days.html            fragment: one city's day-by-day breakdown
+    static/
+      style.css                  restyled 2026-09-17 (nav/filters/tables)
+      storms.js                  generic expand/collapse + lazy-fetch-once handler
+      map.js                     Leaflet map: coverage polygons, report points, 5-mi rings
+      coverage.geojson           generated fixture (scripts/build_coverage_geojson.py)
+      leaflet.css / leaflet.js   vendored from unpkg 2026-09-17, resolving parking-lot item 28
+      images/
+        marker-icon.png           Leaflet default-icon assets; unused by this app's own
+        marker-shadow.png         markers (map.js draws circleMarker/circle, not L.marker) —
+                               shipped because leaflet.css references them, harmless if 404
+  wsgi.py                    two lines: `from hailsys.web import create_app; app = create_app()`
 scripts/
   build_reference_tables.py   derives reference CSVs from the raw LSR archive
   zcat-data-check.py          checks coverage zips against the TIGER .dbf
@@ -1165,13 +1467,22 @@ scripts/
   load_reference.sh           idempotent loader: report_types CSV, report_sources CSV, ZCTA shapefile, county shapefile (2026-09-14)
   load_coverage.sh            idempotent loader: one customer's territory
   status.sh                   four read-only operator checks; exit code = nightly-health verdict (2026-09-11)
+  create_user.py              CLI to create a web-app login; run as hail_admin; explicit
+                               placeholder until Phase 4 builds a real admin UI (2026-09-14)
+  build_coverage_geojson.py   writes static/coverage.geojson from a one-time simplified
+                               query; a fixture, not a per-request render (2026-09-16)
 tests/
   __init__.py                 empty; makes unittest discovery work
   test_iem_parse.py           stdlib unittest cases against hailsys/iem/parse.py
+  test_iem_common.py          against hailsys/iem/common.py
+  test_iem_backfill.py        against scripts/iem_backfill.py (sys.path.insert, not a package)
+  test_iem_ingest.py          against scripts/iem_ingest.py (same)
+                               (88 cases total, unchanged since 2026-09-11 — nothing under
+                               hailsys/web/ has any test coverage, §2)
 docker/
   ingest.Dockerfile           python:3.12-slim + psycopg; COPY hailsys + scripts, PYTHONPATH=/app (2026-09-14); runs as non-root
   loader.Dockerfile           postgis image + pinned client pkg; bullseye-EOL apt workaround; bind-mounts the repo, no PYTHONPATH needed
-  app.Dockerfile              same shape as ingest.Dockerfile; connects as hail_app (2026-09-11)
+  app.Dockerfile              same shape as ingest.Dockerfile; connects as hail_app (2026-09-11); also builds `web` (below), which runs it under gunicorn instead of a one-shot script
 output/                       gitignored — CSVs from export_storm_zips.py (pairs/zips), bind-mounted into `app`
 reference/                    gitignored — derived statistical CSVs, DNC lists
 data/                         gitignored — raw LSR archive, TIGER shapefiles
@@ -1219,8 +1530,10 @@ verified, 2026-09-14**, same-day follow-on to the package move above.
 ### Running it
 
 ```bash
-cp .env.example .env          # then fill in three passwords
-docker compose up -d          # postgis only; ingest/loader are profile "tools"
+cp .env.example .env          # then fill in three passwords, plus FLASK_SECRET_KEY
+docker compose up -d          # postgis AND web (2026-09-11) — web has no
+                               # profile restriction, unlike ingest/loader/app,
+                               # which are all profile "tools" and stay down
 
 # apply the schema — NOT automatic, and 010 must come last
 docker compose run --rm loader \

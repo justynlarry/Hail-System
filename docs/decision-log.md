@@ -2642,3 +2642,37 @@ temporary widening for one demo, reverted once the demo ends.
 
 **Related:** *Phase 2 UI is reached over Tailscale, not a Cloudflare
 tunnel* (2026-09-14).
+
+---
+
+## 2026-09-17 — Vendor Leaflet into `static/`, off the `unpkg.com` CDN
+
+*Map: Leaflet, no tile layer* (2026-09-16) loaded Leaflet itself from
+`unpkg.com` — reasonable for getting the map built, but the CDN request runs
+on every page load, not just the map ones, since `base.html` includes it
+unconditionally for every route. Parking-lot item 28 named this as a
+before-prod item; nothing about the app changed enough to make it more
+pressing than described there, it was just next.
+
+**`leaflet.css`, `leaflet.js`, and the two marker image assets it references
+(`marker-icon.png`, `marker-shadow.png`) are now committed under
+`hailsys/web/static/`**, and `base.html` points at them via `url_for`
+instead of `unpkg.com`. No version change — still Leaflet 1.9.4, verified
+against the vendored file's own `/* @preserve */` header rather than assumed.
+
+**Why now rather than at actual prod deployment (item 28's original "when"):**
+no reason to wait once the map was stable — a CDN dependency is the same risk
+whether it's flagged for later or removed today, and removing it needed no
+other change to land first. **Resolves parking-lot item 28.**
+
+**Known gap, not a regression:** `leaflet.css` also references
+`marker-icon-2x.png`, `layers.png`, and `layers-2x.png`, none of which are
+vendored. This app never calls `L.marker` or adds a layers control — the map
+draws report points as `L.circleMarker` and 5-mile rings as `L.circle`
+(2026-09-16 entry) — so nothing requests those three images today. If a
+future feature adds either, vendor the missing assets from the same
+`leaflet@1.9.4` release at that point rather than assuming they're already
+covered.
+
+**Related:** *Map: Leaflet, no tile layer* (2026-09-16). Resolves
+`parking-lot.md` item 28.

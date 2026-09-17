@@ -506,6 +506,13 @@ share `ZIPS_COLUMNS`.
 
 **When:** before prod deployment.
 
+**Resolved 2026-09-17.** See `docs/decision-log.md`, "Vendor Leaflet into
+`static/`, off the `unpkg.com` CDN" — `leaflet.css`/`leaflet.js` plus the two
+marker images the CSS references are committed under
+`hailsys/web/static/`, and `base.html` loads them locally. Done ahead of the
+"before prod deployment" window stated here rather than waiting for it; kept
+here per this file's convention rather than deleted.
+
 ## 29. Extract the repeated filter parsing
 
 Five routes now duplicate the `days`/`type`/`actionable` parsing block.

@@ -56,7 +56,8 @@ storm from last month, and the nightly job has run unattended for a week.
 - Group results by city, county, or zip
 - Confidence label with its inputs shown
 - CSV export on every list
-- Cloudflare tunnel
+- Tailscale (decision-log 2026-09-14, superseding the Cloudflare tunnel named
+  here originally; revisit Cloudflare Access at Phase 6)
 
 **Done when:** someone other than the developer can log in, find last spring's
 worst hail, and download it as a spreadsheet.
