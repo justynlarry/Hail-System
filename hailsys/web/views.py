@@ -345,6 +345,7 @@ def pull_estimate():
         abort(400)
 
     report_text = request.args.get("type") or None
+    actionable_only = _actionable_from_args()
     window_start, window_end = denver_day_bounds(day)
 
     with get_connection() as conn:
@@ -354,12 +355,14 @@ def pull_estimate():
             window_start=window_start,
             window_end=window_end,
             report_text=report_text,
+            actionable_only=actionable_only,
         )
 
     return render_template(
         "pull_estimate.html",
         storm_date=day,
         report_text=report_text,
+        actionable_only=actionable_only,
         result=result,
         recent_window_days=RECENT_PULL_WINDOW_DAYS,
     )
@@ -374,6 +377,10 @@ def pull_start():
         abort(400)
 
     report_text = request.form.get("type") or None
+    if "submitted" in request.form:
+        actionable_only = "actionable" in request.form
+    else:
+        actionable_only = True
     window_start, window_end = denver_day_bounds(day)
 
     with get_connection() as conn:
@@ -383,6 +390,7 @@ def pull_start():
             window_start=window_start,
             window_end=window_end,
             report_text=report_text,
+            actionable_only=actionable_only,
         )
     if result["zip_count"] != expected_zip_count:
         flash(f"The zip list changed since this estimate was shown "

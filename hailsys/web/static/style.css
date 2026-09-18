@@ -228,3 +228,28 @@ h1 ~ table, h1 ~ p { margin-left: 1.5rem; margin-right: 1.5rem; }
   white-space: nowrap;
 }
 .pull-link:hover { text-decoration: underline; }
+
+/* Same spot as .pull-link, for the "Pulled, not matched" state -- the two
+   are meant to be visually interchangeable. A <form> is a block element by
+   default, which would drop it to its own line and push the row taller, so
+   it's made inline here; the button inside gets no styling from elsewhere
+   in this file (there is no bare "button" rule), so it's stripped down to
+   read as a small quiet link rather than the boxed, page-level look
+   .confirm button has on the pull-estimate page. */
+.inline-action {
+  display: inline-block;
+  margin-left: 0.5rem;
+}
+.inline-action button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.inline-action button:hover { text-decoration: underline; }

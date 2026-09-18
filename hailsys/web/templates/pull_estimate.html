@@ -37,6 +37,8 @@
 <form method="post" action="{{ url_for('main.pull_start') }}" class="confirm">
     <input type="hidden" name="date" value="{{ storm_date.isoformat() }}">
     <input type="hidden" name="type" value="{{ report_text or '' }}">
+    <input type="hidden" name="submitted" value="1">
+    {% if actionable_only %}<input type="hidden" name="actionable" value="1">{% endif %}
     <!-- The count, not the zip list: the POST recomputes the zips and
          refuses if this number no longer matches. -->
     <input type="hidden" name="zip_count" value="{{ result.zip_count }}">

@@ -2939,3 +2939,18 @@ obvious failures:** modules that existed yesterday import fine while today's
 don't exist at all. Any verification of Python changes must run against a
 freshly built image, and a build step belongs in the loop before any claim
 that something works.
+
+---
+
+## 2026-09-18 — Filters must travel across every handoff
+
+Third instance of the same bug shape: `/export.csv` reconstructing its own
+day range, `map.js`/`storms.js` forwarding a stale `data-days`, and
+`/pull/estimate` hardcoding `actionable_only=True`. In each case the
+receiving route rebuilt a default instead of receiving the caller's filter,
+and silently answered a different question than the page the user was
+looking at.
+
+**The rule:** any link or form that hands off from a filtered view carries
+every filter that view applied. The tell is a route computing a default for
+something the caller already knows.

@@ -49,6 +49,7 @@ WITH activity AS (
     JOIN iem_data i ON i.iem_id = m.iem_id
     WHERE i.utc_datetime >= %(window_start)s
         AND i.utc_datetime < %(window_end)s
+        AND s.sent_at IS NOT NULL
 
 )
 SELECT
