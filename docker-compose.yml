@@ -87,6 +87,7 @@ services:
       PGDATABASE: weather-property
       PGUSER: hail_app
       PGPASSWORD: ${HAIL_APP_PASSWORD:?HAIL_APP_PASSWORD is not set -- see .env.example}
+      RENTCAST_KEY: ${RENTCAST_KEY:?RENTCAST_KEY is not set -- see .env.example}
     volumes:
       - ./output:/app/output
       - ./hailsys/web/static:/app/hailsys/web/static
