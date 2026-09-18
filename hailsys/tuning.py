@@ -57,6 +57,10 @@ DEFAULT_MATCH_RADIUS_MILES = 5.0
 # from SQL, which a Python constant is not.  Not added now because there is no
 # wind analysis to base a number on.
 
+RECENT_PULL_WINDOW_DAYS = 7
+
+# Starting Number, needs to be revisited based on actual needs.
+
 DISPLAY_TZ = ZoneInfo("America/Denver")
 
 def miles_to_metres(miles):
