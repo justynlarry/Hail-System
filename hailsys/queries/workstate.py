@@ -61,7 +61,7 @@ FROM activity
 GROUP BY storm_date, report_text 
 """
 
-NOT_PULLED = "Not Pulled"
+NOT_PULLED = "Not pulled"
 PULLED = "Pulled, not matched"
 MATCHED = "Matched, not sent"
 SENT = "Sent"
