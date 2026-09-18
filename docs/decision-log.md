@@ -2751,3 +2751,17 @@ was left stuck at `'running'` forever with the real error swallowed by a
 second, unrelated one. General pattern worth carrying forward to any future
 code that catches a DB exception and tries to write anything afterward on
 the same connection.
+
+---
+
+## 2026-09-18 — "Nothing is deleted" governs production data, not pre-launch test artifacts
+
+Manual DELETEs cleared dry-run fixture rows (DRY-A/DRY-B) and their associated
+`api_pulls`/`api_call_log` test rows (pull_ids 1–6) ahead of real RentCast
+testing.
+
+**Why:** CLAUDE.md's "nothing is deleted" rule governs production data —
+captured storm reports, real listings, agent/realtor records, send/suppression
+history — not test fixtures generated before the system has gone live.
+Recording this once, deliberately, so it reads as a stated exception rather
+than a quiet violation of the rule.
