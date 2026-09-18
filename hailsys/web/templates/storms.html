@@ -7,12 +7,11 @@
     <form method="get" action="{{ url_for('main.index') }}" class="filters">
         <input type="hidden" name="submitted" value="1">
 
-        <label for="days">Last</label>
-        <select id="days" name="days">
-            {% for n in day_ranges %}
-            <option value="{{ n }}" {% if n == selected_days %}selected{% endif %}>{{ n }} days</option>
-            {% endfor %}
-        </select>
+        <label for="start">From</label>
+        <input type="date" id="start" name="start" value="{{ start_day.isoformat() }}">
+
+        <label for="end">To</label>
+        <input type="date" id="end" name="end" value="{{ end_day.isoformat() }}">
 
         <label for="type">Type</label>
             <select id="type" name="type">
@@ -72,6 +71,6 @@
     </tbody>
 </table>
 {% else %}
-<p>No Storm days in the last year within coverage</p>
+<p>No storm days between {{ start_day }} and {{ end_day }} within coverage.</p>
 {% endif %}
 {% endblock %}

@@ -19,35 +19,62 @@ from hailsys.tuning import (
 bp = Blueprint("main", __name__)
 
 DAY_RANGES = (30, 90, 365)
+DEFAULT_DAYS = 30
 GROUP_BYS = ("zip", "city")
 POINTS_SQL_LIMIT = 2000
 
-@bp.route("/")
-@login_required
-def index():
+def _parse_day(raw):
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+def _window_from_args():
+    """Resolve date-range filter, returns (start_day, end_day, window_start
+    window_end).
+
+    end_day is INCLUSIVE as the user means it, denver_day_bounds(end_day)
+    returns midnight of the following day.
+    """
     # NOT date.today(), the container's clock is UTC, so after 6pm Denver
     # that returns 'tomorrow' and the newest storm day falls outside
     # the window.  Any 'what day is it' question goes through DISPLAY_TZ.
     today = datetime.now(DISPLAY_TZ).date()
 
-    # Validate against a fixed set.
-    try:
-        days = int(request.args.get("days", 90))
-    except ValueError:
-        days = 90
-    if days not in DAY_RANGES:
-        days = 90
+    start_day = _parse_day(request.args.get("start"))
+    end_day = _parse_day(request.args.get("end"))
 
-    report_text = request.args.get("type") or None
+    if start_day is None or end_day is None:
+        try:
+            days = int(request.args.get("days", DEFAULT_DAYS))
+        except ValueError:
+            days = DEFAULT_DAYS
+        if days not in DAY_RANGES:
+            days = DEFAULT_DAYS
+        start_day = today - timedelta(days=days)
+        end_day = today
 
-    # Checkbox
+    if start_day > end_day:
+        start_day, end_day = end_day, start_day
+
+    window_start, _ = denver_day_bounds(start_day)
+    _, window_end = denver_day_bounds(end_day)
+    return start_day, end_day, window_start, window_end
+
+def _actionable_from_args():
     if "submitted" in request.args:
-        actionable_only = "actionable" in request.args
-    else:
-        actionable_only = True
-    
-    window_start, _ = denver_day_bounds(today - timedelta(days=days))
-    _, window_end = denver_day_bounds(today)
+        return "actionable" in request.args
+    return True
+
+
+@bp.route("/")
+@login_required
+def index():
+    start_day, end_day, window_start, window_end = _window_from_args()
+    report_text = request.args.get("type") or None
+    actionable_only = _actionable_from_args()
 
     with get_connection() as conn:
         rows = storms.fetch_recent_days(
@@ -57,7 +84,7 @@ def index():
             window_end=window_end,
             report_text=report_text,
             actionable_only=actionable_only,
-            limit=50,   
+            limit=50,
         )
 
         types = storms.fetch_report_types(conn)
@@ -66,8 +93,8 @@ def index():
         "storms.html",
         rows=rows,
         types=types,
-        day_ranges=DAY_RANGES,
-        selected_days=days,
+        start_day=start_day,
+        end_day=end_day,
         selected_type=report_text,
         actionable_only=actionable_only,
     )
@@ -250,24 +277,9 @@ def territory_days():
 @bp.route("/export.csv")
 @login_required
 def export_csv():
-    today = datetime.now(DISPLAY_TZ).date()
-
-    try:
-        days = int(request.args.get("days", 90))
-    except ValueError:
-        days = 90
-    if days not in DAY_RANGES:
-        days = 90
-
+    start_day, end_day, window_start, window_end = _window_from_args()
     report_text = request.args.get("type") or None
-
-    if "submitted" in request.args:
-        actionable_only = "actionable" in request.args
-    else:
-        actionable_only = True
-
-    window_start, _ = denver_day_bounds(today - timedelta(days=days))
-    _, window_end = denver_day_bounds(today)
+    actionable_only = _actionable_from_args()
 
     with get_connection() as conn:
         rows = storms.fetch_zips(
@@ -287,7 +299,8 @@ def export_csv():
     )
 
     label = (report_text or "ALL").replace("/", "-").replace(" ", "_")
-    filename = f"storm_zips_{today.isoformat()}_{label}_{days}d.csv"
+    filename = (f"storm_zips_{start_day.isoformat()}_to_"
+               f"{end_day.isoformat()}_{label}.csv") 
 
     return Response(
         buffer.getvalue(),
