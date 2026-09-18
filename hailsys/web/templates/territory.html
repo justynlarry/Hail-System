@@ -17,12 +17,11 @@
         {% endfor %}
     </select>
 
-    <label for="days">Last</label>
-    <select id="days" name="days">
-        {% for n in day_ranges %}
-        <option value="{{ n }}" {% if n == selected_days %}selected{% endif %}>{{ n }} days</option>
-        {% endfor %}
-    </select>
+    <label for="start">From</label>
+    <input type="date" id="start" name="start" value="{{ start_day.isoformat() }}">
+
+    <label for="end">To</label>
+    <input type="date" id="end" name="end" value="{{ end_day.isoformat() }}">
 
     <label for="type">Type</label>
     <select id="type" name="type">
@@ -70,7 +69,8 @@
                             data-endpoint="/territory/days"
                             data-area="{{ row.area_name }}"
                             data-type="{{ selected_type or '' }}"
-                            data-days="{{ selected_days}}"
+                            data-start="{{ start_day.isoformat() }}"
+                            data-end="{{ end_day.isoformat() }}"
                             data-actionable="{{ '1' if actionable_only else '' }}">+</button>
                     </td>
                     <td>{{ row.area_name }}</td>

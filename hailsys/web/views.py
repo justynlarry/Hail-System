@@ -8,7 +8,7 @@ from flask import flash, redirect, Blueprint, render_template, abort, request, s
 from hailsys.web.auth import login_required, verify_password
 
 from hailsys.db import get_connection
-from hailsys.queries import storms
+from hailsys.queries import storms, workstate
 from hailsys.tuning import (
     DEFAULT_ZIP_RADIUS_MILES,
     DISPLAY_TZ,
@@ -72,6 +72,7 @@ def _actionable_from_args():
 @bp.route("/")
 @login_required
 def index():
+    today = datetime.now(DISPLAY_TZ).date()
     start_day, end_day, window_start, window_end = _window_from_args()
     report_text = request.args.get("type") or None
     actionable_only = _actionable_from_args()
@@ -88,6 +89,17 @@ def index():
         )
 
         types = storms.fetch_report_types(conn)
+        work_state = workstate.fetch_work_state(
+            conn,
+            window_start=window_start,
+            window_end=window_end,
+            today=today,
+        )
+
+    for row in rows:
+        row["work_state"] = workstate.state_for(
+            work_state, row["storm_date"], row["report_text"], today
+        )
 
     return render_template(
         "storms.html",
@@ -179,28 +191,13 @@ def logout():
 @bp.route("/territory")
 @login_required
 def territory():
-    today = datetime.now(DISPLAY_TZ).date()
-
     group_by = request.args.get("group_by", "city")
     if group_by not in GROUP_BYS:
         group_by = "city"
 
-    try:
-        days = int(request.args.get("days", 90))
-    except ValueError:
-        days = 90
-    if days not in DAY_RANGES:
-        days = 90
-
+    start_day, end_day, window_start, window_end = _window_from_args()
     report_text = request.args.get("type") or None
-
-    if "submitted" in request.args:
-        actionable_only = "actionable" in request.args
-    else:
-        actionable_only = True
-
-    window_start, _ = denver_day_bounds(today - timedelta(days=days))
-    _, window_end = denver_day_bounds(today)
+    actionable_only = _actionable_from_args()
 
     with get_connection() as conn:
         if group_by == "city":
@@ -229,8 +226,8 @@ def territory():
         types=types,
         group_by=group_by,
         group_bys=GROUP_BYS,
-        day_ranges=DAY_RANGES,
-        selected_days=days,
+        start_day=start_day,
+        end_day=end_day,
         selected_type=report_text,
         actionable_only=actionable_only,
     )
@@ -241,25 +238,9 @@ def territory_days():
     area_name = request.args.get("area_name")
     if not area_name:
         abort(400)
-
-    today = datetime.now(DISPLAY_TZ).date()
-
-    try:
-        days = int(request.args.get("days", 90))
-    except ValueError:
-        days = 90
-    if days not in DAY_RANGES:
-        days = 90
-
+    _, _, window_start, window_end = _window_from_args()
     report_text = request.args.get("type") or None
-
-    if "submitted" in request.args:
-        actionable_only = "actionable" in request.args
-    else:
-        actionable_only = True
-
-    window_start, _ = denver_day_bounds(today - timedelta(days=days))
-    _, window_end = denver_day_bounds(today)
+    actionable_only = _actionable_from_args()
 
     with get_connection() as conn:
         rows = storms.fetch_city_days(
@@ -312,24 +293,9 @@ def export_csv():
 @bp.route("/map/points.geojson")
 @login_required
 def map_points():
-    today = datetime.now(DISPLAY_TZ).date()
-
-    try:
-        days = int(request.args.get("days", 90))
-    except ValueError:
-        days = 90
-    if days not in DAY_RANGES:
-        days = 90
-
+    _, _, window_start, window_end = _window_from_args()
     report_text = request.args.get("type") or None
-
-    if "submitted" in request.args:
-        actionable_only = "actionable" in request.args
-    else:
-        actionable_only = True
-
-    window_start, _ = denver_day_bounds(today - timedelta(days=days))
-    _, window_end = denver_day_bounds(today)
+    actionable_only = _actionable_from_args()
 
     with get_connection() as conn:
         rows = storms.fetch_report_points(

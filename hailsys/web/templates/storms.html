@@ -40,6 +40,7 @@
             <th class="num">Reports</th>
             <th class="num">Zips</th>
             <th class="num">Max</th>
+            <th>Status</th>
             <th>Sources</th>
         </tr>
     </thead>
@@ -62,10 +63,19 @@
                   {{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}
                 {% endif %}
             </td>
+            <td>
+                <span class="badge badge-{{ row.work_state.state | lower | replace(' ', '-') | replace(',', '') }}{% if row.work_state.is_stale %} badge-stale{% endif %}">
+                    {% if row.work_state.is_stale and row.work_state.state == 'Not pulled' %}
+                        No action taken
+                    {% else %}
+                        {{ row.work_state.state }}
+                    {% endif %}
+                </span>
+            </td>
             <td>{{ row.sources }}</td>
         </tr>
         <tr hidden>
-            <td colspan="7"></td>
+            <td colspan="8"></td>
         </tr>
         {% endfor %}
     </tbody>

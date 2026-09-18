@@ -23,6 +23,8 @@ document.addEventListener('click', function (event) {
     if (button.dataset.type) params.set('type', button.dataset.type);
     if (button.dataset.area) params.set('area_name', button.dataset.area);
     if (button.dataset.days) params.set('days', button.dataset.days);
+    if (button.dataset.start) params.set('start', button.dataset.start);
+    if (button.dataset.end) params.set('end', button.dataset.end);
     if (button.dataset.actionable === '1') params.set('actionable', '1');
 
     fetch(button.dataset.endpoint + '?' + params)
