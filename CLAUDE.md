@@ -14,15 +14,25 @@ OptiPlex, deliberately built alike. See `docs/hail-consolidated.md` §9.
 
 ## Current phase
 
-**Phase 1 — IEM ingest + zip mapping.** Phase 0 closed 2026-09-03 when a
-spatial query returned the zip codes within 5 miles of an arbitrary lat/lon.
+**Phase 3 — RentCast listings.** Phases 0–2 are closed: 0 on 2026-09-03 when
+a spatial query returned the zip codes within 5 miles of an arbitrary
+lat/lon, 1 on the IEM ingest and archive backfill going live, and 2 on
+2026-09-17 with the storm-browser web app (Flask, Tailscale-reached) and its
+CSV export built and running.
 
-What exists: `sql/001`–`010` (17 tables, roles, and grants), a Docker Compose
-stack, `scripts/load_reference.sh` loading 37 report types and 33,791 ZCTAs, and
-`scripts/iem_parse.py`. Verified end to end 2026-09-08.
+**Caveat on "Phase 0 closed":** that call was made against Phase 0's own
+done-when bar — the spatial query — not against every item Phase 0's task
+list carried, and the physical production OptiPlex build (racking it at
+RBI's office, Proxmox, static IP, UPS, Irin enrollment) is one of those
+items. Everything verified so far has run on the `hail-dev` VM. Do not
+assume the production box is racked, reachable, or has anything deployed to
+it without checking.
 
-What does not: the ingest scripts themselves, any web UI, any RentCast client,
-any sending path, the `report_sources` seed, and any test suite.
+What exists for Phase 3 so far: `hailsys/rentcast/` (`client.py`,
+`estimate.py`, `pull.py`, `upsert.py`), `sql/013`–`015` (linking a pull back
+to the storm it was pulled for, `properties.geom`, and match attribution),
+and `hailsys/matching/matcher.py` writing `storm_listing_matches`. Nothing
+wires this into the web UI yet, and no sending path exists.
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
 with CSV export → 3 RentCast listings → 4 accounts → 5 email → 6 pilot →
