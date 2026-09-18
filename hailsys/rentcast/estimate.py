@@ -58,6 +58,7 @@ def estimate_pull(conn, *, radius_m, window_start, window_end, report_text,
     return {
         "zip_count": len(zip_codes),
         "estimated_api_calls": estimated_calls,
-        "pulled_recently": pulled_recently,        # [{"zip_code", "last_pulled"}, ...], newest first
+        "zips": zip_codes,                          # the full list, for run_pull
+        "pulled_recently": pulled_recently,         # [{"zip_code", "last_pulled"}, ...]
         "not_pulled_recently": not_pulled_recently, # [zip_code, ...]
     }

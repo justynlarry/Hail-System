@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Confirm pull{% endblock %}
+{% block heading %}Confirm pull — {{ storm_date }} {{ report_text or 'all types' }}{% endblock %}
+
+{% block content %}
+<div class="page">
+<p class="estimate-summary">
+    <strong>{{ result.zip_count }}</strong> zip{{ '' if result.zip_count == 1 else 's' }},
+    about <strong>{{ result.estimated_api_calls }}</strong> RentCast
+    request{{ '' if result.estimated_api_calls == 1 else 's' }}.
+</p>
+
+{% if result.pulled_recently %}
+<h3>Pulled in the last {{ recent_window_days }} days ({{ result.pulled_recently | length }})</h3>
+<p class="note">
+    These will be requested again. Listings change slowly — pulling a zip
+    again this soon usually costs requests without finding much new.
+</p>
+<table>
+    <thead><tr><th>Zip</th><th>Last pulled</th></tr></thead>
+    <tbody>
+        {% for z in result.pulled_recently %}
+        <tr>
+            <td>{{ z.zip_code }}</td>
+            <td>{{ z.last_pulled.strftime('%Y-%m-%d %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% if result.not_pulled_recently %}
+<h3>Not pulled recently ({{ result.not_pulled_recently | length }})</h3>
+<p class="zip-list">{{ result.not_pulled_recently | join(', ') }}</p>
+{% endif %}
+
+<form method="post" action="{{ url_for('main.pull_start') }}" class="confirm">
+    <input type="hidden" name="date" value="{{ storm_date.isoformat() }}">
+    <input type="hidden" name="type" value="{{ report_text or '' }}">
+    <!-- The count, not the zip list: the POST recomputes the zips and
+         refuses if this number no longer matches. -->
+    <input type="hidden" name="zip_count" value="{{ result.zip_count }}">
+
+    <button type="submit">Pull {{ result.zip_count }} zip{{ '' if result.zip_count == 1 else 's' }}</button>
+    <a href="{{ url_for('main.index') }}">Cancel</a>
+</form>
+
+<p class="note">
+    The pull runs in the background — you'll come back to the storm list,
+    and the status badge updates as it finishes.
+</p>
+</div>
+{% endblock %}

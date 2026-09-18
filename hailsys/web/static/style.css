@@ -172,3 +172,59 @@ h1 ~ table, h1 ~ p { margin-left: 1.5rem; margin-right: 1.5rem; }
     background: #f1f5f9;
     color: #64748b;
 }
+
+/* Pull-estimate page wrapper. The page mixes <p>, <h3>, <table>, and
+   <form> -- more element types than the "h1 ~ table, h1 ~ p" trick
+   above covers, and .note's own margin overrides that trick anyway
+   (higher specificity). A wrapper with its own padding, same idea as
+   .split, sidesteps both problems by giving every child the same
+   margin regardless of tag or its own rules. */
+.page { padding: 0 1.5rem; }
+
+/* Pull-estimate page: the cost is the one number that matters before
+   anyone spends anything, so it reads larger than body text and the
+   two counts inside it carry the app's accent colour. */
+.estimate-summary { font-size: 1.125rem; }
+.estimate-summary strong { color: var(--accent); }
+
+/* A run of 40+ zip codes needs to wrap without looking like body text
+   pretending to be a table. */
+.zip-list {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+/* The confirm button spends real money, so it is the same accent as
+   every other primary button, just larger; Cancel stays a quiet link
+   rather than a second button competing with it. */
+.confirm { margin: 1rem 0 1.5rem; }
+.confirm button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  padding: 0.6rem 1.25rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.confirm button:hover { background: #2268b4; }
+.confirm a {
+  margin-left: 1rem;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+.confirm a:hover { text-decoration: underline; }
+
+/* Sits right after a .badge span in the Status cell -- small and quiet
+   so it reads as a secondary action, not a second badge. */
+.pull-link {
+  margin-left: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.pull-link:hover { text-decoration: underline; }

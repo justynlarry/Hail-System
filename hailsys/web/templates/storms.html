@@ -71,6 +71,16 @@
                         {{ row.work_state.state }}
                     {% endif %}
                 </span>
+                {% if row.work_state.state == 'Not pulled' %}
+                <a class="pull-link"
+                   href="{{ url_for('main.pull_estimate') }}?date={{ row.storm_date }}&type={{ row.report_text | urlencode }}">Pull</a>
+                {% elif row.work_state.state == 'Pulled, not matched' %}
+                <form method="post" action="{{ url_for('main.match_start') }}" class="inline-action">
+                    <input type="hidden" name="date" value="{{ row.storm_date }}">
+                    <input type="hidden" name="type" value="{{ row.report_text }}">
+                    <button type="submit">Match</button>
+                </form>
+                {% endif %}
             </td>
             <td>{{ row.sources }}</td>
         </tr>

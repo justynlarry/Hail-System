@@ -2765,3 +2765,162 @@ captured storm reports, real listings, agent/realtor records, send/suppression
 history — not test fixtures generated before the system has gone live.
 Recording this once, deliberately, so it reads as a stated exception rather
 than a quiet violation of the rule.
+
+---
+
+## 2026-09-18 — Work state is derived, never stored
+
+`hailsys/queries/workstate.py`, its own module rather than a seventh
+projection in `storms.py`: that file's `_FROM_WHERE` core answers "which
+reports touched which coverage zips" (`iem_data`, `report_types`,
+`zcta_boundaries`, `coverage_zips`); this one answers "what work has been
+done" (`api_pulls`, `storm_listing_matches`, `send_log`). Different tables,
+different question — and the 2026-09-16 `_ACTIONABLE` bug is the standing
+lesson about bolting a rule onto a shared core it wasn't built for.
+
+A storm day's state (Not pulled / Pulled, not matched / Matched, not sent /
+Sent) is computed at read time. Looking at a storm never changes its state;
+only doing the work does — a per-user "seen" flag would let the first person
+to glance at the page absorb a storm that still needs attention, which is
+the exact failure mode multi-user makes likely.
+
+Storm days with no activity are absent from the result and default to Not
+pulled via `state_for()`, keeping this module independent of the
+storm-browser query core.
+
+**Staleness is returned separately from state:** state is a fact about the
+data, staleness a fact about the calendar.
+
+---
+
+## 2026-09-18 — One year is the work-queue aging threshold
+
+`CLAIM_WINDOW_DAYS = 365`. Colorado insurance claims must generally be filed
+within a year of the date of loss, so a storm older than that is not worth
+chasing. Past the threshold, Not pulled reads as "No action taken" —
+history rather than a task.
+
+**Why anchored to the claim deadline rather than a round number:** a work
+queue that only grows is one people stop reading.
+
+---
+
+## 2026-09-18 — Multi-user model: derived queue, separate activity feed
+
+Up to five users; realistically one operator using the RentCast features and
+four viewer-role users checking hail dates and property distances. The work
+queue is derived from data state and is the same for everyone.
+
+The activity feed ("since your last login") is layered on top, sourced from
+`api_pulls.emp_id`/`started_at` and `users.last_login_at`, and is purely
+informational — it never consumes the queue. Storm days never disappear from
+the browser; a date-range selector means any window can be revisited
+regardless of what's been seen or done.
+
+---
+
+## 2026-09-18 — `properties.geom` is generated, matching `iem_data`
+
+`sql/014_properties_geom.sql`. `GEOMETRY(Point, 4326) GENERATED ALWAYS AS
+ST_SetSRID(ST_MakePoint(list_longitude, list_latitude), 4326) STORED`, with
+both a geometry GiST index and a `(geom::geography)` GiST index — the same
+two-index split `zcta_boundaries` carries, for the same reason (`ST_DWithin`
+in metres needs the geography one).
+
+Generated rather than Python-populated so it cannot drift from its source
+columns, which is why `iem_data.geom` is generated too.
+
+**Added while `properties` was at 277 rows:** the same `ALTER` at 50k rows is
+a table rewrite under lock.
+
+**Verified:** 277 of 277 rows have coordinates, and `ST_AsText` confirms
+longitude-first ordering (the `ST_MakePoint(x, y)` trap).
+
+---
+
+## 2026-09-18 — Matching: eligibility rules and an explicit trigger
+
+`hailsys/matching/matcher.py`. Active listings only; New Construction
+excluded at match time (a new roof is not a hail claim — the only play there
+is representing a buyer after purchase); `actionable_only` reports, matching
+how the storm browser already filters.
+
+**Storing everything and filtering at match time is deliberate:**
+`upsert.py` keeps New Construction so the catalog stays complete, and
+targeting decisions live in the matcher.
+
+`list_type IS DISTINCT FROM 'New Construction'` rather than `!=`, because
+`NULL != 'x'` is `NULL` and would silently drop listings with no type.
+
+Report type is not a matcher parameter — a match row carries its `iem_id`
+and therefore already knows whether it came from hail or wind, so which
+template to send is a Phase 5 question read off the row.
+
+One `INSERT ... SELECT` with `ON CONFLICT DO NOTHING`; `RETURNING` gives a
+free count of new rows.
+
+**Verified:** 2024-05-30 HAIL produced 3390 rows / 277 distinct listings / 22
+distinct reports; a second run produced 0.
+
+---
+
+## 2026-09-18 — Match counts must use `COUNT(DISTINCT listing_id)`
+
+The many-to-many is intentional (one report matches many listings; one
+listing matches several reports), which means raw row counts badly overstate
+opportunity: 3390 match rows for 2024-05-30 is at most 277 actual leads.
+
+Anything counting outreach opportunities — the match detail view, Phase 5
+sending — counts distinct listings, not rows.
+
+---
+
+## 2026-09-18 — Pulls run in a background thread; matching follows automatically
+
+`hailsys/web/jobs.py`. A thread, not a job queue: one operator pulling a
+handful of storms a week doesn't justify a worker container. Status lives in
+`api_pulls.api_status`, never in process memory — Gunicorn may run several
+workers, and a status poll can land on one that never held the thread.
+
+A pull runs `match_storm` at the end, because matching costs no API calls,
+is idempotent, and there's no case where you pull a storm's listings and
+don't want to know which are near the reports; the standalone Match button
+remains for re-matching and for storms whose zips were pulled for a
+different storm.
+
+**Known gap:** `daemon=True` means a thread dies with its process, leaving
+`api_pulls` stuck at `'running'` after a restart — `api_call_log` shows how
+far it got, but nothing marks the run dead. Needs a stale-pull sweep before
+this is load-bearing.
+
+---
+
+## 2026-09-18 — The pull POST recomputes zips and verifies a count
+
+`/pull` recomputes the zip list rather than trusting hidden form fields, and
+the form carries only the expected zip count. If the recomputed count
+differs, nothing is pulled and the estimate is re-shown.
+
+**Chosen for simplicity rather than security** — one integer instead of 45
+hidden inputs — with the count check still catching data landing between
+the two clicks. Both failure modes it guards against (new IEM data
+mid-session, an authenticated user editing hidden fields) are remote at five
+known users.
+
+---
+
+## 2026-09-18 — Date range replaces the fixed 30/90/365 selector
+
+`_window_from_args()` in `views.py`, shared by all six filtered routes.
+`?start=`/`?end=` is the interface; `?days=` is still honored so existing
+links and bookmarks keep working.
+
+Half-open windows throughout (`>= start`, `< end`), matching `_FROM_WHERE`
+and `denver_day_bounds()` — consecutive half-open ranges tile with no gap
+and no overlap, which is why the convention exists and why mixing a `<=`
+into one branch of `workstate.py` was a real off-by-one.
+
+`/export.csv` had to change in the same pass: `storms.html` forwards
+`request.query_string` verbatim, so an export route understanding only
+`days=` would have silently returned a different window than the page
+showed.

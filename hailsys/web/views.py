@@ -7,11 +7,15 @@ from flask import flash, redirect, Blueprint, render_template, abort, request, s
 
 from hailsys.web.auth import login_required, verify_password
 
+from hailsys.matching.matcher import match_storm
+from hailsys.rentcast.estimate import estimate_pull
+from hailsys.web.jobs import start_pull
 from hailsys.db import get_connection
 from hailsys.queries import storms, workstate
 from hailsys.tuning import (
     DEFAULT_ZIP_RADIUS_MILES,
     DISPLAY_TZ,
+    RECENT_PULL_WINDOW_DAYS,
     denver_day_bounds,
     miles_to_metres,
 )
@@ -330,3 +334,100 @@ def map_points():
             for r in rows
         ],
     }
+
+@bp.route("/pull/estimate")
+@login_required
+def pull_estimate():
+    """What would a pull cost before any request is made"""
+    try:
+        day = datetime.strptime(request.args["date"], "%Y-%m-%d").date()
+    except (KeyError, ValueError):
+        abort(400)
+
+    report_text = request.args.get("type") or None
+    window_start, window_end = denver_day_bounds(day)
+
+    with get_connection() as conn:
+        result = estimate_pull(
+            conn,
+            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            window_start=window_start,
+            window_end=window_end,
+            report_text=report_text,
+        )
+
+    return render_template(
+        "pull_estimate.html",
+        storm_date=day,
+        report_text=report_text,
+        result=result,
+        recent_window_days=RECENT_PULL_WINDOW_DAYS,
+    )
+
+@bp.route("/pull", methods=["POST"])
+@login_required
+def pull_start():
+    try:
+        day = datetime.strptime(request.form["date"], "%Y-%m-%d").date()
+        expected_zip_count = int(request.form["zip_count"])
+    except (KeyError, ValueError):
+        abort(400)
+
+    report_text = request.form.get("type") or None
+    window_start, window_end = denver_day_bounds(day)
+
+    with get_connection() as conn:
+        result = estimate_pull(
+            conn,
+            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            window_start=window_start,
+            window_end=window_end,
+            report_text=report_text,
+        )
+    if result["zip_count"] != expected_zip_count:
+        flash(f"The zip list changed since this estimate was shown "
+              f"({expected_zip_count} to {result['zip_count']}). "
+              f"Nothing was pulled.  Review and confirm again.")
+        return redirect(url_for("main.pull_estimate",
+                                date=day.isoformat(), type=report_text or ""))
+    start_pull(
+        emp_id=session["emp_id"],
+        storm_date=day,
+        report_text=report_text,
+        zip_codes=result["zips"],
+        estimated_api_calls=result["estimated_api_calls"],
+        window_start=window_start,
+        window_end=window_end,
+    )
+
+    flash(f"Pull started for {day} {report_text or 'all types'} "
+          f"({result['zip_count']} zips).")
+    return redirect(url_for("main.index"))
+
+@bp.route("/match", methods=["POST"])
+@login_required
+def match_start():
+    try:
+        day = datetime.strptime(request.form["date"], "%Y-%m-%d").date()
+    except (KeyError, ValueError):
+        abort(400)
+
+    report_text = request.form.get("type") or None
+    window_start, window_end = denver_day_bounds(day)
+
+    with get_connection() as conn:
+        new_matches = match_storm(
+            conn,
+            emp_id=session["emp_id"],
+            window_start=window_start,
+            window_end=window_end,
+            report_text=report_text,
+        )
+    if new_matches:
+        flash(f"Matched {day} {report_text or 'all types'}: "
+              f"{new_matches} new match{'' if new_matches == 1 else 'es'}")
+    else:
+        flash(f"No new matches for {day} {report_text or 'all types'}."
+              f"Either nothing was within range, or it was already matched.")
+
+    return redirect(url_for("main.index"))
