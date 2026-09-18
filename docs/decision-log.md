@@ -2924,3 +2924,18 @@ into one branch of `workstate.py` was a real off-by-one.
 `request.query_string` verbatim, so an export route understanding only
 `days=` would have silently returned a different window than the page
 showed.
+
+---
+
+## 2026-09-18 — Nothing rebuilds automatically; verify against a rebuilt image or you're testing yesterday's code
+
+An end-of-day audit found the running `web` container 29 hours stale — none
+of Phase 3's code was live in it. `docker/*.Dockerfile` uses `COPY`, and only
+`./output` and `hailsys/web/static` are bind-mounted, so Python changes
+require `docker compose build` plus a container recreate.
+
+**Import checks against a stale image produce misleading passes, not
+obvious failures:** modules that existed yesterday import fine while today's
+don't exist at all. Any verification of Python changes must run against a
+freshly built image, and a build step belongs in the loop before any claim
+that something works.
