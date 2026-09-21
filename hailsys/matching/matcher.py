@@ -1,7 +1,10 @@
 """Storm-to-Listing matching, writes storm_listing_matches
 showing that this listing was within N miles of this storm report
 
-Explicit manual step, not automated after a pull.
+Runs two ways: automatically after a user-initiated pull, by
+hailsys/web/jobs.py, and on demand from the /match POST.  It is never
+scheduled -- nothing here runs without a person having started a pull or
+clicked Match.
 
 Eligibility, decided 2026-09-18:
   - Active listings only (what's actually for sale now)
@@ -9,6 +12,11 @@ Eligibility, decided 2026-09-18:
     only play there is representing a buyer after purchase
   - actionable_only reports (roof-relevant, at or above min_magnitude),
     matching how the storm browser already filters
+
+Added 2026-09-22 (decision log, "Land matches removed"):
+  - Land excluded -- vacant land has no roof and no hail claim.  Written as
+    IS DISTINCT FROM so a property with no recorded type is still matched.
+    Governs future matching only; it does not remove existing matches.
 """
 
 import logging

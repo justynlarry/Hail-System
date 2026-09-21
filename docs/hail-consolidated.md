@@ -1517,8 +1517,7 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
     matcher.py                  storm-to-listing matching, writes storm_listing_matches;
                                excludes New Construction and Land; run by the /match POST and
                                automatically at the end of a pull by web/jobs.py (2026-09-18;
-                               automatic run and Land exclusion since — the module's own
-                               docstring still says "manual step")
+                               automatic run and Land exclusion since)
   web/
     __init__.py                Flask app factory (create_app); imports views inside the
                                factory, not at module scope, so the package stays importable
