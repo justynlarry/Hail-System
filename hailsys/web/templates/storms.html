@@ -4,6 +4,9 @@
 
 {% block content %}
 <script src="{{ url_for('static', filename='storms.js') }}" defer></script>
+<section class="activity-panel">
+    {% include "_activity.html" %}
+</section>
     <form method="get" action="{{ url_for('main.index') }}" class="filters">
         <input type="hidden" name="submitted" value="1">
 

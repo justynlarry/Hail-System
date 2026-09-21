@@ -12,7 +12,7 @@ from hailsys.matching.matcher import match_storm
 from hailsys.rentcast.estimate import estimate_pull
 from hailsys.web.jobs import start_pull
 from hailsys.db import get_connection
-from hailsys.queries import matches,storms, workstate
+from hailsys.queries import activity, matches,storms, workstate
 from hailsys.tuning import (
     DEFAULT_MATCH_RADIUS_MILES,
     DEFAULT_ZIP_RADIUS_MILES,
@@ -28,6 +28,14 @@ DAY_RANGES = (30, 90, 365)
 DEFAULT_DAYS = 30
 GROUP_BYS = ("zip", "city")
 POINTS_SQL_LIMIT = 2000
+FEED_PANEL_LIMIT = 5
+
+def _previous_login():
+    """Login before currnet one, from the session, or None on user's first login
+    """
+    raw = session.get("previous_login_at")
+    return datetime.fromisoformat(raw) if raw else None
+
 
 def _parse_day(raw):
     if not raw:
@@ -36,6 +44,7 @@ def _parse_day(raw):
         return datetime.strptime(raw, "%Y-%m-%d").date()
     except ValueError:
         return None
+
 
 def _window_from_args():
     """Resolve date-range filter, returns (start_day, end_day, window_start
@@ -93,7 +102,6 @@ def index():
             actionable_only=actionable_only,
             limit=50,
         )
-
         types = storms.fetch_report_types(conn)
         work_state = workstate.fetch_work_state(
             conn,
@@ -101,7 +109,14 @@ def index():
             window_end=window_end,
             today=today,
         )
-
+        since = _previous_login()
+        feed = activity.build_feed(
+            conn,
+                since=since,
+                today=today,
+                radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+        ) if since else None
+        
     for row in rows:
         row["work_state"] = workstate.state_for(
             work_state, row["storm_date"], row["report_text"], today
@@ -115,6 +130,11 @@ def index():
         end_day=end_day,
         selected_type=report_text,
         actionable_only=actionable_only,
+        feed=feed,
+        feed_since=since,
+        feed_limit=FEED_PANEL_LIMIT,
+        display_tz=DISPLAY_TZ,
+
     )
 
 @bp.route("/storms/zips")
@@ -158,7 +178,7 @@ def login():
 
     with get_connection() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT emp_id, password_hash, role, is_active"
+            "SELECT emp_id, password_hash, role, is_active, last_login_at"
             "  FROM users WHERE user_name = %s",
             (user_name,),
         )
@@ -177,6 +197,10 @@ def login():
     session["emp_id"] = row["emp_id"]
     session["user_name"] = user_name
     session["role"] = row["role"]
+
+    session["previous_login_at"] = (
+        row["last_login_at"].isoformat() if row["last_login_at"] else None
+    )
 
     with get_connection() as conn, conn.cursor() as cur:
         cur.execute(
@@ -495,3 +519,27 @@ def storm_matches():
         oldest_pull=oldest_pull,
         display_tz=DISPLAY_TZ,
     )
+
+@bp.route("/activity")
+@login_required
+def activity_page():
+    today = datetime.now(DISPLAY_TZ).date()
+    since = _previous_login()
+
+    feed = None
+    if since:
+        with get_connection() as conn:
+            feed = activity.build_feed(
+                conn,
+                since=since,
+                today=today,
+                radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            )
+    return render_template(
+        "activity.html",
+        feed=feed,
+        feed_since=since,
+        feed_limit=None,
+        display_tz=DISPLAY_TZ,
+    )
+
