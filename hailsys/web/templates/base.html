@@ -10,18 +10,34 @@
     </head>
     <body>
     {% if session.emp_id %}
-    <p class="userbar">
-        Signed in as {{ session.user_name }}
-        <form method="post" action="{{ url_for('main.logout') }}">
-            <button type="submit">Sign Out</button>
-        </form>
-    </p>
-    <nav class="nav">
-        <a href="{{ url_for('main.index') }}">Storm Days</a>
-        <a href="{{ url_for('main.territory') }}">Territory</a>
-    </nav>
+    <header class="site-header">
+        <div class="site-header-left">
+            <a class="brand" href="{{ url_for('main.index') }}">Hail System</a>
+            <nav class="nav">
+                <a href="{{ url_for('main.index') }}"
+                   class="{% if request.endpoint == 'main.index' %}active{% endif %}">Storm Days</a>
+                <a href="{{ url_for('main.territory') }}"
+                   class="{% if request.endpoint == 'main.territory' %}active{% endif %}">Territory</a>
+                <a href="{{ url_for('main.activity_page') }}"
+                   class="{% if request.endpoint == 'main.activity_page' %}active{% endif %}">Activity</a>
+            </nav>
+        </div>
+        <div class="site-header-right">
+            <span>Signed in as {{ session.user_name }}</span>
+            <form method="post" action="{{ url_for('main.logout') }}">
+                <button type="submit">Sign Out</button>
+            </form>
+        </div>
+    </header>
     {% endif %}
       <h1>{% block heading %}Hail {% endblock %}</h1>
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flashes">
+            {% for m in messages %}<p>{{ m }}</p>{% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
     {% block content %}{% endblock %}
     </body>
 </html>

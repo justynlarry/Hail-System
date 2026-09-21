@@ -111,6 +111,7 @@ services:
       PGUSER: hail_app
       PGPASSWORD: ${HAIL_APP_PASSWORD:?HAIL_APP_PASSWORD is not set --see .env.example}
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY is not set -- see .env.example}
+      RENTCAST_KEY: ${RENTCAST_KEY:?}
     ports:
       - "127.0.0.1:8000:8000"
     networks:

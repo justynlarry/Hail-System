@@ -461,7 +461,7 @@ def match_start():
         flash(f"Matched {day} {report_text or 'all types'}: "
               f"{new_matches} new match{'' if new_matches == 1 else 'es'}")
     else:
-        flash(f"No new matches for {day} {report_text or 'all types'}."
+        flash(f"No new matches for {day} {report_text or 'all types'}. "
               f"Either nothing was within range, or it was already matched.")
 
     return redirect(url_for("main.index"))
@@ -507,7 +507,7 @@ def storm_matches():
 
     return render_template(
         "matches.html",
-        rows=rows,
+        groups=groups,
         storm_date=day,
         report_text=report_text,
         radius_miles=DEFAULT_MATCH_RADIUS_MILES,

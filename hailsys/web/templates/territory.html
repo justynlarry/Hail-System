@@ -68,7 +68,7 @@
                         <button class="expand"
                             data-endpoint="/territory/days"
                             data-area="{{ row.area_name }}"
-                            data-type="{{ selected_type or '' }}"
+                            data-type="{{ row.report_text }}"
                             data-start="{{ start_day.isoformat() }}"
                             data-end="{{ end_day.isoformat() }}"
                             data-actionable="{{ '1' if actionable_only else '' }}">+</button>

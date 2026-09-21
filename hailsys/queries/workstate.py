@@ -29,6 +29,7 @@ WITH activity AS (
     WHERE storm_date IS NOT NULL
         AND storm_date >= %(start_date)s
         AND storm_date < %(end_date)s
+        AND api_status <> 'failed'
     
     UNION ALL
 
