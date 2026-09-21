@@ -1485,12 +1485,15 @@ sql/                          apply in order; 010 must be last
   016_iem_ingested_at_idx.sql index on iem_data.ingested_at, for the activity feed's
                                new-storms query (2026-09-19)
   017_report_zip_distances.sql report_zip_distances table + AFTER INSERT trigger +
-                               ceiling/guard functions; replaces storms.py's live
-                               ST_DWithin join once scripts/backfill_zip_distances.py
-                               finishes (2026-09-21, Phase 3 close)
+                               ceiling/guard functions; replaced storms.py's live
+                               ST_DWithin join (2026-09-21, Phase 3 close); backfill
+                               complete, old-vs-new output verified identical
 hailsys/                      importable package, moved out of scripts/ (2026-09-14)
   __init__.py                 empty
   tuning.py                   read-time tuning constants (radius, etc.), reasoning in comments
+  formatting.py               display formatting with no Flask import: magnitude(value, unit),
+                               the one implementation behind the `magnitude` Jinja filter and
+                               map_points()'s magnitude_display (2026-09-21)
   db.py                       connection seam: one context manager, dict_row rows, no pool (2026-09-14)
   iem/
     __init__.py                empty
@@ -1501,8 +1504,8 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
     storms.py                  join/filter core + six projections (pairs, zips, recent_days,
                                cities, city_days, report_points) behind both export_storm_zips.py
                                and the web app (2026-09-14 through 2026-09-16); _FROM_WHERE now
-                               joins report_zip_distances instead of a live ST_DWithin (2026-09-21,
-                               deploys after the backfill finishes)
+                               joins report_zip_distances instead of a live ST_DWithin (2026-09-21;
+                               live and verified — see decision log, same date)
     matches.py                 match-detail query: one row per listing, grouped by agent;
                                pull-coverage lookup for the match page's gap warning (2026-09-21)
     workstate.py                per-storm-day work state (Not pulled / Pulled, not matched /
@@ -1512,12 +1515,14 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                pulls, match runs (2026-09-21)
   matching/                   no __init__.py — implicit namespace package
     matcher.py                  storm-to-listing matching, writes storm_listing_matches;
-                               explicit manual step, not run automatically after a pull
-                               (2026-09-18)
+                               excludes New Construction and Land; run by the /match POST and
+                               automatically at the end of a pull by web/jobs.py (2026-09-18;
+                               automatic run and Land exclusion since — the module's own
+                               docstring still says "manual step")
   web/
     __init__.py                Flask app factory (create_app); imports views inside the
                                factory, not at module scope, so the package stays importable
-                               without a configured app
+                               without a configured app; registers the `magnitude` Jinja filter
     auth.py                    scrypt hash/verify, login_required decorator (2026-09-14)
     jobs.py                     background thread for a RentCast pull + its automatic match
                                run; daemon=True, so a thread dies with its process (known gap,
@@ -1544,7 +1549,8 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
       style.css                  restyled 2026-09-17; header merged to one bar, flash-message
                                and activity-panel styles added 2026-09-21
       storms.js                  generic expand/collapse + lazy-fetch-once handler
-      map.js                     Leaflet map: coverage polygons, report points, 5-mi rings
+      map.js                     Leaflet map: coverage polygons, report points, 5-mi rings;
+                               tooltip shows the server-formatted magnitude_display
       coverage.geojson           generated fixture (scripts/build_coverage_geojson.py)
       leaflet.css / leaflet.js   vendored from unpkg 2026-09-17, resolving parking-lot item 28
       images/
@@ -1579,6 +1585,11 @@ scripts/
   backfill_zip_distances.py   fills report_zip_distances for reports that predate the
                                AFTER INSERT trigger; batched by iem_id range, resumable,
                                run as hail_ingest (2026-09-21)
+  verify_zip_distances.py     old-vs-new PAIRS_SQL exact comparison, the pre-93c7f85 spatial
+                               join embedded as the reference; read-only, as hail_app, exits 1
+                               on any mismatch. Re-run after any recompute of
+                               report_zip_distances (ceiling change, TIGER reload)
+                               (2026-09-21)
   test_estimate.py            one-off manual check of estimate_pull's recently-pulled split
   test_latest_call.py         direct check of estimate.py's recency lookup
   test_match.py                one-off manual check of the storm matcher
@@ -1591,8 +1602,10 @@ tests/
   test_iem_common.py          against hailsys/iem/common.py
   test_iem_backfill.py        against scripts/iem_backfill.py (sys.path.insert, not a package)
   test_iem_ingest.py          against scripts/iem_ingest.py (same)
-                               (88 cases total, unchanged since 2026-09-11 — nothing under
-                               hailsys/web/ has any test coverage, §2)
+  test_formatting.py          against hailsys/formatting.py (2026-09-21)
+                               (100 cases total: 88 unchanged since 2026-09-11 plus 12 in
+                               test_formatting.py — nothing under hailsys/web/ has any test
+                               coverage, §2)
 docker/
   ingest.Dockerfile           python:3.12-slim + psycopg; COPY hailsys + scripts, PYTHONPATH=/app (2026-09-14); runs as non-root
   loader.Dockerfile           postgis image + pinned client pkg; bullseye-EOL apt workaround; bind-mounts the repo, no PYTHONPATH needed
@@ -1614,9 +1627,11 @@ systemd/                      unit files; installed by copy, not symlink (2026-0
   iem_weekly_replay.timer      OnCalendar=Sun *-*-* 11:00:00, an hour after the nightly
 ```
 
-**`tests/` holds four files** — stdlib `unittest`, no runner dependency, 88
+**`tests/` holds five files** — stdlib `unittest`, no runner dependency, 100
 cases total across `test_iem_parse.py`, `test_iem_common.py`,
-`test_iem_backfill.py`, and `test_iem_ingest.py`. The last three import
+`test_iem_backfill.py`, `test_iem_ingest.py`, and `test_formatting.py`
+(pure functions: no `psycopg` stub, only the repo root on `sys.path`). Of the
+first four, the last three import
 `iem_backfill`/`iem_ingest` from `scripts/` directly (not a package, so via a
 `sys.path.insert`) while those modules import `hailsys` at the repo root —
 each of those three test files inserts *both* paths.

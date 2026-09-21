@@ -96,13 +96,20 @@ status; a single merged header with visible flash messages; and
 `report_zip_distances` (`sql/017`), precomputing report-to-zip distances so
 `storms.py` stops running a live spatial join on every query.
 
-**One item deploys after this close, not before it:** `storms.py`'s switch
-to `report_zip_distances` is only safe to run once
-`scripts/backfill_zip_distances.py` has finished the full historical
-backfill and old-vs-new `PAIRS_SQL` output has been verified identical —
-until then, the inner join to `report_zip_distances` silently drops any
-report that hasn't been backfilled yet, which reads as "no data" rather
-than an error.
+**`storms.py`'s switch to `report_zip_distances` is deployed and verified.**
+`web` bind-mounts `./hailsys`, so the switch went live at the first `web`
+restart after `93c7f85` — there is no separate deploy step (see the decision
+log, "With `./hailsys` bind-mounted into web, editing is deploying"). The
+precondition it was written against holds: `scripts/backfill_zip_distances.py`
+finished the full historical backfill (177,515 reports, 2,255,652 pairs, 0
+reports without rows), and old-vs-new `PAIRS_SQL` output is identical on three
+windows (`scripts/verify_zip_distances.py`, decision log 2026-09-21). Timings
+on calendar 2019, previously ~141 s for `/`: `/` recent days 0.06–0.09 s
+(actionable) and 0.45 s (all types), zips 0.05–0.06 s, export pairs 0.91 s
+(49,592 rows). The hazard the precondition guarded against — the inner join
+silently dropping reports not yet backfilled, reading as "no data" — does not
+apply while the table covers every report and the `AFTER INSERT` trigger keeps
+new ones covered.
 
 ---
 

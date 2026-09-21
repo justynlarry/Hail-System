@@ -3126,3 +3126,113 @@ setting — shown read-only. Settings read per request (correct across
 Gunicorn workers without cache invalidation), with a change history. Users
 and roles share the page; requires a `role_required` decorator, since routes
 currently check only login.
+
+---
+
+## 2026-09-21 — With `./hailsys` bind-mounted into web, editing is deploying
+
+**Supersedes the deploy-order note in the 2026-09-21 "report_zip_distances:
+compute once, store" entry** ("`storms.py` deploys only after the backfill
+completes…"), which treated deploying as a step that comes after the commit.
+
+`docker-compose.yml` mounts `./hailsys:/app/hailsys:ro` into `web`. There is
+no build-and-ship step between the working tree and the running app: the
+files the container serves are the files on disk. `docker compose build`
+matters only for `requirements.txt` and the Dockerfile.
+
+Two consequences, both already true:
+
+**A "verify before deploy" gate has to sit before the change reaches the
+working tree, or it gates nothing.** The `report_zip_distances` plan wrote
+"`storms.py` deploys only after the backfill completes and old-vs-new
+`PAIRS_SQL` is verified identical" as though deploying were a later act. It
+wasn't: `93c7f85` put the new `storms.py` on disk, and the next `web`
+restart made it live — at the latest, the recreate before the Phase 3
+audit's real pull. The
+gate was a sentence in a document, not a mechanism. To gate a change for real,
+develop and verify where `web` does not read it: a **`git worktree` in another
+directory**, or a scratch copy, then merge or copy in once verified. Note a
+branch checked out *in the mounted directory* is not a gate — `git checkout`
+rewrites the same files `web` reads.
+
+**Uncommitted edits are live after the next `web` restart.** Committed or
+not, whatever is on disk when the workers start is what runs. Python is
+imported at worker start; templates and static files are read from disk, so a
+working tree can be half-live between edits and a restart — a template that
+calls a filter the running workers never registered fails when it is first
+loaded. Practical rule: after editing anything under `hailsys/`, either
+restart `web` promptly or don't leave the tree in a state that can't run.
+
+---
+
+## 2026-09-21 — report_zip_distances verified: old and new `PAIRS_SQL` identical
+
+**Supersedes the deploy-order note in the 2026-09-21 "report_zip_distances:
+compute once, store" entry** ("`storms.py` deploys only after the backfill
+completes and old-vs-new `PAIRS_SQL` output is verified identical"): the
+backfill is complete and the output is verified identical, below. See also
+"With `./hailsys` bind-mounted into web, editing is deploying" for why that
+note could not have gated anything.
+
+`scripts/verify_zip_distances.py` runs the whole `PAIRS_SQL` two ways over the
+same window — the live `ST_DWithin` join against `zcta_boundaries`, embedded
+in the script as a frozen reference (storms.py at `93c7f85^`), and the deployed
+`storms.PAIRS_SQL` reading `report_zip_distances` — and compares every column
+of every row as a multiset. Exact match required, not approximate: both sides
+call the same spheroidal `ST_Distance` on the same inputs and round the same
+way, so any difference is a finding. Ran as `hail_app` in a read-only
+transaction, default 5-mile radius (8046.72 m).
+
+| Window | Rows (old / new) | Old | New | Pairs within 1 m of radius | Result |
+|---|---|---|---|---|---|
+| 2024-05-30, HAIL | 1,420 / 1,420 | 2.53 s | 0.03 s | 1 | identical |
+| Last 60 days (2026-07-23 → 2026-09-22 local) | 875 / 875 | 12.31 s | 0.02 s | 0 | identical |
+| 2019-01-01 → 2019-03-01 (half-open) | 11,876 / 11,876 | 48.51 s | 0.50 s | 5 | identical |
+
+No pair present on one side and missing on the other, no `distance_miles`
+difference. Two of the three windows contain pairs within 1 m of the radius —
+the only place a disagreement could plausibly hide — and both passed.
+
+**The check can fail.** Negative control: with the new side's `distance_m`
+test tightened by 1 m, the 2024-05-30 window fails with one row "only in
+OLD" — zip 80229, `iem_id` 59966, `distance_miles` 5.00, exactly on the
+boundary — and exits 1.
+
+The 2019 window's old query took 48.5 s here, against the ~141 s recorded in
+the performance entry above for the same dates. Not like for like: that
+figure was for `/` (`RECENT_DAYS_SQL`, which ran the join twice — CTE plus
+main query), and this run is a single `PAIRS_SQL`. The old `RECENT_DAYS_SQL`
+was not re-timed on this window, so the gap between 48.5 s and 141 s is
+unexplained beyond that; compare 48.5 s to 0.50 s for this pair, not to 141 s.
+
+`storms.py` timings on the full calendar year 2019 after the switch, via the
+same calls `/` and `/export.csv` make: `/` recent days 0.06–0.09 s
+(actionable) and 0.45 s (all types); zips 0.05–0.06 s; export pairs 0.91 s
+(49,592 rows). Was ~141 s.
+
+Why the script stays: any recompute of `report_zip_distances` — raising
+`hail_pair_ceiling_m()`, or a TIGER reload of `zcta_boundaries` — needs this
+same check. It takes `--only NAME` and `--radius-miles N`; run it against
+the ceiling radius too after a ceiling change. The old join is slow on wide
+ranges, which is the reason the table exists, not a hang.
+
+---
+
+## 2026-09-22 — Land matches removed at the moment it was free to
+
+Vacant land has no roof and no hail claim, so `matcher.py` now excludes
+`property_type = 'Land'` at match time, alongside New Construction. It uses
+`IS DISTINCT FROM`, so a property with no type recorded is still matched —
+the exclusion drops known land, not unknowns.
+
+The exclusion only governs future matching. The 54 Land matches already in
+`storm_listing_matches` (3,430 → 3,376 rows) were deleted by hand while
+`send_log` was empty. Matches are derived, and nothing had been sent against
+them, so removing them cost nothing and rewrote no history. Once a match has
+a send against it, it is history, and removing one becomes a real decision
+rather than a cleanup — this was free only because it was done before the
+first send.
+
+Verified afterward: 93 Land properties exist in `properties`, 0 are matched.
+The Land properties and listings themselves were not touched — only their
+match rows.
