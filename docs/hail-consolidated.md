@@ -129,12 +129,18 @@ ten.
 
 ## 2. Where the project actually stands
 
-**Phases 0 and 1 are closed. Phase 2 — the storm-browser web app — is closed,
-2026-09-17.** Phase 3 — RentCast listings — is in its beginning stages: a
-sale-listings API client and a pre-pull cost estimate exist, plus a schema
-change linking a pull back to the storm it was pulled for. See "The web app"
-below for what Phase 2 shipped, and "Phase 3 begins" below for what's here so
-far.
+**Phases 0 through 3 are closed. Phase 2 — the storm-browser web app — closed
+2026-09-17; Phase 3 — RentCast listings — closed 2026-09-21. Phase 4 —
+Accounts — is the current phase.** Phase 3 delivered the sale-listings client,
+the pre-pull estimate, a background-thread pull path, upserts into
+`properties`/`listings`/`realtors`, storm-to-listing matching (automatic when a
+pull finishes), the match page and the activity feed, all through the web UI,
+plus `report_zip_distances` so storm queries no longer run a live spatial join.
+Its done-when bar was exercised with a real pull on 2026-09-21: 4 requests
+estimated, 4 used (`api_pulls` row 12), 231 listings stored and matched. No
+sending path exists yet. See "The web app" below for what Phase 2 shipped,
+"Phase 3 begins" for how Phase 3 started, and `docs/phases.md` and the decision
+log for the rest.
 
 **On "closed":** this is Justyn's call, recorded here, not a re-verification
 against the phase's own "done when" bar. The gaps this file had flagged as of
@@ -159,7 +165,9 @@ forward as open items against a closed phase, not as blockers reopening it.
     `tools`.
 - **The schema is not auto-applied.** `./sql` is mounted at `/sql`, *not* at
   `/docker-entrypoint-initdb.d`, so `docker compose up` yields an empty
-  database. Applying it is an explicit step, and order matters — `010` last.
+  database. Applying it is an explicit step, and order matters — `010` after
+  `001`–`009`, whose tables it grants on, and before `012` and `017`, which
+  grant to its roles; the numeric order of `sql/*.sql` satisfies both.
 - **Reference load verified end to end:** 37 report types, 33,791 ZCTAs (527
   Colorado), all at SRID 4326. Re-run inserts 0 rows.
 
@@ -1456,14 +1464,15 @@ docs/
   server-setup.md             bare-metal Rocky build, step by step
   command-ref.md              Justyn's own Docker/Postgres/type notes
   schema-review.md            re-runnable review prompt for sql/ + the loader
-  parking-lot.md              53 numbered items, several resolved and
-                               resolution-tracked; reconciled 2026-09-21
+  parking-lot.md              57 numbered items, several resolved and
+                               resolution-tracked; items 54-57 added 2026-09-22
   analysis/
     radar-verification-2026-09.md   NEXRAD corroboration study behind the
                                confidence_tier / map-color decisions (§2, §6)
     radar-verification-2026-09/     its five scripts (paths/coverage_bbox/
                                match/reduce/by_day_density/checks.py)
-sql/                          apply in order; 010 must be last
+sql/                          apply in order; 010 after 001-009 (it grants on their tables)
+                               and before 012/017 (they grant to its roles)
   001_extensions.sql          postgis
   002_users.sql               users (+ the bootstrap system account)
   003_reference.sql           report_types, report_sources, zcta_boundaries
@@ -1663,7 +1672,8 @@ docker compose up -d          # postgis AND web (2026-09-11) — web has no
                                # profile restriction, unlike ingest/loader/app,
                                # which are all profile "tools" and stay down
 
-# apply the schema — NOT automatic, and 010 must come last
+# apply the schema — NOT automatic; run in numeric order (010 sits after the
+# tables it grants on and before 012/017, which grant to its roles)
 docker compose run --rm loader \
   bash -c 'for f in /repo/sql/*.sql; do psql -v ON_ERROR_STOP=1 -f "$f" || exit 1; done'
 

@@ -123,6 +123,15 @@ new ones covered.
 
 **Done when:** a viewer account can browse and export but cannot trigger a pull.
 
+**Current phase** (Phase 3 closed 2026-09-21).
+
+Already in place from earlier phases: the `users` table with roles and
+`is_active` (deactivate, not delete), scrypt password hashing, login/logout
+sessions, and `scripts/create_user.py` as the placeholder way to add a user.
+Not yet: role enforcement (routes check only `login_required`) and the admin
+page — see `docs/parking-lot.md` item 39 and the decision log, "Admin settings
+page: Phase 4".
+
 ---
 
 ## Phase 5 — Email

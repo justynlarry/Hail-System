@@ -14,11 +14,12 @@ OptiPlex, deliberately built alike. See `docs/hail-consolidated.md` §9.
 
 ## Current phase
 
-**Phase 3 — RentCast listings.** Phases 0–2 are closed: 0 on 2026-09-03 when
+**Phase 4 — Accounts.** Phases 0–3 are closed: 0 on 2026-09-03 when
 a spatial query returned the zip codes within 5 miles of an arbitrary
-lat/lon, 1 on the IEM ingest and archive backfill going live, and 2 on
+lat/lon, 1 on the IEM ingest and archive backfill going live, 2 on
 2026-09-17 with the storm-browser web app (Flask, Tailscale-reached) and its
-CSV export built and running.
+CSV export built and running, and 3 on 2026-09-21 with RentCast pulls,
+storm-to-listing matching and the match page working through the web UI.
 
 **Caveat on "Phase 0 closed":** that call was made against Phase 0's own
 done-when bar — the spatial query — not against every item Phase 0's task
@@ -28,11 +29,19 @@ items. Everything verified so far has run on the `hail-dev` VM. Do not
 assume the production box is racked, reachable, or has anything deployed to
 it without checking.
 
-What exists for Phase 3 so far: `hailsys/rentcast/` (`client.py`,
-`estimate.py`, `pull.py`, `upsert.py`), `sql/013`–`015` (linking a pull back
-to the storm it was pulled for, `properties.geom`, and match attribution),
-and `hailsys/matching/matcher.py` writing `storm_listing_matches`. Nothing
-wires this into the web UI yet, and no sending path exists.
+What Phase 3 delivered: `hailsys/rentcast/` (`client.py`, `estimate.py`,
+`pull.py`, `upsert.py`); `sql/013`–`017` (linking a pull back to the storm it
+was pulled for, `properties.geom`, match attribution, an `ingested_at` index,
+and `report_zip_distances`); `hailsys/matching/matcher.py` writing
+`storm_listing_matches`; and the UI for it — `/pull/estimate`, `/pull`,
+`/match`, `/storms/matches` and the activity feed. A pull runs in a background
+thread and matches automatically when it finishes. No sending path exists.
+
+What exists for Phase 4 so far: a `users` table, scrypt password hashing,
+login/logout sessions, and `scripts/create_user.py` as a placeholder. Routes
+check only `login_required` — nothing enforces a role yet — and there is no
+admin page (`docs/parking-lot.md` item 39; `docs/decision-log.md`, "Admin
+settings page: Phase 4").
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
 with CSV export → 3 RentCast listings → 4 accounts → 5 email → 6 pilot →
