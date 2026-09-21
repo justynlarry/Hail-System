@@ -77,9 +77,7 @@
                     </td>
                     <td class="num">{{ row.nearest_miles }} mi</td>
                     <td class="num">
-                        {% if row.max_magnitude is not none %}
-                          {{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}
-                        {% endif %}
+                        {{ row.max_magnitude | magnitude(row.mag_unit) }}
                     </td>
                     <td class="num">{{ row.report_count }}</td>
                     <td>{{ row.list_mls_number or '' }}</td>

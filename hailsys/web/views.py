@@ -12,6 +12,7 @@ from hailsys.matching.matcher import match_storm
 from hailsys.rentcast.estimate import estimate_pull
 from hailsys.web.jobs import start_pull
 from hailsys.db import get_connection
+from hailsys.formatting import magnitude
 from hailsys.queries import activity, matches,storms, workstate
 from hailsys.tuning import (
     DEFAULT_MATCH_RADIUS_MILES,
@@ -349,6 +350,8 @@ def map_points():
                     "report_text": r["report_text"],
                     "magnitude": float(r["magnitude"]) if r["magnitude"] is not None else None,
                     "mag_unit": r["mag_unit"],
+                    # Formatted server-side so map.js has no formatting of its own.
+                    "magnitude_display": magnitude(r["magnitude"], r["mag_unit"]),
                     "report_source": r["report_source"],
                     "report_source_norm": r["report_source_norm"],
                 },

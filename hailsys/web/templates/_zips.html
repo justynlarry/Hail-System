@@ -19,7 +19,7 @@
             <td>{{ row.area_name }}</td>
             <td class="num">{{ row.report_count }}</td>
             <td class="num">{{ row.nearest_miles }}</td>
-            <td class="num">{{ row.max_magnitude }}</td>
+            <td class="num">{{ row.max_magnitude | magnitude(row.mag_unit) }}</td>
             <td>{{ row.first_report.strftime('%H:%M') }}</td>
             <td>{{ row.last_report.strftime('%H:%M') }}</td>
             <td>{{ row.sources }}</td>

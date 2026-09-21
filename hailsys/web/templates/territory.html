@@ -78,7 +78,7 @@
                     <td class="num">{{ row.zip_count }}</td>
                     <td class="num">{{ row.day_count }}</td>
                     <td class="num">{{ row.report_count }}</td>
-                    <td class="num">{{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}</td>
+                    <td class="num">{{ row.max_magnitude | magnitude(row.mag_unit) }}</td>
                     <td>{{ row.first_day }}</td>
                     <td>{{ row.last_day }}</td>
                 </tr>
@@ -118,7 +118,7 @@
             <td>{{ row.report_text }}</td>
             <td class="num">{{ row.report_count }}</td>
             <td class="num">{{ row.nearest_miles }}</td>
-            <td class="num">{{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}</td>
+            <td class="num">{{ row.max_magnitude | magnitude(row.mag_unit) }}</td>
             <td>{{ row.first_report.strftime('%Y-%m-%d') }}</td>
             <td>{{ row.last_report.strftime('%Y-%m-%d') }}</td>
         </tr>

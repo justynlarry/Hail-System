@@ -54,13 +54,11 @@ document.addEventListener('DOMContentLoaded', function () {
           interactive: false,
         }));
 
-        const size = p.magnitude === null ? '' :
-          p.magnitude + (p.mag_unit === 'inches' ? '"' :
-                         p.mag_unit === 'mph' ? ' mph' : '');
-
+        // Formatted by hailsys/formatting.py; the raw p.magnitude stays in the
+        // feature for anything that sorts or sizes by it.
         points.addLayer(L.circleMarker([lat, lon], {
           radius: 5, color: color, fillColor: color, fillOpacity: 0.9, weight: 1,
-        }).bindTooltip(p.local_time + '<br>' + p.report_text + ' ' + size +
+        }).bindTooltip(p.local_time + '<br>' + p.report_text + ' ' + p.magnitude_display +
                        '<br>' + p.report_source));
       });
     })

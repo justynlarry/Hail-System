@@ -17,7 +17,7 @@
             <td>{{ row.report_text }}</td>
             <td class="num">{{ row.report_count }}</td>
             <td class="num">{{ row.zip_count }}</td>
-            <td class="num">{{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}</td>
+            <td class="num">{{ row.max_magnitude | magnitude(row.mag_unit) }}</td>
         </tr>
         {% endfor %}
     </tbody>

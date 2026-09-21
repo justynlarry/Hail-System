@@ -13,4 +13,9 @@ def create_app():
     from . import views
     app.register_blueprint(views.bp)
 
+    # One magnitude formatter for templates; map_points() calls the same
+    # function for the GeoJSON, so the table and the map popup agree.
+    from hailsys.formatting import magnitude
+    app.add_template_filter(magnitude, "magnitude")
+
     return app

@@ -62,9 +62,7 @@
             <td class="num">{{ row.report_count }}</td>
             <td class="num">{{ row.zip_count }}</td>
             <td class="num">
-                {% if row.max_magnitude is not none %}
-                  {{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}
-                {% endif %}
+                {{ row.max_magnitude | magnitude(row.mag_unit) }}
             </td>
             <td>
                 <span class="badge badge-{{ row.work_state.state | lower | replace(' ', '-') | replace(',', '') }}{% if row.work_state.is_stale %} badge-stale{% endif %}">
