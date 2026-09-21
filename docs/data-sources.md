@@ -267,7 +267,10 @@ geographic area.
 `county`, `stateFips`, `countyFips`, `latitude`, `longitude`.
 
 **Property:** `propertyType`, `bedrooms`, `bathrooms`, `squareFootage`,
-`lotSize`, `yearBuilt`, `hoa.fee`.
+`lotSize`, `yearBuilt`, `hoa.fee`. Values of `propertyType` seen in our 508
+pulled properties (2026-09-22): Condo 175, Single Family 171, Land 93,
+Townhouse 61, Manufactured 8. The list is what we have seen, not a documented
+enumeration — expect others.
 
 **Listing:** `status` (`Active` / `Inactive` only), `price`, `listingType`
 (Standard / New Construction / Foreclosure / Short Sale), `listedDate`,
@@ -286,13 +289,19 @@ geographic area.
   mints a new id for the same building.
 - **Ids are case-sensitive** and must be passed back exactly as returned.
 - **`listingAgent.email` is frequently missing.** Handle null — it is our only
-  identifier for a person.
+  identifier for a person. Measured 2026-09-22: 40 of the 231 listings in the
+  2026-09-21 pull (17%), 49 of all 508 (9.6%), and it swings by zip from 0 of
+  68 (80135) to 28 of 78 (80136). Parking-lot item 54 tracks it as a rate.
 - **No agent MLS id or license number is exposed.** Dedupe on email only.
 - **Agent name is a single display string** — MLS feeds do not split first/last.
 - **`history` carries no agent and no MLS number** — only event, price, listing
   type, dates, and days on market. Reconstructed past listings will have null
   agent fields.
 - **New Construction is not worth outreach.** A brand-new roof is not a hail claim.
+- **Vacant land is in the sale-listings results.** `propertyType` `Land` was 93
+  of our 508 properties (18%). It has no roof and no hail claim, so
+  `matcher.py` excludes it at match time (decision log, 2026-09-22); the
+  listings themselves are still stored and still count against the pull.
 
 ### HTTP status codes
 
