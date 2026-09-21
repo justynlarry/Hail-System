@@ -22,7 +22,7 @@ about what "distance" or "local time" mean.
 # 0.00. It is not distance to the centroid: a report just outside a large
 # zip's boundary is genuinely close to that zip, and centroid distance would
 # say otherwise.
-DISTANCE_EXPR = "(ST_Distance(i.geom::geography, z.geom::geography) / 1609.344)"
+DISTANCE_EXPR = "(d.distance_m / 1609.344)"
 
 # Records are stored in UTC; this is the only place that's converted, to a
 # named zone (not a fixed offset) so DST (MDT/MST) is handled automatically.
@@ -45,14 +45,21 @@ JOIN report_types t
 -- yields a NULL tier here instead of dropping the report.
 LEFT JOIN report_sources s
     ON s.source = i.report_source_norm
-JOIN zcta_boundaries z
-    ON ST_DWithin(i.geom::geography, z.geom::geography, %(radius_m)s)
+-- Precomputed distances replace the ST_DWithin join. Filtering on
+-- distance_m is an integer-keyed lookup plus a comparison; the spatial
+-- math already happened once, at insert.
+JOIN report_zip_distances d
+    ON d.iem_id = i.iem_id
+    AND d.distance_m <= %(radius_m)s
 JOIN coverage_zips c
-    ON c.zcta5 = z.zcta5
+    ON c.zcta5 = d.zcta5
     AND c.removed_at IS NULL
 WHERE i.utc_datetime >= %(window_start)s
     AND i.utc_datetime < %(window_end)s
     AND (%(report_text)s::text IS NULL OR i.report_text = %(report_text)s)
+    -- Raises if radius_m exceeds the stored ceiling. In the shared core so
+    -- all six projections get the guard from one line.
+    AND hail_assert_radius_within_ceiling(%(radius_m)s)
 """
 
 # One row per report-zip pair. Column order is the export's contract --

@@ -37,6 +37,14 @@ METRES_PER_MILE = 1609.344
 # 8, 18.2 at 10.  Roughly linear rather than quadratic -- a report near the
 # territory edge picks up zips on one side only.
 
+
+# CEILING:  report-to-zip distances are precomputed out to 
+# hail_pair_ceiling_m() (sql/017, set at inception at 10 miles)
+# That value lives in the DATABASE not in this .py file.  Radius must
+# stay at or below that threshold.  Raising the ceiling means a migration
+# and a full recompute (scripts/backfill_zip_distances.py)
+
+
 DEFAULT_ZIP_RADIUS_MILES = 5.0
 
 # How far from a report a listing may be and still be matched.  This is the
