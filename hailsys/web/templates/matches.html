@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Matched listings{% endblock %}
+{% block heading %}{{ storm_date }} {{ report_text or 'all types' }} — matched listings{% endblock %}
+
+{% block content %}
+<p class="match-summary">
+    <strong>{{ listing_count }}</strong> listing{{ '' if listing_count == 1 else 's' }}
+    across <strong>{{ agent_count }}</strong> agent{{ '' if agent_count == 1 else 's' }},
+    within {{ radius_miles }} miles.
+</p>
+
+{% if groups %}
+{% for realtor_id, listings in groups %}
+    {% set agent = listings[0] %}
+    <div class="agent-group{% if realtor_id is none %} agent-unknown{% endif %}">
+        {% if realtor_id is none %}
+        <h3>No agent on record ({{ listings | length }})</h3>
+        <p class="note">
+            RentCast returned no agent email for these listings. They can
+            still be looked up by MLS number.
+        </p>
+        {% else %}
+        <h3>{{ agent.agent_name or 'Unnamed agent' }}</h3>
+        <p class="agent-contact">
+            {{ agent.agent_email }}
+            {% if agent.agent_phone %} · {{ agent.agent_phone }}{% endif %}
+            {% if agent.agent_office_name %} · {{ agent.agent_office_name }}{% endif %}
+        </p>
+        {% endif %}
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Address</th>
+                    <th>Zip</th>
+                    <th>Type</th>
+                    <th class="num">Built</th>
+                    <th class="num">Price</th>
+                    <th class="num">Nearest</th>
+                    <th class="num">Max</th>
+                    <th class="num">Reports</th>
+                    <th>MLS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in listings %}
+                <tr>
+                    <td>{{ row.property_address }}</td>
+                    <td>{{ row.zip_code }}</td>
+                    <td>{{ row.property_type }}</td>
+                    <td class="num">{{ row.year_built or '' }}</td>
+                    <td class="num">
+                        {% if row.list_price is not none %}${{ '{:,.0f}'.format(row.list_price) }}{% endif %}
+                    </td>
+                    <td class="num">{{ row.nearest_miles }} mi</td>
+                    <td class="num">
+                        {% if row.max_magnitude is not none %}
+                          {{ row.max_magnitude }}{% if row.mag_unit == 'inches' %}"{% elif row.mag_unit == 'mph' %} mph{% endif %}
+                        {% endif %}
+                    </td>
+                    <td class="num">{{ row.report_count }}</td>
+                    <td>{{ row.list_mls_number or '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endfor %}
+{% else %}
+<p>No matched listings for this storm day at {{ radius_miles }} miles.</p>
+{% endif %}
+
+<p><a href="{{ url_for('main.index') }}">Back to storm days</a></p>
+{% endblock %}

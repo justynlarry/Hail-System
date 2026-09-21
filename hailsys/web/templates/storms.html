@@ -80,6 +80,9 @@
                     <input type="hidden" name="type" value="{{ row.report_text }}">
                     <button type="submit">Match</button>
                 </form>
+                {% elif row.work_state.state in ('Matched, not sent', 'Sent') %}
+                <a class="pull-link"
+                   href="{{ url_for('main.storm_matches') }}?date={{ row.storm_date }}&type={{ row.report_text | urlencode }}">View matches</a>
                 {% endif %}
             </td>
             <td>{{ row.sources }}</td>

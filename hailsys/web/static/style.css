@@ -253,3 +253,41 @@ h1 ~ table, h1 ~ p { margin-left: 1.5rem; margin-right: 1.5rem; }
   white-space: nowrap;
 }
 .inline-action button:hover { text-decoration: underline; }
+
+/* ---- Match detail page (matches.html) ---- */
+
+/* Headline count line -- the most important sentence on the page. */
+.match-summary {
+    font-size: 1.1em;
+    margin: 0 0 1.5rem;
+}
+
+/* One block per agent. Spacing between groups does the separating work,
+   so the tables inside don't need heavy borders to tell agents apart. */
+.agent-group {
+    margin-bottom: 2rem;
+}
+
+.agent-group h3 {
+    margin: 0 0 0.25rem;
+}
+
+/* Contact line under the agent's name: readable, but secondary to the
+   name itself. */
+.agent-contact {
+    margin: 0 0 0.75rem;
+    color: #475569;
+    font-size: 0.9em;
+}
+
+/* Listings with no agent on record. Greyed rather than hidden: they're
+   real matches, and dropping them would make this page's count disagree
+   with the storm row. Opacity rather than recolouring every element keeps
+   the table readable while clearly reading as "lower priority." */
+.agent-unknown {
+    opacity: 0.6;
+}
+
+.agent-unknown h3 {
+    font-style: italic;
+}
