@@ -74,9 +74,9 @@ a single email ever goes out.
 
 **Begun 2026-09-17.**
 
-- RentCast client with pagination and error handling — `hailsys/rentcast/client.py`, started
-- Pre-pull estimate: zip count and projected call count shown before confirming — `hailsys/rentcast/estimate.py`, started
-- `api_pulls` / `api_call_log` written on every pull — schema link in place (`sql/013_pull_storm_link.sql`), no write path yet
+- RentCast client with pagination and error handling — `hailsys/rentcast/client.py`
+- Pre-pull estimate: zip count and projected call count shown before confirming — `hailsys/rentcast/estimate.py`
+- `api_pulls` / `api_call_log` written on every pull — schema link in `sql/013_pull_storm_link.sql`, write path in `hailsys/rentcast/pull.py`
 - "Pulled recently" warning per zip
 - Properties, listings, realtors upsert logic
 - Storm→listing matching with distance and radius recorded
@@ -84,6 +84,25 @@ a single email ever goes out.
 
 **Done when:** selecting a storm and clicking pull returns a reviewed list of
 listing agents, and the call count matches what was estimated within reason.
+
+**Closed 2026-09-21.**
+
+Also landed this phase, beyond the original scope above: a background-thread
+pull path (`hailsys/web/jobs.py`) so a pull doesn't block the request; an
+activity feed (`hailsys/queries/activity.py`, `/activity`) surfacing new
+storm days, pulls, and match runs since a user's last login; derived work
+state per storm day (`hailsys/queries/workstate.py`) replacing a stored
+status; a single merged header with visible flash messages; and
+`report_zip_distances` (`sql/017`), precomputing report-to-zip distances so
+`storms.py` stops running a live spatial join on every query.
+
+**One item deploys after this close, not before it:** `storms.py`'s switch
+to `report_zip_distances` is only safe to run once
+`scripts/backfill_zip_distances.py` has finished the full historical
+backfill and old-vs-new `PAIRS_SQL` output has been verified identical —
+until then, the inner join to `report_zip_distances` silently drops any
+report that hasn't been backfilled yet, which reads as "no data" rather
+than an error.
 
 ---
 

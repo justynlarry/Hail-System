@@ -284,6 +284,15 @@ default eventually lives.
 **When:** Phase 2 capacity planning, alongside item 14. *(`database-schema.md`,
 open question 2)*
 
+**Resolved 2026-09-21.** See `docs/decision-log.md`, "`tuning.py`: both the
+zip radius and the match radius are `5.0` miles, and there is no settings
+table yet" (2026-09-10) — the value and storage half is settled:
+`DEFAULT_MATCH_RADIUS_MILES` is its own constant in `tuning.py`, kept
+separate from `DEFAULT_ZIP_RADIUS_MILES` even though both start at 5.0 miles,
+so the two can diverge without a rename. Not a settings table — item 14
+stays open for that. The per-type asymmetry was never part of that decision
+and remains unresolved; carried forward as item 38.
+
 ## 14. Is there a settings table at all?
 
 Radius default, frequency-cap window, monthly API ceiling, warmup send limit —
@@ -493,6 +502,11 @@ result set looks the same either way unless the page names which one it is.
 
 **When:** Phase 3, when the match view is built.
 
+**Resolved 2026-09-21.** See `docs/decision-log.md`, "The match page states
+its own coverage gaps" — the match page lists unpulled zips by number, links
+to a pull estimate for them, and shows the date of the oldest listing data,
+so "never queried" and "queried, nothing there" no longer read the same.
+
 ## 26. PDF export with table and map
 
 Depends on how the map got built; the three options are a headless-browser
@@ -578,6 +592,165 @@ Claims the ingest scripts and test suite don't exist.
 If so, there's no silent-match problem.
 
 **When:** next docs pass.
+
+## 38. Per-event-type radius — needs wind analysis first
+
+Split out of item 13, which item 13's resolution note didn't settle. Hail
+cores are narrow, straight-line wind is broad, and a downburst is very
+local, so one radius for every event type is a simplification. When there
+is evidence, this belongs as a column on `report_types` next to
+`roof_relevant` and `min_magnitude` — same kind of per-type judgment,
+already version-controlled, queryable from SQL.
+
+**When:** when there's wind analysis to base a number on. *(`tuning.py`'s own
+comment already points here.)*
+
+## 39. Admin page — settings table, users and roles, role_required
+
+Concrete Phase 4 shape, elaborating item 14: a single-row typed settings
+table (zip radius, match radius, `hail_pair_ceiling_m()` shown read-only
+since raising it needs a migration and a recompute), a users-and-roles
+admin page sharing the same screen, and a `role_required` decorator —
+routes currently check only `login_required`, nothing checks role. Settings
+read per request, not cached, so they're correct across Gunicorn workers
+with no invalidation to get wrong. Needs a change history.
+
+**When:** Phase 4. *(`docs/decision-log.md`, "Admin settings page: Phase 4,
+and not every number is a setting")*
+
+## 40. "Matched, found nothing" is indistinguishable from "never matched"
+
+A match run that inserts zero rows (nothing was in range) leaves no trace —
+`storm_listing_matches` gets no new rows either way, so the badge stays
+`Pulled, not matched` whether or not anyone has actually clicked Match.
+
+**When:** Phase 4, or alongside the admin work.
+
+## 41. Index on `report_zip_distances (zcta5)` — for address lookup
+
+The table's only index today is the `(iem_id, zcta5)` primary key, which
+serves the `d.iem_id = i.iem_id` join `storms.py` runs. A `zcta5`-first
+index would serve a different access pattern — "every report near this one
+zip" — which nothing queries yet but item 23's address-lookup tool would.
+
+**When:** when item 23 is built.
+
+## 42. A complete pull where every zip failed still counts as pulled
+
+`run_pull` marks `api_status = 'complete'` once it's iterated every zip,
+regardless of how many individual zips returned a non-200 and zero
+listings. A pull that technically finished but got nothing back reads the
+same as one that worked.
+
+**When:** edge case; revisit if it's observed for real rather than reasoned
+about.
+
+## 43. Test scripts attribute to `emp_id 1` (system) by accident
+
+`scripts/test_match.py`, `scripts/test_rentcast_pull.py` default `--emp-id
+1` in their own usage examples — the bootstrap system account, not a real
+operator. Harmless for a one-off manual check, but worth making a
+deliberate choice (a dedicated test user, or a required flag with no
+default) rather than a convenient accident that could get copied into
+something that matters.
+
+**When:** cleanup.
+
+## 44. A pull job produces two feed lines
+
+`hailsys/web/jobs.py`'s `_pull_and_match` runs `match_storm` right after
+`run_pull`, so one click surfaces as a pull line and a separate match-run
+line in the activity feed. Accurate — both things happened — but reads as
+more activity than one decision produced.
+
+**When:** acceptable for now; revisit if the feed gets noisy.
+
+## 45. Rebuild step belongs in the verification loop
+
+Companion to the already-filed "Nothing rebuilds automatically" entry
+(2026-09-18): that entry names the failure mode, this item is the standing
+todo to make a build-and-recreate step a checklist item — or a script —
+rather than something that has to be remembered fresh each audit.
+
+**When:** process improvement, no deadline.
+
+## 46. No "pull again" affordance — Pull link only shows on Not pulled
+
+Once a storm moves off `Not pulled`, there's no button to re-pull it — by
+design, since a duplicate pull spends real money, but there's also no
+deliberate path for the case where a re-pull is actually wanted (stale
+listing data, a partial failure).
+
+**When:** Phase 4, alongside the admin work.
+
+## 47. Stale `'running'` pulls after a restart — needs a sweep
+
+`hailsys/web/jobs.py`'s own docstring already names the gap: `daemon=True`
+means a thread dies with its process, leaving `api_pulls` stuck at
+`'running'` after a restart mid-pull. `api_call_log` shows how far it got,
+but nothing marks the run dead — and workstate.py's `'running'` still
+counts as pulled, so the Pull link stays hidden for that storm
+indefinitely.
+
+**When:** before background pulls are relied on for real operations.
+
+## 48. Badge CSS classes derive from `workstate.py` label strings
+
+`storms.html` builds `badge-{{ row.work_state.state | lower | replace(' ',
+'-') | replace(',', '') }}` — the CSS class is computed from the label text
+itself, not a stable key. Renaming a label in `workstate.py` (`NOT_PULLED`,
+`PULLED`, etc.) silently breaks styling with no error anywhere.
+
+**When:** if a label ever needs to change wording.
+
+## 49. No cap on export date-range width
+
+`/export.csv` and the underlying `storms.py` queries accept any start/end
+range with no upper bound. Fine today; the 2019 wide-range timing finding
+("Performance: the spatial join was the cost, not the hardware") shows what
+an unbounded range can cost, and `report_zip_distances` fixes the specific
+cause found, not the general absence of a limit.
+
+**When:** if a wide range gets slow again.
+
+## 50. Monthly RentCast quota tracker
+
+The plan is 1,000 requests/month flat, overage billed after. Nothing in the
+system tracks usage against that ceiling — `api_pulls`/`api_call_log`
+record what was spent, but nothing sums it against a billing period or
+warns before overage. Needs a billing-period start date and a decision
+between warn-and-allow versus hard block. Related to, but more concrete
+than, item 14's "monthly API ceiling" line.
+
+**When:** Phase 4.
+
+## 51. Concurrent pulls by two users on one storm — duplicate spend
+
+Nothing stops two people clicking Pull on the same storm day within
+seconds of each other; both would spend real RentCast calls for the same
+zips. Low risk at five known users, but a real gap if headcount grows.
+
+**When:** low priority at current headcount.
+
+## 52. Re-check for NULL property coordinates as more zips are pulled
+
+`properties.geom` is generated from `list_latitude`/`list_longitude`; a row
+missing either produces a NULL `geom`, silently dropping that property from
+any spatial join. Worth a periodic check as more zips get pulled and the
+`properties` table grows past its Phase-3 size.
+
+**When:** periodic, as pull volume grows.
+
+## 53. Zero test coverage under `hailsys/web/`
+
+All 88 existing test cases (`tests/`) cover `hailsys/iem/` and the ingest
+scripts; nothing exercises `hailsys/web/` — views, auth, or any of the
+query modules the web app calls. Two of this phase's own bugs
+(`storm_matches()` passing the wrong keyword name, `login()` reading
+`last_login_at` before it was selected) are exactly the shape a test would
+have caught before a live check did.
+
+**When:** open since Phase 2; no deadline set.
 
 ---
 

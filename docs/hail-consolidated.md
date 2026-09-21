@@ -1448,7 +1448,7 @@ docker-compose.yml            postgis + ingest + loader + app + web on hailnet
 requirements.txt              psycopg[binary]==3.2.3, flask==3.1.3, gunicorn (2026-09-11)
 docs/
   hail-consolidated.md        this file
-  database-schema.md          field-level data model, 18 tables, open questions
+  database-schema.md          field-level data model, 19 tables, open questions
   db-schema-diagram.md        ASCII ER diagram
   decision-log.md             dated, append-only; supersede, never rewrite
   data-sources.md             IEM / TIGER / RentCast endpoints and traps
@@ -1456,8 +1456,8 @@ docs/
   server-setup.md             bare-metal Rocky build, step by step
   command-ref.md              Justyn's own Docker/Postgres/type notes
   schema-review.md            re-runnable review prompt for sql/ + the loader
-  parking-lot.md              37 numbered open items, one (28) resolved
-                               2026-09-17, resolution-tracked (2026-09-16)
+  parking-lot.md              53 numbered items, several resolved and
+                               resolution-tracked; reconciled 2026-09-21
   analysis/
     radar-verification-2026-09.md   NEXRAD corroboration study behind the
                                confidence_tier / map-color decisions (§2, §6)
@@ -1478,6 +1478,16 @@ sql/                          apply in order; 010 must be last
   012_counties.sql            county_boundaries; additive, same reason as 011 (2026-09-14)
   013_pull_storm_link.sql     api_pulls gains storm_date/report_text, CHECK'd as a pair;
                                additive, same reason as 011/012 (2026-09-17, Phase 3)
+  014_properties_geom.sql     properties gains generated geom + two GiST indexes,
+                               matching iem_data's pattern (2026-09-18)
+  015_slm_emp_attribution.sql storm_listing_matches gains emp_id (nullable) and a
+                               matched_at index, for the activity feed (2026-09-19)
+  016_iem_ingested_at_idx.sql index on iem_data.ingested_at, for the activity feed's
+                               new-storms query (2026-09-19)
+  017_report_zip_distances.sql report_zip_distances table + AFTER INSERT trigger +
+                               ceiling/guard functions; replaces storms.py's live
+                               ST_DWithin join once scripts/backfill_zip_distances.py
+                               finishes (2026-09-21, Phase 3 close)
 hailsys/                      importable package, moved out of scripts/ (2026-09-14)
   __init__.py                 empty
   tuning.py                   read-time tuning constants (radius, etc.), reasoning in comments
@@ -1490,24 +1500,49 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
     __init__.py                empty
     storms.py                  join/filter core + six projections (pairs, zips, recent_days,
                                cities, city_days, report_points) behind both export_storm_zips.py
-                               and the web app (2026-09-14 through 2026-09-16)
+                               and the web app (2026-09-14 through 2026-09-16); _FROM_WHERE now
+                               joins report_zip_distances instead of a live ST_DWithin (2026-09-21,
+                               deploys after the backfill finishes)
+    matches.py                 match-detail query: one row per listing, grouped by agent;
+                               pull-coverage lookup for the match page's gap warning (2026-09-21)
+    workstate.py                per-storm-day work state (Not pulled / Pulled, not matched /
+                               Matched, not sent / Sent), derived at read time, never stored
+                               (2026-09-21)
+    activity.py                 "since your last login" feed: new storm days (by ingested_at),
+                               pulls, match runs (2026-09-21)
+  matching/                   no __init__.py — implicit namespace package
+    matcher.py                  storm-to-listing matching, writes storm_listing_matches;
+                               explicit manual step, not run automatically after a pull
+                               (2026-09-18)
   web/
     __init__.py                Flask app factory (create_app); imports views inside the
                                factory, not at module scope, so the package stays importable
                                without a configured app
     auth.py                    scrypt hash/verify, login_required decorator (2026-09-14)
+    jobs.py                     background thread for a RentCast pull + its automatic match
+                               run; daemon=True, so a thread dies with its process (known gap,
+                               parking-lot item 47) (2026-09-18)
     views.py                   the `main` blueprint: /, /storms/zips, /territory,
-                               /territory/days, /export.csv, /map/points.geojson,
-                               /login, /logout (2026-09-14 through 2026-09-16)
+                               /territory/days, /export.csv, /map/points.geojson, /login,
+                               /logout, /pull/estimate, /pull, /match, /storms/matches,
+                               /activity (2026-09-14 through 2026-09-21)
     templates/
-      base.html                 nav + userbar shell; pulls in vendored Leaflet (2026-09-17)
-      login.html
-      storms.html                the recent-storm-days browser
+      base.html                 single header bar (brand + nav + signed-in-as + Sign Out) and
+                               the global flash-message panel; pulls in vendored Leaflet
+                               (2026-09-17 through 2026-09-21)
+      login.html                no header — gated on session.emp_id, same as everywhere else
+      storms.html                the recent-storm-days browser; includes _activity.html
       territory.html             city/zip grouped browse + the map (city mode only)
+      matches.html                match-detail page: agent groups, coverage-gap warning
+                               (2026-09-21)
+      activity.html               full "since your last login" page, no item cap
+      _activity.html              fragment shared by storms.html's panel and activity.html
+      pull_estimate.html          confirm-a-pull page: cost estimate, recently-pulled zips
       _zips.html                 fragment: one storm day's zip breakdown
       _city_days.html            fragment: one city's day-by-day breakdown
     static/
-      style.css                  restyled 2026-09-17 (nav/filters/tables)
+      style.css                  restyled 2026-09-17; header merged to one bar, flash-message
+                               and activity-panel styles added 2026-09-21
       storms.js                  generic expand/collapse + lazy-fetch-once handler
       map.js                     Leaflet map: coverage polygons, report points, 5-mi rings
       coverage.geojson           generated fixture (scripts/build_coverage_geojson.py)
@@ -1517,12 +1552,17 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
         marker-shadow.png         markers (map.js draws circleMarker/circle, not L.marker) —
                                shipped because leaflet.css references them, harmless if 404
   wsgi.py                    two lines: `from hailsys.web import create_app; app = create_app()`
-  rentcast/                  Phase 3, begun 2026-09-17; nothing calls this package yet
+  rentcast/                  Phase 3, begun 2026-09-17
     __init__.py                empty
     client.py                  sale-listings search: pagination, throttle to 20 req/sec,
                                RentCastAuthError/ValidationError/ServerError/ConnectionError
     estimate.py                pre-pull estimate: zip count + projected call count, from
                                fetch_zips and api_call_log history
+    pull.py                     orchestrates a pull: api_pulls/api_call_log bookkeeping,
+                               hands each zip's listings to upsert.py; a RentCast auth failure
+                               aborts the whole pull (2026-09-21)
+    upsert.py                   raw RentCast listing dicts -> properties/listings/realtors
+                               (2026-09-21)
 scripts/
   build_reference_tables.py   derives reference CSVs from the raw LSR archive
   zcat-data-check.py          checks coverage zips against the TIGER .dbf
@@ -1536,6 +1576,15 @@ scripts/
                                placeholder until Phase 4 builds a real admin UI (2026-09-14)
   build_coverage_geojson.py   writes static/coverage.geojson from a one-time simplified
                                query; a fixture, not a per-request render (2026-09-16)
+  backfill_zip_distances.py   fills report_zip_distances for reports that predate the
+                               AFTER INSERT trigger; batched by iem_id range, resumable,
+                               run as hail_ingest (2026-09-21)
+  test_estimate.py            one-off manual check of estimate_pull's recently-pulled split
+  test_latest_call.py         direct check of estimate.py's recency lookup
+  test_match.py                one-off manual check of the storm matcher
+  test_rentcast_pull.py       one-off manual test of the RentCast pull orchestrator
+                               (all four: manual probes, not under tests/, default
+                               --emp-id 1 in their own usage examples — parking-lot item 43)
 tests/
   __init__.py                 empty; makes unittest discovery work
   test_iem_parse.py           stdlib unittest cases against hailsys/iem/parse.py

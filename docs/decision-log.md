@@ -2954,3 +2954,172 @@ looking at.
 **The rule:** any link or form that hands off from a filtered view carries
 every filter that view applied. The tell is a route computing a default for
 something the caller already knows.
+
+---
+
+## 2026-09-21 — Match detail: one row per listing, grouped by agent
+
+`hailsys/queries/matches.py`, `/storms/matches`, `matches.html`. One row per
+listing, collapsing that listing's many match rows into nearest distance and
+worst magnitude — "the closest, worst thing that hit it" is the pitch.
+Grouped by agent, then listing, because outreach goes to agents and one
+agent often holds several listings. Listings with no agent on record are
+shown greyed, not hidden: they are real matches, and omitting them would
+make this page's count disagree with the storm row's. Filtered to
+`DEFAULT_MATCH_RADIUS_MILES`. No `actionable_only` parameter — the matcher
+already applied it at match time, and re-filtering here would put the same
+rule in two places. Counts are `COUNT(DISTINCT listing_id)`: 2024-05-30 HAIL
+is 3,390 match rows but 277 listings across 234 agents.
+
+---
+
+## 2026-09-21 — Learning: Jinja's groupby sorts; itertools.groupby doesn't
+
+Jinja's `groupby` filter sorts by the key before grouping, which (a) raises
+`TypeError` on a nullable key mixing `None` with integers, and (b) discards
+any ordering the SQL established. `itertools.groupby` never sorts — it
+groups adjacent rows with equal keys, and `None == None` is fine. Grouping
+now happens in the view with `itertools.groupby` over SQL already sorted
+`agent_name NULLS LAST`. General point: equality and ordering are different
+operations, and `None` only breaks ordering.
+
+---
+
+## 2026-09-21 — The match page states its own coverage gaps
+
+A storm can read Matched while some of its zips were never pulled — a zip's
+listings can arrive via a pull for a different storm. The match page lists
+unpulled zips by number, links to a pull estimate for them, and shows the
+date of the oldest listing data. Coverage uses the last successful pull
+(`http_status = 200`): a failed call spent a request but returned no
+listings. Measured against `actionable_only=True` zips, matching what the
+matcher uses.
+
+---
+
+## 2026-09-21 — Activity feed: previous login captured before overwrite
+
+`hailsys/queries/activity.py`; panel on `/` and full page at `/activity`.
+`login()` stores the prior `last_login_at` in the session before updating
+it — reading after the update makes the feed permanently empty. Because the
+marker lives in the session, the feed is stable for a whole visit.
+First-ever login shows a welcome note. Three sections: new storm days,
+pulls, match runs.
+
+New storm days use `iem_data.ingested_at` (when a report arrived, not when
+the storm happened), indexed by 016, and bounded to the claim window so a
+backfill doesn't announce years-old storms as news. Coverage and
+actionability are not re-implemented: the feed finds which storm days got
+new reports, then keeps only those `storms.fetch_recent_days` returns.
+Match runs collapse to one line each by grouping on `matched_at`. `now()`
+returns the transaction's start time, so every row from one `match_storm`
+call carries an identical timestamp. Verified: 2024-05-30 shows as one run
+of 277 listings.
+
+---
+
+## 2026-09-21 — Work state: failed pulls don't count; sent means sent_at IS NOT NULL
+
+The `api_pulls` branch of `workstate.py` excludes `api_status = 'failed'`: a
+failed pull brought nothing back, so the storm still needs one. `'running'`
+still counts, so the Pull link doesn't reappear mid-pull and invite a
+duplicate spend. The `send_log` branch requires `sent_at IS NOT NULL` — the
+same test as the `sent_has_timestamp` CHECK, so query and constraint agree
+on what "sent" means. Because state is derived, fixing the query
+retroactively corrected pull 11's badge with no data cleanup.
+
+---
+
+## 2026-09-21 — RENTCAST_KEY belongs to web
+
+Moving pulls into a background thread moved them into the web process,
+which didn't have the key; the audit's live pull failed with
+`RentCastAuthError` before any HTTP request (zero cost, correct abort). The
+key is now in web's environment: block and kept on app for the CLI scripts.
+General point: moving work between processes moves its secrets with it.
+
+---
+
+## 2026-09-21 — Header and flash messages live in base.html
+
+One header bar: app name and nav (Storm Days, Territory, Activity) left;
+"Signed in as" and Sign Out right; active page marked. Sign Out stays a POST
+form — `/logout` is POST-only so a prefetch or link preview can't sign
+anyone out. Flash messages render in `base.html`; previously only
+`login.html` displayed them, so every other `flash()` sat invisibly in the
+session.
+
+---
+
+## 2026-09-21 — Detail views are keyed by their row, not the page
+
+`/territory`'s city expand forwarded the page's type filter instead of the
+row's `report_text`, so expanding a HAIL row under Type = All returned hail
+and wind days. Now `data-type="{{ row.report_text }}"`, matching
+`storms.html`. Companion to the filters-travel rule: a handoff must carry
+the right level's value, not just any value.
+
+---
+
+## 2026-09-21 — Performance: the spatial join was the cost, not the hardware
+
+`/` took ~141 s on a 2019 range and ~3 s on a recent 60-day range. `htop`:
+one core pinned, memory flat, swap idle — CPU-bound. `EXPLAIN (ANALYZE,
+BUFFERS)` put 3.07 of 3.08 s in the `zcta_boundaries_geog_gix` index scans:
+~8 ms per report of spherical `ST_DWithin` against ~24 KB (~1,500-vertex)
+polygons, all buffers shared hit, and the whole join run twice (CTE plus
+main query). Learning: actual time inside a loop is *per loop* — multiply by
+loops. And Postgres runs a query on one core, so more cores wouldn't have
+helped.
+
+---
+
+## 2026-09-21 — report_zip_distances: compute once, store
+
+`sql/017_report_zip_distances.sql`. Every zip within the ceiling of every
+report, with nearest-edge distance in metres, primary key `(iem_id, zcta5)`.
+Same reasoning that made `storm_listing_matches` a table: reports never
+change, TIGER polygons change yearly. `storms.py`'s `_FROM_WHERE` now joins
+it on `iem_id` with `distance_m <= radius_m`, replacing the spatial join for
+all six projections from one edit.
+
+Ceiling lives in the database: `hail_pair_ceiling_m()`, 10 miles. A trigger
+can't read `tuning.py`, and one number in two places drifts. Raising it
+means a migration and a full recompute; `tuning.py` carries a comment
+pointing here.
+Guard: `hail_assert_radius_within_ceiling()` in the shared WHERE raises if a
+query's radius exceeds the ceiling, rather than returning a silently
+truncated answer.
+Maintained by an `AFTER INSERT` trigger on `iem_data`, so no report can
+exist without its distances and an absent row means "no zip in range,"
+never "not computed." `AFTER` because `geom` is generated and not yet
+computed in `BEFORE` triggers. Tradeoff accepted: a trigger bug stops
+ingest — loud over silent.
+Covers all 33,791 US ZCTAs, so adding a coverage zip later needs no
+recompute. No FK on `zcta5`: it would block a TIGER reload.
+Grants in the same transaction as the trigger: `hail_ingest` gets `SELECT`
+on `zcta_boundaries` and `INSERT` on the new table — the trigger runs as the
+inserting role, and without the `SELECT` the next nightly ingest fails.
+`hail_app` gets `SELECT`.
+Backfill: `scripts/backfill_zip_distances.py`, batched and resumable, run as
+`hail_admin` (owns the table, so its closing `ANALYZE` actually runs). ~5
+hours for 177,515 reports. `storms.py` deploys only after the backfill
+completes and old-vs-new `PAIRS_SQL` output is verified identical.
+Entirely derived: truncating and rebuilding it is not deletion under
+"nothing is deleted."
+
+---
+
+## 2026-09-21 — Admin settings page: Phase 4, and not every number is a setting
+
+Moving tuning values from code into a single-row, typed settings table lets
+an admin page change them without a deploy — `tuning.py`'s own header
+anticipated this. But the three candidates differ. `DEFAULT_ZIP_RADIUS_MILES`
+is a true setting (must stay ≤ ceiling). `DEFAULT_MATCH_RADIUS_MILES` is a
+setting with a consequence: changing it hides every existing match until
+storms are re-matched, and it's the number that appears in emails; it also
+shouldn't exceed the zip radius. `hail_pair_ceiling_m()` is a rebuild, not a
+setting — shown read-only. Settings read per request (correct across
+Gunicorn workers without cache invalidation), with a change history. Users
+and roles share the page; requires a `role_required` decorator, since routes
+currently check only login.

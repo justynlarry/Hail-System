@@ -133,7 +133,7 @@ setting it correctly.
 ---
 # Tables
 
-Eighteen tables. Grouped by which half of the system they belong to.
+Nineteen tables. Grouped by which half of the system they belong to.
 
 ---
 
@@ -237,7 +237,7 @@ Colorado, growing by a handful daily. The only table fed by an automatic job.
 | `nws_geo_code` | UGC, e.g. `COC081` = CO + county-type + FIPS 081. Free county crosswalk. **Null before mid-2022** |
 | `nws_geo_name` | IEM's `UGCNAME` — the county name that goes with the UGC. Null on the same rows |
 | `remark` | Free text. On damage reports with no magnitude, this is where the content is |
-| `ingested_at` | When we pulled it |
+| `ingested_at` | When we pulled it. **Indexed**, `iem_data_ingested_at_idx` on `(ingested_at DESC)` — added `sql/016`, 2026-09-21, so the activity feed's "new since last login" query (which filters on this, not on `utc_datetime`) doesn't scan the whole archive on every page load |
 
 Unique on `(utc_datetime, latitude, longitude, report_text, magnitude)`,
 declared `UNIQUE NULLS NOT DISTINCT`. This is what makes the nightly job safe: it
@@ -254,6 +254,68 @@ sends. Requires PostgreSQL 15+.
 Never trimmed. 135k rows is small for Postgres; deleting old data would cost the
 ability to answer "when did this zip last get hit" and to replay history at a
 different radius.
+
+---
+
+### `report_zip_distances`
+
+Added `sql/017_report_zip_distances.sql`, 2026-09-21. Every zip within the
+ceiling of every report, with the nearest-edge distance already computed and
+stored — same reasoning that made `storm_listing_matches` a table: reports
+never change, TIGER polygons change once a year, so the spatial math is
+worth doing once rather than on every query.
+
+| Field | Purpose |
+|---|---|
+| `iem_id` | FK → `iem_data`. Half of the composite PK |
+| `zcta5` | **No FK.** A foreign key to `zcta_boundaries` would block a TIGER reload, the same reason `coverage_zips` accepts the risk elsewhere in this schema |
+| `distance_m` | `DOUBLE PRECISION`, `CHECK (distance_m >= 0)`. Report point to nearest edge of the zip polygon, geography (spherical) math — 0 when the report falls inside the zip |
+
+`PRIMARY KEY (iem_id, zcta5)`.
+
+**Maintained entirely by an `AFTER INSERT` trigger on `iem_data`**
+(`iem_data_compute_zip_distances`, calling `hail_compute_zip_distances()`),
+so a report cannot exist without its distances already computed. An absent
+`(iem_id, zcta5)` row means "that zip is outside the ceiling," never "not
+computed yet" — the table is entirely derived, and truncating and
+rebuilding it is not deletion under this schema's "nothing is deleted"
+rule. `AFTER`, not `BEFORE`, because `iem_data.geom` is itself a generated
+column and is not yet computed inside a `BEFORE` trigger. Accepted
+tradeoff: a bug in the trigger function stops ingest outright rather than
+silently skipping distances — loud over silent, the same choice
+`counts_consistent` makes on `ingest_runs`.
+
+**The ceiling is a function, not a Python constant:**
+
+```sql
+hail_pair_ceiling_m() RETURNS double precision  -- 16093.44 m, 10 miles
+```
+
+A trigger cannot read `tuning.py`, and a number that exists in two places
+drifts. Every one of `storms.py`'s six projections calls
+`hail_assert_radius_within_ceiling(radius_m)` from the shared `_FROM_WHERE`
+clause; it raises rather than silently truncating if a query ever asks for
+a radius past what's been precomputed. Raising the ceiling means a new
+migration (`CREATE OR REPLACE` on the function) and a full recompute —
+`tuning.py` carries a comment pointing back here so the two numbers don't
+drift apart.
+
+**Covers all 33,791 US ZCTAs**, not just `coverage_zips`, so adding a
+coverage zip later needs no recompute — the distances to it already exist.
+
+**Backfilled for history**, since the trigger only covers rows inserted
+after it was created: `scripts/backfill_zip_distances.py`, batched by
+`iem_id` range and resumable, run as `hail_ingest` (the same role the
+trigger's own `INSERT` runs as — see grants below). `storms.py`'s switch to
+joining this table instead of a live `ST_DWithin` deploys only once the
+backfill has finished and old-vs-new output is verified identical; see
+`docs/phases.md`, Phase 3 close.
+
+**Grants**, in the same transaction as the table and trigger: `hail_ingest`
+gets `SELECT` on `zcta_boundaries` (needed by the trigger's own query) and
+`SELECT, INSERT` on `report_zip_distances` — `SELECT` because the backfill
+script's resumability check reads this table, not just writes it.
+`hail_app` gets `SELECT` only, which is what `storms.py`'s queries need.
 
 ---
 
@@ -445,6 +507,7 @@ Year built yes, price no.
 | `city`, `state`, `zip_code`, `county` | Address components |
 | `state_fips`, `county_fips` | Census codes. **Join key to Census data** — the same crosswalk `iem_data.nws_geo_code` gives you on the weather side |
 | `list_latitude`, `list_longitude` | Property coordinates. Used for point-to-point distance in matching |
+| `geom` | `GEOMETRY(Point, 4326)`, **generated** from `list_longitude`/`list_latitude` — added `sql/014_properties_geom.sql`, 2026-09-18, matching `iem_data.geom`'s pattern so it cannot drift from the coordinates it derives from. **Two GiST indexes**, same split as `zcta_boundaries`: `properties_geom_gix` on `geom` for geometry predicates, `properties_geog_gix` on `(geom::geography)` for the distance-in-metres math `storm_listing_matches` needs |
 | `property_type` | Single Family, Condo, etc. Filter for excluding multifamily |
 | `bedrooms`, `bathrooms`, `square_footage`, `lot_size`, `year_built`, `hoa_dues` | Structural attributes |
 | `created_date` | When *RentCast* first saw the property |
@@ -578,7 +641,8 @@ Records the finding: *this listing was within N miles of that storm report.*
 | `listing_id` | FK → `listings`. **Points at the listing, not the property** |
 | `distance_miles` | `NUMERIC(6,2)`. Point to point, report to property |
 | `radius_used` | The radius setting that produced this match |
-| `matched_at` | When computed |
+| `matched_at` | When computed. **Indexed**, `storm_listing_matches_matched_at_idx` on `(matched_at DESC)` — added `sql/015`, 2026-09-19, so the activity feed can find recent match runs |
+| `emp_id` | FK → `users`, **nullable**. Who ran the match — added `sql/015_slm_emp_attribution.sql`, 2026-09-19. Nullable because rows written before this column existed have no attribution to give |
 
 Unique on `(iem_id, listing_id, radius_used)`.
 
@@ -765,7 +829,8 @@ One row per user-initiated RentCast pull.
 |---|---|
 | `pull_id` | Surrogate PK |
 | `emp_id` | FK → `users`. Who chose to spend |
-| `iem_id` | FK → `iem_data`, nullable. What storm they were working |
+| `iem_id` | FK → `iem_data`, nullable. What storm they were working. **Unused by the web app** — `pull.py`'s insert never sets it, it stays NULL on every row. `storm_date`/`report_text` are what the storm browser actually populates |
+| `storm_date`, `report_text` | The local storm day and report type the pull was made for — added `sql/013_pull_storm_link.sql`, 2026-09-17. Both NULL together for a pull not tied to one browsed storm (a manual zip test), enforced by `CHECK` `storm_link_paired`: `(storm_date IS NULL) = (report_text IS NULL)`. **This is the column pair to join against for "what storm was this pull for," not `iem_id`** |
 | `started_at`, `finished_at` | Null while running or if it died |
 | `zip_count` | Zips in scope |
 | `estimated_api_calls` | **What the UI showed before the user confirmed** |
