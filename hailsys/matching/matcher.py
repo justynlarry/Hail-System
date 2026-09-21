@@ -49,6 +49,7 @@ WHERE i.utc_datetime >= %(window_start)s
     AND (t.min_magnitude IS NULL OR i.magnitude >= t.min_magnitude)
     AND l.list_status = 'Active'
     AND (l.list_type IS DISTINCT FROM 'New Construction')
+    AND (p.property_type IS DISTINCT FROM 'Land')
 ON CONFLICT (iem_id, listing_id, radius_used) DO NOTHING
 RETURNING match_id
 """
