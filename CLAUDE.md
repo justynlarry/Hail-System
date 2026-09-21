@@ -124,6 +124,13 @@ or docs. This holds even when the fix is obvious and already agreed in
 principle, because priorities shift between the decision and the moment,
 and an item that was next last week may have been deprioritized since.
 
+This also holds when something is actively broken. "Can you take a look"
+at an error is a request to diagnose, not a standing invitation to patch
+it — name the bug and the fix, then stop and wait, the same as any other
+finding. An outage doesn't waive the rule; it's not an emergency-fix
+exception, it's the default for every edit, with no case-by-case judgment
+call about how obvious or urgent the fix seems.
+
 ## Working style
 
 The user is teaching himself as this is built — Bash, Docker, Python, Postgres.
