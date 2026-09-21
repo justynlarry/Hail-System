@@ -587,6 +587,15 @@ Claims the ingest scripts and test suite don't exist.
 
 **When:** next docs pass.
 
+**Resolved 2026-09-18.** `CLAUDE.md` said "What does not: the ingest scripts
+themselves, any web UI, any RentCast client, any sending path, the
+`report_sources` seed, and any test suite" through 2026-09-13; commit
+`f8913fd` (2026-09-18) rewrote the current-phase text and the claim is gone.
+Checked against `git log` on 2026-09-22, when the item was closed out — it was
+resolved by that rewrite, not by a docs pass aimed at it. The current-phase
+text was brought up to date again in `d23d5c9` (Phase 4 current). Kept here per
+this file's convention rather than deleted.
+
 ## 37. Verify whether the 10 zip-less coverage zips are the already-removed rows
 
 If so, there's no silent-match problem.
