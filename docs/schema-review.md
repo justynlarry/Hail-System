@@ -11,10 +11,21 @@ Read `CLAUDE.md` and `docs/database-schema.md` first. Do not skim them; the
 non-obvious reasoning behind several tables is documented there and the DDL is
 supposed to match it.
 
-Review every file in `sql/` (001 through 008) plus `scripts/load_reference.sh`.
+Review every file in `sql/` (001 through 017) plus `scripts/load_reference.sh`.
 This is a **review, not a rewrite** — report findings and wait for my go-ahead
 before changing anything. Do not refactor working code, and do not add anything
 I did not ask for.
+
+**001–009 are frozen** (the archive backfill ran against them), so a fix to one
+of those is proposed as a new additive migration, not an edit to the file.
+011–017 are those additive migrations: 011 a `COMMENT` fix; 012
+`county_boundaries`; 013 `api_pulls.storm_date`/`report_text`; 014
+`properties.geom` and its two GiST indexes; 015 `storm_listing_matches.emp_id`
+and a `matched_at` index; 016 an `iem_data.ingested_at` index; 017
+`report_zip_distances`, its `AFTER INSERT` trigger and the ceiling/guard
+functions. `010_roles.sql` holds the roles and the grants for tables that
+existed when it was written; 012 and 017, the two later files that create
+tables, carry their own grants.
 
 **A reconciliation pass has already run.** Documentation and DDL now agree on
 table count, `api_pulls` naming, `send_log` naming, the `system` role, email
@@ -37,49 +48,40 @@ for f in sql/*.sql; do
 done
 ```
 
-Then confirm with `\dt` (expect 17 tables, plus PostGIS's own `spatial_ref_sys`)
+Then confirm with `\dt` (expect 19 tables, plus PostGIS's own `spatial_ref_sys`)
 and `\d <table>` on each. Drop the scratch database when done.
 
 If PostgreSQL is not reachable on this host, say so rather than guessing — the
 database runs in Docker (`postgis/postgis`) and `psql` may not be installed
 locally.
 
-## 2. Known outstanding errors
+## 2. Earlier findings, and what is still open
 
-These are already identified. Confirm each, fix them when I approve, and report
-anything similar you find.
+**Fixed — confirm each is still fixed (regression checks), do not re-fix.**
+Verified against the DDL on 2026-09-22:
 
-**High severity — an audit column that cannot do its job:**
+- `dnc_list.added_by` and `removed_by` are `BIGINT` foreign keys to
+  `users (emp_id)` (`added_by` `NOT NULL`, `removed_by` nullable, with the
+  removal-pair `CHECK`). This is the audit column recording who suppressed an
+  address; it must hold a user id.
+- `sql/008` uses `estimated_api_calls`, `actual_api_calls` and `api_status` in
+  its CHECK constraints and `COMMENT ON`.
+- `sql/004` declares `report_source_norm` once.
+- `sql/002` has `emp_lname`, and `'!'` in single quotes.
+- Every `COMMENT ON` statement is terminated (the files build under
+  `ON_ERROR_STOP`).
+- `realtors.email_norm` has only the partial unique index
+  `realtors_email_norm_uq`, no inline `UNIQUE`.
 
-- `dnc_list.added_by` is declared `TIMESTAMPTZ` and references a table named
-  `user`. It should be `BIGINT NOT NULL REFERENCES users (emp_id)`. This is the
-  column recording who suppressed an address; as written it cannot hold a user
-  id and points at a table that does not exist. Do not sort this with the
-  cosmetic fixes.
-- Check `dnc_list.removed_by` for the same problem.
+**Open — observed 2026-09-22, not yet triaged or decided.** Confirm and report;
+do not fix without my go-ahead, and remember 001–009 are frozen:
 
-**Mechanical — names already decided, do not re-open:**
-
-- `sql/008` references `estimated_calls`, `actual_calls`, and `status` in CHECK
-  constraints and a `COMMENT ON`. The columns are `estimated_api_calls`,
-  `actual_api_calls`, and `api_status`. Rename the references to match the
-  columns.
-
-**Already found, not yet fixed:**
-
-- `sql/004` declares `report_source_norm` twice
-- `sql/002` has a column typo: `emp_lanme` should be `emp_lname`
-- `sql/002` has `"!"` in double quotes — Postgres reads that as an identifier,
-  not a string literal. Single quotes.
-- Several `COMMENT ON` statements are missing terminating semicolons
-
-**One redundancy to resolve:**
-
-- `realtors.email_norm` carries an inline `UNIQUE` *and* has a separate partial
-  unique index `realtors_email_norm_uq` on the same column. Drop the inline
-  `UNIQUE` and keep the partial index — the `WHERE email_norm IS NOT NULL`
-  states the intent and keeps the index smaller, which matters given how many
-  agents arrive with no email.
+- `sql/012`, `013`, `014` and `016` are not wrapped in `BEGIN;` / `COMMIT;`
+  (§4 requires it). `011`, `015` and `017` are.
+- `sql/012_counties.sql` declares `county_fips CHAR(5)` and `state_fips CHAR(2)`,
+  which §3 forbids (`CHAR(n)` blank-pads; use `TEXT` plus a `CHECK`). FIPS codes
+  are fixed-width, so this may be a deliberate choice — flag it as a decision,
+  not an error.
 
 ## 3. Error classes I have made in these files
 
@@ -126,6 +128,13 @@ Confirm these exist and flag any that are redundant:
 - GiST on `iem_data.geom` and `zcta_boundaries.geom`
 - `send_log (realtor_id, sent_at)` — the frequency-cap lookup
 - `api_call_log (zip_code, called_at DESC)` — the recent-pull warning
+- GiST on `properties.geom` and on `(properties.geom::geography)` (`sql/014`),
+  `county_boundaries.geom` (`sql/012`)
+- `storm_listing_matches (matched_at DESC)` (`sql/015`) and
+  `iem_data (ingested_at DESC)` (`sql/016`), both for the activity feed
+- `report_zip_distances` is keyed `(iem_id, zcta5)`, so lookups by `iem_id`
+  are covered. There is deliberately **no** index on `zcta5` — parking-lot item
+  41 defers it until an address lookup needs it; do not flag it as missing
 - Foreign key columns that will be filtered on (Postgres does not index the
   referencing side automatically)
 
@@ -144,7 +153,19 @@ application-layer only:
   whether `UNIQUE NULLS NOT DISTINCT` is warranted, and flag it as a decision
   rather than deciding it.
 - `storm_listing_matches` unique on `(iem_id, listing_id, radius_used)`.
-- `email_templates` and `send_log` append-only; nothing deleted anywhere.
+- `email_templates` and `send_log` append-only; nothing deleted anywhere. Two
+  derived tables are the exception and are rebuildable: `report_zip_distances`
+  (truncate and rerun the backfill) and `storm_listing_matches` rows no send
+  points at. `fk_send_log_match` has no `ON DELETE` action, so a match with a
+  send against it cannot be deleted — confirm that still holds.
+- `report_zip_distances` cannot lack rows for a report: the `AFTER INSERT`
+  trigger on `iem_data` fills it, and `hail_assert_radius_within_ceiling()`
+  raises for any radius past `hail_pair_ceiling_m()` (10 miles). Confirm
+  `hail_ingest` has `SELECT` on `zcta_boundaries` and `SELECT, INSERT` on
+  `report_zip_distances` (the trigger runs as the inserting role), and
+  `hail_app` has `SELECT` only.
+- `api_pulls.storm_date` and `report_text` are `NULL` together or set together
+  (`storm_link_paired`).
 - `users` cannot be deleted — no `ON DELETE CASCADE` on anything pointing at it.
 - The `system` account cannot be activated or given a real password.
 - Removal column pairs (`removed_at` / `removed_by`) move together.
@@ -156,10 +177,9 @@ application-layer only:
 Report discrepancies **in both directions** — columns in the DDL the docs do not
 describe, and documented columns the DDL omits.
 
-One known item: `database-schema.md` still describes `dnc_list.added_by` as
-"Who suppressed it, or `system`," phrasing from when the column was free text.
-Once the type is corrected per §2, reword it to reference the system account's
-`emp_id`.
+`database-schema.md` describes `dnc_list.added_by` as the `emp_id` of who
+suppressed it (the system account's `emp_id` for machine-initiated rows). That
+matches the DDL; confirm it still does.
 
 ## 8. `load_reference.sh`
 
