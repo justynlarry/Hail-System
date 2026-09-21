@@ -26,14 +26,13 @@ WHERE i.ingested_at >= %(since)s
 GROUP BY storm_date, i.report_text
 """
 
-_PULLS_SQL = f"""
+_PULLS_SQL = """
 SELECT
-    p.pull_id, p.started_at, {_LOCAL_DAY} AS storm_date, i.report_text,
+    p.pull_id, p.started_at, p.storm_date, p.report_text,
     p.zip_count, p.actual_api_calls, p.listings_returned, p.api_status,
     u.emp_fname, u.emp_lname
 FROM api_pulls p
 JOIN users u ON u.emp_id = p.emp_id
-LEFT JOIN iem_data i ON i.iem_id = p.iem_id
 WHERE p.started_at >= %(since)s
 ORDER BY p.started_at DESC
 """
