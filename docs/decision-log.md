@@ -3098,13 +3098,16 @@ ingest — loud over silent.
 Covers all 33,791 US ZCTAs, so adding a coverage zip later needs no
 recompute. No FK on `zcta5`: it would block a TIGER reload.
 Grants in the same transaction as the trigger: `hail_ingest` gets `SELECT`
-on `zcta_boundaries` and `INSERT` on the new table — the trigger runs as the
-inserting role, and without the `SELECT` the next nightly ingest fails.
-`hail_app` gets `SELECT`.
+on `zcta_boundaries` (without it the next nightly ingest fails, since the
+trigger runs as the inserting role) and `SELECT, INSERT` on the new table —
+`SELECT` too, not just `INSERT`, because the backfill script's own
+resumability check reads this table as well as writing it. `hail_app` gets
+`SELECT`.
 Backfill: `scripts/backfill_zip_distances.py`, batched and resumable, run as
-`hail_admin` (owns the table, so its closing `ANALYZE` actually runs). ~5
-hours for 177,515 reports. `storms.py` deploys only after the backfill
-completes and old-vs-new `PAIRS_SQL` output is verified identical.
+`hail_ingest` — the same role the trigger's own `INSERT` runs as, and the
+one the grants above were written for. ~5 hours for 177,515 reports.
+`storms.py` deploys only after the backfill completes and old-vs-new
+`PAIRS_SQL` output is verified identical.
 Entirely derived: truncating and rebuilding it is not deletion under
 "nothing is deleted."
 
