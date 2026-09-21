@@ -743,14 +743,70 @@ any spatial join. Worth a periodic check as more zips get pulled and the
 
 ## 53. Zero test coverage under `hailsys/web/`
 
-All 88 existing test cases (`tests/`) cover `hailsys/iem/` and the ingest
-scripts; nothing exercises `hailsys/web/` — views, auth, or any of the
-query modules the web app calls. Two of this phase's own bugs
+Of the 100 test cases in `tests/`, 88 cover `hailsys/iem/` and the ingest
+scripts, and 12 (`tests/test_formatting.py`, 2026-09-22) cover
+`hailsys/formatting.py`, the magnitude formatter. That is the first test file
+for code the web app calls, but it sits outside `hailsys/web/`: nothing
+exercises views, auth, the query modules the web app calls, or the filter's
+registration in `create_app()`. Two of an earlier phase's own bugs
 (`storm_matches()` passing the wrong keyword name, `login()` reading
 `last_login_at` before it was selected) are exactly the shape a test would
 have caught before a live check did.
 
 **When:** open since Phase 2; no deadline set.
+
+## 54. Missing agent email — watch it as a rate
+
+`listingAgent.email` is frequently missing (`docs/data-sources.md`), and a
+listing with none gets no `realtor_id`, so it has nobody to send to. Measured
+2026-09-22: the 2026-09-21 pull returned 231 new listings and **40 (17%)** had
+no agent email. Across all 508 listings it is 49 (9.6%), and it varies a lot by
+zip — 80014 9 of 277, 80103 8 of 40, 80105 4 of 45, 80135 0 of 68, 80136
+28 of 78 (36%). Of the 49, 30 carry an office email, which is the question
+item 19 leaves open. One pull is a small sample; track the rate as more zips
+are pulled before treating 17% as typical.
+
+**When:** watch as pulls accumulate; it decides how much outreach is
+reachable at all, so settle it before Phase 5.
+
+## 55. Duplicate properties from RentCast address variants — one lot, two emails
+
+RentCast's `id` is derived from the address string, so a formatting change
+upstream mints a new id for the same building (`docs/data-sources.md`). Two
+`properties` rows for one lot can each carry a listing and an agent, produce
+two matches, and lead to two emails about one property, possibly to two
+different people. Not observed yet: an exact check on lower-cased `address_1`,
+`address_2` and zip finds no duplicates in the 508 properties, but exact match
+cannot see variants like "St" versus "Street", so absence there is not
+evidence. Needs a dedupe rule — likely address normalization or coordinate
+proximity plus unit — decided before the first send.
+
+**When:** Phase 5, before any email goes out.
+
+## 56. Backfill progress and ETA should count reports, not ID range
+
+`scripts/backfill_zip_distances.py` batches by `iem_id` range and reports
+progress and ETA as a fraction of that range. `iem_id` runs 1 to 398,134 for
+177,515 reports — the range is 2.2 times the row count (presumably ids
+consumed by inserts that did not land), and nothing guarantees the ids are
+evenly spread over time. So the logged percent complete and ETA are measured
+against ids that do not exist. Count the reports still needing rows up front
+and report progress against that.
+
+**When:** only if the script runs again — a ceiling change or a TIGER reload
+(`scripts/verify_zip_distances.py` covers the check afterward).
+
+## 57. A "Pulling…" work state for running pulls
+
+`workstate.py` treats any pull that is not `failed` as pulled, so a pull that
+is still `running` reads "Pulled, not matched" until its match run lands. The
+2026-09-21 pull ran under 2 seconds (22:52:49.18 to 22:52:51.13 UTC) for 4
+zips, so the wrong label lasts about that long. Related to item 47: a pull
+stuck at `running` after a restart would also read "Pulled, not matched"
+indefinitely.
+
+**When:** low priority while pulls take seconds; revisit if they get longer,
+which scales with zip count.
 
 ---
 
