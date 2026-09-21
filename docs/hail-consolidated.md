@@ -615,11 +615,14 @@ decide, not silently patched:
   days after the 2026-09-14 decision (Tailscale over Cloudflare) updated
   `CLAUDE.md` and `server-setup.md` but not this one. **Fixed this session**
   — the bullet now names Tailscale and points at the decision-log entry.
-- **Zero test coverage for anything under `hailsys/web/`.** All 88 tests
-  (unchanged this sync) exercise `hailsys/iem/*` — the ingest/parse side.
-  `auth.py`, `views.py`, and `queries/storms.py` — including the two
-  cross-projection bugs just fixed by hand — have no automated coverage.
-  **Left open** — writing tests is real work, not a doc fix.
+- **Zero test coverage for anything under `hailsys/web/`.** Of the 100 tests,
+  88 exercise `hailsys/iem/*` — the ingest/parse side — and 12
+  (`tests/test_formatting.py`, 2026-09-22) exercise `hailsys/formatting.py`,
+  the magnitude formatter, which sits outside `hailsys/web/`. `auth.py`,
+  `views.py`, `queries/storms.py`, and the filter's registration in
+  `create_app()` — including the two cross-projection bugs fixed by hand in
+  an earlier phase — have no automated coverage. **Left open** — writing tests
+  is real work, not a doc fix. Tracked as parking-lot item 53.
 - **Parking-lot item 28 (vendor Leaflet locally) was built earlier in this
   same session** (`e22c02f`), before `decision-log.md` or `parking-lot.md`
   had a word to say about it. **Fixed this session** — a dated decision-log
