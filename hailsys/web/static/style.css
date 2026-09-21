@@ -291,3 +291,20 @@ h1 ~ table, h1 ~ p { margin-left: 1.5rem; margin-right: 1.5rem; }
 .agent-unknown h3 {
     font-style: italic;
 }
+
+/* Incomplete-coverage notice on the match page. Visibly a warning, but
+   not an error -- the page is correct, just not the whole picture. */
+.coverage-warning {
+    background: #fef3c7;
+    border-left: 4px solid #d97706;
+    padding: 0.75rem 1rem;
+    margin: 0 0 1.5rem;
+}
+
+.coverage-warning p {
+    margin: 0 0 0.5rem;
+}
+
+.coverage-warning p:last-child {
+    margin-bottom: 0;
+}

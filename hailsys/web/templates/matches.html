@@ -9,6 +9,29 @@
     within {{ radius_miles }} miles.
 </p>
 
+{% if unpulled_zips %}
+<div class="coverage-warning">
+    <p>
+        <strong>Incomplete:</strong> this storm touched {{ storm_zip_count }}
+        zip {{ '' if storm_zip_count == 1 else 's' }}, and 
+        {{ unpulled_zips | length }} {{ 'has' if unpulled_zips | length ==1 else 'have' }}
+        never been pulled from RentCast.  Listings in 
+        {{ 'that zip' if unpulled_zips | length == 1 else 'those zips' }}
+        can't appear here until {{ 'it is' if unpulled_zips | length == 1 else 'they are' }}.
+    </p>
+    <p class="zip-list">{{ unpulled_zips | join(',') }}</p>
+    <p>
+        <a href="{{ url_for('main.pull_estimate') }}?date={{ storm_date.isoformat()  }}&type={{ (report_text or '') | urlencode }}&submitted=1&actionable=1">Estimate a pull for this storm</a>
+    </p>
+</div>
+{% endif %}
+
+{% if oldest_pull %}
+<p class="note">
+    Listing data as of {{ oldest_pull.astimezone(display_tz).strftime('%Y-%m-%d')  }}
+</p>
+{% endif %}
+
 {% if groups %}
 {% for realtor_id, listings in groups %}
     {% set agent = listings[0] %}

@@ -462,6 +462,20 @@ def storm_matches():
             radius_miles=DEFAULT_MATCH_RADIUS_MILES,
         )
 
+        storm_zip_rows = storms.fetch_zips(
+            conn,
+            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            window_start=window_start,
+            window_end=window_end,
+            report_text=report_text,
+            actionable_only=True,
+        )
+        storm_zips = sorted({r["zcta5"] for r in storm_zip_rows})
+        coverage = matches.fetch_pull_coverage(conn, storm_zips)
+
+    unpulled_zips = [z for z in storm_zips if z not in coverage]
+    oldest_pull = min(coverage.values()) if coverage else None
+
     groups = [
         (realtor_id, list(listings))
         for realtor_id, listings in groupby(rows, key=lambda r: r["realtor_id"])
@@ -475,5 +489,9 @@ def storm_matches():
         radius_miles=DEFAULT_MATCH_RADIUS_MILES,
         listing_count=len(rows),
         agent_count=len({r["realtor_id"] for r in rows
-                         if r["realtor_id"] is not None})
+                         if r["realtor_id"] is not None}),
+        storm_zip_count=len(storm_zips),
+        unpulled_zips=unpulled_zips,
+        oldest_pull=oldest_pull,
+        display_tz=DISPLAY_TZ,
     )

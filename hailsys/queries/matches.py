@@ -53,6 +53,17 @@ ORDER BY r.agent_name  NULLS LAST, r.realtor_id NULLS LAST,
     min(m.distance_miles)
 """
 
+
+_PULL_COVERAGE_SQL = """
+SELECT DISTINCT ON (zip_code)
+    zip_code, called_at
+FROM api_call_log
+WHERE zip_code = ANY(%(zip_codes)s)
+    AND http_status = 200
+ORDER BY zip_code, called_at DESC
+"""
+
+
 MATCH_DETAIL_COLUMNS = [
     "listing_id", "property_address", "city", "zip_code", "property_type",
     "year_built", "list_price", "list_date", "list_mls_number",
@@ -72,3 +83,11 @@ def fetch_match_detail(conn, *, window_start, window_end, report_text,
             "radius_miles": radius_miles,
         })
         return cur.fetchall()
+
+
+def fetch_pull_coverage(conn, zip_codes):
+    if not zip_codes:
+        return {}
+    with conn.cursor() as cur:
+        cur.execute(_PULL_COVERAGE_SQL, {"zip_codes": list(zip_codes)})
+        return {row["zip_code"]: row["called_at"] for row in cur.fetchall()}
