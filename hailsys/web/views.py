@@ -6,7 +6,7 @@ from itertools import groupby
 
 from flask import flash, g, redirect, Blueprint, render_template, abort, request, session, url_for, Response
 
-from hailsys.web.auth import hash_password, login_required, verify_password, MIN_PASSWORD_LENGTH
+from hailsys.web.auth import hash_password, login_required, verify_password, MIN_PASSWORD_LENGTH, role_required
 
 from hailsys.matching.matcher import match_storm
 from hailsys.rentcast.estimate import estimate_pull
@@ -368,6 +368,7 @@ def map_points():
 
 @bp.route("/pull/estimate")
 @login_required
+@role_required("sender", "admin")
 def pull_estimate():
     """What would a pull cost before any request is made"""
     try:
@@ -400,6 +401,7 @@ def pull_estimate():
 
 @bp.route("/pull", methods=["POST"])
 @login_required
+@role_required("sender", "admin")
 def pull_start():
     try:
         day = datetime.strptime(request.form["date"], "%Y-%m-%d").date()
@@ -445,6 +447,7 @@ def pull_start():
 
 @bp.route("/match", methods=["POST"])
 @login_required
+@role_required("sender", "admin")
 def match_start():
     try:
         day = datetime.strptime(request.form["date"], "%Y-%m-%d").date()
@@ -599,5 +602,4 @@ def change_password():
 
     flash("Password changed, you have been signed out of all other sessions.")
     return redirect(url_for("main.index"))
-    
     

@@ -60,7 +60,8 @@
         <td>{{ "Active" if u.is_active else "Deactivated" }}</td>
         <td>{{ ts(u.last_login_at) if u.last_login_at else "Never" }}</td>
         <td>{{ ts(u.created_at) }}</td>
-        <td class="row-actions">
+        <td>
+          <div class="row-actions">
           <form method="post" action="{{ url_for('admin.change_role', emp_id=u.emp_id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <select name="role">
@@ -95,6 +96,7 @@
               <button type="submit">Reset</button>
             </form>
           </details>
+          </div>
         </td>
       </tr>
     {% else %}

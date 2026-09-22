@@ -3,6 +3,7 @@
 {% block heading %}{{ storm_date }} {{ report_text or 'all types' }} — matched listings{% endblock %}
 
 {% block content %}
+<div class="page">
 <p class="match-summary">
     <strong>{{ listing_count }}</strong> listing{{ '' if listing_count == 1 else 's' }}
     across <strong>{{ agent_count }}</strong> agent{{ '' if agent_count == 1 else 's' }},
@@ -51,6 +52,7 @@
         </p>
         {% endif %}
 
+        <div class="table-scroll">
         <table>
             <thead>
                 <tr>
@@ -68,7 +70,7 @@
             <tbody>
                 {% for row in listings %}
                 <tr>
-                    <td>{{ row.property_address }}</td>
+                    <td class="addr">{{ row.property_address }}</td>
                     <td>{{ row.zip_code }}</td>
                     <td>{{ row.property_type }}</td>
                     <td class="num">{{ row.year_built or '' }}</td>
@@ -85,6 +87,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 {% endfor %}
 {% else %}
@@ -92,4 +95,5 @@
 {% endif %}
 
 <p><a href="{{ url_for('main.index') }}">Back to storm days</a></p>
+</div>
 {% endblock %}

@@ -1,6 +1,6 @@
 import os
 
-from flask import flash, Flask, redirect, request, url_for
+from flask import flash, Flask, redirect, request, url_for, g
 from flask_wtf.csrf import CSRFError, CSRFProtect
 
 def create_app():
@@ -18,6 +18,12 @@ def create_app():
     def handle_csrf_error(e):
         flash("That form expired or was submitted from a stale page, please try again.")
         return redirect(request.referrer or url_for("main.index")), 302
+
+    # Injected into every template render
+    @app.context_processor
+    def inject_permissions():
+        user=getattr(g, "user", None)
+        return {"can_pull": bool(user and user ["role"] in ("sender", "admin"))}
 
     # Both blueprints are imported inside the factory, not the module top.
     # They import the blueprint's own app context, so importing at module
