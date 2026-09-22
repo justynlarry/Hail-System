@@ -22,8 +22,8 @@ _DKLEN = 32
 _MAXMEM = 64 * 1024 * 1024
 
 def load_current_user():
-    """Registered as app.before_request.  Re-checks is_active and
-    the fail-safe timestamp on every request.
+    """Registered as app.before_request.  Re-checks is_active and both
+    fail-safe timestamps -- per-user and system-wide -- on every request.
     """
     emp_id = session.get("emp_id")
     if emp_id is None:
@@ -31,23 +31,35 @@ def load_current_user():
         return
     with get_connection() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT is_active, sessions_invalidated_at FROM users WHERE emp_id = %s",
+            "SELECT u.is_active, u.sessions_invalidated_at,"
+            "       s.global_sessions_invalidated_at"
+            "  FROM users u"
+            # LEFT JOIN: settings is a singleton the migration always
+            # inserts, but a missing row there is a data anomaly unrelated
+            # to this user -- it should read as "no global invalidation
+            # set" (NULL), not silently boot everyone.
+            "  LEFT JOIN settings s ON s.id = 1"
+            " WHERE u.emp_id = %s",
             (emp_id,),
         )
         row = cur.fetchone()
 
-    # Compare real datetimes, not stringified ones.  sessions_invalidated_at
-    # comes back TIMESTAMPTZ (aware); issued_at has to be parsed back to an
-    # aware datetime too, or an aware/naive or string/string compare can sort
-    # wrong instead of raising.
+    # Compare real datetimes, not stringified ones.  Both *_invalidated_at
+    # columns come back TIMESTAMPTZ (aware); issued_at has to be parsed back
+    # to an aware datetime too, or an aware/naive or string/string compare
+    # can sort wrong instead of raising.
     issued_at_raw = session.get("issued_at")
     issued_at = datetime.fromisoformat(issued_at_raw) if issued_at_raw else None
+
+    def invalidated_since_login(invalidated_at):
+        return (invalidated_at is not None and issued_at is not None
+                and invalidated_at > issued_at)
 
     booted = (
         row is None
         or not row["is_active"]
-        or (row["sessions_invalidated_at"] is not None and issued_at is not None
-            and row["sessions_invalidated_at"] > issued_at)
+        or invalidated_since_login(row["sessions_invalidated_at"])
+        or invalidated_since_login(row["global_sessions_invalidated_at"])
     )
     if booted:
         session.clear()
