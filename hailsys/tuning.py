@@ -38,13 +38,19 @@ METRES_PER_MILE = 1609.344
 # territory edge picks up zips on one side only.
 
 
-# CEILING:  report-to-zip distances are precomputed out to 
+# CEILING:  report-to-zip distances are precomputed out to
 # hail_pair_ceiling_m() (sql/017, set at inception at 10 miles)
 # That value lives in the DATABASE not in this .py file.  Radius must
 # stay at or below that threshold.  Raising the ceiling means a migration
 # and a full recompute (scripts/backfill_zip_distances.py)
 
 
+# This is the value 020_settings_radii.sql seeded settings.default_zip_radius_miles
+# with at inception.  Live request-serving code reads the settings table
+# (hailsys.settings.fetch_settings, exposed as g.settings) instead of this
+# constant, so an admin's change on the settings page takes effect without a
+# deploy.  Kept here as the default/fallback for standalone scripts that run
+# outside a request and don't have g.settings.
 DEFAULT_ZIP_RADIUS_MILES = 5.0
 
 # How far from a report a listing may be and still be matched.  This is the
@@ -54,7 +60,11 @@ DEFAULT_ZIP_RADIUS_MILES = 5.0
 # Deliberately a separate constant from the zip radius, even though both are 5.0
 # at inception.  One bounds what we look at, the other bounds what we claim;
 # collapsing them into one name would hide that they can diverge.
-
+#
+# This is the value 020_settings_radii.sql seeded
+# settings.default_match_radius_miles with at inception.  Live code reads the
+# settings table (hailsys.settings.fetch_settings) instead of this constant;
+# kept as the default/fallback for standalone scripts run outside a request.
 DEFAULT_MATCH_RADIUS_MILES = 5.0
 
 # Radius does NOT vary by event type yet.  Hail cores are narrow, straight-line
