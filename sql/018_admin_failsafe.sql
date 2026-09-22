@@ -10,7 +10,7 @@ ALTER TABLE users
 
 COMMENT ON COLUMN users.sessions_invalidated_at IS
     'Admin sets this to now() to force this single user to be '
-    'booted on their next request.  Login still works afterward '
+    'booted on their next request.  Login still works afterward. '
     'This is not deactivation, compared against session [''issued_at''] '
     ' at login time.';
 
