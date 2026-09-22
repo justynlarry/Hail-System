@@ -6,7 +6,7 @@ from itertools import groupby
 
 from flask import flash, g, redirect, Blueprint, render_template, abort, request, session, url_for, Response
 
-from hailsys.web.auth import login_required, verify_password, MIN_PASSWORD_LENGTH
+from hailsys.web.auth import hash_password, login_required, verify_password, MIN_PASSWORD_LENGTH
 
 from hailsys.matching.matcher import match_storm
 from hailsys.rentcast.estimate import estimate_pull
@@ -554,7 +554,7 @@ def change_password():
     if request.method == "GET":
         return render_template("change_password.html",
                                 min_password_length=MIN_PASSWORD_LENGTH)
-    current = request.form-get("current_password") or ""
+    current = request.form.get("current_password") or ""
     new = request.form.get("new_password") or ""
     confirm = request.form.get("confirm_password") or ""
 

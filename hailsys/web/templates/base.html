@@ -27,7 +27,8 @@
             </nav>
         </div>
         <div class="site-header-right">
-            <span>Signed in as {{ session.user_name }}</span>
+            <span>Signed in as
+              <a href="{{ url_for('main.change_password') }}">{{ session.user_name }}</a></span>
             <form method="post" action="{{ url_for('main.logout') }}">
                 <button type="submit">Sign Out</button>
             </form>
