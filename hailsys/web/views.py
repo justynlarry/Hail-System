@@ -4,9 +4,9 @@ import io
 from datetime import datetime, timedelta, timezone
 from itertools import groupby
 
-from flask import flash, redirect, Blueprint, render_template, abort, request, session, url_for, Response
+from flask import flash, g, redirect, Blueprint, render_template, abort, request, session, url_for, Response
 
-from hailsys.web.auth import login_required, verify_password
+from hailsys.web.auth import login_required, verify_password, MIN_PASSWORD_LENGTH
 
 from hailsys.matching.matcher import match_storm
 from hailsys.rentcast.estimate import estimate_pull
@@ -15,8 +15,6 @@ from hailsys.db import get_connection
 from hailsys.formatting import magnitude
 from hailsys.queries import activity, matches,storms, workstate
 from hailsys.tuning import (
-    DEFAULT_MATCH_RADIUS_MILES,
-    DEFAULT_ZIP_RADIUS_MILES,
     DISPLAY_TZ,
     RECENT_PULL_WINDOW_DAYS,
     denver_day_bounds,
@@ -490,7 +488,7 @@ def storm_matches():
             window_start=window_start,
             window_end=window_end,
             report_text=report_text,
-            radius_miles=DEFAULT_MATCH_RADIUS_MILES,
+            radius_miles=g.settings["match_radius_miles"],
         )
 
         storm_zip_rows = storms.fetch_zips(
@@ -517,7 +515,7 @@ def storm_matches():
         groups=groups,
         storm_date=day,
         report_text=report_text,
-        radius_miles=DEFAULT_MATCH_RADIUS_MILES,
+        radius_miles=g.settings["match_radius_miles"],
         listing_count=len(rows),
         agent_count=len({r["realtor_id"] for r in rows
                          if r["realtor_id"] is not None}),
@@ -550,3 +548,56 @@ def activity_page():
         display_tz=DISPLAY_TZ,
     )
 
+@bp.route("/account/password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    if request.method == "GET":
+        return render_template("change_password.html",
+                                min_password_length=MIN_PASSWORD_LENGTH)
+    current = request.form-get("current_password") or ""
+    new = request.form.get("new_password") or ""
+    confirm = request.form.get("confirm_password") or ""
+
+    with get_connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT password_hash FROM users WHERE emp_id = %s",
+                    (g.user["emp_id"],))
+        row = cur.fetchone()
+    
+    errors = []
+    if not verify_password(current, row["password_hash"]):
+        errors.append("Current password is incorrect.")
+    if len(new) < MIN_PASSWORD_LENGTH:
+        errors.append(f"New password must be at least {MIN_PASSWORD_LENGTH} characters.")
+    elif new != confirm:
+        errors.append("New passwords do not match.")
+    elif new == current:
+        errors.append("New password must be different from the current one.")
+    
+    if errors:
+        for e in errors:
+            flash(e)
+        return render_template("change_password.html",
+                               min_password_length=MIN_PASSWORD_LENGTH), 400
+    
+    new_hash = hash_password(new)
+
+    with get_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE users
+                SET password_hash = %s,
+                    sessions_invalidated_at = now()
+            WHERE emp_id = %s
+        RETURNING sessions_invalidated_at
+            """,
+            (new_hash, g.user["emp_id"]),
+        )
+        invalidated_at = cur.fetchone()["sessions_invalidated_at"]
+        conn.commit()
+    
+    session["issued_at"] = invalidated_at.isoformat()
+
+    flash("Password changed, you have been signed out of all other sessions.")
+    return redirect(url_for("main.index"))
+    
+    
