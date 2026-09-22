@@ -79,6 +79,20 @@ def _render_admin(form=None, status=200):
         min_password_length=MIN_PASSWORD_LENGTH,
     ), status
 
+def _user_action(sql, params, ok_message):
+    """Run one user-table write and report result.
+    """
+    try:
+        with get_connection() as conn, conn.cursor() as cur:
+            cur.execute(sql, params)
+            affected = cur.rowcount
+            conn.commit()
+    except psycopg.errors.RaiseException as e:
+        flash(e.diag.message_primary)
+    else:
+        flash(ok_message if affected else "No such user.")
+    return redirect(url_for("admin.index"))
+
 
 @admin_bp.route("/")
 def index():
@@ -139,3 +153,55 @@ def create_user():
     flash(f"Created {form['user_name']} ({form['role']}).")
     return redirect(url_for("admin.index"))
 
+
+@admin_bp.route("/users/<int:emp_id>/deactivate", methods=["POST"])
+def deactivate_user(emp_id):
+    return _user_action(
+        "UPDATE users SET is_active = FALSE "
+        " WHERE emp_id = %s AND role <> 'system'",
+        (emp_id,),
+        "User Deactivated.",
+    )
+
+
+@admin_bp.route("/users/<int:emp_id>/reactivate", methods=["POST"])
+def reactivate_user(emp_id):
+    return _user_action(
+        "UPDATE users SET is_active = TRUE "
+        " WHERE emp_id = %s AND role <> 'system'",
+        (emp_id,),
+        "User Reactivated.",
+    )
+
+@admin_bp.route("/users/<int:emp_id>/role", methods=["POST"])
+def change_role(emp_id):
+    role = request.form.get("role") or ""
+    if role not in ROLES:
+        flash("Please pick a valid role.")
+        return redirect(url_for("admin.index"))
+
+    # sessions_invalidated_at: role is cached in the session
+    # so without this, new role wouldn't apply until next
+    # login, forcing re-login makes change instant
+    return _user_action(
+        "UPDATE users SET role = %s, sessions_invalidated_at = now() "
+        " WHERE emp_id = %s AND role <> 'system'",
+        (role, emp_id),
+        f"(Role changed to {role}.  That user must sign in again.)"
+    )
+
+@admin_bp.route("/users/<int:emp_id>/boot", methods=["POST"])
+def boot_user(emp_id):
+    return _user_action(
+        "UPDATE users SET sessions_invalidated_at = now()"
+        " WHERE emp_id = %s AND role <> 'system'",
+        (emp_id,),
+        "User signed out, they can sign back in.",
+    )
+
+@admin_bp.route("/boot-all", methods=["POST"])
+def boot_all():
+    with get_connection() as conn, conn.cursor() as cur:
+        cur.execute("UPDATE settings SET global_sessions_invalidated_at = now()")
+        conn.commit()
+    return redirect(url_for("main.login"))

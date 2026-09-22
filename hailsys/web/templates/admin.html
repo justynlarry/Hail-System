@@ -8,6 +8,7 @@
 {%- endmacro %}
 
 {% block content %}
+<div class="page admin-page">
 
 <section>
   <details {% if form %}open{% endif %}>
@@ -45,7 +46,7 @@
     <thead>
       <tr>
         <th>User</th><th>Name</th><th>Email</th><th>Role</th>
-        <th>Status</th><th>Last login</th><th>Created</th>
+        <th>Status</th><th>Last login</th><th>Created</th><th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -58,9 +59,28 @@
         <td>{{ "Active" if u.is_active else "Deactivated" }}</td>
         <td>{{ ts(u.last_login_at) if u.last_login_at else "Never" }}</td>
         <td>{{ ts(u.created_at) }}</td>
+        <td class="row-actions">
+          <form method="post" action="{{ url_for('admin.change_role', emp_id=u.emp_id) }}">
+            <select name="role">
+              {% for r in roles %}
+              <option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ r }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit">Change role</button>
+          </form>
+          {% if u.is_active %}
+          <form method="post" action="{{ url_for('admin.boot_user', emp_id=u.emp_id) }}">
+            <button type="submit">Sign out</button></form>
+          <form method="post" action="{{ url_for('admin.deactivate_user', emp_id=u.emp_id) }}">
+            <button type="submit">Deactivate</button></form>
+          {% else %}
+          <form method="post" action="{{ url_for('admin.reactivate_user', emp_id=u.emp_id) }}">
+            <button type="submit">Reactivate</button></form>
+          {% endif %}
+        </td>
       </tr>
     {% else %}
-      <tr><td colspan="7">No users.</td></tr>
+      <tr><td colspan="8">No users.</td></tr>
     {% endfor %}
     </tbody>
   </table>
@@ -68,7 +88,7 @@
 
 <section>
   <h2>Settings</h2>
-  <table>
+  <table class="settings-table">
     <tbody>
       <tr><th>Zip radius</th><td>{{ settings.default_zip_radius_miles }} mi</td></tr>
       <tr><th>Match radius</th><td>{{ settings.default_match_radius_miles }} mi</td></tr>
@@ -76,6 +96,10 @@
           <td>{{ "%.1f"|format(ceiling_miles) }} mi — raising it needs a migration and recompute</td></tr>
       <tr><th>Last system-wide sign-out</th>
           <td>{{ ts(settings.global_sessions_invalidated_at) }}</td></tr>
+      <tr><th>Sign out everyone</th>
+          <td><form method="post" action="{{ url_for('admin.boot_all') }}">
+            <button type="submit">Sign out all users</button></form>
+            Signs you out too.</td></tr>
     </tbody>
   </table>
 </section>
@@ -99,4 +123,5 @@
   </table>
 </section>
 
+</div>
 {% endblock %}
