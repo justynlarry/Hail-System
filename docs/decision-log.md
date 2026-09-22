@@ -3268,10 +3268,10 @@ a superseded note pointing here.
 itself, and match. As send, re-pull and quota warnings are built, they go to
 `sender` too. `admin` is everything (entry above).
 
-**The pull estimate is sender-only, not viewer.** It costs nothing to render,
-but its only purpose is to lead to the confirm button that spends money, and
-a viewer who can reach it is one click from a pull that `role_required` would
-then have to refuse.
+**The pull estimate is sender and admin, not viewer.** It costs nothing to
+render, but it is the confirmation step for a paid action. A viewer has no use
+for it, and leaving it open would mean the Pull link leads to a page whose
+submit button 403s.
 
 **Enforcement is `role_required` on the route; the UI follows it.**
 `@role_required("sender", "admin")` sits on `/pull/estimate`, `/pull` and
@@ -3399,9 +3399,12 @@ actually differ (`IS DISTINCT FROM`).
 
 **Why:** `settings` is a singleton row that holds more than the radii. The
 boot-everyone route updates `global_sessions_invalidated_at` on the same row.
-Unscoped, the trigger fired on that update too: it demanded attribution the
-boot route has no reason to set, so the boot failed, and had it not failed it
-would have logged a radius "change" that never happened. `UPDATE OF` limits it
+Unscoped, the trigger fired on that update too, and it demanded attribution the
+boot route has no reason to set. **Verified, not assumed:** an `UPDATE` with
+no `app.current_emp_id` set raises `UndefinedObject`, so the sign-out-everyone
+action would have failed outright. That is the more serious of the two
+consequences. The other is that, had attribution been set, it would have logged
+a radius "change" that never happened. `UPDATE OF` limits it
 to statements naming the radius columns. `WHEN` then drops a save that
 re-submits the same values, so the history records changes, not form
 submissions.

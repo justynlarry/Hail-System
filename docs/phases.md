@@ -141,7 +141,7 @@ and CSRF protection on every POST. Decision log, 2026-09-22 entries.
 
 Still open in Phase 4: parking-lot items 40 (matched-found-nothing), 46
 (re-pull affordance), and 50 (RentCast quota tracker), plus the Phase 4
-items filed 2026-09-22 (58–62).
+items filed 2026-09-22 (58–62, 67–69).
 
 ---
 

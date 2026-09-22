@@ -830,9 +830,11 @@ which scales with zip count.
 
 `role_required` on `/pull/estimate`, `/pull` and `/match`, and the `can_pull`
 gating on `storms.html`, were written 2026-09-22 but have not been exercised
-by a viewer login. That test is Phase 4's done-when: a viewer can browse and
-export but cannot trigger a pull. Check both halves — the greyed Pull/Match
-text in the UI, and a 403 on the routes when requested directly.
+by a viewer login — nothing in that day's work has been exercised by a
+non-admin account. That test is Phase 4's done-when: a viewer can browse and
+export but cannot trigger a pull. Create a viewer account and check both
+halves — the greyed Pull/Match text in the UI, and a 403 from `/pull` (and
+`/pull/estimate`, `/match`) when requested directly.
 
 **When:** next session; closes Phase 4's outline.
 
@@ -909,6 +911,32 @@ guessable from a name or email — before real staff accounts exist, since
 changing it afterward means renaming live logins.
 
 **When:** before real accounts get created.
+
+## 67. Header bar doesn't wrap on phones
+
+`.site-header-right` is `white-space: nowrap` and the nav links can't shrink,
+so at phone widths the header alone is wider than the viewport and every page
+scrolls sideways — the matched-listings overflow fix (2026-09-22) can't stop
+that on its own. Lives in `base.html`/`style.css`, shared by every page.
+
+**When:** Phase 4, cosmetic.
+
+## 68. Admin users table overflows narrow screens
+
+Eight columns plus the fixed 15rem Actions group. Same fix as the
+matched-listings tables: wrap it in `.table-scroll` so it scrolls in its own
+box instead of pushing the page.
+
+**When:** Phase 4, cosmetic — same pass as the matched-listings overflow fix.
+
+## 69. `.action-disabled` has no spacing next to the badge
+
+The greyed Pull/Match text sits flush against the status badge. The link and
+button it replaces get `margin-left: 0.5rem`, `font-size: 0.8125rem` and
+`white-space: nowrap` from `.pull-link`/`.inline-action`; giving
+`.action-disabled` the same three lines makes the two states line up.
+
+**When:** Phase 4, cosmetic.
 
 ---
 
