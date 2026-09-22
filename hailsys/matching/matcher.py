@@ -21,7 +21,8 @@ Added 2026-09-22 (decision log, "Land matches removed"):
 
 import logging
 
-from hailsys.tuning import DEFAULT_MATCH_RADIUS_MILES, miles_to_metres
+from hailsys.settings import fetch_settings
+from hailsys.tuning import miles_to_metres
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +64,12 @@ RETURNING match_id
 """
 
 def match_storm(conn, *, emp_id, window_start, window_end, report_text=None,
-                radius_miles=DEFAULT_MATCH_RADIUS_MILES):
+                radius_miles=None):
     """Compute and store matches for 1 storm window, and return number of
     NEW match rows written, idempotent.
     """
+    if radius_miles is None:
+        radius_miles = fetch_settings(conn)["match_radius_miles"]
     with conn.cursor() as cur:
         cur.execute(_MATCH_SQL, {
             "emp_id": emp_id,

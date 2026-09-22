@@ -96,7 +96,7 @@ def index():
     with get_connection() as conn:
         rows = storms.fetch_recent_days(
             conn,
-            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
             window_start=window_start,
             window_end=window_end,
             report_text=report_text,
@@ -115,7 +115,7 @@ def index():
             conn,
                 since=since,
                 today=today,
-                radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+                radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
         ) if since else None
         
     for row in rows:
@@ -160,7 +160,7 @@ def storm_zips():
     with get_connection() as conn:
         rows = storms.fetch_zips(
             conn,
-            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
             window_start=window_start,
             window_end=window_end,
             report_text=report_text,
@@ -238,7 +238,7 @@ def territory():
         if group_by == "city":
             rows = storms.fetch_cities(
                 conn,
-                radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+                radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
                 window_start=window_start,
                 window_end=window_end,
                 report_text=report_text,
@@ -247,7 +247,7 @@ def territory():
         else:
             rows = storms.fetch_zips(
                 conn,
-                radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+                radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
                 window_start=window_start,
                 window_end=window_end,
                 report_text=report_text,
@@ -280,7 +280,7 @@ def territory_days():
     with get_connection() as conn:
         rows = storms.fetch_city_days(
             conn,
-            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
             window_start=window_start,
             window_end=window_end,
             report_text=report_text,
@@ -300,7 +300,7 @@ def export_csv():
     with get_connection() as conn:
         rows = storms.fetch_zips(
             conn,
-            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
             window_start=window_start,
             window_end=window_end,
             report_text=report_text,
@@ -335,7 +335,7 @@ def map_points():
     with get_connection() as conn:
         rows = storms.fetch_report_points(
             conn,
-            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
             window_start=window_start,
             window_end=window_end,
             report_text=report_text,
@@ -384,7 +384,7 @@ def pull_estimate():
     with get_connection() as conn:
         result = estimate_pull(
             conn,
-            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
             window_start=window_start,
             window_end=window_end,
             report_text=report_text,
@@ -419,7 +419,7 @@ def pull_start():
     with get_connection() as conn:
         result = estimate_pull(
             conn,
-            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
             window_start=window_start,
             window_end=window_end,
             report_text=report_text,
@@ -495,7 +495,7 @@ def storm_matches():
 
         storm_zip_rows = storms.fetch_zips(
             conn,
-            radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+            radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
             window_start=window_start,
             window_end=window_end,
             report_text=report_text,
@@ -540,7 +540,7 @@ def activity_page():
                 conn,
                 since=since,
                 today=today,
-                radius_m=miles_to_metres(DEFAULT_ZIP_RADIUS_MILES),
+                radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
             )
     return render_template(
         "activity.html",

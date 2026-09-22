@@ -6,6 +6,7 @@ from datetime import datetime
 from functools import wraps
 
 from hailsys.db import get_connection
+from hailsys.settings import fetch_settings
 
 from flask import g, redirect, session, url_for, abort
 
@@ -45,29 +46,31 @@ def load_current_user():
         )
         row = cur.fetchone()
 
-    # Compare real datetimes, not stringified ones.  Both *_invalidated_at
-    # columns come back TIMESTAMPTZ (aware); issued_at has to be parsed back
-    # to an aware datetime too, or an aware/naive or string/string compare
-    # can sort wrong instead of raising.
-    issued_at_raw = session.get("issued_at")
-    issued_at = datetime.fromisoformat(issued_at_raw) if issued_at_raw else None
+        # Compare real datetimes, not stringified ones.  Both *_invalidated_at
+        # columns come back TIMESTAMPTZ (aware); issued_at has to be parsed back
+        # to an aware datetime too, or an aware/naive or string/string compare
+        # can sort wrong instead of raising.
+        issued_at_raw = session.get("issued_at")
+        issued_at = datetime.fromisoformat(issued_at_raw) if issued_at_raw else None
 
-    def invalidated_since_login(invalidated_at):
-        return (invalidated_at is not None and issued_at is not None
-                and invalidated_at > issued_at)
+        def invalidated_since_login(invalidated_at):
+            return (invalidated_at is not None and issued_at is not None
+                    and invalidated_at > issued_at)
 
-    booted = (
-        row is None
-        or not row["is_active"]
-        or invalidated_since_login(row["sessions_invalidated_at"])
-        or invalidated_since_login(row["global_sessions_invalidated_at"])
-    )
-    if booted:
-        session.clear()
-        g.user = None
-        return
+        booted = (
+            row is None
+            or not row["is_active"]
+            or invalidated_since_login(row["sessions_invalidated_at"])
+            or invalidated_since_login(row["global_sessions_invalidated_at"])
+        )
+        if booted:
+            session.clear()
+            g.user = None
+            return
 
-    g.user = {"emp_id": emp_id, "role": session.get("role")}
+        g.user = {"emp_id": emp_id, "role": session.get("role")}
+        g.settings = fetch_settings(conn)
+
 
 def require_role(*roles):
     """Core check, returns a redirect/abort response, or None if allowed."""
