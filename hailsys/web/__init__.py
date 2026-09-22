@@ -1,6 +1,7 @@
 import os
 
 from flask import Flask
+from . import admin
 
 
 def create_app():
@@ -23,5 +24,7 @@ def create_app():
     # function for the GeoJSON, so the table and the map popup agree.
     from hailsys.formatting import magnitude
     app.add_template_filter(magnitude, "magnitude")
+
+    app.register_blueprint(admin.admin_bp)
 
     return app

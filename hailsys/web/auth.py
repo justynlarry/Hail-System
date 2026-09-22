@@ -68,14 +68,21 @@ def load_current_user():
 
     g.user = {"emp_id": emp_id, "role": session.get("role")}
 
+def require_role(*roles):
+    """Core check, returns a redirect/abort response, or None if allowed."""
+    if g.user is None:
+        return redirect(url_for("main.login"))
+    if roles and g.user["role"] not in roles:
+        abort(403)
+    return None
+
 def role_required(*roles):
     def decorator(view):
         @wraps(view)
         def wrapped(*args, **kwargs):
-            if g.user is None:
-                return redirect(url_for("main.login"))
-            if g.user["role"] not in roles:
-                abort(403)
+            resp = require_role(*roles)
+            if resp is not None:
+                return resp
             return view(*args, **kwargs)
         return wrapped
     return decorator
