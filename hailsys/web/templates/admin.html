@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Admin — Hail System{% endblock %}
+{% block heading %}Admin{% endblock %}
+
+{% macro ts(value) -%}
+  {{ value.astimezone(display_tz).strftime("%Y-%m-%d %H:%M") if value else "—" }}
+{%- endmacro %}
+
+{% block content %}
+
+<section>
+  <h2>Users</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>User</th><th>Name</th><th>Email</th><th>Role</th>
+        <th>Status</th><th>Last login</th><th>Created</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for u in users %}
+      <tr class="{{ '' if u.is_active else 'inactive' }}">
+        <td>{{ u.user_name }}</td>
+        <td>{{ u.emp_fname }} {{ u.emp_lname }}</td>
+        <td>{{ u.emp_email }}</td>
+        <td>{{ u.role }}</td>
+        <td>{{ "Active" if u.is_active else "Deactivated" }}</td>
+        <td>{{ ts(u.last_login_at) if u.last_login_at else "Never" }}</td>
+        <td>{{ ts(u.created_at) }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7">No users.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Settings</h2>
+  <table>
+    <tbody>
+      <tr><th>Zip radius</th><td>{{ settings.default_zip_radius_miles }} mi</td></tr>
+      <tr><th>Match radius</th><td>{{ settings.default_match_radius_miles }} mi</td></tr>
+      <tr><th>Ceiling (read-only)</th>
+          <td>{{ "%.1f"|format(ceiling_miles) }} mi — raising it needs a migration and recompute</td></tr>
+      <tr><th>Last system-wide sign-out</th>
+          <td>{{ ts(settings.global_sessions_invalidated_at) }}</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Settings history</h2>
+  <table>
+    <thead><tr><th>When</th><th>By</th><th>Zip radius</th><th>Match radius</th></tr></thead>
+    <tbody>
+    {% for h in history %}
+      <tr>
+        <td>{{ ts(h.changed_at) }}</td>
+        <td>{{ h.user_name }}</td>
+        <td>{{ h.default_zip_radius_miles }} mi</td>
+        <td>{{ h.default_match_radius_miles }} mi</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4">No changes yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% endblock %}

@@ -2,6 +2,7 @@ from flask import Blueprint, render_template
 
 from hailsys.db import get_connection
 from hailsys.web.auth import require_role
+from hailsys.tuning import DISPLAY_TZ
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -60,4 +61,5 @@ def index():
         settings=settings,
         ceiling_miles=settings["ceiling_m"] / METRES_PER_MILE,
         history=history,
+        display_tz=DISPLAY_TZ,
     )

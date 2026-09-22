@@ -14,6 +14,10 @@
         <div class="site-header-left">
             <a class="brand" href="{{ url_for('main.index') }}">Hail System</a>
             <nav class="nav">
+                {% if session.role == 'admin' %}
+                <a href="{{ url_for('admin.index') }}"
+                    class="{% if request.endpoint and request.endpoint.startswith('admin') %}active{% endif %}">Admin</a>
+                {% endif %}
                 <a href="{{ url_for('main.index') }}"
                    class="{% if request.endpoint == 'main.index' %}active{% endif %}">Storm Days</a>
                 <a href="{{ url_for('main.territory') }}"
