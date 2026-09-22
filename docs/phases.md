@@ -118,19 +118,30 @@ new ones covered.
 
 - Users, password hashing, sessions
 - Three roles enforced server-side, not just hidden in the UI
-- Admin can add and remove users and nothing else
+- Admin can add and remove users and nothing else — reversed 2026-09-22:
+  admin is a full superset of sender (decision log, "Admin is a full superset
+  of sender")
 - Deactivate rather than delete
 
 **Done when:** a viewer account can browse and export but cannot trigger a pull.
 
 **Current phase** (Phase 3 closed 2026-09-21).
 
-Already in place from earlier phases: the `users` table with roles and
-`is_active` (deactivate, not delete), scrypt password hashing, login/logout
-sessions, and `scripts/create_user.py` as the placeholder way to add a user.
-Not yet: role enforcement (routes check only `login_required`) and the admin
-page — see `docs/parking-lot.md` item 39 and the decision log, "Admin settings
-page: Phase 4".
+**All four items above complete 2026-09-22.** The phase is not closed: the
+done-when has not yet been demonstrated with a real viewer account
+(parking-lot item 58).
+
+Landed 2026-09-22: `role_required` on `/pull/estimate`, `/pull` and `/match`,
+with `can_pull` gating the Pull and Match actions on `storms.html`; the
+`/admin` blueprint (add, deactivate, reactivate, change role, sign out, reset
+password per user; sign out everyone; settings with change history); forced
+logout by timestamp (`sql/018`); last-admin protection (`sql/019`); radii
+moved into the `settings` table (`sql/020`); self-service change-password;
+and CSRF protection on every POST. Decision log, 2026-09-22 entries.
+
+Still open in Phase 4: parking-lot items 40 (matched-found-nothing), 46
+(re-pull affordance), and 50 (RentCast quota tracker), plus the Phase 4
+items filed 2026-09-22 (58–62).
 
 ---
 

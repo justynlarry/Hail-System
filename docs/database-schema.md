@@ -133,7 +133,7 @@ setting it correctly.
 ---
 # Tables
 
-Nineteen tables. Grouped by which half of the system they belong to.
+Twenty-one tables. Grouped by which half of the system they belong to.
 
 ---
 
@@ -788,6 +788,23 @@ Logins. Four or five rows, probably ever.
 | `is_active` | Disable, never delete |
 | `created_at`, `created_by` | Self-FK, nullable for the first account |
 | `last_login_at` | |
+| `sessions_invalidated_at` | `TIMESTAMPTZ`, nullable — added `sql/018_admin_failsafe.sql`, 2026-09-22. Setting it to `now()` signs this one user out: every request compares it against the session's `issued_at`, and a later value clears the session. Not deactivation — they can sign straight back in. Set by the admin Sign out, role change, and password reset routes, and by self-service password change (which re-stamps the current session so only the others end) |
+
+**Superseded 2026-09-22 — admin is now a full superset of sender.** See
+decision-log, "Admin is a full superset of sender." `sql/018` replaced this
+column's comment in the database; the paragraphs below are kept as the
+original reasoning, not the current rule. Roles are enforced in application
+code by `role_required` and the admin blueprint's `before_request`; the one
+role rule in the database is last-admin protection, below.
+
+**Last-admin protection** — `sql/019_last_admin_protection.sql`, 2026-09-22.
+`trg_last_admin` is an `AFTER UPDATE OR DELETE` constraint trigger on `users`,
+`DEFERRABLE INITIALLY DEFERRED`, calling `enforce_last_admin()`, which raises
+`'Refusing: this would leave zero active admins.'` if no row has
+`role = 'admin' AND is_active`. Deferred to `COMMIT` so a same-transaction
+swap (demote one admin, promote another) isn't rejected on its transient
+zero-admin state; a trigger rather than a CHECK because a CHECK sees one row
+and cannot count admins.
 
 **The roles map to the cost stages.** `viewer` browses storms and exports CSV —
 free. `sender` triggers pulls and sends email — spends money and reputation.
@@ -818,6 +835,79 @@ identity that can be turned into a working login is a backdoor with a name.
 
 **`is_active` rather than deletion:** every `sent_by` and `created_by` points
 here. Deleting someone who left breaks the audit trail on everything they did.
+
+---
+
+### `settings`
+
+Added `sql/018_admin_failsafe.sql`, 2026-09-22; radius columns added
+`sql/020_settings_radii.sql`, same day. A single typed row of values an admin
+can change without a deploy. Read per request, never cached, so there is no
+invalidation to get wrong across Gunicorn workers.
+
+| Field | Purpose |
+|---|---|
+| `id` | `SMALLINT` PK, default 1. `CHECK` `settings_is_singleton`: `id = 1`. The row is inserted by `018` itself |
+| `global_sessions_invalidated_at` | `TIMESTAMPTZ`, nullable. Setting it to `now()` signs **every** user out, the admin who set it included — the system-wide counterpart of `users.sessions_invalidated_at` |
+| `default_zip_radius_miles` | `NUMERIC(4,1) NOT NULL DEFAULT 5.0`, `CHECK` `> 0 AND <= 10.0`. What we *look at*, and so what a pull costs. Capped at 10 because `report_zip_distances` is precomputed to `hail_pair_ceiling_m()`, 10 miles — raising past it is a migration and a recompute, not a settings change |
+| `default_match_radius_miles` | `NUMERIC(4,1) NOT NULL DEFAULT 5.0`, same range CHECK. What we *claim* in an email. Changing it hides existing matches until storms are re-matched |
+
+Plus a table-level `CHECK` `match_within_zip_radius`:
+`default_match_radius_miles <= default_zip_radius_miles`. A match radius wider
+than the zip radius would claim distances for zips that were never pulled.
+
+The two radii replace `tuning.py`'s `DEFAULT_ZIP_RADIUS_MILES` and
+`DEFAULT_MATCH_RADIUS_MILES` as the source of truth; `hailsys/settings.py`
+reads them and casts `NUMERIC`'s `Decimal` to `float` (decision-log
+2026-09-22, "Radii are read from `settings` per request"). The web app's
+admin route maps the three CHECK names to readable messages.
+
+**Changes are logged by trigger**, not by application code: see
+`settings_history`.
+
+**Grants:** `hail_app` gets `SELECT, UPDATE` (`018`). No `INSERT` or `DELETE`
+— the singleton row already exists and must stay the only one.
+
+---
+
+### `settings_history`
+
+Added `sql/020_settings_radii.sql`, 2026-09-22. One row per change to the
+radius settings, snapshotting the values that resulted.
+
+| Field | Purpose |
+|---|---|
+| `history_id` | `BIGINT GENERATED ALWAYS AS IDENTITY` PK |
+| `changed_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` |
+| `changed_by` | FK → `users`, `NOT NULL` |
+| `default_zip_radius_miles`, `default_match_radius_miles` | `NUMERIC(4,1) NOT NULL` — the values after the change |
+
+**Written only by `trg_log_settings_change`**, calling `log_settings_change()`:
+
+```sql
+AFTER UPDATE OF default_zip_radius_miles, default_match_radius_miles ON settings
+FOR EACH ROW
+WHEN (OLD.default_zip_radius_miles IS DISTINCT FROM NEW.default_zip_radius_miles
+   OR OLD.default_match_radius_miles IS DISTINCT FROM NEW.default_match_radius_miles)
+```
+
+Scoped to the two radius columns because the boot-everyone route updates
+`global_sessions_invalidated_at` on the same row; unscoped, that update fired
+the trigger and demanded attribution it has no reason to set. The `WHEN`
+clause skips a save that changes nothing.
+
+**Attribution comes from a transaction-local setting.** The calling route runs
+`SELECT set_config('app.current_emp_id', <emp_id>, true)` before its `UPDATE`;
+the trigger reads `current_setting('app.current_emp_id')` with no
+`missing_ok`, so an `UPDATE` without attribution **raises** rather than
+logging an anonymous change. The database connects as `hail_app` for every
+user and has no other way to know who is behind a request.
+
+**Grants:** `hail_app` gets `SELECT, INSERT` — `INSERT` because the trigger
+runs as the updating role — plus `USAGE` on
+`settings_history_history_id_seq`. That sequence grant is redundant: table
+`INSERT` is sufficient for an identity column (decision-log 2026-09-22,
+correction).
 
 ---
 
@@ -1059,6 +1149,11 @@ Radius default, frequency-cap window, monthly API ceiling, warmup send limit.
 All of these are values that will be tuned. Right now none of them has a home.
 Putting them in a table means changing them without a deploy — the same argument
 that justified `roof_relevant`.
+
+**Resolved in part 2026-09-22.** Yes: `settings`, a single typed row
+(`sql/018`, `sql/020`), now holds the zip and match radii with a change
+history. The frequency-cap window, monthly API ceiling and warmup limit have
+no column yet and get one when the feature that needs them is built.
 
 ### 4. How are counties handled for browse-by-county?
 

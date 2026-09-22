@@ -3236,3 +3236,232 @@ first send.
 Verified afterward: 93 Land properties exist in `properties`, 0 are matched.
 The Land properties and listings themselves were not touched — only their
 match rows.
+
+---
+
+## 2026-09-22 — Admin is a full superset of sender
+
+**Supersedes** the 2026-09-01 entry "Three user roles: viewer, sender, admin"
+on one point: `admin` no longer "manages users and nothing else." An admin can
+do everything a sender can, plus user management and settings.
+
+**Why the reversal:** the narrow admin was reasoned from the cost stages, and
+the reasoning held for a larger office. It doesn't hold for this one. The
+person who administers the system is the same person who runs pulls and will
+send, so a user-management-only admin means that person needs two accounts
+and has to switch between them to do a normal day's work. Two logins for one
+human is friction with no security payoff: whoever holds the admin password
+can already create a sender account for themselves. The separation would be a
+ceremony, not a control.
+
+`sql/002_users.sql`'s column comment said the old rule. `sql/018_admin_failsafe.sql`
+replaces it with `COMMENT ON COLUMN users.role`, per the additive-after-backfill
+rule, so `002` is not edited. `docs/database-schema.md`'s `users` section carries
+a superseded note pointing here.
+
+---
+
+## 2026-09-22 — Three roles, enforced server-side first
+
+`viewer` browses storms, territory, matches and activity, and exports CSV.
+`sender` adds everything that spends or acts: the pull estimate, the pull
+itself, and match. As send, re-pull and quota warnings are built, they go to
+`sender` too. `admin` is everything (entry above).
+
+**The pull estimate is sender-only, not viewer.** It costs nothing to render,
+but its only purpose is to lead to the confirm button that spends money, and
+a viewer who can reach it is one click from a pull that `role_required` would
+then have to refuse.
+
+**Enforcement is `role_required` on the route; the UI follows it.**
+`@role_required("sender", "admin")` sits on `/pull/estimate`, `/pull` and
+`/match`, and a viewer who types the URL gets a 403. The UI gating is
+`can_pull`, injected into every template by a context processor in
+`create_app()`, which swaps the Pull link and Match button on `storms.html`
+for greyed text with a tooltip. The rule holds without the UI part.
+Hiding a button without checking the route is the mistake this order avoids.
+Shown greyed rather than hidden, so a viewer can see the action exists and
+why they can't take it.
+
+---
+
+## 2026-09-22 — Admin routes are a blueprint with one before_request check
+
+`hailsys/web/admin.py` registers `admin_bp` at `/admin`, with a blueprint-level
+`before_request` that returns `require_role("admin")`. A `before_request`
+hook that returns a response ends the request before the view runs, and
+`require_role` returns `None` when the user is allowed.
+
+**Why a blueprint hook and not a decorator per route:** a decorator has to be
+remembered on every new route, and the one it's forgotten on is an open admin
+action. The hook makes that impossible: any route added to `admin_bp` is
+enforced by being on it. It also gives Phase 6 a single URL prefix to put
+extra protection in front of (Cloudflare Access, an IP rule), without auditing
+routes one by one.
+
+---
+
+## 2026-09-22 — Role is cached in the session; account state is checked every request
+
+`session["role"]` is set at login and read from there. `is_active`,
+`users.sessions_invalidated_at` and `settings.global_sessions_invalidated_at`
+are re-read on every request by `auth.load_current_user`, registered as
+`app.before_request`.
+
+**Why the split:** Flask's sessions are signed cookies. The server holds no
+session list, so there is nothing to delete to sign someone out remotely.
+Forced logout therefore has to be a comparison: at login the session records
+`issued_at`, and every request compares it against the two invalidation
+timestamps. If either is later, the session is cleared. Setting the per-user
+column boots one person, and setting the `settings` column boots everyone,
+the admin included. A deactivated user fails the `is_active` check on their
+next request, not at their next login.
+
+Role is the one thing left cached, because a role change already forces a
+re-login (entry below), so the cache can't go stale in practice. The cost of
+the per-request query is one indexed single-row lookup plus a singleton join.
+
+---
+
+## 2026-09-22 — Changing a role signs the user out
+
+`change_role` sets `sessions_invalidated_at = now()` in the same `UPDATE` as
+the new role. Because role is cached in the session, without this a demoted
+sender would keep sender rights until they chose to log out, which might be
+days. Forcing the re-login makes the change take effect on their next request.
+The admin reset-password route does the same, for the same reason: a reset
+password should end every session that was opened with the old one.
+
+---
+
+## 2026-09-22 — Changing your own password keeps the current session
+
+`/account/password` sets `sessions_invalidated_at = now() RETURNING` that
+value, then writes the exact returned timestamp into `session["issued_at"]`.
+The hook boots a session only when `invalidated_at > issued_at`, strictly
+greater, so the current session, now stamped equal, survives, and every other
+session, issued earlier, is signed out.
+
+**Why the exact returned value and not `datetime.now()`:** the Python clock
+and the database clock are two clocks. A Python timestamp taken a moment
+before the database's `now()` would read as earlier, and the user would be
+signed out by their own password change. Taking the value from `RETURNING`
+removes the second clock entirely.
+
+---
+
+## 2026-09-22 — Last-admin protection is a deferred constraint trigger
+
+`sql/019_last_admin_protection.sql`: `trg_last_admin`, an `AFTER UPDATE OR
+DELETE` constraint trigger on `users`, `DEFERRABLE INITIALLY DEFERRED`,
+calling `enforce_last_admin()`, which raises if no active admin remains.
+
+**Why not a CHECK:** a CHECK sees one row. "At least one active admin exists"
+is a fact about the whole table, and no single-row constraint can count.
+
+**Why deferred:** a non-deferred trigger checks after each statement. A
+legitimate swap (demote A, promote B, one transaction) passes through a
+moment with zero admins between the two statements, and a per-statement
+check would reject it on that transient state. Deferred, it runs at `COMMIT`,
+against the state the transaction actually leaves behind.
+
+It lives in the database because it is a rule that must hold. The routes
+report it (`_user_action` catches `RaiseException` and flashes its message),
+but the protection doesn't depend on them.
+
+---
+
+## 2026-09-22 — Settings changes are attributed through a transaction-local setting
+
+`update_settings` runs `SELECT set_config('app.current_emp_id', %s, true)`
+before its `UPDATE`, and the `log_settings_change()` trigger reads it with
+`current_setting('app.current_emp_id')` to fill `settings_history.changed_by`.
+`set_config(..., true)` is the parameterised form of `SET LOCAL`: `SET` can't
+take a bind parameter, and the `true` makes it last only until the transaction
+ends, so it can't leak onto the next request's use of the connection.
+
+**Why this route at all:** the trigger runs inside Postgres, and the database
+connects as `hail_app` for every user. Nothing in the database knows which
+employee is behind a request unless the application tells it.
+
+**Fails loudly if unset, by design.** `current_setting` is called without
+`missing_ok`, so a settings `UPDATE` that didn't set attribution raises
+rather than writing a history row with no author. A missing attribution is a
+bug in the calling route, and a silent NULL would hide it.
+
+---
+
+## 2026-09-22 — `trg_log_settings_change` is scoped to the radius columns
+
+The trigger is `AFTER UPDATE OF default_zip_radius_miles,
+default_match_radius_miles`, with a `WHEN` clause requiring one of them to
+actually differ (`IS DISTINCT FROM`).
+
+**Why:** `settings` is a singleton row that holds more than the radii. The
+boot-everyone route updates `global_sessions_invalidated_at` on the same row.
+Unscoped, the trigger fired on that update too: it demanded attribution the
+boot route has no reason to set, so the boot failed, and had it not failed it
+would have logged a radius "change" that never happened. `UPDATE OF` limits it
+to statements naming the radius columns. `WHEN` then drops a save that
+re-submits the same values, so the history records changes, not form
+submissions.
+
+---
+
+## 2026-09-22 — CSRF via Flask-WTF, no token time limit
+
+`CSRFProtect(app)` in `create_app()`, with `WTF_CSRF_TIME_LIMIT = None`. Every
+POST form carries `csrf_token()`.
+
+**Why a library and not a hand-rolled token:** `CSRFProtect` fails closed.
+It rejects any POST without a valid token, including POST routes written
+later by someone who never thought about CSRF. A hand-rolled check protects
+only the routes it was added to. The Tailscale Funnel entry (2026-09-16)
+already named CSRF as the gap once the login is the only gate.
+
+**Why no time limit:** the default is 3600 seconds, after which a form left
+open for an hour fails with a 400 on submit. The token is still tied to the
+session, so it dies when the session does, which is the lifetime that
+matters. A `CSRFError` handler flashes a "form expired" message and
+redirects back, not a bare 400 page.
+
+---
+
+## 2026-09-22 — Radii are read from `settings` per request
+
+**Supersedes** the 2026-09-10 entry "`tuning.py`: both the zip radius and the
+match radius are `5.0` miles, and there is no settings table yet" on storage
+only. The values and the reason for two separate radii are unchanged.
+`sql/020_settings_radii.sql` moves them into `settings`, seeded at 5.0 each.
+
+`hailsys/settings.py`'s `fetch_settings()` returns them, and
+`load_current_user` puts them on `g.settings` for every request. It casts to
+`float`: the columns are `NUMERIC`, psycopg returns `Decimal`, and
+`miles_to_metres` multiplies by a float, and `Decimal * float` raises
+`TypeError`. Casting once in `fetch_settings` means no call site can forget.
+
+**No caching.** Gunicorn runs several workers, and a cached value would need
+invalidating in every one of them when an admin saves. Reading per request
+costs one singleton-row query and has no invalidation to get wrong.
+
+`matcher.py`'s `match_storm` takes `radius_miles=None` and reads settings when
+it is `None`. A default argument like `radius_miles=fetch_settings(...)` would
+be evaluated once at import, freezing whatever the radius was when the worker
+started.
+
+---
+
+## 2026-09-22 — Correction: identity columns need no sequence grant
+
+An earlier note in this project's working notes said a
+`GENERATED ALWAYS AS IDENTITY` column needs a separate
+`GRANT USAGE ON SEQUENCE` for the role inserting into it. That was wrong.
+Verified: table-level `INSERT` is sufficient, and the identity's sequence is
+advanced without a separate grant. `sql/010_roles.sql`'s `hail_ingest` comment
+("No sequence grants, each primary key is GENERATED ALWAYS AS IDENTITY, which
+is reachable through INSERT") was right.
+
+`sql/020_settings_radii.sql` includes
+`GRANT USAGE ON SEQUENCE settings_history_history_id_seq TO hail_app`, written
+under the wrong belief. It is redundant, not harmful, and is left in place
+per the additive-migration rule.

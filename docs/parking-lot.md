@@ -627,6 +627,15 @@ with no invalidation to get wrong. Needs a change history.
 **When:** Phase 4. *(`docs/decision-log.md`, "Admin settings page: Phase 4,
 and not every number is a setting")*
 
+**Resolved 2026-09-22.** `/admin` is built as its own blueprint, admin-only
+through one `before_request` check: users and roles (add, deactivate,
+reactivate, change role, sign out, reset password), sign out everyone, and the
+settings table (`sql/018`, `sql/020`) with zip and match radius, the ceiling
+shown read-only, and `settings_history` written by trigger. `role_required`
+exists and guards `/pull/estimate`, `/pull` and `/match`. Last-admin
+protection landed with it: `sql/019`'s deferred constraint trigger refuses any
+change that leaves zero active admins. See the 2026-09-22 decision-log entries.
+
 ## 40. "Matched, found nothing" is indistinguishable from "never matched"
 
 A match run that inserts zero rows (nothing was in range) leaves no trace —
@@ -816,6 +825,90 @@ indefinitely.
 
 **When:** low priority while pulls take seconds; revisit if they get longer,
 which scales with zip count.
+
+## 58. Viewer gating not yet tested with a real viewer account
+
+`role_required` on `/pull/estimate`, `/pull` and `/match`, and the `can_pull`
+gating on `storms.html`, were written 2026-09-22 but have not been exercised
+by a viewer login. That test is Phase 4's done-when: a viewer can browse and
+export but cannot trigger a pull. Check both halves — the greyed Pull/Match
+text in the UI, and a 403 on the routes when requested directly.
+
+**When:** next session; closes Phase 4's outline.
+
+## 59. The CSRF error handler returns 302, indistinguishable from success
+
+`handle_csrf_error` in `create_app()` flashes "That form expired…" and
+redirects back with a 302 — the same status a successful POST returns. A
+person sees the flash; anything checking status codes (a test, a script, a
+future fetch-based form) sees success. Returning the redirect is right for a
+browser, but the failure should be distinguishable somewhere — a 400 with a
+rendered page, or at least a log line.
+
+**When:** Phase 4, small.
+
+## 60. Self-action guard for admins
+
+An admin can deactivate, demote, or sign out their own account from the users
+table. `reset_password` already refuses the admin's own row and points at the
+change-password page; the other actions don't. Last-admin protection
+(`sql/019`) only catches the case that leaves zero active admins — with a
+second admin present, an admin can still lock themselves out in one click.
+
+**When:** Phase 4, before the phase closes.
+
+## 61. Force a password change on next login after an admin reset
+
+An admin reset sets a password the admin now knows. Nothing makes the user
+replace it. A `must_change_password` flag, set by the reset and cleared by
+`/account/password`, with the login redirecting there while it's set, would
+close that.
+
+**When:** Phase 4, if wanted.
+
+## 62. `scripts/*.py` still default `--radius` to `tuning.py` constants
+
+The web app reads radii from `settings` per request (2026-09-22), but
+`export_storm_zips.py`, `test_estimate.py`, `test_match.py` and
+`verify_zip_distances.py` still import `DEFAULT_*_RADIUS_MILES` from
+`tuning.py`. Once an admin changes a radius, the CLI and the web app disagree
+by default — the same two-sources shape the `settings` table exists to remove.
+
+**When:** Phase 4, when convenient.
+
+## 63. A reachable path to `hail-dev` for anyone but the developer
+
+`web` publishes to `127.0.0.1:8000` only (decision-log 2026-09-14), so nothing
+off the host reaches it without `tailscale serve` or a tunnel in front of it.
+Needed before anyone else logs in — including the viewer test in item 58 if
+it's run from another machine.
+
+**When:** Phase 6, or sooner.
+
+## 64. Emailed password-reset link
+
+Today a forgotten password means an admin resets it by hand from `/admin`. A
+self-service emailed link needs a sending path.
+
+**When:** Phase 5, once sending exists.
+
+## 65. `scripts/create_user.py` — bootstrap-only, or retire?
+
+It predates `/admin` and never sets `created_by`, so every account it creates
+has no author. The admin page now does the same job with attribution. Either
+keep it strictly for bootstrapping the first admin (and say so in its
+docstring) or remove it.
+
+**When:** before deployment.
+
+## 66. Username convention and its security implications
+
+Usernames are free-form at creation (stripped and lower-cased, nothing else).
+Settle the convention — and what it gives away, e.g. whether a username is
+guessable from a name or email — before real staff accounts exist, since
+changing it afterward means renaming live logins.
+
+**When:** before real accounts get created.
 
 ---
 
