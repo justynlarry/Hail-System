@@ -246,4 +246,28 @@ def update_settings():
     else:
         flash(f"Radii updated.  Zip {zip_radius} mi, match {match_radius} mi.")
     return redirect(url_for("admin.index"))
+
+
+@admin_bp.route("/users/<int:emp_id>/password", methods=["POST"])
+def reset_password(emp_id):
+    if emp_id == g.user["emp_id"]:
+        flash("Use the change-password page for your own account.")
+        return redirect(url_for("admin.index"))
     
+    new = request.form.get("new_password") or ""
+    confirm = request.form.get("confirm_password") or ""
+
+
+    if len(new) < MIN_PASSWORD_LENGTH:
+        flash(f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")
+        return redirect(url_for("admin.index"))
+    if new != confirm:
+        flash("Passwords do not match.")
+        return redirect(url_for("admin.index"))
+
+    return _user_action(
+        "UPDATE users SET password_hash = %s, sessions_invalidated_at = now() "
+        " WHERE emp_id = %s AND role <> 'system'",
+        (hash_password(new), emp_id),
+        "Password reset.  User has been signed out everywhere.",
+    )

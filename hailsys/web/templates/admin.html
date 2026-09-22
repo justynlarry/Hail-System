@@ -77,6 +77,18 @@
           <form method="post" action="{{ url_for('admin.reactivate_user', emp_id=u.emp_id) }}">
             <button type="submit">Reactivate</button></form>
           {% endif %}
+          <details>
+            <summary>Reset password</summary>
+            <form method="post" action="{{ url_for('admin.reset_password', emp_id=u.emp_id) }}">
+              <input type="password" name="new_password" required
+                     minlength="{{ min_password_length }}" placeholder="New password"
+                     autocomplete="new-password">
+              <input type="password" name="confirm_password" required
+                     minlength="{{ min_password_length }}" placeholder="Confirm"
+                     autocomplete="new-password">
+              <button type="submit">Reset</button>
+            </form>
+          </details>
         </td>
       </tr>
     {% else %}
