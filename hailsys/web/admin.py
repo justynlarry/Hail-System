@@ -5,6 +5,8 @@ from flask import Blueprint, flash, g, redirect, render_template, request, url_f
 from hailsys.db import get_connection
 from hailsys.web.auth import MIN_PASSWORD_LENGTH, hash_password, require_role
 from hailsys.tuning import DISPLAY_TZ
+from decimal import Decimal, InvalidOperation
+
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -15,6 +17,15 @@ ROLES = ("admin", "sender", "viewer")
 UNIQUE_MESSAGES = {
     "users_user_name_key": "That user name is already taken.",
     "users_emp_email_key": "That email address is already in use",
+}
+
+CHECK_MESSAGES = {
+    "match_within_zip_radius":
+        "Match radius can't be larger than the zip radius.",
+    "settings_default_zip_radius_miles_check":
+        "Zip radius must be more than 0 and no more than 10 miles.",
+    "settings_default_match_radius_miles_check":
+        "Match radius must be more than 0 and no more than 10 miles.",
 }
 
 
@@ -205,3 +216,34 @@ def boot_all():
         cur.execute("UPDATE settings SET global_sessions_invalidated_at = now()")
         conn.commit()
     return redirect(url_for("main.login"))
+
+
+@admin_bp.route("/settings", methods=["POST"])
+def update_settings():
+    try:
+        zip_radius = Decimal(request.form.get("zip_radius") or "")
+        match_radius = Decimal(request.form.get("match_radius") or "")
+    except InvalidOperation:
+        flash("Both radii must be numbers.")
+        return redirect(url_for("admin.index"))
+    
+    try:
+        with get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT set_config('app.current_emp_id', %s, true)",
+                (str(g.user["emp_id"]),),
+            )
+            cur.execute(
+                "UPDATE settings SET default_zip_radius_miles = %s, "
+                "       default_match_radius_miles = %s "
+                " WHERE id = 1",
+                (zip_radius, match_radius),
+            )
+            conn.commit()
+    except psycopg.errors.CheckViolation as e:
+        flash(CHECK_MESSAGES.get(e.diag.constraint_name,
+                                "Those values are not allowed."))
+    else:
+        flash(f"Radii updated.  Zip {zip_radius} mi, match {match_radius} mi.")
+    return redirect(url_for("admin.index"))
+    

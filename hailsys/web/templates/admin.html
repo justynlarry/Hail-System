@@ -88,20 +88,35 @@
 
 <section>
   <h2>Settings</h2>
-  <table class="settings-table">
-    <tbody>
-      <tr><th>Zip radius</th><td>{{ settings.default_zip_radius_miles }} mi</td></tr>
-      <tr><th>Match radius</th><td>{{ settings.default_match_radius_miles }} mi</td></tr>
-      <tr><th>Ceiling (read-only)</th>
-          <td>{{ "%.1f"|format(ceiling_miles) }} mi — raising it needs a migration and recompute</td></tr>
-      <tr><th>Last system-wide sign-out</th>
-          <td>{{ ts(settings.global_sessions_invalidated_at) }}</td></tr>
-      <tr><th>Sign out everyone</th>
-          <td><form method="post" action="{{ url_for('admin.boot_all') }}">
-            <button type="submit">Sign out all users</button></form>
-            Signs you out too.</td></tr>
-    </tbody>
-  </table>
+  <form method="post" action="{{ url_for('admin.update_settings') }}" class="admin-form">
+    <table class="settings-table">
+      <tbody>
+        <tr><th><label for="zip_radius">Zip radius</label></th>
+            <td><input id="zip_radius" name="zip_radius" type="number"
+                       step="0.1" min="0.1" max="{{ '%.1f'|format(ceiling_miles) }}"
+                       value="{{ settings.default_zip_radius_miles }}" required> mi</td></tr>
+        <tr><th><label for="match_radius">Match radius</label></th>
+            <td><input id="match_radius" name="match_radius" type="number"
+                       step="0.1" min="0.1" max="{{ '%.1f'|format(ceiling_miles) }}"
+                       value="{{ settings.default_match_radius_miles }}" required> mi
+                <br><small>Changing this hides existing matches until storms are
+                re-matched, and it's the number that appears in emails.</small></td></tr>
+        <tr><th>Ceiling (read-only)</th>
+            <td>{{ "%.1f"|format(ceiling_miles) }} mi — raising it needs a migration
+                and a full recompute, not a settings change.</td></tr>
+      </tbody>
+    </table>
+    <button type="submit">Save settings</button>
+  </form>
+</section>
+
+<section>
+  <h2>Sessions</h2>
+  <p>Last system-wide sign-out: {{ ts(settings.global_sessions_invalidated_at) }}</p>
+  <form method="post" action="{{ url_for('admin.boot_all') }}">
+    <button type="submit">Sign out all users</button>
+  </form>
+  <small>This signs you out too.</small>
 </section>
 
 <section>
