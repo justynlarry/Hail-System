@@ -20,6 +20,7 @@ _P = 1
 _SALT_BYTES = 16
 _DKLEN = 32
 _MAXMEM = 64 * 1024 * 1024
+MIN_PASSWORD_LENGTH = 12
 
 def load_current_user():
     """Registered as app.before_request.  Re-checks is_active and both

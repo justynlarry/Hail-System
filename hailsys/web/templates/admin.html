@@ -10,6 +10,36 @@
 {% block content %}
 
 <section>
+  <details {% if form %}open{% endif %}>
+    <summary>Add user</summary>
+    <form method="post" action="{{ url_for('admin.create_user') }}" class="admin-form">
+      <label>User name
+        <input name="user_name" value="{{ form.user_name }}" required autocomplete="off"></label>
+      <label>First name
+        <input name="first_name" value="{{ form.first_name }}" required></label>
+      <label>Last name
+        <input name="last_name" value="{{ form.last_name }}" required></label>
+      <label>Email
+        <input type="email" name="email" value="{{ form.email }}" required></label>
+      <label>Role
+        <select name="role">
+          {% for r in roles %}
+          <option value="{{ r }}" {% if (form.role or 'viewer') == r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select></label>
+      <label>Password
+        <input type="password" name="password" minlength="{{ min_password_length }}"
+               required autocomplete="new-password"></label>
+      <label>Confirm password
+        <input type="password" name="confirm" minlength="{{ min_password_length }}"
+               required autocomplete="new-password"></label>
+      <button type="submit">Create user</button>
+    </form>
+  </details>
+</section>
+
+
+<section>
   <h2>Users</h2>
   <table>
     <thead>
