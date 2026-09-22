@@ -2,9 +2,12 @@ import hashlib
 import hmac
 import os
 from base64 import b64decode, b64encode
+from datetime import datetime
 from functools import wraps
 
-from flask import redirect, session, url_for
+from hailsys.db import get_connection
+
+from flask import g, redirect, session, url_for, abort
 
 # Cost parameters:  n is the work factor, r and p tune, block size and
 # parallelism.  These are stored 'with' each hash, so raising them later
@@ -17,6 +20,54 @@ _P = 1
 _SALT_BYTES = 16
 _DKLEN = 32
 _MAXMEM = 64 * 1024 * 1024
+
+def load_current_user():
+    """Registered as app.before_request.  Re-checks is_active and
+    the fail-safe timestamp on every request.
+    """
+    emp_id = session.get("emp_id")
+    if emp_id is None:
+        g.user = None
+        return
+    with get_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT is_active, sessions_invalidated_at FROM users WHERE emp_id = %s",
+            (emp_id,),
+        )
+        row = cur.fetchone()
+
+    # Compare real datetimes, not stringified ones.  sessions_invalidated_at
+    # comes back TIMESTAMPTZ (aware); issued_at has to be parsed back to an
+    # aware datetime too, or an aware/naive or string/string compare can sort
+    # wrong instead of raising.
+    issued_at_raw = session.get("issued_at")
+    issued_at = datetime.fromisoformat(issued_at_raw) if issued_at_raw else None
+
+    booted = (
+        row is None
+        or not row["is_active"]
+        or (row["sessions_invalidated_at"] is not None and issued_at is not None
+            and row["sessions_invalidated_at"] > issued_at)
+    )
+    if booted:
+        session.clear()
+        g.user = None
+        return
+
+    g.user = {"emp_id": emp_id, "role": session.get("role")}
+
+def role_required(*roles):
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            if g.user is None:
+                return redirect(url_for("main.login"))
+            if g.user["role"] not in roles:
+                abort(403)
+            return view(*args, **kwargs)
+        return wrapped
+    return decorator
+
 
 def hash_password(password):
     salt = os.urandom(_SALT_BYTES)
@@ -59,7 +110,7 @@ def verify_password(password, stored):
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if session.get("emp_id") is None:
+        if g.user is None:
             return redirect(url_for("main.login"))
         return view(*args, **kwargs)
     return wrapped

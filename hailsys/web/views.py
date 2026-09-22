@@ -1,7 +1,7 @@
 import csv
 import io
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from itertools import groupby
 
 from flask import flash, redirect, Blueprint, render_template, abort, request, session, url_for, Response
@@ -198,6 +198,10 @@ def login():
     session["emp_id"] = row["emp_id"]
     session["user_name"] = user_name
     session["role"] = row["role"]
+    # UTC and aware: auth.load_current_user compares this against
+    # sessions_invalidated_at, a TIMESTAMPTZ, and needs a real aware
+    # datetime on both sides.
+    session["issued_at"] = datetime.now(timezone.utc).isoformat()
 
     session["previous_login_at"] = (
         row["last_login_at"].isoformat() if row["last_login_at"] else None
