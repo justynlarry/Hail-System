@@ -4,6 +4,7 @@
 
 {% block content %}
 <form method="post" action="{{ url_for('main.login') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p>
         <label for="user_name">Username</label><br>
         <input type="text" id="user_name" name="user_name"

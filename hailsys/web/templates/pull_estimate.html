@@ -35,6 +35,7 @@
 {% endif %}
 
 <form method="post" action="{{ url_for('main.pull_start') }}" class="confirm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="date" value="{{ storm_date.isoformat() }}">
     <input type="hidden" name="type" value="{{ report_text or '' }}">
     <input type="hidden" name="submitted" value="1">

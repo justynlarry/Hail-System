@@ -30,6 +30,7 @@
             <span>Signed in as
               <a href="{{ url_for('main.change_password') }}">{{ session.user_name }}</a></span>
             <form method="post" action="{{ url_for('main.logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit">Sign Out</button>
             </form>
         </div>

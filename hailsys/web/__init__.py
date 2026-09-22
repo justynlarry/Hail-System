@@ -1,11 +1,23 @@
 import os
 
-from flask import Flask
-
+from flask import flash, Flask, redirect, request, url_for
+from flask_wtf.csrf import CSRFError, CSRFProtect
 
 def create_app():
     app = Flask(__name__)
     app.secret_key = os.environ["FLASK_SECRET_KEY"]
+
+    # CSRF fails closed, any POST without a valid token is rejected with a
+    # 400.  None ties token life to the session, 3600s default will
+    # 400 a form left open for an hour.
+
+    app.config["WTF_CSRF_TIME_LIMIT"] = None
+    CSRFProtect(app)
+
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(e):
+        flash("That form expired or was submitted from a stale page, please try again.")
+        return redirect(request.referrer or url_for("main.index")), 302
 
     # Both blueprints are imported inside the factory, not the module top.
     # They import the blueprint's own app context, so importing at module
