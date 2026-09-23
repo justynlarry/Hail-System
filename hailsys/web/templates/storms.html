@@ -96,6 +96,24 @@
                 <a class="pull-link"
                    href="{{ url_for('main.storm_matches') }}?date={{ row.storm_date }}&type={{ row.report_text | urlencode }}">View matches</a>
                 {% endif %}
+                {% if row.work_state.state != 'Not pulled' %}
+                  {% set repull_label = "Pull again" if row.work_state.last_pulled_at else "Pull" %}
+                  {% if row.work_state.is_stale %}
+                <span class="action-disabled"
+                      title="Past the 365-day claim window — an owner can no longer file a claim">{{ repull_label }}</span>
+                <small class="stale-note">past claim window</small>
+                  {% elif can_pull %}
+                <a class="pull-link repull"
+                   href="{{ url_for('main.pull_estimate') }}?date={{ row.storm_date }}&type={{ row.report_text | urlencode }}&submitted=1{% if actionable_only %}&actionable=1{% endif %}">{{ repull_label }}</a>
+                  {% else %}
+                <span class="action-disabled"
+                      title="Pulling requires sender access">{{ repull_label }}</span>
+                  {% endif %}
+                  {% if row.work_state.last_pulled_at %}
+                <small class="last-pulled">last pulled
+                  {{ row.work_state.last_pulled_at.astimezone(display_tz).strftime("%Y-%m-%d") }}</small>
+                  {% endif %}
+                {% endif %}
             </td>
             <td>{{ row.sources }}</td>
         </tr>

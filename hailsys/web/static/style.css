@@ -309,6 +309,16 @@ h1 ~ table, h1 ~ p { margin-left: 1.5rem; margin-right: 1.5rem; }
     white-space: nowrap;
 }
 
+/* Small notes after the re-pull action: when it was last pulled, or why
+   it isn't offered. Quieter than the action itself. */
+.last-pulled,
+.stale-note {
+    margin-left: 0.5rem;
+    color: var(--muted);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
 /* ---- Match detail page (matches.html) ---- */
 
 /* Headline count line -- the most important sentence on the page. */

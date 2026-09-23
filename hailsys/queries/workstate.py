@@ -24,7 +24,7 @@ WITH activity AS (
     -- Pulled: api_pulls records what was clicked
     -- a storm_date IS NULL = a pull is not tied to browsed storm
     -- (manual zip test) -> not evidence about any storm day
-    SELECT storm_date, report_text, 'pulled' AS kind
+    SELECT storm_date, report_text, 'pulled' AS kind, started_at AS at
     FROM api_pulls
     WHERE storm_date IS NOT NULL
         AND storm_date >= %(start_date)s
@@ -35,7 +35,7 @@ WITH activity AS (
 
     -- Matched: any storm_listing_matches row whose report falls in
     -- the window.  Radius-agnostic.
-    SELECT {_LOCAL_DAY}, i.report_text, 'matched'
+    SELECT {_LOCAL_DAY}, i.report_text, 'matched', NULL
     FROM storm_listing_matches m
     JOIN iem_data i ON i.iem_id = m.iem_id
     WHERE i.utc_datetime >= %(window_start)s
@@ -45,7 +45,7 @@ WITH activity AS (
     -- Match attempted: completed run, even an empty run.
     -- This is what distinguishes "ran, nothing in range from "never ran"
 
-    SELECT storm_date, report_text, 'match_ran'
+    SELECT storm_date, report_text, 'match_ran', NULL
     FROM match_runs
     WHERE storm_date >= %(start_date)s
         AND storm_date < %(end_date)s
@@ -54,7 +54,7 @@ WITH activity AS (
     UNION ALL
 
     -- Sent: At least one email went out against a match from this storm.
-    SELECT {_LOCAL_DAY}, i.report_text, 'sent'
+    SELECT {_LOCAL_DAY}, i.report_text, 'sent', NULL
     FROM send_log s
     JOIN storm_listing_matches m ON m.match_id = s.match_id
     JOIN iem_data i ON i.iem_id = m.iem_id
@@ -69,7 +69,8 @@ SELECT
     bool_or(kind = 'pulled')    AS pulled,
     bool_or(kind = 'matched')   AS matched,
     bool_or(kind = 'sent')      AS sent,
-    bool_or(kind = 'match_ran') AS match_ran
+    bool_or(kind = 'match_ran') AS match_ran,
+    max(at) FILTER (WHERE kind = 'pulled') AS last_pulled_at
 FROM activity
 GROUP BY storm_date, report_text 
 """
@@ -120,6 +121,7 @@ def fetch_work_state(conn, *, window_start, window_end, today):
         (row["storm_date"], row["report_text"]): {
             "state": _label(row),
             "is_stale": row["storm_date"] < stale_before,
+            "last_pulled_at": row["last_pulled_at"],
         }
         for row in rows
     }
@@ -134,4 +136,5 @@ def state_for(work_state, storm_date, report_text, today):
     return {
         "state": NOT_PULLED,
         "is_stale": storm_date < today - timedelta(days=CLAIM_WINDOW_DAYS),
+        "last_pulled_at": None,
     }
