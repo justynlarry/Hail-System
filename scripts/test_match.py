@@ -1,5 +1,8 @@
 """ One-off manual check for storm matcher
-Usage: python3 scripts/test_match.py 2026-06-24 HAIL --emp-id 1
+Usage: python3 scripts/test_match.py 2026-06-24 HAIL --emp-id 2
+
+--emp-id should be a real operator, not 1 (the system account): the run is
+attributed to it in match_runs and storm_listing_matches.
 """
 
 import argparse
@@ -12,8 +15,9 @@ from hailsys.tuning import DEFAULT_MATCH_RADIUS_MILES, denver_day_bounds
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("storm_date", help="YYYY-MM-DD, local Denver day")
-    parser.add_argument("report_text", nargs="?", default=None,
-                        help='e.g. "HAIL"; omit to match every actionable type')
+    # Required: a match_runs row names one storm day and one type, so there
+    # is no all-types run any more (decision log 2026-09-23).
+    parser.add_argument("report_text", help='e.g. "HAIL"')
     parser.add_argument("--emp-id", type=int, required=True)
     parser.add_argument("--radius", type=float, default=DEFAULT_MATCH_RADIUS_MILES)
     args = parser.parse_args()
@@ -23,9 +27,9 @@ def main():
 
     with get_connection() as conn:
         new_matches = match_storm(
-            conn, emp_id=args.emp_id, window_start=window_start,
-            window_end=window_end, report_text=args.report_text,
-            radius_miles=args.radius,
+            conn, emp_id=args.emp_id, storm_date=day,
+            window_start=window_start, window_end=window_end,
+            report_text=args.report_text, radius_miles=args.radius,
         )
     print(f"new matches: {new_matches}")
 

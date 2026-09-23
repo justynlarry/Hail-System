@@ -3651,3 +3651,241 @@ so it must not be read as a jurisdiction either.
 **Related:** *Municipal boundaries from DOLA's dissolved layer…*
 (2026-09-23); *Email wording claims a report, not damage* (2026-09-01);
 parking-lot items 23 and 70–84.
+
+---
+
+## 2026-09-23 — Match runs are recorded, so an empty match is visible
+
+`sql/022_matched_runs.sql` adds `match_runs`, one row per match attempt.
+Before it, `storm_listing_matches` was the only trace of matching, and a run
+that found nothing in range wrote nothing. So "ran, nothing in range" and
+"never ran" were the same absence, and the badge could not tell them apart
+(parking-lot item 40). A run is now a record in its own right.
+
+**The row is written before the work, as `'running'`, and finished as
+`'complete'` or `'failed'`.** Same shape as `api_pulls` and `ingest_runs`,
+for the same reason: a process that dies mid-match leaves a row to reconcile
+against instead of nothing. `match_storm` commits the start row on its own,
+and on failure it rolls back, records `'failed'` with the error, and commits
+that before re-raising. Without that last commit the caller's
+`with get_connection()` rolls the failure back on the way out, and the run
+sits at `'running'` for good.
+
+**`matches_created` counts new rows only.** `_MATCH_SQL` is
+`ON CONFLICT DO NOTHING`, so re-running an already-matched storm records 0
+even though the storm has matches. The badge must not read that number.
+Whether a storm has matches is still a question for `storm_listing_matches`.
+
+**`match_storm` now requires `storm_date` and `report_text`.** Both are
+keyword-only with no default. A `match_runs` row has to name one storm day
+and one type, or the work-state query can't tell which badge to change, so
+the old all-types call path is gone. Leaving `report_text=None` as a default
+would have meant the only thing preventing a `NOT NULL` violation was
+callers happening to pass it. Python now raises at the call site instead.
+`/match` returns 400 for a blank type.
+
+**"Matched, none in range" needs both a completed run and a pull.** A run
+alone is not enough. A match against a storm whose zips were never pulled
+searched an empty set of listings, and finding nothing there says nothing
+about the storm. That storm is still "Not pulled", and its Pull link must
+stay. The rule is `match_ran and pulled` in `workstate._label`. Verified:
+2026-08-22 HAIL, never pulled, reverted to "Not pulled" with Pull after two
+empty runs. `/match` also now distinguishes "No listings within range" from
+"No new matches: already matched" by checking `storm_listing_matches` in the
+same connection. Match stays offered on "Matched, none in range", since a
+wider radius may find something.
+
+**Numbering:** `match_runs` is `sql/022`, not `021`. `sql/021` is
+`municipal_boundaries`, from the permits and jurisdiction research on the
+same day.
+
+**Related:** *The `ingest_runs` row is written before the fetch, not after*
+(2026-09-08); *Learning: a failed statement poisons the whole transaction
+until rolled back* (2026-09-17); *Work state is derived, never stored*
+(2026-09-18).
+
+---
+
+## 2026-09-23 — Re-pull goes through the estimate page; stale storms are greyed, not blocked
+
+**The re-pull link reuses `/pull/estimate` rather than adding a route.**
+That page already shows the cost and lists every zip pulled in the last
+seven days with its last pull time. The guard a re-pull needs already
+exists, and a second route would be a second place for it to drift. The link
+appears on every state past "Not pulled" (parking-lot item 46). Its label is
+"Pull again" when a pull was recorded against this storm, and "Pull" when the
+storm reached "Matched" through a pull made for a different storm. That
+case is a first pull of its own, and "again" would be wrong.
+`workstate.last_pulled_at` drives both the label and the "last pulled" date,
+which is shown in Denver time.
+
+**Past the 365-day claim window, the control is greyed with a "past claim
+window" note, for every role.** The stale check runs before the role check,
+because the claim window is a property of the storm, not of who is looking.
+Spending on listings whose owners can no longer file a claim is the waste
+the one-year threshold exists to prevent.
+
+**`/pull/estimate` is deliberately not gated on staleness.** The greying is
+guidance, not a guard. A sender who goes to the estimate URL directly still
+sees the cost and the recent-pull warning before anything is spent, and a
+two-year-old storm may still be worth one look at what's listed there now.
+Recorded so the missing server-side check is not later "fixed" as an
+oversight. If it should become a guard, that is a new decision.
+
+**Related:** *One year is the work-queue aging threshold* (2026-09-18);
+*The pull POST recomputes zips and verifies a count* (2026-09-18).
+
+---
+
+## 2026-09-23 — RentCast quota: settings, warn and allow, usage from `api_call_log`
+
+`sql/023_rentcast_quota.sql` adds `settings.rentcast_billing_day` (default 9)
+and `settings.rentcast_monthly_quota` (default 1000), for parking-lot item 50.
+They live in `settings` rather than in code so a plan change needs no deploy,
+the same reasoning that moved the radii there.
+
+**The billing day is capped at 28.** A billing day of the 29th to the 31st
+has no equivalent in February, and nobody has decided what rule to fall back
+on. The CHECK keeps the question from arising rather than answering it in
+code. `quota.period_bounds` relies on the cap: it can always set the billing
+day within any month.
+
+**Warn and allow, not a hard block.** Overage is billed, not refused, so
+going over costs money but breaks nothing. The figure being checked is an
+estimate, so a hard block would be enforcing a guess. And a block that fired
+mid-pull would stop after some zips had already been paid for, leaving a
+half-pulled storm: money spent for incomplete data. The pull estimate shows
+this period's usage and, when used plus this estimate would pass the quota,
+an amber note naming the projected overage. The pull still runs.
+
+**Usage is summed from `api_call_log`, not `api_pulls.actual_api_calls`.**
+The log is written per zip as a pull runs, so it counts spend by a pull
+still in flight and by one that died partway. `actual_api_calls` is only set
+when a pull finishes. It is NULL for a running pull, and stays NULL forever
+for one whose thread died, so both would read as zero. Known gap: calls made
+by a pull that aborts on a bad API key are added to `actual_api_calls` but
+get no `api_call_log` row, so they aren't in the usage figure. RentCast
+probably doesn't bill rejected-key requests, but that is unconfirmed.
+
+**The period rolls over at midnight Denver time.** `fetch_usage` converts the
+period's dates with `denver_day_bounds`, like every other "what day is it"
+question in the app. Whether RentCast itself rolls over on UTC or Denver time
+is **not confirmed**. Near a boundary the two differ by up to seven hours of
+calls counted in the wrong month.
+
+**`settings_history` records the two new columns.** "Who raised the
+ceiling, and when" is exactly the question that table exists to answer.
+`trg_log_settings_change` now fires on all four settings columns, and still
+not on `global_sessions_invalidated_at`. Rows from before `023` are NULL in
+both new columns, not backfilled: a default would assert a value nobody
+recorded at the time.
+
+**Usage shows on the storm list for senders and admins only.** Viewers can't
+spend, so the query doesn't run for them.
+
+**Related:** *Radii are read from `settings` per request* (2026-09-22);
+*`trg_log_settings_change` is scoped to the radius columns* (2026-09-22),
+extended here to four columns on the same scoping rule; *RentCast client:
+stdlib urllib…* (2026-09-17), which counts every physical request.
+
+---
+
+## 2026-09-23 — An admin cannot deactivate, demote or sign out their own account
+
+`deactivate_user`, `change_role` and `boot_user` refuse the acting admin's
+own row, as `reset_password` already did. The admin page shows "your
+account" in place of that row's controls (parking-lot item 60).
+
+**Why last-admin protection wasn't enough:** `trg_last_admin` only fires when
+a change would leave no active admin. With a second admin present, all three
+actions succeed on your own row, and each ends your session. Deactivation
+fails the `is_active` check, and a role change or sign-out sets
+`sessions_invalidated_at`, so you are signed out on the next click. One
+mis-click locks you out of the account you are using.
+
+**Enforced on the server, hidden in the UI.** Hiding the buttons alone would
+leave the routes open to a crafted POST. Same order as the role rules:
+the route decides, and the page follows.
+
+**Consequence, accepted at current headcount:** no admin can change their
+own account through the UI. Another admin has to do it. With a single admin,
+that means creating a second admin first. Recovery from a mistake that the
+UI can't reach, such as a locked-out sole admin, is a manual `UPDATE` at
+psql.
+
+**Related:** *Last-admin protection is a deferred constraint trigger*
+(2026-09-22); *Changing a role signs the user out* (2026-09-22).
+
+---
+
+## 2026-09-23 — CSRF failures return 400 with a rendered page
+
+**Supersedes** one point of *CSRF via Flask-WTF, no token time limit*
+(2026-09-22): that entry's handler "flashes a 'form expired' message and
+redirects back". The handler now renders `csrf_error.html` with status 400.
+
+**Why:** the 302 looked identical to a successful POST, which also returns
+a 302. A person saw the flash, but anything checking status codes (curl, a
+script, any future test) saw success, so a CSRF failure was untestable
+(parking-lot item 59). A 400 is a failure by any reading. The rest of the
+earlier entry stands: `CSRFProtect` still fails closed on every POST, with
+no token time limit.
+
+---
+
+## 2026-09-23 — No forced password change after an admin reset, for now
+
+Parking-lot item 61 proposed a `must_change_password` flag, set by an admin
+reset and cleared by `/account/password`, so a user can't keep a password
+the admin knows. **Declined for now.** With a handful of known users in one
+office, the admin can tell the person to change it, and the reset already
+signs them out everywhere. Recorded so its absence reads as a decision, not
+an oversight. It should be reconsidered before staff accounts exist (Phase 7),
+or if the office grows past the point where "tell them" works.
+
+---
+
+## 2026-09-23 — `role_required` alone where a route needs a role
+
+`@login_required` was removed from `/pull/estimate`, `/pull` and `/match`,
+the three routes that also carry `@role_required("sender", "admin")`.
+`require_role` already redirects to `/login` when there is no signed-in
+user, so the second decorator did nothing. Routes with no role requirement
+keep `@login_required`: on those it is the only check. The per-request
+`load_current_user` hook sets `g.user` but never redirects.
+
+Verified: signed out, all three return 302 → `/login`. An app-wide
+`before_request` login check, which would make `@login_required` redundant
+everywhere and close the forgotten-decorator gap the admin blueprint already
+closes, was considered and deferred.
+
+**Related:** *Three roles, enforced server-side first* (2026-09-22); *Admin
+routes are a blueprint with one before_request check* (2026-09-22).
+
+---
+
+## 2026-09-23 — Phase 4's done condition verified
+
+**Done when:** a viewer account can browse and export but cannot trigger a
+pull. Checked through the real routes against the real `testview` account
+(role `viewer`), with **CSRF protection left on and a valid token** taken
+from a page the viewer can load.
+
+The viewer session was set up in the Flask test client for `testview`'s row
+rather than by a password login. The login form itself is covered by
+parking-lot item 58.
+
+- 403 on `POST /pull`, `POST /match`, `GET /pull/estimate` and `GET /admin/`.
+- 200 on `GET /`, and on `GET /export.csv` with a `text/csv` body.
+
+**The valid token is what makes the 403s mean something.** Without one, a
+POST fails CSRF before it reaches the role check. The control run proved
+it: the same POSTs with no token returned 400. A 403 on a tokenless request
+would have tested nothing about roles.
+
+Also checked in the same audit, every one through the app: every route
+other than `/login` and `/logout` redirects a signed-out visitor to
+`/login`; last-admin protection refuses demoting the only admin but allows
+a same-transaction swap (rolled back); a session issued before
+`sessions_invalidated_at` is cleared on its next request; and all 13 POST
+forms across the templates carry a CSRF token.

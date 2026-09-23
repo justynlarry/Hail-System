@@ -275,6 +275,12 @@ def update_settings():
     except psycopg.errors.CheckViolation as e:
         flash(CHECK_MESSAGES.get(e.diag.constraint_name,
                                 "Those values are not allowed."))
+    # A number too big for its column (a quota past INTEGER's ~2.1 billion)
+    # fails before any CHECK runs, as a DataError -- a different branch of
+    # psycopg's tree from CheckViolation (IntegrityError), so it needs its
+    # own clause or it's an uncaught 500.
+    except psycopg.errors.DataError:
+        flash("One of those numbers is too large to store.")
     else:
         flash(f"Settings updated.  Zip {zip_radius} mi, match {match_radius} mi. "
               f"Billing day {billing_day}, quota {monthly_quota}.")

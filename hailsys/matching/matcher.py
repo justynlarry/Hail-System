@@ -88,7 +88,7 @@ UPDATE match_runs
 """
 
 
-def match_storm(conn, *, emp_id, storm_date, window_start, window_end, report_text=None,
+def match_storm(conn, *, emp_id, storm_date, window_start, window_end, report_text,
                 radius_miles=None):
     """Compute and store matches for 1 storm window, and return number of
     NEW match rows written, idempotent.

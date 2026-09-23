@@ -37,11 +37,24 @@ and `report_zip_distances`); `hailsys/matching/matcher.py` writing
 `/match`, `/storms/matches` and the activity feed. A pull runs in a background
 thread and matches automatically when it finishes. No sending path exists.
 
-What exists for Phase 4 so far: a `users` table, scrypt password hashing,
-login/logout sessions, and `scripts/create_user.py` as a placeholder. Routes
-check only `login_required` — nothing enforces a role yet — and there is no
-admin page (`docs/parking-lot.md` item 39; `docs/decision-log.md`, "Admin
-settings page: Phase 4").
+What Phase 4 has built (not yet closed): roles enforced server-side —
+`role_required("sender", "admin")` on `/pull/estimate`, `/pull` and `/match`,
+`login_required` on every other signed-in route, and the `/admin` blueprint's
+own `before_request` admin check. The UI greys actions a role can't take
+rather than hiding them. `/admin` covers users (add, role, sign out,
+deactivate, reactivate, reset password; not on your own row) and the
+`settings` table: radii, RentCast billing day and monthly quota, and this
+period's usage, with every change logged to `settings_history` by trigger.
+Also: forced logout by timestamp (`sql/018`), last-admin protection
+(`sql/019`), radii in `settings` (`sql/020`), `match_runs` so an empty match
+reads "Matched, none in range" (`sql/022`), quota settings (`sql/023`), a
+re-pull link, quota warn-and-allow on the pull estimate, and CSRF on every
+POST (a failure returns a 400 page). `sql/021` (`municipal_boundaries`) is
+from the parked permits research, not Phase 4. `scripts/create_user.py`
+still exists; whether it stays for bootstrapping is `docs/parking-lot.md`
+item 65. Done-when (a viewer can browse and export but not pull) is verified
+with the real viewer account's session; a password login by that account is
+still item 58.
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
 with CSV export → 3 RentCast listings → 4 accounts → 5 email → 6 pilot →
