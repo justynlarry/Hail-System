@@ -229,6 +229,20 @@ h1 ~ table, h1 ~ p { margin-left: 1.5rem; margin-right: 1.5rem; }
 .estimate-summary { font-size: 1.125rem; }
 .estimate-summary strong { color: var(--accent); }
 
+/* Billing-period usage under the cost line: context for it, so it stays
+   body-sized and muted rather than competing with the cost. */
+.usage-summary { color: var(--muted); }
+
+/* Over-quota warning. Warn-and-allow, not a block, so it uses the same
+   amber "visibly a warning, not an error" treatment as .coverage-warning
+   on the match page. .note sets the size; this adds the box. */
+.note.warning {
+  background: #fef3c7;
+  border-left: 4px solid #d97706;
+  padding: 0.5rem 0.75rem;
+  color: var(--text);
+}
+
 /* A run of 40+ zip codes needs to wrap without looking like body text
    pretending to be a table. */
 .zip-list {
@@ -310,9 +324,11 @@ h1 ~ table, h1 ~ p { margin-left: 1.5rem; margin-right: 1.5rem; }
 }
 
 /* Small notes after the re-pull action: when it was last pulled, or why
-   it isn't offered. Quieter than the action itself. */
+   it isn't offered. Quieter than the action itself. .self-row is the
+   same note standing in for the admin's own row actions. */
 .last-pulled,
-.stale-note {
+.stale-note,
+.self-row {
     margin-left: 0.5rem;
     color: var(--muted);
     font-size: 0.75rem;

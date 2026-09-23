@@ -115,6 +115,13 @@ def index():
                 today=today,
                 radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
         ) if since else None
+        usage = quota.fetch_usage(
+            conn,
+            today=today,
+            billing_day=g.settings["rentcast_billing_day"],
+            quota=g.settings["rentcast_monthly_quota"],
+            day_bounds=denver_day_bounds,
+        ) if g.user["role"] in ("sender", "admin") else None
         
     for row in rows:
         row["work_state"] = workstate.state_for(
@@ -133,6 +140,7 @@ def index():
         feed_since=since,
         feed_limit=FEED_PANEL_LIMIT,
         display_tz=DISPLAY_TZ,
+        usage=usage,
 
     )
 

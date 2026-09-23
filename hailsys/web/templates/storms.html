@@ -7,6 +7,13 @@
 <section class="activity-panel">
     {% include "_activity.html" %}
 </section>
+{% if usage %}
+<p class="usage-summary">
+  {{ usage.used }} of {{ usage.quota }} RentCast requests used this billing
+  period ({{ usage.period_start }} to {{ usage.period_end }}){% if usage.over %},
+  <strong>{{ usage.over }} over</strong>{% endif %}.
+</p>
+{% endif %}
     <form method="get" action="{{ url_for('main.index') }}" class="filters">
         <input type="hidden" name="submitted" value="1">
 

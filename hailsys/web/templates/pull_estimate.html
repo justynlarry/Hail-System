@@ -10,6 +10,21 @@
     request{{ '' if result.estimated_api_calls == 1 else 's' }}.
 </p>
 
+<p class="usage-summary">
+    <strong>{{ usage.used }}</strong> of {{ usage.quota }} requests used this
+    billing period ({{ usage.period_start }} to {{ usage.period_end }}).
+</p>
+
+{% set projected = usage.used + result.estimated_api_calls %}
+{% if projected > usage.quota %}
+<p class="note warning">
+    This pull would bring the period to about <strong>{{ projected }}</strong>
+    of {{ usage.quota }} — roughly {{ projected - usage.quota }}
+    request{{ '' if projected - usage.quota == 1 else 's' }} over the plan.
+    Overage is billed. The figure above is an estimate; the real cost may differ.
+</p>
+{% endif %}
+
 {% if result.pulled_recently %}
 <h3>Pulled in the last {{ recent_window_days }} days ({{ result.pulled_recently | length }})</h3>
 <p class="note">

@@ -62,6 +62,9 @@
         <td>{{ ts(u.last_login_at) if u.last_login_at else "Never" }}</td>
         <td>{{ ts(u.created_at) }}</td>
         <td>
+          {% if u.emp_id == session.emp_id %}
+          <small class="self-row">your account</small>
+          {% else %}
           <div class="row-actions">
           <form method="post" action="{{ url_for('admin.change_role', emp_id=u.emp_id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -98,6 +101,7 @@
             </form>
           </details>
           </div>
+          {% endif %}
         </td>
       </tr>
     {% else %}
