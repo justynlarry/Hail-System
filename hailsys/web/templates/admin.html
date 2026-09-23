@@ -124,9 +124,27 @@
                        value="{{ settings.default_match_radius_miles }}" required> mi
                 <br><small>Changing this hides existing matches until storms are
                 re-matched, and it's the number that appears in emails.</small></td></tr>
+        <tr><th><label for="billing_day">RentCast billing day</label></th>
+            <td><input id="billing_day" name="billing_day" type="number"
+                       min="1" max="28" step="1"
+                       value="{{ settings.rentcast_billing_day }}" required>
+                <br><small>Day of month the plan resets. Capped at 28 — later days
+                have no February equivalent.</small></td></tr>
+        <tr><th><label for="monthly_quota">Monthly request quota</label></th>
+            <td><input id="monthly_quota" name="monthly_quota" type="number"
+                       min="1" step="1"
+                       value="{{ settings.rentcast_monthly_quota }}" required>
+                <br><small>Overage is billed, not blocked — the pull estimate
+                warns and allows.</small></td></tr>
         <tr><th>Ceiling (read-only)</th>
             <td>{{ "%.1f"|format(ceiling_miles) }} mi — raising it needs a migration
                 and a full recompute, not a settings change.</td></tr>
+        <tr><th>This billing period</th>
+            <td>{{ usage.used }} of {{ usage.quota }} requests used
+                ({{ usage.remaining }} remaining{% if usage.over %},
+                {{ usage.over }} over{% endif %})
+                <br><small>{{ usage.period_start }} to {{ usage.period_end }},
+                exclusive</small></td></tr>
       </tbody>
     </table>
     <button type="submit">Save settings</button>
@@ -146,7 +164,8 @@
 <section>
   <h2>Settings history</h2>
   <table>
-    <thead><tr><th>When</th><th>By</th><th>Zip radius</th><th>Match radius</th></tr></thead>
+    <thead><tr><th>When</th><th>By</th><th>Zip radius</th><th>Match radius</th>
+               <th>Billing day</th><th>Monthly quota</th></tr></thead>
     <tbody>
     {% for h in history %}
       <tr>
@@ -154,9 +173,12 @@
         <td>{{ h.user_name }}</td>
         <td>{{ h.default_zip_radius_miles }} mi</td>
         <td>{{ h.default_match_radius_miles }} mi</td>
+        {# NULL on rows written before sql/023, which added these columns #}
+        <td>{{ h.rentcast_billing_day if h.rentcast_billing_day is not none else "—" }}</td>
+        <td>{{ h.rentcast_monthly_quota if h.rentcast_monthly_quota is not none else "—" }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="4">No changes yet.</td></tr>
+      <tr><td colspan="6">No changes yet.</td></tr>
     {% endfor %}
     </tbody>
   </table>

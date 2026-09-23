@@ -13,7 +13,7 @@ from hailsys.rentcast.estimate import estimate_pull
 from hailsys.web.jobs import start_pull
 from hailsys.db import get_connection
 from hailsys.formatting import magnitude
-from hailsys.queries import activity, matches,storms, workstate
+from hailsys.queries import activity, matches,storms, workstate, quota
 from hailsys.tuning import (
     DISPLAY_TZ,
     RECENT_PULL_WINDOW_DAYS,
@@ -367,7 +367,6 @@ def map_points():
     }
 
 @bp.route("/pull/estimate")
-@login_required
 @role_required("sender", "admin")
 def pull_estimate():
     """What would a pull cost before any request is made"""
@@ -389,6 +388,13 @@ def pull_estimate():
             report_text=report_text,
             actionable_only=actionable_only,
         )
+        usage = quota.fetch_usage(
+            conn,
+            today=datetime.now(DISPLAY_TZ).date(),
+            billing_day=g.settings["rentcast_billing_day"],
+            quota=g.settings["rentcast_monthly_quota"],
+            day_bounds=denver_day_bounds,
+        )
 
     return render_template(
         "pull_estimate.html",
@@ -397,10 +403,10 @@ def pull_estimate():
         actionable_only=actionable_only,
         result=result,
         recent_window_days=RECENT_PULL_WINDOW_DAYS,
+        usage=usage,
     )
 
 @bp.route("/pull", methods=["POST"])
-@login_required
 @role_required("sender", "admin")
 def pull_start():
     try:
@@ -446,7 +452,6 @@ def pull_start():
     return redirect(url_for("main.index"))
 
 @bp.route("/match", methods=["POST"])
-@login_required
 @role_required("sender", "admin")
 def match_start():
     try:

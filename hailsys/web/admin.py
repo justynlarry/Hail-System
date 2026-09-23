@@ -2,10 +2,12 @@ import psycopg
 
 from flask import Blueprint, flash, g, redirect, render_template, request, url_for
 
+from hailsys.queries import quota
 from hailsys.db import get_connection
 from hailsys.web.auth import MIN_PASSWORD_LENGTH, hash_password, require_role
-from hailsys.tuning import DISPLAY_TZ
+from hailsys.tuning import DISPLAY_TZ, denver_day_bounds
 from decimal import Decimal, InvalidOperation
+from datetime import datetime
 
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -26,6 +28,10 @@ CHECK_MESSAGES = {
         "Zip radius must be more than 0 and no more than 10 miles.",
     "settings_default_match_radius_miles_check":
         "Match radius must be more than 0 and no more than 10 miles.",
+    "settings_rentcast_billing_day_check":
+        "Billing day must be between 1 and 28.",
+    "settings_rentcast_monthly_quota_check":
+        "Monthly quota must be more than 0.",
 }
 
 
@@ -58,17 +64,26 @@ def _render_admin(form=None, status=200):
         cur.execute(
             """
             SELECT default_zip_radius_miles, default_match_radius_miles,
+                   rentcast_billing_day, rentcast_monthly_quota,
                    global_sessions_invalidated_at,
                    hail_pair_ceiling_m() AS ceiling_m
             FROM settings
             """
         )
         settings = cur.fetchone()
+        usage = quota.fetch_usage(
+            conn,
+            today=datetime.now(DISPLAY_TZ).date(),
+            billing_day=settings["rentcast_billing_day"],
+            quota=settings["rentcast_monthly_quota"],
+            day_bounds=denver_day_bounds
+        )
 
         cur.execute(
             """
             SELECT h.changed_at, u.user_name,
-                   h.default_zip_radius_miles, h.default_match_radius_miles
+                   h.default_zip_radius_miles, h.default_match_radius_miles,
+                   h.rentcast_billing_day, h.rentcast_monthly_quota
             FROM settings_history h
             JOIN users u ON u.emp_id = h.changed_by
             ORDER BY h.changed_at DESC
@@ -88,6 +103,7 @@ def _render_admin(form=None, status=200):
         form=form or {},
         roles=ROLES,
         min_password_length=MIN_PASSWORD_LENGTH,
+        usage=usage,
     ), status
 
 def _user_action(sql, params, ok_message):
@@ -223,8 +239,10 @@ def update_settings():
     try:
         zip_radius = Decimal(request.form.get("zip_radius") or "")
         match_radius = Decimal(request.form.get("match_radius") or "")
-    except InvalidOperation:
-        flash("Both radii must be numbers.")
+        billing_day = int(request.form.get("billing_day") or "")
+        monthly_quota = int(request.form.get("monthly_quota") or "")
+    except (InvalidOperation, ValueError):
+        flash("Radii, billing day, and quota must all be numbers.")
         return redirect(url_for("admin.index"))
     
     try:
@@ -235,16 +253,19 @@ def update_settings():
             )
             cur.execute(
                 "UPDATE settings SET default_zip_radius_miles = %s, "
-                "       default_match_radius_miles = %s "
+                "       default_match_radius_miles = %s, "
+                "        rentcast_billing_day = %s, "
+                "         rentcast_monthly_quota = %s " 
                 " WHERE id = 1",
-                (zip_radius, match_radius),
+                (zip_radius, match_radius, billing_day, monthly_quota),
             )
             conn.commit()
     except psycopg.errors.CheckViolation as e:
         flash(CHECK_MESSAGES.get(e.diag.constraint_name,
                                 "Those values are not allowed."))
     else:
-        flash(f"Radii updated.  Zip {zip_radius} mi, match {match_radius} mi.")
+        flash(f"Settings updated.  Zip {zip_radius} mi, match {match_radius} mi. "
+              f"Billing day {billing_day}, quota {monthly_quota}.")
     return redirect(url_for("admin.index"))
 
 
