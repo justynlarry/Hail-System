@@ -1,6 +1,6 @@
 import os
 
-from flask import flash, Flask, redirect, request, url_for, g
+from flask import flash, Flask, redirect, request, url_for, g, render_template
 from flask_wtf.csrf import CSRFError, CSRFProtect
 
 def create_app():
@@ -16,8 +16,7 @@ def create_app():
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(e):
-        flash("That form expired or was submitted from a stale page, please try again.")
-        return redirect(request.referrer or url_for("main.index")), 302
+        return render_template("csrf_error.html", reason=e.description), 400
 
     # Injected into every template render
     @app.context_processor

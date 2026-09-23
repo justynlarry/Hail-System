@@ -34,7 +34,10 @@ CHECK_MESSAGES = {
         "Monthly quota must be more than 0.",
 }
 
-
+SELF_ACTION_MESSAGE = (
+    "You can't change your own account here. "
+    "Ask another admin, or use the change-password page."
+)
 
 @admin_bp.before_request
 def _admin_only():
@@ -183,6 +186,9 @@ def create_user():
 
 @admin_bp.route("/users/<int:emp_id>/deactivate", methods=["POST"])
 def deactivate_user(emp_id):
+    if _refuse_self(emp_id):
+        flash(SELF_ACTION_MESSAGE)
+        return redirect(url_for("admin.index"))
     return _user_action(
         "UPDATE users SET is_active = FALSE "
         " WHERE emp_id = %s AND role <> 'system'",
@@ -203,6 +209,9 @@ def reactivate_user(emp_id):
 @admin_bp.route("/users/<int:emp_id>/role", methods=["POST"])
 def change_role(emp_id):
     role = request.form.get("role") or ""
+    if _refuse_self(emp_id):
+        flash(SELF_ACTION_MESSAGE)
+        return redirect(url_for("admin.index"))
     if role not in ROLES:
         flash("Please pick a valid role.")
         return redirect(url_for("admin.index"))
@@ -219,6 +228,9 @@ def change_role(emp_id):
 
 @admin_bp.route("/users/<int:emp_id>/boot", methods=["POST"])
 def boot_user(emp_id):
+    if _refuse_self(emp_id):
+        flash(SELF_ACTION_MESSAGE)
+        return redirect(url_for("admin.index"))
     return _user_action(
         "UPDATE users SET sessions_invalidated_at = now()"
         " WHERE emp_id = %s AND role <> 'system'",
@@ -292,3 +304,8 @@ def reset_password(emp_id):
         (hash_password(new), emp_id),
         "Password reset.  User has been signed out everywhere.",
     )
+
+
+def _refuse_self(emp_id):
+    """True if this action targets the acting admin's own row."""
+    return emp_id ==g.user["emp_id"]

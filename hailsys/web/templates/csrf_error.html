@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Request rejected{% endblock %}
+{% block heading %}Request rejected{% endblock %}
+{% block content %}
+<div class="page">
+  <p>That form couldn't be submitted. This usually means the page sat open
+     across a sign-out, or it was loaded before the last restart.</p>
+  <p class="note">{{ reason }}</p>
+  <p><a href="{{ url_for('main.index') }}">Back to storm days</a></p>
+</div>
+{% endblock %}
+</html>
