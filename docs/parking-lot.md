@@ -480,6 +480,10 @@ that and is a single `ST_DWithin`.
 
 **When:** Phase 3, when addresses have coordinates attached.
 
+**Blocks items 77 and 78**, and with them all jurisdiction and address-search
+work (items 70–84; decision log 2026-09-23): a jurisdiction can only be
+stated for an address once the address is a point.
+
 ## 24. Replace the "Last N days" dropdown with a date picker
 
 Explicit start and end dates, rather than a fixed set of ranges (30/90/365).
@@ -937,6 +941,152 @@ button it replaces get `margin-left: 0.5rem`, `font-size: 0.8125rem` and
 `.action-disabled` the same three lines makes the two states line up.
 
 **When:** Phase 4, cosmetic.
+
+## 70. Permits as a source — corroboration first, roof age later
+
+Open-data roofing permits exist for Aurora, unincorporated Adams and
+unincorporated Douglas, and each surges after a known hail day
+(`docs/data-sources.md` §5). First use is internal corroboration: ranking,
+confidence and what the UI shows a sender. "No roof permit on record since
+<date>" comes later, if ever, and only where the jurisdiction's records go
+back that far. Never "your roof is X years old" (decision log 2026-09-23,
+the claim rule). Items 71–84 are the prerequisites and follow-ons.
+
+**When:** parked until the system is running.
+
+## 71. Records (CORA) request to Aurora for full roofing-permit history
+
+Aurora's open-data permits start 2021-09-24, which looks like a rolling five
+years. A raw snapshot was taken 2026-09-23 (`data/raw/permits/aurora/`) so
+nothing more drops off unseen, but anything older than the window needs a
+Colorado Open Records Act request. Whether the window really rolls is still
+unconfirmed: re-check the earliest `InDate` on a later day.
+
+**When:** only if roof age (item 70's later half) is pursued.
+
+## 72. Commercial-use terms for permit data
+
+Aurora publishes a disclaimer with an indemnity clause and no licence grant.
+Adams and Douglas publish no terms at all. Whether RBI may use permit data
+commercially is a question for RBI's attorney, or for each jurisdiction.
+
+**When:** before permit data appears in anything agents see.
+
+## 73. RBI's business map, to set the permit-adapter order
+
+The top-three ranking used in the 2026-09-23 research counted stored
+`properties`, which reflects which 5 zips had been pulled, not where RBI
+works. By area, unincorporated El Paso, Weld and Adams lead. The build order
+should follow where RBI actually wins work.
+
+**When:** before any permit adapter is built.
+
+## 74. Real jurisdiction count from the inventory
+
+`output/jurisdiction_inventory_2026-09-23.csv` (680 rows, 183 zips) includes
+slivers where TIGER and DOLA edges disagree. Excluding rows under 0.5% of a
+zip, the 2026-09-23 run gave 71 municipalities and 13 unincorporated
+counties. That is a starting figure only: Hudson is counted under two codes
+(item 75), and the CSV is regenerable output, not tracked.
+
+**When:** with the permits work (item 70).
+
+## 75. Correction and override table for jurisdiction
+
+Three known cases where the polygon answer is not the whole answer:
+- The Hudson source error `03782` → `37820` (decision log 2026-09-23).
+- Municipalities that contract their building department out to the county
+  or a regional office.
+- El Paso, which may have a regional building issuer (unverified).
+
+A table applied on read keeps each correction visible and attributable, and
+survives a reload. A fix inside the loader would be silently re-applied, or
+silently lost.
+
+**When:** before address search states jurisdictions.
+
+## 76. DOLA boundary lag and refresh cadence
+
+DOLA republishes nightly, but that only dates the publish. How far behind
+the real annexations it runs is measurable from the newest `cl_re_date` in
+the 1,911-row `Municipal_Boundary` layer. Settle how often
+`fetch_municipal.py` + `load_municipal.sh` should run.
+
+**When:** before address search states jurisdictions.
+
+## 77. Near-boundary confidence flag
+
+Flag an address whose point sits close to a municipal boundary:
+`ST_Distance` on geography to the nearest boundary, starting at a ~30 m
+threshold and tuned against real misses (item 78). Geocoded points and
+boundaries each carry error, and an answer 10 m from a line should say so.
+
+**When:** with address search. **Depends on item 23** (geocoding).
+
+## 78. Jurisdiction accuracy test against the permit datasets
+
+The downloaded permit datasets say which department issued each permit, so
+they serve as ground truth. Run our address → point → jurisdiction path
+over their addresses and count disagreements. This is also what tunes item
+77's threshold.
+
+**When:** with address search. **Depends on item 23** (geocoding).
+
+## 79. County assessor parcels as a geocoding-free upgrade
+
+A parcel polygon places an address in a jurisdiction without an
+interpolated point. Whether the counties publish parcels openly has not been
+checked. `Colorado_Public_Parcels` on gis.colorado.gov exists but was not
+examined.
+
+**When:** only if near-boundary misses (items 77, 78) prove common.
+
+## 80. Adams keyword precision; Douglas missing coordinates
+
+**Adams:** after 2016, roofing is mostly identified by keywords in
+`Description` with a blank `TypeOfWork`. That filter (16,368 hits) has not
+been checked for false matches. **Douglas:** 51% of roofing permits have no
+`LOCATION` and need address matching before any spatial use.
+
+**When:** with those adapters.
+
+## 81. Denver: RESCON vs. ROOFSIDE, and the 2017 known answer
+
+Not examined 2026-09-23 because Denver was not in the top three. Open
+question: are reroofs in the RESCON layer, or under a separate ROOFSIDE
+type? The known-answer test is 18,475 roof permits in 2017, 54.6% above
+2016 (`docs/data-sources.md` §5).
+
+**When:** if Denver enters the build order (item 73).
+
+## 82. The annexation layer as boundary-change history
+
+DOLA's 1,911-row `Municipal_Boundary` layer keeps each annexation with its
+ordinance number and `cl_re_date`. That answers "when did this land join the
+city," which matters if a permit predates an annexation and was issued by
+the county.
+
+**When:** only if permit history needs that question answered.
+
+## 83. In-house realtor and contacts database
+
+A searchable store of known realtors, beyond what `realtors` holds from
+RentCast pulls, with a different email template for agents RBI already
+knows. **Open question:** what system holds these contacts now.
+
+**When:** Phase 5.
+
+## 84. Historical hail aggregation — which areas were hit hardest over n years
+
+A query over existing `iem_data` and `report_zip_distances`, not a new
+ingest. Overlaps `/territory` (decision log 2026-09-16, *Territory browse is
+its own page*), which already groups a date range by city or zip with
+report counts. What is new is ranking over many years, for example by
+distinct storm days rather than raw report count, which the ~0.7%
+natural-key dedup and busy single days would otherwise skew. Probably a
+view of `/territory` or a map layer rather than its own page.
+
+**When:** after Phase 4, alongside the map (item 22).
 
 ---
 

@@ -226,3 +226,11 @@ honest to put an estimate alongside human reports without the two blurring.
 pilot — storms RBI knows happened that the browse cannot show — rather than a
 known property of the data we have already accounted for. Phase 6 at the
 earliest.
+
+### Building permits and jurisdiction
+
+Parked. See parking-lot items 70–84, `docs/data-sources.md` §5, and the
+decision log's 2026-09-23 entries.
+
+**Trigger:** the system running in production; the jurisdiction and
+address-search half also waits on parking-lot item 23 (geocoding).

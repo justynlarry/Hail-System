@@ -3604,3 +3604,50 @@ keyword precision (untested), Douglas's missing coordinates (geocode or
 address-match, which is a design question), and whether "permit filed" is
 ever a claim the product makes. The last one is the same kind of question
 the MESH entry in the parking lot raises.
+
+---
+
+## 2026-09-23 — Permits are parked; the claim rule; jurisdiction is a polygon, never a mailing city
+
+Three decisions that follow from the permit and jurisdiction research above
+(*Municipal boundaries from DOLA's dissolved layer…*, same date). Recorded
+now so the research does not read as an implied commitment to build.
+
+**Permits are parked until the system is running.** The research showed that
+permit data exists and corroborates hail. It did not show that RBI needs it
+before Phase 5 sends a first real batch. Jurisdiction and address-search work
+is parked too, near the end of the project, and **depends on parking-lot
+item 23 (geocoding) being resolved first**: a jurisdiction can only be stated
+for an address once the address is a point. The parked work is filed as
+parking-lot items 70–84.
+
+**The claim rule: permit data never becomes "your roof is X years old."**
+The most it can support is "no roof permit on record since <date>," and only
+for a jurisdiction whose records are known to go back that far. Aurora's open
+data starts 2021-09-24, so a missing Aurora permit says nothing about 2019.
+The absence of a record is only evidence where the record would exist.
+Corroboration stays internal: ranking, confidence and what the UI shows a
+sender. **Outreach still cites the filed hail report only**, which is the
+same line *Email wording claims a report, not damage* (2026-09-01) draws and
+the MESH entry in `parking-lot.md` defends. A permit is a record of what an
+owner filed with a building department, not of the roof's condition, and
+presenting one as a condition changes the product's claim in the same way.
+
+**Jurisdiction comes from point-in-polygon on `municipal_boundaries`, never
+from the mailing-address city.** A USPS city name is a post office's service
+area, not a municipality. "Aurora" addresses include unincorporated Arapahoe
+(reported, not re-measured here). Douglas County's permit table shows the
+same shape from the other side. It covers unincorporated Douglas only: all
+36,762 of its roofing permits that carry coordinates fall there. Yet its
+roofing permits give the mailing city as `PARKER` 18,484 times and
+`CASTLE ROCK` 2,378 times, and both are separate municipalities.
+`HIGHLANDS RANCH` (40,332) is not a municipality at all. Asking which
+building department covers an address means asking which polygon contains
+its point. A point in no municipality is unincorporated, and its county
+comes from `county_boundaries`. `coverage_zips.area_name` is a USPS city
+too (*"City" in the UI means the USPS city of an affected zip*, 2026-09-14),
+so it must not be read as a jurisdiction either.
+
+**Related:** *Municipal boundaries from DOLA's dissolved layer…*
+(2026-09-23); *Email wording claims a report, not damage* (2026-09-01);
+parking-lot items 23 and 70–84.

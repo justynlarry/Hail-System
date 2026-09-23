@@ -343,3 +343,124 @@ Unselected. Requirements:
 blacklisting. Confirm during Phase 0 whether the main company domain took
 reputation damage — if so, remediation is its own line item, not something to
 absorb silently.
+
+---
+
+## 5. Permits and jurisdiction
+
+Researched 2026-09-23. **Parked until the system is running** (decision log,
+*Permits are parked; the claim rule; jurisdiction is a polygon, never a
+mailing city*). Only the municipal boundaries are loaded. No permit data has
+a schema or a loader. The permit snapshots in `data/raw/permits/` are raw
+captures, taken because Aurora's history may roll off.
+
+Items marked ⚠ were not verified against the live source.
+
+### DOLA municipal boundaries (loaded)
+
+**Service:**
+`https://services3.arcgis.com/DgjqnJA1rgO92Soi/arcgis/rest/services/DOLA_Municipalities_(Boundaries_Dissolved)/FeatureServer/0`
+It is listed on geodata.colorado.gov as `public_authoritative`, owned by OIT
+for DOLA. Fetched by `scripts/fetch_municipal.py` into `data/raw/dola/` and
+loaded by `scripts/load_municipal.sh` into `municipal_boundaries`
+(`sql/021`).
+
+**Layer choice:** the dissolved layer (274 rows, one per municipality), not
+`Municipal_Boundary` (1,911 rows, one per base polygon or annexation). The
+dissolved geometry does include annexed land: every city's area matches the
+union of its base and annexation polygons to within 1%. The "does not show
+annexations" note means only that the annexation attributes are dropped.
+Do not use the CU GeoLibrary copy, which is a 2017 snapshot.
+
+**Fields:** `city` (the 5-digit Census place code, not a name),
+`first_city` (the name), `OBJECTID`, `Shape__Area`, `Shape__Length`.
+
+### Traps
+
+- **Native SRID is 3857 (Web Mercator).** Always query with `outSR=4326`.
+- **Missing values are the literal string `'null'`** in the 1,911-row
+  layer, the same shape as IEM's `None`. The loader converts them to JSON
+  null.
+- **The edit date is meaningless.** DOLA republishes nightly at about
+  07:00 UTC, so `editingInfo.dataLastEditDate` dates the publish, not a
+  boundary change. The real annexation history is `cl_re_date` (the
+  recording date) in the **1,911-row** layer. The dissolved layer has no
+  equivalent.
+- **Hudson is under two codes:** `37820` (the town) and `03782` (one 2024
+  annexation, mistyped). This is a known source error, loaded as received.
+  It is to be fixed by a correction table (parking-lot item 75).
+- 65 of 274 geometries arrive invalid. Use `ST_MakeValid`, then
+  `ST_CollectionExtract(…, 3)`, then `ST_Multi`.
+- **Jurisdiction is point-in-polygon, never the mailing city.** USPS city
+  names are post-office areas, not municipalities.
+
+### Permit sources evaluated
+
+The three jurisdictions with the most stored `properties` as of 2026-09-23.
+That ranking reflects which 5 zips had been pulled, not the territory. By
+area, unincorporated El Paso, Weld and Adams lead. Snapshots dated
+2026-09-23 are in `data/raw/permits/<source>/`, each with its layer
+metadata beside it.
+
+| | Aurora | Unincorporated Adams | Unincorporated Douglas |
+|---|---|---|---|
+| Issuer | City of Aurora Building Division | Adams County Community & Economic Development (unincorporated only) | Douglas County Building Division (unincorporated only) |
+| Coverage, by point-in-polygon on roofing permits | 99.95% in Aurora | 100% in unincorporated Adams | 100% in unincorporated Douglas |
+| Endpoint | `https://ags.auroragov.org/aurora/rest/services/OpenData/MapServer/44` | `https://services3.arcgis.com/4PNQOtAivErR7nbT/arcgis/rest/services/Building_Permits_Eye_On_Adams/FeatureServer/0` | `https://services.arcgis.com/seTexOicoRXDvRsJ/arcgis/rest/services/All_Permits_View/FeatureServer/0` (a table) |
+| Records (2026-09-23) | 162,233 | 72,249 | 285,635 |
+| History start | 2021-09-24 ⚠ looks like a rolling 5 years | 2011-01-03 | 1990-01-01 |
+| Update cadence | ⚠ not stated; newest record the day before | ⚠ not stated; edited that day | Nightly (item description); full rebuild |
+| Roofing identified by | Its own subtype: `SubDesc` `Roofing-RT2` and `Roofing Commercial-NT2` (36,634 together) | `TypeOfWork = 'Re Roof'` through 2016; after that mostly keywords in `Description` with a blank type ⚠ | Its own type: `PERMIT_JOB_TYPE = 'Roofing'` (75,703) |
+| Coordinates | Point geometry, native 2232, served in 4326 | `X`/`Y` already in degrees ⚠ datum not stated; 856 records with no geometry | `LOCATION` text `(lat, lon)` ⚠ datum not stated; **51% of roofing permits have none** |
+| Terms of use | ⚠ Disclaimer plus indemnity, no licence grant | ⚠ None published | ⚠ None published |
+| Records per page | 2000 | 2000 | 1000 |
+
+- **Aurora** blocks urllib's default User-Agent (403). Send one.
+- **Adams:** the keyword filter used for the counts here (`REROOF`,
+  `RE-ROOF`, `RE ROOF`, `ROOFING`, `SHINGLE`) has not been checked for false
+  matches ⚠.
+- **Douglas:** `CREATED_DATE_TIME` is identical on every row, so each
+  nightly export is a full rebuild. Its older layer, `Building Permits
+  (2014 to 2016)` on `apps.douglas.co.us/geopendata`, returned 502 on every
+  attempt and was not examined ⚠.
+
+### Corroboration against hail
+
+Hail reports of at least 1.00″ inside each jurisdiction (`iem_data`),
+compared with roofing permits in the 90 days after each storm and in the
+same 90 days one year earlier:
+
+| Storm | Jurisdiction | 90 days after | Same window, year before |
+|---|---|---|---|
+| 2023-05-10 | Aurora | 4,294 | 803 |
+| 2023-05-10 | Unincorporated Adams | 382 | 86 |
+| 2023-06-22 | Unincorporated Douglas | 3,926 | 500 |
+| 2012-06-06 | Unincorporated Douglas | 5,543 | 624 |
+
+**The Aurora 2024 miss is baseline contamination.** After 2024-05-30,
+Aurora shows 4,784 permits against 5,181. The comparison window was the
+tail of the 2023 surge, not a quiet year. A year-over-year baseline breaks
+down whenever the prior year was itself a hail year.
+
+### Commercial aggregators (evaluated, not chosen)
+
+From research outside the 2026-09-23 session. Not re-verified ⚠.
+
+- **Shovels:** the free tier has 1 year of history, 10 results per query
+  and no downloads. Basic is $599/month for full history. Updates on the 1st
+  and 15th. Its jurisdiction CSV was a dead end. **Still a possible fallback
+  for jurisdictions with no open data.**
+- **PermitStack:** its pricing and coverage claims are internally
+  inconsistent.
+- **Apify community scrapers:** rejected as unreliable.
+
+### Denver (not examined)
+
+From research outside the 2026-09-23 session. Not re-verified ⚠.
+
+The ArcGIS RESCON (residential construction) layer covers 2015 on, native
+SRID 2877, with invalid addresses placed at (0, 0). **Open:** whether
+reroofs are in RESCON or under a separate ROOFSIDE type. Permit numbers like
+`2021-ROOFSIDE-…` suggest a separate type. The 2017 known answer is
+**18,475** roof permits, 54.6% above 2016, after the May 2017 hailstorm.
+Parking-lot item 81.
