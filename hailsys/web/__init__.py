@@ -1,6 +1,6 @@
 import os
 
-from flask import flash, Flask, redirect, request, url_for, g, render_template
+from flask import Flask, g, render_template
 from flask_wtf.csrf import CSRFError, CSRFProtect
 
 def create_app():

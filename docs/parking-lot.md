@@ -648,6 +648,14 @@ A match run that inserts zero rows (nothing was in range) leaves no trace —
 
 **When:** Phase 4, or alongside the admin work.
 
+**Resolved 2026-09-23.** See `docs/decision-log.md`, "Match runs are
+recorded, so an empty match is visible". `sql/022` adds `match_runs`, and a
+completed empty run on a pulled storm reads "Matched, none in range", with
+Match still offered. On a never-pulled storm it stays "Not pulled" with its
+Pull link. Verified through `/match` on 2026-08-22 HAIL. **Not yet seen:** the
+pulled-storm case itself, which needs a storm that was pulled but has no
+listings in range (item 89).
+
 ## 41. Index on `report_zip_distances (zcta5)` — for address lookup
 
 The table's only index today is the `(iem_id, zcta5)` primary key, which
@@ -678,6 +686,10 @@ something that matters.
 
 **When:** cleanup.
 
+**Partly resolved 2026-09-23.** `scripts/test_match.py`'s usage example now
+uses `--emp-id 2` and says why 1 is wrong. `--emp-id` was already a required
+flag with no default there. `scripts/test_rentcast_pull.py` was not checked.
+
 ## 44. A pull job produces two feed lines
 
 `hailsys/web/jobs.py`'s `_pull_and_match` runs `match_storm` right after
@@ -704,6 +716,13 @@ deliberate path for the case where a re-pull is actually wanted (stale
 listing data, a partial failure).
 
 **When:** Phase 4, alongside the admin work.
+
+**Resolved 2026-09-23.** See `docs/decision-log.md`, "Re-pull goes through the
+estimate page; stale storms are greyed, not blocked". Every state past "Not
+pulled" offers "Pull again", or "Pull" for a storm matched off another
+storm's pull, through `/pull/estimate`, which already shows cost and
+recent-pull warnings. Storms past the claim window show it greyed, and
+`/pull/estimate` is deliberately not gated on staleness.
 
 ## 47. Stale `'running'` pulls after a restart — needs a sweep
 
@@ -745,6 +764,15 @@ between warn-and-allow versus hard block. Related to, but more concrete
 than, item 14's "monthly API ceiling" line.
 
 **When:** Phase 4.
+
+**Resolved 2026-09-23.** See `docs/decision-log.md`, "RentCast quota: settings,
+warn and allow, usage from `api_call_log`". `sql/023` adds the billing day and
+quota to `settings`, and `hailsys/queries/quota.py` sums `api_call_log` over
+the period. Usage shows on the admin page, the pull estimate (with an
+overage warning) and the storm list for senders and admins. **Warn and allow,
+not a hard block.** Open follow-ups: RentCast's own rollover timezone
+(item 87), and calls from a key-rejected pull not reaching `api_call_log`
+(item 88).
 
 ## 51. Concurrent pulls by two users on one storm — duplicate spend
 
@@ -842,6 +870,18 @@ halves — the greyed Pull/Match text in the UI, and a 403 from `/pull` (and
 
 **When:** next session; closes Phase 4's outline.
 
+**Partly verified 2026-09-23.** See `docs/decision-log.md`, "Phase 4's done
+condition verified". With CSRF on and a valid token, a session for the real
+`testview` account got 403 on `/pull`, `/match`, `/pull/estimate` and
+`/admin/`, and 200 on `/` and `/export.csv`. The greyed UI was confirmed in
+rendered pages. **Still open:** the session was set up in the Flask test
+client, not by `testview` signing in with a password. One real sign-in closes
+this.
+
+**Resolved 2026-09-23.** Signed in as `testview` with its password: Pull shows
+greyed out. With the route-level 403s above, both halves are covered, and
+Phase 4 is closed.
+
 ## 59. The CSRF error handler returns 302, indistinguishable from success
 
 `handle_csrf_error` in `create_app()` flashes "That form expired…" and
@@ -853,6 +893,10 @@ rendered page, or at least a log line.
 
 **When:** Phase 4, small.
 
+**Resolved 2026-09-23.** See `docs/decision-log.md`, "CSRF failures return 400
+with a rendered page". The handler renders `csrf_error.html` with status 400.
+Verified: a tokenless POST gets 400 and the error page.
+
 ## 60. Self-action guard for admins
 
 An admin can deactivate, demote, or sign out their own account from the users
@@ -863,6 +907,12 @@ second admin present, an admin can still lock themselves out in one click.
 
 **When:** Phase 4, before the phase closes.
 
+**Resolved 2026-09-23.** See `docs/decision-log.md`, "An admin cannot
+deactivate, demote or sign out their own account". Refused server-side in
+`deactivate_user`, `change_role` and `boot_user` (joining `reset_password`),
+and the admin's own row shows "your account" instead of controls. Verified:
+all three refused on the acting admin's row, users unchanged.
+
 ## 61. Force a password change on next login after an admin reset
 
 An admin reset sets a password the admin now knows. Nothing makes the user
@@ -871,6 +921,10 @@ replace it. A `must_change_password` flag, set by the reset and cleared by
 close that.
 
 **When:** Phase 4, if wanted.
+
+**Declined for now, 2026-09-23.** See `docs/decision-log.md`, "No forced
+password change after an admin reset, for now". Reconsider before staff
+accounts exist (Phase 7).
 
 ## 62. `scripts/*.py` still default `--radius` to `tuning.py` constants
 
@@ -925,6 +979,10 @@ that on its own. Lives in `base.html`/`style.css`, shared by every page.
 
 **When:** Phase 4, cosmetic.
 
+**Resolved 2026-09-23** (`d8d91cc`). `.site-header` and `.site-header-left`
+wrap, with a 640px breakpoint that tightens padding and lets the nav wrap.
+Checked by rendered markup only, not in a browser at phone width.
+
 ## 68. Admin users table overflows narrow screens
 
 Eight columns plus the fixed 15rem Actions group. Same fix as the
@@ -932,6 +990,9 @@ matched-listings tables: wrap it in `.table-scroll` so it scrolls in its own
 box instead of pushing the page.
 
 **When:** Phase 4, cosmetic — same pass as the matched-listings overflow fix.
+
+**Resolved 2026-09-23** (`d8d91cc`). The Users table is wrapped in
+`.table-scroll`. Checked by rendered markup only, not in a browser.
 
 ## 69. `.action-disabled` has no spacing next to the badge
 
@@ -941,6 +1002,10 @@ button it replaces get `margin-left: 0.5rem`, `font-size: 0.8125rem` and
 `.action-disabled` the same three lines makes the two states line up.
 
 **When:** Phase 4, cosmetic.
+
+**Resolved 2026-09-23** (`d8d91cc`). `.action-disabled` has the same margin,
+size and `nowrap` as `.pull-link`/`.inline-action`. Checked by rendered
+markup only.
 
 ## 70. Permits as a source — corroboration first, roof age later
 
@@ -1087,6 +1152,73 @@ natural-key dedup and busy single days would otherwise skew. Probably a
 view of `/territory` or a map layer rather than its own page.
 
 **When:** after Phase 4, alongside the map (item 22).
+
+## 85. Pull estimate shows "last pulled" times in UTC
+
+`pull_estimate.html`'s "Pulled in the last 7 days" table formats
+`z.last_pulled.strftime('%Y-%m-%d %H:%M')` with no conversion. `CLAUDE.md`
+says to convert to `America/Denver` at display, and the storm list's
+"last pulled" date already does (`.astimezone(display_tz)`). Needs the same
+conversion, plus `display_tz` passed from `pull_estimate()`.
+
+**When:** small; next pass over the pull estimate.
+
+## 86. The storm list silently drops days past 50 rows
+
+`index()` passes `limit=50` to `storms.fetch_recent_days`, so a wide date range
+returns the 50 rows the query orders first, and nothing on the page says more
+exist. Found in the Phase 4 audit: a 2024–2026 range didn't reach 2024-05-30.
+Same silent-truncation shape as item 33. Either say "showing 50 of N" or
+page.
+
+**When:** before anyone relies on a long date range.
+
+## 87. Confirm RentCast's billing-period timezone
+
+`quota.fetch_usage` rolls the period over at midnight Denver time. Whether
+RentCast rolls over on UTC or Denver time is unconfirmed. Near a boundary,
+up to seven hours of calls could land in the wrong month's count.
+
+**When:** before the quota figure is compared against a real invoice.
+
+## 88. Calls from a key-rejected pull don't reach `api_call_log`
+
+On `RentCastAuthError`, `pull.py` adds the attempts to
+`api_pulls.actual_api_calls` but writes no `api_call_log` row, so the usage
+figure (which reads the log) leaves them out. Today both totals agree. It only
+matters if RentCast bills rejected-key requests, which is unconfirmed.
+
+**When:** if a real invoice disagrees with the usage figure.
+
+## 89. "Matched, none in range" on a pulled storm has never been seen
+
+The rule (`match_ran and pulled`) is verified only on its other half: a
+never-pulled storm with empty runs stays "Not pulled". Showing the badge
+itself needs a storm that was pulled but has no listings within the match
+radius.
+
+**When:** the first time a pull comes back with nothing in range, or with a
+deliberate test.
+
+## 90. An app-wide login check instead of per-route `@login_required`
+
+A `before_request` that redirects any request without `g.user` to `/login`,
+except `/login`, `/logout` and static files, would make `@login_required`
+redundant everywhere and close the forgotten-decorator gap, as the admin
+blueprint's hook already does for `/admin`. Considered and deferred
+2026-09-23 (decision log, "`role_required` alone where a route needs a
+role").
+
+**When:** the next time a route is added outside the admin blueprint, or
+Phase 6, before staff use the system.
+
+## 91. `_MATCH_SQL`'s all-types branch is dead
+
+`match_storm` now requires `report_text`, so the
+`%(report_text)s::text IS NULL OR …` branch in `_MATCH_SQL` can't run. It's
+harmless, but it suggests an all-types path that no longer exists.
+
+**When:** cleanup.
 
 ---
 

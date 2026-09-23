@@ -14,12 +14,13 @@ OptiPlex, deliberately built alike. See `docs/hail-consolidated.md` §9.
 
 ## Current phase
 
-**Phase 4 — Accounts.** Phases 0–3 are closed: 0 on 2026-09-03 when
+**Phase 5 — Email.** Phases 0–4 are closed: 0 on 2026-09-03 when
 a spatial query returned the zip codes within 5 miles of an arbitrary
 lat/lon, 1 on the IEM ingest and archive backfill going live, 2 on
 2026-09-17 with the storm-browser web app (Flask, Tailscale-reached) and its
-CSV export built and running, and 3 on 2026-09-21 with RentCast pulls,
-storm-to-listing matching and the match page working through the web UI.
+CSV export built and running, 3 on 2026-09-21 with RentCast pulls,
+storm-to-listing matching and the match page working through the web UI, and
+4 on 2026-09-23 when a viewer account could browse and export but not pull.
 
 **Caveat on "Phase 0 closed":** that call was made against Phase 0's own
 done-when bar — the spatial query — not against every item Phase 0's task
@@ -37,7 +38,7 @@ and `report_zip_distances`); `hailsys/matching/matcher.py` writing
 `/match`, `/storms/matches` and the activity feed. A pull runs in a background
 thread and matches automatically when it finishes. No sending path exists.
 
-What Phase 4 has built (not yet closed): roles enforced server-side —
+What Phase 4 delivered: roles enforced server-side —
 `role_required("sender", "admin")` on `/pull/estimate`, `/pull` and `/match`,
 `login_required` on every other signed-in route, and the `/admin` blueprint's
 own `before_request` admin check. The UI greys actions a role can't take
@@ -52,9 +53,12 @@ re-pull link, quota warn-and-allow on the pull estimate, and CSRF on every
 POST (a failure returns a 400 page). `sql/021` (`municipal_boundaries`) is
 from the parked permits research, not Phase 4. `scripts/create_user.py`
 still exists; whether it stays for bootstrapping is `docs/parking-lot.md`
-item 65. Done-when (a viewer can browse and export but not pull) is verified
-with the real viewer account's session; a password login by that account is
-still item 58.
+item 65.
+
+What exists for Phase 5 so far: `send_log`, `email_templates` and `dnc_list`
+from `sql/007`, all empty, and `workstate.py` reading `send_log` for the
+"Sent" state. No sending code, no provider chosen, and the legacy DNC lists
+not yet imported — that import must land before any send.
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
 with CSV export → 3 RentCast listings → 4 accounts → 5 email → 6 pilot →

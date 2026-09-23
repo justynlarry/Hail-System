@@ -402,6 +402,41 @@ report, 1.97 ms warm for a 9-report storm day (decision-log, 2026-09-15).
 **Not yet consumed anywhere.** No query joins against it yet — the web app's
 territory browse groups by `zip` or `city` only, not county.
 
+### `municipal_boundaries`
+
+Added `sql/021_municipal_boundaries.sql`, 2026-09-23. One row per incorporated
+Colorado municipality, from DOLA's dissolved municipal layer
+(decision-log, "Municipal boundaries from DOLA's dissolved layer…"). **Loaded on
+`hail-dev`: 274 rows.** Groundwork for the parked permits and jurisdiction
+work, allowed as a deliberate exception to the phase rule. It is not part of
+Phase 4.
+
+| Field | Purpose |
+|---|---|
+| `place_fips` | `CHAR(5)` PK, `CHECK` five digits. DOLA's `city` field, which is the Census place code (Denver `20000`), **not a name** |
+| `name` | DOLA's `first_city` |
+| `geom` | `GEOMETRY(MultiPolygon, 4326)`, GiST index `municipal_boundaries_geom_gix`. Fetched with `outSR=4326` (DOLA is natively 3857), then `ST_MakeValid` → `ST_CollectionExtract(…, 3)` → `ST_Multi`: 65 of 274 arrived invalid |
+| `source_attrs` | `JSONB`, every source attribute as received, except DOLA's literal string `'null'`, which is stored as JSON null |
+| `source_url` | The layer's REST URL |
+| `source_edited_at` | The layer's `dataLastEditDate`. DOLA republishes nightly, so this dates the publish, **not** a boundary change |
+| `loaded_at` | `TIMESTAMPTZ`, default `now()` |
+
+**Replaced wholesale on reload**, by `DELETE` + `INSERT` in one transaction in
+`scripts/load_municipal.sh`, unlike the ZCTA and county loads' `ON CONFLICT DO
+NOTHING`: an annexation must replace the old boundary. Fetched by
+`scripts/fetch_municipal.py` into `data/raw/dola/`.
+
+**A point in no row is unincorporated**; its county comes from
+`county_boundaries`. Jurisdiction is always this point-in-polygon, never a
+mailing-address city (decision-log 2026-09-23).
+
+**Known source error, loaded as received:** Hudson appears twice, as `37820`
+(the town) and `03782` (one 2024 annexation, mistyped code). The fix belongs in
+a correction table (parking-lot item 75), not in this table or its loader.
+
+**Grants:** `hail_app` gets `SELECT`. **Not yet consumed** by any query in the
+app.
+
 
 ### `coverage_zips`
 
@@ -851,6 +886,8 @@ invalidation to get wrong across Gunicorn workers.
 | `global_sessions_invalidated_at` | `TIMESTAMPTZ`, nullable. Setting it to `now()` signs **every** user out, the admin who set it included — the system-wide counterpart of `users.sessions_invalidated_at` |
 | `default_zip_radius_miles` | `NUMERIC(4,1) NOT NULL DEFAULT 5.0`, `CHECK` `> 0 AND <= 10.0`. What we *look at*, and so what a pull costs. Capped at 10 because `report_zip_distances` is precomputed to `hail_pair_ceiling_m()`, 10 miles — raising past it is a migration and a recompute, not a settings change |
 | `default_match_radius_miles` | `NUMERIC(4,1) NOT NULL DEFAULT 5.0`, same range CHECK. What we *claim* in an email. Changing it hides existing matches until storms are re-matched |
+| `rentcast_billing_day` | `SMALLINT NOT NULL DEFAULT 9`, `CHECK` `BETWEEN 1 AND 28` — added `sql/023_rentcast_quota.sql`, 2026-09-23. Day of month the RentCast plan resets. Capped at 28 because a 29th–31st has no February equivalent and no fallback rule has been chosen. The period rolls over at **Denver** midnight in `hailsys/queries/quota.py`; RentCast's own rollover timezone is unconfirmed |
+| `rentcast_monthly_quota` | `INTEGER NOT NULL DEFAULT 1000`, `CHECK` `> 0` — added `023`. Requests included per billing period. **Warn and allow**: the pull estimate warns when a pull would exceed it, and nothing blocks (decision-log 2026-09-23, "RentCast quota…") |
 
 Plus a table-level `CHECK` `match_within_zip_radius`:
 `default_match_radius_miles <= default_zip_radius_miles`. A match radius wider
@@ -860,7 +897,15 @@ The two radii replace `tuning.py`'s `DEFAULT_ZIP_RADIUS_MILES` and
 `DEFAULT_MATCH_RADIUS_MILES` as the source of truth; `hailsys/settings.py`
 reads them and casts `NUMERIC`'s `Decimal` to `float` (decision-log
 2026-09-22, "Radii are read from `settings` per request"). The web app's
-admin route maps the three CHECK names to readable messages.
+admin route maps the CHECK names to readable messages: the three radius
+checks, plus `settings_rentcast_billing_day_check` and
+`settings_rentcast_monthly_quota_check` since `023`. A quota too large for
+`INTEGER` fails as a `DataError`, which the route catches separately.
+
+**Usage is not stored here.** `quota.fetch_usage` sums
+`api_call_log.calls_made` over the current billing period on each request that
+shows it: the admin page, the pull estimate, and the storm list for senders and
+admins.
 
 **Changes are logged by trigger**, not by application code: see
 `settings_history`.
@@ -872,8 +917,9 @@ admin route maps the three CHECK names to readable messages.
 
 ### `settings_history`
 
-Added `sql/020_settings_radii.sql`, 2026-09-22. One row per change to the
-radius settings, snapshotting the values that resulted.
+Added `sql/020_settings_radii.sql`, 2026-09-22; extended by
+`sql/023_rentcast_quota.sql`, 2026-09-23. One row per change to the radius or
+quota settings, snapshotting all four values that resulted.
 
 | Field | Purpose |
 |---|---|
@@ -881,18 +927,25 @@ radius settings, snapshotting the values that resulted.
 | `changed_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` |
 | `changed_by` | FK → `users`, `NOT NULL` |
 | `default_zip_radius_miles`, `default_match_radius_miles` | `NUMERIC(4,1) NOT NULL` — the values after the change |
+| `rentcast_billing_day`, `rentcast_monthly_quota` | Nullable — added `023`. **NULL on rows written before `023`**, not backfilled: a default would assert a value nobody recorded. The admin page shows them as "—" |
 
 **Written only by `trg_log_settings_change`**, calling `log_settings_change()`:
 
 ```sql
-AFTER UPDATE OF default_zip_radius_miles, default_match_radius_miles ON settings
+AFTER UPDATE OF default_zip_radius_miles, default_match_radius_miles,
+                rentcast_billing_day, rentcast_monthly_quota
+ON settings
 FOR EACH ROW
-WHEN (OLD.default_zip_radius_miles IS DISTINCT FROM NEW.default_zip_radius_miles
-   OR OLD.default_match_radius_miles IS DISTINCT FROM NEW.default_match_radius_miles)
+WHEN (OLD.default_zip_radius_miles    IS DISTINCT FROM NEW.default_zip_radius_miles
+   OR OLD.default_match_radius_miles  IS DISTINCT FROM NEW.default_match_radius_miles
+   OR OLD.rentcast_billing_day        IS DISTINCT FROM NEW.rentcast_billing_day
+   OR OLD.rentcast_monthly_quota      IS DISTINCT FROM NEW.rentcast_monthly_quota)
 ```
 
-Scoped to the two radius columns because the boot-everyone route updates
-`global_sessions_invalidated_at` on the same row; unscoped, that update fired
+That is the definition as of `023`, which replaced `020`'s two-column version
+with `CREATE OR REPLACE FUNCTION` plus a drop and recreate of the trigger.
+Scoped to the settings columns, and still **not** `global_sessions_invalidated_at`,
+because the boot-everyone route updates that column on the same row; unscoped, that update fired
 the trigger and demanded attribution it has no reason to set. The `WHEN`
 clause skips a save that changes nothing.
 
@@ -937,9 +990,18 @@ estimate is a number shown to someone before they spend money; it should get
 better over time rather than staying a guess.
 
 **A pull is one human decision covering many zips**, so cost attributes to the
-decision rather than smearing across zip rows. When a monthly ceiling is
-eventually enforced, it is enforced here, against the estimate, *before* the
-calls go out.
+decision rather than smearing across zip rows.
+
+**Superseded 2026-09-23, on the monthly ceiling.** This section used to say
+that a ceiling, once enforced, would be enforced here, against the estimate,
+before the calls go out. What was built is different on both counts. The
+ceiling is **warn and allow**, not enforced: the pull estimate warns when used
+plus this estimate would exceed `settings.rentcast_monthly_quota`, and the pull
+still runs. And usage is summed from **`api_call_log`**, not from
+`actual_api_calls` here. `actual_api_calls` is set only when a pull finishes,
+so a running pull and one whose thread died would both count as zero, while
+the log is written per zip as the pull goes (decision-log 2026-09-23,
+"RentCast quota…").
 
 ---
 
@@ -962,6 +1024,49 @@ ago, re-pulling probably returns the same listings" warning.
 
 Per-zip granularity also shows which zips are expensive. A dense metro zip may
 take six pages; a rural one takes one.
+
+**Also the source of RentCast usage.** `hailsys/queries/quota.py` sums
+`calls_made` over the billing period (see `settings`). One known gap: a pull
+that aborts on a bad API key adds those attempts to
+`api_pulls.actual_api_calls` but writes no row here, so they aren't in the
+usage figure.
+
+---
+
+### `match_runs`
+
+Added `sql/022_matched_runs.sql`, 2026-09-23. One row per match attempt,
+whether or not it found anything (parking-lot item 40). Without it an empty
+match left no trace, and "ran, nothing in range" read the same as "never ran"
+(decision-log 2026-09-23, "Match runs are recorded…").
+
+| Field | Purpose |
+|---|---|
+| `match_run_id` | `BIGINT GENERATED ALWAYS AS IDENTITY` PK |
+| `emp_id` | FK → `users`, `NOT NULL`. Who clicked Match, or who started the pull that matched automatically |
+| `storm_date`, `report_text` | `NOT NULL`. The one storm day and type the run was for, joined by `workstate.py` the same way `api_pulls.storm_date`/`report_text` are |
+| `radius_miles` | `NUMERIC(4,1) NOT NULL`. The match radius in effect, which an admin can change |
+| `started_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` |
+| `finished_at` | Null while running |
+| `matches_created` | **New rows only.** `_MATCH_SQL` is `ON CONFLICT DO NOTHING`, so re-running an already-matched storm records 0. Whether a storm has matches is a question for `storm_listing_matches`, never this column |
+| `run_status` | `running` / `complete` / `failed` (`CHECK`) |
+| `error_detail` | The exception text on `failed`, truncated to 1,000 characters |
+
+`CHECK` `finished_has_timestamp`: `run_status = 'running' OR finished_at IS NOT
+NULL`, the same rule `api_pulls` and `ingest_runs` carry. Index
+`match_runs_storm_idx` on `(storm_date, report_text)`. That name breaks the
+`{table}_{column}_idx` convention (decision-log 2026-09-03); it is left as
+applied rather than renamed.
+
+**The row is written before the work**, as `running`, and committed on its
+own, so a process that dies mid-match leaves a row to reconcile against. On
+failure, `match_storm` rolls back, marks the row `failed` and commits that
+before re-raising. **Only `complete` rows count** toward work state: a
+completed run on a **pulled** storm reads "Matched, none in range"; on a
+never-pulled storm it changes nothing, and the storm stays "Not pulled".
+
+**Grants:** `hail_app` gets `SELECT, INSERT, UPDATE`. No sequence grant is
+needed for the identity column (decision-log 2026-09-22, correction).
 
 ---
 

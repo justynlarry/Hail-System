@@ -125,11 +125,13 @@ new ones covered.
 
 **Done when:** a viewer account can browse and export but cannot trigger a pull.
 
-**Current phase** (Phase 3 closed 2026-09-21).
+**Closed 2026-09-23.** The done-when is demonstrated: signed in as the
+`testview` viewer account, Pull shows greyed out; and with a valid CSRF token
+a viewer session gets 403 on `/pull`, `/pull/estimate`, `/match` and
+`/admin/`, and 200 on `/` and `/export.csv` (decision log, "Phase 4's done
+condition verified"; parking-lot item 58).
 
-**All four items above complete 2026-09-22.** The phase is not closed: the
-done-when has not yet been demonstrated with a real viewer account
-(parking-lot item 58).
+**All four items above complete 2026-09-22.**
 
 Landed 2026-09-22: `role_required` on `/pull/estimate`, `/pull` and `/match`,
 with `can_pull` gating the Pull and Match actions on `storms.html`; the
@@ -139,14 +141,27 @@ logout by timestamp (`sql/018`); last-admin protection (`sql/019`); radii
 moved into the `settings` table (`sql/020`); self-service change-password;
 and CSRF protection on every POST. Decision log, 2026-09-22 entries.
 
-Still open in Phase 4: parking-lot items 40 (matched-found-nothing), 46
-(re-pull affordance), and 50 (RentCast quota tracker), plus the Phase 4
-items filed 2026-09-22 (58–62, 67–69).
+Landed 2026-09-23: `match_runs` and "Matched, none in range" (`sql/022`,
+item 40); the re-pull link (46); RentCast billing day, quota and usage with
+warn-and-allow on the pull estimate (`sql/023`, 50); CSRF failures as a 400
+page (59); self-action refusal on the admin page (60); and the header, admin
+table and disabled-action CSS (67–69). Item 61 was declined. Decision log,
+2026-09-23 entries.
+
+Carried forward, not blocking: parking-lot items 62 (scripts still default
+radii from `tuning.py`), 65 (`create_user.py`), 66 (username convention),
+and 85–91 from the closing audit.
 
 ---
 
 ## Phase 5 — Email
 **~25–40 hrs · 3–4 weeks · the long pole**
+
+**Current phase** (Phase 4 closed 2026-09-23). **Begun 2026-09-23.**
+
+Starting point: `send_log`, `email_templates` and `dnc_list` exist from
+`sql/007` and are all empty. The legacy DNC lists are not yet imported, and
+that import comes before any send. No sending code and no provider yet.
 
 - Sending identity: subdomain, SPF/DKIM/DMARC
 - Provider selected and verified as permitting this kind of outreach
