@@ -124,6 +124,7 @@ WITH days AS (
     GROUP BY storm_date
     ORDER BY storm_date DESC
     LIMIT %(limit)s
+      OFFSET %(offset)s
 )
 SELECT
     ({LOCAL_TIME_EXPR})::date AS storm_date,
@@ -157,6 +158,17 @@ GROUP BY c.area_name, i.report_text, t.mag_unit
 ORDER BY report_count DESC, c.area_name
 """
 
+RECENT_DAYS_COUNT_SQL = f"""
+SELECT count(*) AS total_days
+FROM (
+    SELECT ({LOCAL_TIME_EXPR})::date AS storm_date
+    {_FROM_WHERE}
+    {_ACTIONABLE}
+    GROUP BY storm_date
+) d
+"""
+
+
 CITIES_COLUMNS = [
     "area_name", "report_text", "mag_unit", "zip_count", "day_count",
     "report_count", "max_magnitude", "first_day", "last_day"
@@ -181,7 +193,9 @@ RECENT_DAYS_COLUMNS = [
 
 
 def fetch_recent_days(conn, *, radius_m, window_start, window_end,
-                      report_text, actionable_only, limit):
+                      report_text, actionable_only, limit, offset=0):
+    # offset defaults to 0 so activity.build_feed, which wants every day
+    # in its window rather than a page, doesn't have to pass one.
     with conn.cursor() as cur:
         cur.execute(RECENT_DAYS_SQL, {
             "radius_m": radius_m,
@@ -190,6 +204,7 @@ def fetch_recent_days(conn, *, radius_m, window_start, window_end,
             "report_text": report_text,
             "actionable_only": actionable_only,
             "limit": limit,
+            "offset": offset,
         })
         return cur.fetchall()
 
@@ -312,3 +327,16 @@ def fetch_report_points(conn, *, radius_m, window_start, window_end,
             "limit": limit,
         })
         return cur.fetchall()
+
+
+def fetch_day_count(conn, *, radius_m, window_start, window_end, report_text,
+                    actionable_only):
+    with conn.cursor() as cur:
+        cur.execute(RECENT_DAYS_COUNT_SQL, {
+            "radius_m": radius_m,
+            "window_start": window_start,
+            "window_end": window_end,
+            "report_text": report_text,
+            "actionable_only": actionable_only,
+        })
+        return cur.fetchone()["total_days"]

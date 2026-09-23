@@ -28,6 +28,7 @@ DEFAULT_DAYS = 30
 GROUP_BYS = ("zip", "city")
 POINTS_SQL_LIMIT = 2000
 FEED_PANEL_LIMIT = 5
+PAGE_SIZE = 50
 
 def _previous_login():
     """Login before currnet one, from the session, or None on user's first login
@@ -91,7 +92,25 @@ def index():
     report_text = request.args.get("type") or None
     actionable_only = _actionable_from_args()
 
+    try:
+        page = max(int(request.args.get("page", 1)), 1)
+    except ValueError:
+        page = 1
+
     with get_connection() as conn:
+        # Count first so an out-of-range ?page= is clamped before the
+        # offset is computed, not after an empty page has been fetched.
+        total_days = storms.fetch_day_count(
+            conn,
+            radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
+            window_start=window_start,
+            window_end=window_end,
+            report_text=report_text,
+            actionable_only=actionable_only,
+        )
+        total_pages = max((total_days + PAGE_SIZE - 1) // PAGE_SIZE, 1)
+        page = min(page, total_pages)
+
         rows = storms.fetch_recent_days(
             conn,
             radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
@@ -99,7 +118,8 @@ def index():
             window_end=window_end,
             report_text=report_text,
             actionable_only=actionable_only,
-            limit=50,
+            limit=PAGE_SIZE,
+            offset=(page - 1) * PAGE_SIZE,
         )
         types = storms.fetch_report_types(conn)
         work_state = workstate.fetch_work_state(
@@ -122,7 +142,7 @@ def index():
             quota=g.settings["rentcast_monthly_quota"],
             day_bounds=denver_day_bounds,
         ) if g.user["role"] in ("sender", "admin") else None
-        
+
     for row in rows:
         row["work_state"] = workstate.state_for(
             work_state, row["storm_date"], row["report_text"], today
@@ -141,7 +161,10 @@ def index():
         feed_limit=FEED_PANEL_LIMIT,
         display_tz=DISPLAY_TZ,
         usage=usage,
-
+        page=page,
+        total_pages=total_pages,
+        total_days=total_days,
+        filter_args={k: v for k, v in request.args.items() if k != "page"},
     )
 
 @bp.route("/storms/zips")
