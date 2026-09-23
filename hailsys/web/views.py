@@ -460,6 +460,7 @@ def match_start():
     
     window_start, window_end = denver_day_bounds(day)
 
+    already_matched = False
     with get_connection() as conn:
         new_matches = match_storm(
             conn,
@@ -469,12 +470,29 @@ def match_start():
             window_end=window_end,
             report_text=report_text,
         )
+        if new_matches == 0:
+            cur = conn.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                      FROM storm_listing_matches m
+                      JOIN iem_data i on i.iem_id = m.iem_id
+                     WHERE i.utc_datetime >= %s
+                       AND i.utc_datetime < %s
+                       AND i.report_text = %s
+                ) AS has_matches
+                """,
+                (window_start, window_end, report_text),
+            )
+            already_matched = cur.fetchone()["has_matches"]
+
     if new_matches:
         flash(f"Matched {day} {report_text}: "
               f"{new_matches} new match{'' if new_matches == 1 else 'es'}")
+    elif already_matched:
+        flash(f"No new matches for {day} {report_text}: already matched.")
     else:
-        flash(f"No new matches for {day} {report_text}. "
-              f"Either nothing was within range, or it was already matched.")
+        flash(f"No listings within range for {day} {report_text}.")
 
     return redirect(url_for("main.index"))
 

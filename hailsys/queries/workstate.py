@@ -86,7 +86,7 @@ def _label(row):
         return SENT
     if row["matched"]:
         return MATCHED
-    if row["match_ran"]:
+    if row["match_ran"] and row["pulled"]:
         return MATCHED_NONE
     if row["pulled"]:
         return PULLED
