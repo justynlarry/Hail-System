@@ -303,6 +303,13 @@ deploy, the same argument that already justified putting `roof_relevant` in
 **When:** Phase 2 — items 13 and 15 (frequency-cap floor) are both blocked on
 this being decided first. *(`database-schema.md`, open question 3)*
 
+**Resolved 2026-09-22.** Yes. `sql/018` created the single-row `settings`
+table, and `sql/020` and `sql/023` put the radii, the RentCast billing day and
+the quota in it, each change logged to `settings_history` by trigger. See
+`docs/decision-log.md`, "Radii are read from `settings` per request" and
+"RentCast quota: settings, warn and allow, usage from `api_call_log`". The
+frequency-cap window (item 15) will need a home there too.
+
 ## 15. Does the frequency cap have a hard floor?
 
 Decided in principle: a short window nobody can click past, plus a soft
@@ -463,6 +470,11 @@ was collected. See item 7 (PL-07) — mPING taps and phone calls both arrive as
 `PUBLIC`.
 
 **When:** close of Phase 2.
+
+**Resolved 2026-09-16.** See `docs/decision-log.md`, "Map: Leaflet, no tile
+layer", and "Vendor Leaflet into `static/`" (2026-09-17). Built on
+`/territory`, with coverage polygons as a static fixture, report points
+coloured by normalized source, and 5-mile `L.circle` rings.
 
 ## 23. Address lookup — "did this address get hit?"
 
@@ -1219,6 +1231,61 @@ Phase 6, before staff use the system.
 harmless, but it suggests an all-types path that no longer exists.
 
 **When:** cleanup.
+
+## 92. CSV export missing on the matched-listings and activity pages
+
+Phase 2's outline says "CSV export on every list." The storm list and
+territory have one (`/export.csv`); `/storms/matches` and `/activity` don't.
+The matched listings are the list Phase 5 acts on, and the likeliest one
+someone will want in a spreadsheet.
+
+**When:** Phase 5, before the first real batch is worked from the match page.
+
+## 93. The activity feed shows other users' names to viewers
+
+`hailsys/queries/activity.py` joins `users` for first and last name, so
+`/activity` and the storm list's feed show every signed-in user, viewers
+included, who ran each pull and match run. Intended for a five-person office,
+where "who pulled this" is useful. But it is another user's data behind
+`login_required` alone, and nothing records it as a choice. Worth a
+decision-log line: keep as is, or show names to senders and admins only.
+
+**When:** next decision-log pass; before staff accounts exist (Phase 7) at
+the latest.
+
+## 94. The TIGER geocoder extension is installed, and `tiger` is on the search path
+
+`postgis_tiger_geocoder` and `postgis_topology` came with the
+`postgis/postgis:16-3.4` image; nothing decided to add them. The `tiger`
+schema is on the default `search_path` (`"$user", public, topology, tiger`),
+and it holds empty tables named `county`, `place`, `zcta5`, `edges` and
+others, all SRID 4269. A typo'd or unqualified table name could silently
+query an empty NAD83 table instead of failing, the same silent-SRID shape
+CLAUDE.md warns about. Options: drop the two unused extensions, or take
+`tiger` off the search path for `hail_app` and `hail_ingest`.
+
+**When:** before production deployment, alongside item 3 (the base image).
+
+## 95. No test for the `R` = RAIN / HEAVY RAIN composite key
+
+CLAUDE.md lists "IEM `TYPECODE` is not unique" as a known trap, and the parser
+does key on `(report_type, report_text)` tuples. But no test in `tests/`
+exercises two rows sharing a `TYPECODE` with different `TYPETEXT`, so a
+regression back to keying on `TYPECODE` alone would pass the suite. Every
+other trap in that list has a test.
+
+**When:** next time the parser is touched.
+
+## 96. Has RBI answered the DNS ask?
+
+`phases.md` runs "the domain and email-sending setup" alongside every phase
+from day one, because DNS changes at a small company can sit in an inbox for
+weeks, and asks for "DNS access and existing subscription status" in
+Phase 0. Nothing in the repo records the answer. Phase 5's first send needs a
+sending subdomain with SPF, DKIM and DMARC.
+
+**When:** now: Phase 5 is current, and this is the item most likely to be
+waiting on someone else.
 
 ---
 
