@@ -26,6 +26,9 @@ CSV="${CSV:-planning/report_types.csv}"
 # distinct report_source_norm present in iem_data as of 2026-09-10 -- built
 # from what the ingest can actually produce, not from a raw archive scan, so
 # every value has a lookup row and none is seeded that nothing joins to.
+# Plus 2 added 2026-09-23 (49 total): GJT began sending two long-standing
+# sources in mixed case cut at 17 characters, DEPARTMENT OF HIG and
+# PARK/FOREST SERVI, which the nightly ingest brought in after the seed.
 SOURCES_CSV="${SOURCES_CSV:-planning/report_sources.csv}"
 # TIGER unzips into a directory named after the archive; the .shp is one level
 # down, not beside it.  Same for the county shapefile below.
@@ -289,7 +292,7 @@ psql -v ON_ERROR_STOP=1 -d "$DB" << 'SQL'
 \echo
 SELECT count(*) AS report_types FROM report_types;
 
--- Expect 47 | 18 | 19 | 8 | 2 | 5
+-- Expect 49 | 18 | 21 | 8 | 2 | 5
 SELECT count(*)                                          AS report_sources,
        count(*) FILTER (WHERE confidence_tier = 'high')     AS high,
        count(*) FILTER (WHERE confidence_tier = 'moderate') AS moderate,

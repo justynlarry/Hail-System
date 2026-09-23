@@ -46,3 +46,5 @@ INSURANCE CO,Insurance Company,low,false,"Has a direct interest in a hail report
 RAWS,RAWS,high,true,"Automated remote weather station, wildfire oriented."
 DEPT OF,Department of (truncated),unrated,,"Truncated upstream, 2019-03-09. Cannot be resolved to an organization."
 EMERGENCY MANAGER,Emergency Manager,moderate,false,"Variant of EMERGENCY MNGR."
+DEPARTMENT OF HIG,Department of Highways,moderate,false,"Variant of DEPT OF HIGHWAYS: mixed case, cut at 17 characters. GJT, first seen 2026-08-31."
+PARK/FOREST SERVI,Park / Forest Service,moderate,false,"Variant of PARK/FOREST SRVC: mixed case, cut at 17 characters. GJT, first seen 2026-09-16."

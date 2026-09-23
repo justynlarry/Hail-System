@@ -3889,3 +3889,46 @@ other than `/login` and `/logout` redirects a signed-out visitor to
 a same-transaction swap (rolled back); a session issued before
 `sessions_invalidated_at` is cleared on its next request; and all 13 POST
 forms across the templates carry a CSRF token.
+
+---
+
+## 2026-09-23 — Three Phase 2 outline items, settled in scoping and recorded late
+
+Phase 2's outline listed "group results by city, county, or zip," "filter by
+magnitude," and "confidence label with its inputs shown." All three were
+settled while the storm browser was being scoped, 2026-09-14 to 09-16, as
+consequences of other answers rather than as stated choices, so none was
+written down at the time. Recorded now so the gaps between outline and build
+read as decisions.
+
+**County grouping: deferred, not built.** The browse was scoped to four
+questions: which zips got hit, which cities, did this address get hit, and
+which areas got hit regardless of size. County isn't among them, so
+`GROUP_BYS` is `("zip", "city")`. Nothing is lost by waiting.
+`county_boundaries` is loaded, and the county-by-polygon lookup is verified
+cheap (2026-09-15), so adding a county grouping later is a new projection,
+not new data. Trigger: someone needing an answer by county.
+
+**Magnitude filter: satisfied in a different shape.** "Which areas got hit
+regardless of size" is the storm list's "Actionable only" checkbox, turned
+off. Turned on, it applies each type's own floor from
+`report_types.min_magnitude` instead of one threshold the user types in.
+That is the better rule, because a single number means different things
+across types: 1.00″ is a hail size, 58 mph is a wind speed, and a threshold
+entered against one is meaningless for the other. The floors themselves are
+the 2026-09-03 decision.
+
+**Confidence label: dissolved into columns, not rejected.** The 2026-09-01
+format, "Moderate — 3 reports, up to 1.25″, 2 spotters," was never built as
+one string. Two of its questions were settled in scoping: sources are shown
+on the day list, and single-report days are shown like any other. The third,
+whether the tier appears at all, was settled as no by the radar study
+(*`confidence_tier` stays out of the UI*, 2026-09-16). What remained of the
+label became separate table columns: report count, maximum magnitude and
+source names. Separate columns let each figure be sorted and read on its own,
+and they carry no tier word implying a distinction the data doesn't support.
+
+**Related:** *County comes from TIGER county polygons* (2026-09-14);
+*Territory browse is its own page, grouped by city-and-type* (2026-09-16);
+*Initial `roof_relevant` set and magnitude floors* (2026-09-03);
+*Confidence is a tiered label computed at query time* (2026-09-01).
