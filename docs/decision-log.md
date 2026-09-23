@@ -3468,3 +3468,139 @@ is reachable through INSERT") was right.
 `GRANT USAGE ON SEQUENCE settings_history_history_id_seq TO hail_app`, written
 under the wrong belief. It is redundant, not harmful, and is left in place
 per the additive-migration rule.
+
+---
+
+## 2026-09-23 — Municipal boundaries from DOLA's dissolved layer; permit sources scoped for the top three jurisdictions
+
+**A deliberate exception to "do not build ahead of the current phase."**
+Building permits are not in the phase list. `municipal_boundaries`
+(`sql/021`, `scripts/load_municipal.sh`) was authorised during Phase 4 as the
+groundwork for scoping permits as a source. The permit half stays research
+only: no permits schema and no adapter. The exception covers this one table
+and sets no precedent for the rest.
+
+### Boundary source: DOLA, dissolved layer
+
+`DOLA_Municipalities_(Boundaries_Dissolved)/FeatureServer/0` on
+`services3.arcgis.com/DgjqnJA1rgO92Soi`, listed on geodata.colorado.gov as
+`public_authoritative` and owned by OIT for DOLA. There are 274 features,
+native SRID 3857, fetched with `outSR=4326`.
+
+**Why DOLA and not the CU GeoLibrary copy:** the GeoLibrary copy is a 2017
+snapshot, and a municipal boundary moves every time a town annexes land.
+DOLA is the state agency that records annexations, and it republishes nightly.
+
+**Why the dissolved layer and not the 1,911-row `Municipal_Boundary` layer:**
+the dissolved layer has one row per municipality, which is what
+point-in-polygon needs. Its description says it "does not show annexations,"
+which could mean the geometry is missing annexed land. It isn't. Every
+city's area in the dissolved layer was compared against `ST_Union` of the
+base and `type='A'` polygons in the annexation layer, and none differs by
+more than 1%. Denver differs by 0.0006% and Aurora by 0.0010%. The largest
+gap, Commerce City at +0.46%, is exactly its one `type='S'` polygon
+(0.440 km²). The dissolved layer includes it, and against a union of all
+rows the gap is 0.002 km². The phrase means the annexation *attributes*
+(ordinance number, recording date) are dropped. That history stays in the
+1,911-row layer if it is ever needed.
+
+**Traps recorded:**
+- `city` is the 5-digit Census place code (Denver `20000`), not a name. The
+  name is `first_city`. The column is named `place_fips` so it cannot be
+  mistaken for a name.
+- The annexation layer writes missing values as the **literal string
+  `'null'`**, the same shape as IEM's `None`. The loader converts these to
+  JSON null.
+- `dataLastEditDate` changes every night at about 07:00 UTC. It dates the
+  publish, not a boundary change.
+- **Hudson appears twice.** `37820` is the town (17.6 km²). `03782` is one
+  0.036 km² 2024 annexation ("Long Annexation No. 8") filed under a mistyped
+  code, the same digits shifted one place. This is the whole reason for 274
+  rows against 273 base polygons. **This is a known source error,
+  `03782` → `37820`, and it is not fixed in the raw data or at load.** The
+  raw file and `municipal_boundaries` both hold what DOLA published. The fix
+  belongs in a correction table applied on read, to be built later, so the
+  correction is visible and attributable rather than buried in a loader,
+  and it survives the next reload. Until then, anything that counts or ranks
+  municipalities must treat `03782` as Hudson. Worth reporting to DOLA.
+- 65 of 274 geometries were invalid as received (nested shells, ring
+  self-intersections). `ST_MakeValid` can return a GeometryCollection, so the
+  loader applies `ST_CollectionExtract(..., 3)` before `ST_Multi`.
+
+**Fetch is `scripts/fetch_municipal.py`** (stdlib, runs on the host). It
+takes the total from `returnCountOnly`, pages by `resultOffset` ordered on
+the OID, fails if the pages don't add up to the total or an OID repeats, and
+writes `<name>_<date>.geojson` with `<name>_<date>.layer.json` beside it.
+The loader reads the source edit date from the `.layer.json`. It sends its
+own User-Agent because `ags.auroragov.org` returns 403 to urllib's default.
+
+**Reload replaces the whole set: DELETE + INSERT in one transaction.** This
+departs from the ZCTA and county loads, which use `ON CONFLICT DO NOTHING`.
+On this table, `DO NOTHING` would keep a pre-annexation boundary forever. The
+table is derived entirely from DOLA, so replacing it is not deletion under
+"nothing is deleted". Verified: a second run deleted 274 rows and inserted
+274, with no duplicates.
+
+**Verified:** 274 rows, all SRID 4326, zero invalid geometries.
+- Known-answer points: Civic Center Park is in Denver, and the Aurora
+  Municipal Center is in Aurora. Highlands Ranch Town Center is in no
+  municipality, and `county_boundaries` puts it in Douglas.
+- Jurisdiction inventory over the 183 coverage zips: area fractions per zip
+  sum to 1.00000–1.00004.
+
+### Permit sources: the top three jurisdictions by stored property count
+
+The ranking counts the 508 rows in `properties`, which come from 5 pulled
+zips (80014, 80103, 80105, 80135, 80136). **It reflects pull history, not
+the territory.** By area, unincorporated El Paso, Weld and Adams lead.
+Rerank before building anything.
+
+| | Aurora (277 properties) | Unincorporated Adams (75) | Unincorporated Douglas (64) |
+|---|---|---|---|
+| Issuer | City of Aurora Building Division | Adams County Community & Economic Development (unincorporated only) | Douglas County Building Division (unincorporated only) |
+| Coverage check (point-in-polygon on roofing permits) | 99.95% in Aurora | 100% in unincorporated Adams | 100% in unincorporated Douglas |
+| Endpoint | `ags.auroragov.org/aurora/rest/services/OpenData/MapServer/44` | `services3.arcgis.com/4PNQOtAivErR7nbT/.../Building_Permits_Eye_On_Adams/FeatureServer/0` | `services.arcgis.com/seTexOicoRXDvRsJ/.../All_Permits_View/FeatureServer/0` |
+| Records | 162,233 | 72,249 | 285,635 |
+| History | 2021-09-24 → (looks like a rolling 5 years) | 2011-01-03 → | 1990 → (roofing type used from ~2000) |
+| Cadence | not stated; latest record yesterday | not stated; edited today | "Nightly" (item description); full rebuild |
+| Roofing identified by | distinct `SubDesc`: `Roofing-RT2`, `Roofing Commercial-NT2` | `TypeOfWork = 'Re Roof'` through 2016; after that mostly keywords in `Description` with a blank type | distinct `PERMIT_JOB_TYPE = 'Roofing'` |
+| Coordinates | point geometry, native 2232, served in 4326 | `X`/`Y` in degrees; datum not stated | `LOCATION` text `(lat, lon)`; **51% of roofing rows have none** |
+| Terms | disclaimer + indemnity, no licence grant | none published | none published |
+| Page size | 2000 | 2000 | 1000 |
+
+**Known answer.** Denver is not in the top three, so the 2017 RESCON and
+ROOFSIDE check does not apply. Tested instead against our own `iem_data`,
+using hail ≥ 1.00″ inside each jurisdiction and comparing roofing permits in
+the 90 days after a storm with the same 90 days a year earlier:
+- 2023-05-10: Aurora 4,294 vs 803, Adams 382 vs 86.
+- 2023-06-22: Douglas 3,926 vs 500.
+- 2012-06-06: Douglas 5,543 vs 624.
+- Adams, May 2017 storm: June–August 2017 is 2.3× the same months of 2016.
+
+Every source shows the surge. A miss (Aurora 2024-05-30) is explained by the
+comparison year being the 2023 surge itself.
+
+**Raw snapshots taken 2026-09-23, with no schema and no loader.** Aurora's
+history starts 2021-09-24, five years less a day before the fetch, which
+looks like a rolling window. If so, every day that passes drops a day of
+history for good. So all three sources were captured with
+`fetch_municipal.py --allow-null-geometry` to
+`data/raw/permits/<source>/`, gitignored, with each layer's metadata beside
+it:
+
+| Source | Records | Size | Null geometry |
+|---|---|---|---|
+| Aurora | 162,233 | 149 MB | 0 |
+| Adams | 72,249 | 66 MB | 856 |
+| Douglas | 285,635 | 226 MB | all of them (it is a table; coordinates are in `LOCATION` text) |
+
+Whether Aurora's window really rolls is **not yet confirmed**: the only two
+readings of its start date were both taken on 2026-09-23. Re-check the
+earliest `InDate` on a later day. If it has moved past 2021-09-24, the window
+rolls and snapshots need to recur.
+
+**What this does not settle:** licence terms for any commercial use, Adams's
+keyword precision (untested), Douglas's missing coordinates (geocode or
+address-match, which is a design question), and whether "permit filed" is
+ever a claim the product makes. The last one is the same kind of question
+the MESH entry in the parking lot raises.
