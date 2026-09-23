@@ -63,24 +63,80 @@ ON CONFLICT (iem_id, listing_id, radius_used) DO NOTHING
 RETURNING match_id
 """
 
-def match_storm(conn, *, emp_id, window_start, window_end, report_text=None,
+_RUN_START_SQL = """
+INSERT INTO match_runs
+    (emp_id, storm_date, report_text, radius_miles, run_status)
+VALUES
+    (%(emp_id)s, %(storm_date)s, %(report_text)s, %(radius_miles)s, 'running')
+RETURNING match_run_id
+"""
+
+_RUN_FINISH_SQL = """
+UPDATE match_runs
+    SET finished_at = now(),
+        matches_created = %(matches_created)s,
+        run_status = 'complete'
+ WHERE match_run_id = %(match_run_id)s
+"""
+
+_RUN_FAIL_SQL = """
+UPDATE match_runs
+    SET finished_at = now(),
+        run_status = 'failed',
+        error_detail = %(error_detail)s
+ WHERE match_run_id = %(match_run_id)s
+"""
+
+
+def match_storm(conn, *, emp_id, storm_date, window_start, window_end, report_text=None,
                 radius_miles=None):
     """Compute and store matches for 1 storm window, and return number of
     NEW match rows written, idempotent.
+
+    report_text is required, a match_runs row has to name one storm day and
+    one type, or the work-state query can't tell which badge to change.
     """
     if radius_miles is None:
         radius_miles = fetch_settings(conn)["match_radius_miles"]
+
     with conn.cursor() as cur:
-        cur.execute(_MATCH_SQL, {
+        cur.execute(_RUN_START_SQL, {
             "emp_id": emp_id,
-            "radius_miles": radius_miles,
-            "radius_m": miles_to_metres(radius_miles),
-            "window_start": window_start,
-            "window_end": window_end,
+            "storm_date": storm_date,
             "report_text": report_text,
-        })
-        new_matches = len(cur.fetchall())
+            "radius_miles": radius_miles,
+         })
+        match_run_id = cur.fetchone()["match_run_id"]
     conn.commit()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(_MATCH_SQL, {
+                "emp_id": emp_id,
+                "radius_miles": radius_miles,
+                "radius_m": miles_to_metres(radius_miles),
+                "window_start": window_start,
+                "window_end": window_end,
+                "report_text": report_text,
+            })
+            new_matches = len(cur.fetchall())
+            cur.execute(_RUN_FINISH_SQL, {
+                "match_run_id": match_run_id,
+                "matches_created": new_matches,
+            })
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        with conn.cursor() as cur:
+            cur.execute(_RUN_FAIL_SQL, {
+                "match_run_id": match_run_id,
+                "error_detail": str(e)[:1000],
+            })
+        # Commit before re-raising: the caller's `with get_connection()`
+        # rolls back on the way out, which would undo this UPDATE and leave
+        # the run at 'running' forever.
+        conn.commit()
+        raise
 
     logger.info("event=match_complete emp_id=%s window_start=%s report_text=%s "
                 "radius_miles=%s new matches=%d",

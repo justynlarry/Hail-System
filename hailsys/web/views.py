@@ -454,22 +454,26 @@ def match_start():
     except (KeyError, ValueError):
         abort(400)
 
-    report_text = request.form.get("type") or None
+    report_text = (request.form.get("type") or "").strip()
+    if not report_text:
+        abort(400)
+    
     window_start, window_end = denver_day_bounds(day)
 
     with get_connection() as conn:
         new_matches = match_storm(
             conn,
             emp_id=session["emp_id"],
+            storm_date=day,
             window_start=window_start,
             window_end=window_end,
             report_text=report_text,
         )
     if new_matches:
-        flash(f"Matched {day} {report_text or 'all types'}: "
+        flash(f"Matched {day} {report_text}: "
               f"{new_matches} new match{'' if new_matches == 1 else 'es'}")
     else:
-        flash(f"No new matches for {day} {report_text or 'all types'}. "
+        flash(f"No new matches for {day} {report_text}. "
               f"Either nothing was within range, or it was already matched.")
 
     return redirect(url_for("main.index"))

@@ -30,8 +30,9 @@ def _pull_and_match(*, emp_id, storm_date, report_text, zip_codes,
                 estimated_api_calls=estimated_api_calls,
             )
             new_matches = match_storm(
-                conn, emp_id=emp_id, window_start=window_start,
-                window_end=window_end, report_text=report_text,
+                conn, emp_id=emp_id, storm_date=storm_date, 
+                window_start=window_start, window_end=window_end,
+                report_text=report_text,
             )
         logger.info("event=pull_job_complete pull_id=%s new_matches=%d",
                     pull_id, new_matches)

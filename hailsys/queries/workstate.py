@@ -42,6 +42,16 @@ WITH activity AS (
         AND i.utc_datetime < %(window_end)s
     
     UNION ALL
+    -- Match attempted: completed run, even an empty run.
+    -- This is what distinguishes "ran, nothing in range from "never ran"
+
+    SELECT storm_date, report_text, 'match_ran'
+    FROM match_runs
+    WHERE storm_date >= %(start_date)s
+        AND storm_date < %(end_date)s
+        AND run_status = 'complete'
+    
+    UNION ALL
 
     -- Sent: At least one email went out against a match from this storm.
     SELECT {_LOCAL_DAY}, i.report_text, 'sent'
@@ -58,7 +68,8 @@ SELECT
     report_text,
     bool_or(kind = 'pulled')    AS pulled,
     bool_or(kind = 'matched')   AS matched,
-    bool_or(kind = 'sent')      AS sent
+    bool_or(kind = 'sent')      AS sent,
+    bool_or(kind = 'match_ran') AS match_ran
 FROM activity
 GROUP BY storm_date, report_text 
 """
@@ -67,6 +78,7 @@ NOT_PULLED = "Not pulled"
 PULLED = "Pulled, not matched"
 MATCHED = "Matched, not sent"
 SENT = "Sent"
+MATCHED_NONE = "Matched, none in range"
 
 
 def _label(row):
@@ -74,6 +86,8 @@ def _label(row):
         return SENT
     if row["matched"]:
         return MATCHED
+    if row["match_ran"]:
+        return MATCHED_NONE
     if row["pulled"]:
         return PULLED
     return NOT_PULLED

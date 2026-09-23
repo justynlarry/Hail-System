@@ -80,7 +80,7 @@
                 <span class="action-disabled"
                       title="Pulling requires sender access">Pull</span>
                   {% endif %}
-                {% elif row.work_state.state == 'Pulled, not matched' %}
+                {% elif row.work_state.state in ('Pulled, not matched', 'Matched, none in range') %}
                   {% if can_pull %}
                 <form method="post" action="{{ url_for('main.match_start') }}" class="inline-action">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
