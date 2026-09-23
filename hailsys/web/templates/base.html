@@ -8,7 +8,7 @@
         <script src="{{ url_for('static', filename='leaflet.js') }}" defer></script>
         <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     </head>
-    <body>
+    <body class="{% block body_class %}{% endblock %}">
     {% if session.emp_id %}
     <header class="site-header">
         <div class="site-header-left">

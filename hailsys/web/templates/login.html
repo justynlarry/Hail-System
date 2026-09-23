@@ -1,20 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Sign In{% endblock %}
+{% block body_class %}login-page{% endblock %}
 {% block heading %}Sign In{% endblock %}
 
 {% block content %}
-<form method="post" action="{{ url_for('main.login') }}">
+<form method="post" action="{{ url_for('main.login') }}" class="admin-form login-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p>
-        <label for="user_name">Username</label><br>
+    <label for="user_name">Username
         <input type="text" id="user_name" name="user_name"
-                autocomplete="username" autofocus required>
-    </p>
-    <p>
-        <label for="password">Password</label><br>
+               autocomplete="username" autofocus required></label>
+    <label for="password">Password
         <input type="password" id="password" name="password"
-               autocomplete="current-password" required>
-    </p>
-    <p><button type="submit">Sign In</button></p>
+               autocomplete="current-password" required></label>
+    <button type="submit">Sign In</button>
 </form>
 {% endblock %}
