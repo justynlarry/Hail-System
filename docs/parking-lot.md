@@ -1068,6 +1068,15 @@ counties. That is a starting figure only: Hudson is counted under two codes
 
 **When:** with the permits work (item 70).
 
+**Resolved 2026-09-24.** See `docs/data-sources.md` §5, "Jurisdiction count":
+82 issuers after filtering (range 68–82 by threshold), from 88 jurisdictions
+with whole towns in large rural zips kept. The Pikes Peak Regional Building
+Department is the only regional merge, and no town checked delegates to its
+county. PPRBD + Aurora hold 88% of current properties, skewed by 11 of the 15
+pulled zips being in El Paso County. The 0.5% threshold proposed here drops
+Kiowa, Calhan and Garden City, which are whole towns, so it can't be used on
+its own. 32 issuers are still unverified (item 98).
+
 ## 75. Correction and override table for jurisdiction
 
 Three known cases where the polygon answer is not the whole answer:
@@ -1285,6 +1294,39 @@ Phase 0. Nothing in the repo records the answer. Phase 5's first send needs a
 sending subdomain with SPF, DKIM and DMARC.
 
 **When:** now: Phase 5 is current, and this is the item most likely to be
+
+## 97. Does the Pikes Peak Regional Building Department publish permit data?
+
+PPRBD issues permits for 74% of currently stored properties (item 74), so it is
+the permit source that would matter most if permits are ever built (item 70).
+Whether it publishes permits as open data, in what format, with what history,
+coordinates and terms, and how roofing is identified, has **not been checked**.
+Its own permit search (pprbd.org) is the place to start.
+
+**When:** parked with the permits work (item 70); first, if permits are
+pursued, since it covers the most properties.
+
+## 98. 32 permit issuers have no who-issues source
+
+The 2026-09-24 jurisdiction count (item 74) found official pages for 50 of 82
+issuers. The other 32 were not looked up before web search rate-limited:
+- **Cities:** Denver, Lakewood, Arvada, Thornton, Westminster, Commerce City,
+  Northglenn, Broomfield, Boulder, Longmont, Lafayette, Louisville, Fort
+  Collins, Loveland, Greeley, Castle Rock, Parker, Centennial, Lone Tree,
+  Littleton, Englewood, Golden and Wheat Ridge.
+- **Smaller towns:** Frederick, Wellington, Edgewater and Lakeside. No page from
+  Lakeside itself was found.
+- **Counties:** Larimer, Boulder, Gilpin, Pueblo and Fremont. Pueblo may be
+  served by the Pueblo Regional Building Department, which would be a second
+  regional issuer. Unconfirmed.
+
+Most are large cities that almost certainly run their own departments, so the
+issuer count is unlikely to change. But each needs its own official page before
+an adapter is built for it. Colorado DFPC's statewide building-department list
+could settle many at once, but it returned 403 to both the fetch tool and curl.
+
+**When:** parked with the permits work (item 70); per issuer, before that
+issuer's adapter.
 waiting on someone else.
 
 ---

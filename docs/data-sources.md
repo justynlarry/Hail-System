@@ -442,6 +442,48 @@ Aurora shows 4,784 permits against 5,181. The comparison window was the
 tail of the 2023 surge, not a quiet year. A year-over-year baseline breaks
 down whenever the prior year was itself a hail year.
 
+### Jurisdiction count (2026-09-24)
+
+How many permit issuers actually cover `coverage_zips`, counted from
+`output/jurisdiction_inventory_2026-09-23.csv` (regenerable, not tracked), with
+Hudson's `03782` folded into `37820` and each unincorporated county area as its
+own jurisdiction. Research only; nothing was built from it.
+
+- **Raw:** 93 jurisdictions (78 municipalities, 15 unincorporated county areas).
+- **Slivers:** a jurisdiction is kept if it is at least the threshold share of
+  some zip, or holds any stored property. 85 at 0.5%, 83 at 1%, 71 at 5%.
+  **A zip-share threshold drops whole towns inside large rural zips.** Kiowa,
+  Calhan and Garden City are 100% inside coverage yet under 0.5% of their zip,
+  so they were put back; Deer Trail is kept only by its properties. Dropped as
+  true slivers: Central City, Granby and Black Hawk (8.5%, 0.07% and 0.03% of
+  each town inside coverage), plus "unincorporated" Denver and Broomfield,
+  which are artifacts of mismatched TIGER/DOLA edges: both are consolidated
+  city-counties with no unincorporated land. **88 jurisdictions** remain.
+- **Issuers: 82** (range 68–82 across the thresholds). The only merge is the
+  **Pikes Peak Regional Building Department**, which issues for unincorporated
+  El Paso, Colorado Springs, Fountain, Manitou Springs, Monument, Palmer Lake
+  and Calhan ([pprbd.org](https://www.pprbd.org/Home/About),
+  [elpasoco.com](https://www.elpasoco.com/pikes-peak-regional-building-department/)).
+  **No town checked delegates its permits to its county.** Many contract the
+  work (SAFEbuilt, ProCode, Charles Abbott Associates), but the permit is still
+  the town's. Counted as the town issuing. Counting SAFEbuilt as one issuer
+  instead would collapse 11 towns.
+- **Sources:** 50 of 82 issuers have an official who-issues page (PPRBD, 7
+  counties and 42 municipalities). **32 are unverified**, mostly large cities
+  that almost certainly run their own departments (parking-lot item 98). The
+  per-issuer sources were gathered in a scratch table that is not in the repo.
+- **Concentration, by stored properties:** top 1 issuer holds 74.1%, top 3
+  92.0%, top 5 97.7%, top 10 100%. **PPRBD + Aurora = 88% of current
+  properties.** This is skewed by what has been pulled: 11 of the 15 pulled zips
+  are in El Paso County, and only 10 issuers hold any property at all.
+- **Concentration, by coverage area:** top 1 18.1%, top 3 38.8%, top 5 56.5%,
+  top 10 84.6%. By area it takes about 10 issuers to cover 85% of the territory.
+
+The top-three by property count above (Aurora, unincorporated Adams,
+unincorporated Douglas) was taken on 2026-09-23, before the El Paso pulls. On
+current data PPRBD comes first by a wide margin. The build order is still
+parking-lot item 73's question, not this ranking's.
+
 ### Commercial aggregators (evaluated, not chosen)
 
 From research outside the 2026-09-23 session. Not re-verified ⚠.

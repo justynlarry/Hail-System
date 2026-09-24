@@ -8,6 +8,37 @@ docker exec -it <database_name> psql -U <postgres_user_name>
 <postgres_user_name>=#
 ```
 
+## Which services see your edits
+
+`web` bind-mounts `./hailsys`, so editing a file there IS deploying it --
+the change is live at the next `docker compose restart web`.
+
+`loader` bind-mounts the whole repo read-only at `/repo`, so it always reads
+the SQL and scripts as they are on disk. Its image carries only the postgis
+client tools; rebuild it only when `docker/loader.Dockerfile` changes.
+
+`app` and `ingest` do NOT. Their Python is baked into the image at build
+time. Running them without rebuilding executes whatever code was current at
+the last build, against the live database, with no warning.
+
+    docker compose build app      # before any `docker compose run --rm app`
+    docker compose build ingest   # after ANY change under hailsys/ or
+                                  # scripts/
+
+The scheduled ingest jobs -- nightly `iem_ingest.timer` and weekly
+`iem_weekly_replay.timer` -- deliberately do NOT build first: an unattended
+job should run a known artifact, not whatever is half-finished in the
+working tree. The cost is that ingest code changes require a manual rebuild
+to take effect. This is a choice, not an oversight.
+
+Note that `ingest` imports from `hailsys/` broadly -- db.py and tuning.py
+included -- so a change anywhere in the package can leave the ingest image
+stale even when scripts/iem_ingest.py hasn't moved.
+
+Cost us a false test result on 2026-09-24: the same workstate check
+returned a pre-migration answer through `app` and the correct one through
+`web`.
+
 ## Posgres (in Docker)
 1. Create Database:
 ```

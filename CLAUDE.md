@@ -137,6 +137,9 @@ These have already bitten us. Do not re-discover them.
 - Scripts that ingest external data must be idempotent and safe to re-run.
 - Failures should be loud. Silent partial success is worse than an error.
 - Comment the *why*, not the *what*, especially around the traps above.
+- `web` and `loader` bind-mount the repo (edit = deploy). `app` and `ingest`
+  run image-baked code -- rebuild before running, or you are testing an old
+  version. See `docs/command-ref.md`.
 
 ## Ask before editing
 
