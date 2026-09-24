@@ -267,6 +267,10 @@ h1 ~ table, h1 ~ p { margin-left: 1.5rem; margin-right: 1.5rem; }
    .split, sidesteps both problems by giving every child the same
    margin regardless of tag or its own rules. */
 .page { padding: 0 1.5rem; }
+/* A filter bar inside .page (the exports page) would get .page's padding
+   and its own 1.5rem side margin, sitting twice as far in as the storm
+   list's. .page already supplies the margin. */
+.page .filters { margin-left: 0; margin-right: 0; }
 
 /* Pull-estimate page: the cost is the one number that matters before
    anyone spends anything, so it reads larger than body text and the

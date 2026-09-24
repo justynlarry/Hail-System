@@ -24,6 +24,8 @@
                    class="{% if request.endpoint == 'main.territory' %}active{% endif %}">Territory</a>
                 <a href="{{ url_for('main.activity_page') }}"
                    class="{% if request.endpoint == 'main.activity_page' %}active{% endif %}">Activity</a>
+                <a href="{{ url_for('main.exports_page') }}"
+                   class="{% if request.endpoint == 'main.exports_page' %}active{% endif %}">Exports</a>
             </nav>
         </div>
         <div class="site-header-right">

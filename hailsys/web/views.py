@@ -13,7 +13,7 @@ from hailsys.rentcast.estimate import estimate_pull
 from hailsys.web.jobs import start_pull
 from hailsys.db import get_connection
 from hailsys.formatting import magnitude
-from hailsys.queries import activity, matches,storms, workstate, quota
+from hailsys.queries import activity, matches,storms, workstate, quota, exports
 from hailsys.tuning import (
     DISPLAY_TZ,
     RECENT_PULL_WINDOW_DAYS,
@@ -83,6 +83,31 @@ def _actionable_from_args():
         return "actionable" in request.args
     return True
 
+def _dnc_from_args():
+    """Suppressed agents are excluded unless explicitly asked for.
+
+    Download taken into someone's own email tool never passes the send-time
+    suppression check. 
+    """
+    return request.args.get("dnc") != "include"
+
+def _csv_response(columns, rows, filename):
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(columns)
+    writer.writerows([row[col] for col in columns] for row in rows)
+    return Response(
+        buffer.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+def _stamp():
+    # In the filename because a .csv is a snapshot.
+    return datetime.now(DISPLAY_TZ).strftime("%Y-%m-%d")
+
+
+# ------ ------ ------ @BP.Routes ------ ------ ------ 
 
 @bp.route("/")
 @login_required
@@ -661,3 +686,103 @@ def change_password():
     flash("Password changed, you have been signed out of all other sessions.")
     return redirect(url_for("main.index"))
     
+
+@bp.route("/storms/matches.csv")
+@login_required
+def storm_matches_csv():
+    try:
+        day = datetime.strptime(request.args["date"], "%Y-%m-%d").date()
+    except (KeyError, ValueError):
+        abort(400)
+
+    report_text = request.args.get("type") or None
+    window_start, window_end = denver_day_bounds(day)
+    dnc_exclude = _dnc_from_args()
+
+    with get_connection() as conn:
+        rows = exports.fetch_matches(
+            conn,
+            window_start=window_start,
+            window_end=window_end,
+            report_text=report_text,
+            radius_miles=g.settings["match_radius_miles"],
+            dnc_exclude=dnc_exclude,
+        )
+
+    label = (report_text or "ALL").replace("/", "-").replace(" ", "_")
+    return _csv_response(
+        exports.MATCHES_COLUMNS, rows,
+        f"matches_{day.isoformat()}_{label}_{_stamp()}.csv",
+    )
+
+
+@bp.route("/exports")
+@login_required
+def exports_page():
+    start_day, end_day, window_start, window_end = _window_from_args()
+    report_text = request.args.get("type") or None
+    dnc_exclude = _dnc_from_args()
+    submitted = request.args.get("submitted") == "1"
+
+    match_count = realtor_count = None
+    with get_connection() as conn:
+        types = storms.fetch_report_types(conn)
+        if submitted:
+            match_count = exports.count_matches(
+                conn,
+                window_start=window_start,
+                window_end=window_end,
+                report_text=report_text,
+                radius_miles=g.settings["match_radius_miles"],
+                dnc_exclude=dnc_exclude,
+            )
+            realtor_count = exports.count_realtors(
+                conn, dnc_exclude=dnc_exclude)
+    return render_template(
+        "exports.html",
+        start_day=start_day,
+        end_day=end_day,
+        types=types,
+        selected_type=report_text,
+        dnc_exclude=dnc_exclude,
+        submitted=submitted,
+        match_count=match_count,
+        realtor_count=realtor_count,
+        radius_miles=g.settings["match_radius_miles"],
+    )
+
+
+@bp.route("/exports/matches.csv")
+@login_required
+def exports_matches_csv():
+    start_day, end_day, window_start, window_end = _window_from_args()
+    report_text = request.args.get("type") or None
+
+    with get_connection() as conn:
+        rows = exports.fetch_matches(
+            conn,
+            window_start=window_start,
+            window_end=window_end,
+            report_text=report_text,
+            radius_miles=g.settings["match_radius_miles"],
+            dnc_exclude=_dnc_from_args(),
+        )
+
+    label = (report_text or "ALL").replace("/", "-").replace(" ", "_")
+    return _csv_response(
+        exports.MATCHES_COLUMNS, rows,
+        f"matches_{start_day.isoformat()}_to_{end_day.isoformat()}"
+        f"_{label}_{_stamp()}.csv",
+    )
+
+
+# Sender/admin only: every agent's email and phone in one file is 
+# sensitive information.
+
+@bp.route("/exports/realtors.csv")
+@role_required("sender", "admin")
+def exports_realtors_csv():
+    with get_connection() as conn:
+        rows = exports.fetch_realtors(conn, dnc_exclude=_dnc_from_args())
+    return _csv_response(
+        exports.REALTORS_COLUMNS, rows, f"realtors_{_stamp()}.csv")

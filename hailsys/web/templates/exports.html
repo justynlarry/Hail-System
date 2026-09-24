@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Exports{% endblock %}
+{% block heading %}Exports{% endblock %}
+
+{% block content %}
+<div class="page">
+    <form method="get" action="{{ url_for('main.exports_page') }}" class="filters">
+        <input type="hidden" name="submitted" value="1">
+
+        <label for="start">From</label>
+        <input type="date" id="start" name="start" value="{{ start_day.isoformat() }}">
+
+        <label for="end">To</label>
+        <input type="date" id="end" name="end" value="{{ end_day.isoformat() }}">
+
+        <label for="type">Type</label>
+        <select id="type" name="type">
+            <option value="">All</option>
+            {% for t in types %}
+            <option value="{{ t }}" {% if t == selected_type %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="dnc">Suppressed</label>
+        <select id="dnc" name="dnc">
+            <option value="exclude" {% if dnc_exclude %}selected{% endif %}>Exclude</option>
+            <option value="include" {% if not dnc_exclude %}selected{% endif %}>Include, flagged</option>
+        </select>
+
+        <button type="submit">Apply</button>
+    </form>
+
+{% if submitted %}
+    <h3>Matched listings</h3>
+    <p><strong>{{ match_count }}</strong> row{{ '' if match_count == 1 else 's' }},
+       one per listing per storm day and type, within {{ radius_miles }} miles.</p>
+    <p><a href="{{ url_for('main.exports_matches_csv') }}?{{ request.query_string.decode() }}">Download CSV</a></p>
+
+    <h3>Realtors</h3>
+    <p><strong>{{ realtor_count }}</strong> realtor record{{ '' if realtor_count == 1 else 's' }}.
+       One row per address, not per person: an agent reachable at two
+       addresses appears twice, which is how suppression is keyed.</p>
+    <p><a href="{{ url_for('main.exports_realtors_csv') }}?{{ request.query_string.decode() }}">Download CSV</a></p>
+{% else %}
+    <p>Choose a range and press Apply.</p>
+{% endif %}
+
+    <p class="note">
+        A CSV is a snapshot. Anyone suppressed after a download is still in
+        the file, and a list worked outside this system never passes the
+        send-time suppression check.
+    </p>
+</div>
+{% endblock %}

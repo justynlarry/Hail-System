@@ -94,6 +94,7 @@
 <p>No matched listings for this storm day at {{ radius_miles }} miles.</p>
 {% endif %}
 
+<p><a href="{{ url_for('main.storm_matches_csv') }}?{{ request.query_string.decode() }}">Download CSV</a></p>
 <p><a href="{{ url_for('main.index') }}">Back to storm days</a></p>
 </div>
 {% endblock %}
