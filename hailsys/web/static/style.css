@@ -422,6 +422,46 @@ h1 ~ table, h1 ~ p { margin-left: 1.5rem; margin-right: 1.5rem; }
     font-style: italic;
 }
 
+/* Matched listings: one table per agent means the browser sizes each
+   table's columns to that table's own content, so a long address in one
+   group pushes its columns out of line with every other group. Fixed
+   layout plus an explicit width per column makes every group agree.
+   A value longer than its column wraps onto another line rather than
+   widening the column (only an unbreakable one runs past it), so size
+   each column for the common case: the longest address, 66 characters,
+   wraps to two lines at 22rem. */
+.agent-group table {
+    table-layout: fixed;
+    font-size: 0.8125rem;
+}
+.agent-group th:nth-child(1),
+.agent-group td:nth-child(1) { width: 22rem; }   /* Address */
+.agent-group th:nth-child(2),
+.agent-group td:nth-child(2) { width: 5rem; }    /* Zip */
+.agent-group th:nth-child(3),
+.agent-group td:nth-child(3) { width: 9rem; }    /* Type */
+.agent-group th:nth-child(4),
+.agent-group td:nth-child(4) { width: 5rem; }    /* Built */
+.agent-group th:nth-child(5),
+.agent-group td:nth-child(5) { width: 7rem; }    /* Price */
+.agent-group th:nth-child(6),
+.agent-group td:nth-child(6) { width: 6rem; }    /* Nearest */
+.agent-group th:nth-child(7),
+.agent-group td:nth-child(7) { width: 5rem; }    /* Max */
+.agent-group th:nth-child(8),
+.agent-group td:nth-child(8) { width: 5rem; }    /* Reports */
+.agent-group th:nth-child(9),
+.agent-group td:nth-child(9) { width: 7rem; }    /* MLS */
+
+/* Condensed: this page is read by scanning down it, and the gap between
+   an agent's last listing and the next agent's name was doing more
+   separating than the name itself needs. */
+.agent-group { margin-bottom: 0.875rem; }
+.agent-group h3 { margin: 0 0 0.125rem; font-size: 1rem; }
+.agent-contact { margin: 0 0 0.375rem; }
+.agent-group tbody td,
+.agent-group thead th { padding: 0.25rem 0.75rem; }
+
 /* Incomplete-coverage notice on the match page. Visibly a warning, but
    not an error -- the page is correct, just not the whole picture. */
 .coverage-warning {
