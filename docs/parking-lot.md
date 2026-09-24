@@ -1406,6 +1406,12 @@ fix is a single `logging.basicConfig(level=logging.INFO, ...)` in
 
 **When:** before background pulls are relied on.
 
+**Resolved 2026-09-24.** See `docs/decision-log.md`, "Web logging: shared
+logconfig module, level and logger in the line, rotated json-file".
+`hailsys/logconfig.py` configures INFO to stdout in every worker, and `web`'s
+container log is rotated at 20 MB × 5. `event=` lines from the pull thread and
+the matcher now appear in `docker compose logs web`.
+
 ## 100. New-construction properties share a subdivision point
 
 RentCast geocodes some brand-new houses to a single subdivision point rather
@@ -1452,6 +1458,44 @@ exposes it to staff, and possibly beyond the tailnet (item 63), deactivate it
 or give it a strong password nobody reuses.
 
 **When:** Phase 6, before the app is exposed.
+
+## 104. Move the ingest onto `hailsys/logconfig.py`
+
+The ingest still sets up its own logging: a `basicConfig` in
+`hailsys/iem/common.py` (line 127), shared by both ingest scripts. Moving it onto
+the shared module keeps one place to change the format. Their journald format should stay
+a bare `%(message)s` unless that's decided otherwise, since journald already
+records the unit and the time. Needs an `ingest` rebuild (`docker compose build
+ingest`), because that image bakes the code in.
+
+**When:** whenever the ingest is next touched.
+
+## 105. `postgis` has no log rotation
+
+Checked 2026-09-24: `postgis`'s container log is `json-file` with no
+`max-size` or `max-file`, so it grows without limit. It is the only other
+long-running container; `app`, `ingest` and `loader` run with `--rm`. Adding
+the same `logging:` block as `web` means recreating the database container
+(`docker compose up -d postgis`), which is a brief outage, so plan it rather
+than doing it mid-use.
+
+**When:** before production deployment.
+
+## 106. The match page gets long, and no row says which report it matched
+
+One storm's page can hold hundreds of listings. 2026-08-26 TSTM WND GST had a
+single report and matched 949 listings, every listing within 5 miles of it
+from the 12-zip pull. Rows are grouped by agent and show only the nearest
+distance and the worst magnitude, so on a storm with several reports nothing
+says which report a listing was matched to.
+
+Originally described as "lists every match ever made, ungrouped". Checked
+2026-09-24: the page is scoped to one storm day and type (its heading says
+which), and is grouped by agent. Its length on a one-report storm with a big
+pull is what made it look unbounded.
+
+**When:** Phase 5, before the first real batch is worked from the match page.
+Related to item 92 (no CSV export on this page).
 
 ---
 

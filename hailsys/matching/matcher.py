@@ -138,7 +138,7 @@ def match_storm(conn, *, emp_id, storm_date, window_start, window_end, report_te
         conn.commit()
         raise
 
-    logger.info("event=match_complete emp_id=%s window_start=%s report_text=%s "
-                "radius_miles=%s new matches=%d",
-                emp_id, window_start, report_text, radius_miles, new_matches)
+    logger.info("event=match_complete emp_id=%s window_start=%s report_text=%r "
+                "radius_miles=%s new_matches=%d",
+                emp_id, window_start.isoformat(), report_text, radius_miles, new_matches)
     return new_matches

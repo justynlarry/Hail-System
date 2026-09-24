@@ -4138,3 +4138,47 @@ shows as two rows. `fetch_day_count` runs first, so a `?page=` past the end
 **clamps to the last page** instead of showing an empty table. The page links
 carry every active filter (the "filters must travel" rule, 2026-09-18), so
 paging never changes the question being asked.
+
+---
+
+## 2026-09-24 — Web logging: shared logconfig module, level and logger in the line, rotated json-file
+
+Parking-lot item 99. Nothing configured logging in the web app, so every
+`logger.info` from the web app, the pull thread and the matcher was dropped at
+Python's default WARNING threshold. A 12-zip pull and its match run left no
+`info` lines at all.
+
+**The config lives in `hailsys/logconfig.py`, and `create_app()` calls it
+first.** `configure_logging()` is one `logging.basicConfig` to stdout at INFO.
+Gunicorn runs without `--preload`, so every worker runs `create_app()` and
+configures itself. `basicConfig` does nothing if the root logger already has
+a handler. That works here, because gunicorn configures only its own
+`gunicorn.*` loggers, and those don't propagate to root, so their lines aren't
+doubled. Checked: calling `create_app()` twice still leaves one root handler.
+
+**The line carries the level and the logger name:**
+`level=INFO logger=hailsys.web.jobs event=pull_job_complete …`. Web's stdout
+goes to Docker's `json-file` driver, not journald. Docker records the time,
+but nothing records which logger wrote a line or at what level, so the format
+carries both. The ingest scripts keep a bare `%(message)s`, because journald
+already supplies the unit and the time. This **extends** *logfmt to stdout,
+never to a file* (2026-09-08) and doesn't supersede it: still one event per
+line, `key=value`, to stdout.
+
+**Rotation:** `web`'s log is capped at 20 MB × 5 files, about 100 MB. **Log
+options apply only when a container is created**, so a change takes
+`docker compose up -d web`, which recreates the container. `restart` keeps the
+old settings.
+
+**Quoting:** a value that can contain spaces is formatted with `%r`, so
+`report_text='TSTM WND GST'` stays one field. A datetime is formatted with
+`.isoformat()`, because `%r` on a datetime prints its Python repr
+(`datetime.datetime(…)`). Keys never contain spaces: `new_matches`, not the
+old `new matches`.
+
+**Verified 2026-09-24:** `match_complete` and `pull_job_complete` lines appear
+in `docker compose logs web`, for example
+`level=INFO logger=hailsys.matching.matcher event=match_complete emp_id=2
+window_start=2026-08-26T00:00:00-06:00 report_text='TSTM WND GST'
+radius_miles=5.0 new_matches=949`. `docker inspect` confirms the container's
+log config: `json-file`, `max-size 20m`, `max-file 5`.

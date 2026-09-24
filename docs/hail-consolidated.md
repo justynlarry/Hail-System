@@ -1605,13 +1605,15 @@ that never fired leaves no row to inspect at all. "When did a nightly run last
 *succeed*" is the only phrasing that holds across failed, crashed, and never
 started.
 
-**The web app has no logging configuration** (found 2026-09-24, parking-lot
-item 99). Nothing calls `logging.basicConfig`, so the `event=` lines the web
-app, the pull thread and the matcher emit at `info` are dropped at Python's
-default WARNING threshold. Warnings and errors still reach the container log
-through Python's fallback handler. A 12-zip pull and its match run left no
-`info` lines at all. The ingest scripts are unaffected: they write logfmt to
-stdout directly.
+**Web logging** (2026-09-24, parking-lot item 99, decision log). Until then
+nothing configured logging in the web app, so every `info` line was dropped.
+`hailsys/logconfig.py` now sets INFO to stdout, called first in `create_app()`
+in every gunicorn worker. Each line carries its level and logger
+(`level=INFO logger=hailsys.web.jobs event=…`), because Docker's `json-file`
+driver records the time but nothing else. `web`'s log is rotated at 20 MB × 5.
+**Read web logs with `docker compose logs -f web`, not `journalctl`:** they go
+to Docker, not journald. The ingest scripts still write a bare message to
+stdout under systemd, read with `journalctl -u iem_ingest.service`.
 
 **systemd schedules; the container is only the runtime.** A timer unit invokes
 `docker compose run`, and the timer carries `Persistent=true` so a missed run

@@ -48,6 +48,24 @@ The `loader` image was last built 2026-09-09, the same day
 `docker/loader.Dockerfile` last changed. Rebuild it before its next use
 rather than trust that the build picked up that change (parking-lot item 101).
 
+## Reading logs
+
+    docker compose logs -f web            # the web app, pull thread and matcher
+    docker compose logs --since 1h web    # just the last hour
+    journalctl -u iem_ingest.service      # the nightly ingest (systemd, not Docker)
+
+`web` logs go to Docker's `json-file` driver, rotated at 20 MB x 5, so
+`journalctl` doesn't have them. Each line reads
+`level=INFO logger=<module> event=...`.
+
+**`restart` vs `up -d`.** `docker compose restart web` restarts the same
+container: it picks up code changes (the bind-mounted `hailsys/`) but keeps
+the container's existing configuration. A change to `docker-compose.yml`
+itself -- logging options, environment, ports, volumes -- only takes effect
+when the container is recreated:
+
+    docker compose up -d web    # recreates web if its compose config changed
+
 ## Posgres (in Docker)
 1. Create Database:
 ```

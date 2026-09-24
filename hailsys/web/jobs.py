@@ -37,7 +37,7 @@ def _pull_and_match(*, emp_id, storm_date, report_text, zip_codes,
         logger.info("event=pull_job_complete pull_id=%s new_matches=%d",
                     pull_id, new_matches)
     except Exception:
-        logger.exception("event=pull_job_failed storm_date=%s report_text=%s",
+        logger.exception("event=pull_job_failed storm_date=%s report_text=%r",
                          storm_date, report_text)
 
 
