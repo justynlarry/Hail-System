@@ -58,11 +58,14 @@ def run_pull(conn, *, emp_id, storm_date, report_text, zip_codes,
             listings, calls_made = search_sale_listings(
                 zip_code, status=status, days_old=days_old)
         except RentCastAuthError as exc:
+            # Log before aborting
+            _log_zip(conn, pull_id, zip_code, exc.attempts, 0, exc.status)
+            total_calls += exc.attempts
             logger.error("event=pull_aborted pull_id=%s zip=%s reason=auth",
                          pull_id, zip_code)
-            _finish_pull(conn, pull_id, total_calls + exc.attempts,
-                        total_listings, "failed")
+            _finish_pull(conn, pull_id, total_calls, total_listings, "failed")
             raise
+
         except RentCastError as exc:
             listings, calls_made = [], exc.attempts
             http_status = exc.status
@@ -73,6 +76,8 @@ def run_pull(conn, *, emp_id, storm_date, report_text, zip_codes,
             # Anything client didn't classify.
             logger.exception("event=zip_unclassified pull_id=%s zip=%s",
                              pull_id, zip_code)
+            _log_zip(conn, pull_id, zip_code, 1, 0, None)
+            total_calls += 1
             _finish_pull(conn, pull_id, total_calls, total_listings, "failed")
             raise
 
@@ -108,5 +113,14 @@ def _finish_pull(conn, pull_id, actual_api_calls, listings_returned, api_status)
         cur.execute(_FINISH_PULL_SQL, {
             "pull_id": pull_id, "actual_api_calls":actual_api_calls,
             "listings_returned": listings_returned, "api_status": api_status,
+        })
+    conn.commit()
+
+def _log_zip(conn, pull_id, zip_code, calls_made, listings_returned, http_status):
+    with conn.cursor() as cur:
+        cur.execute(_LOG_ZIP_SQL, {
+            "pull_id": pull_id, "zip_code": zip_code,
+            "calls_made": calls_made, "listings_returned": listings_returned,
+            "http_status": http_status,
         })
     conn.commit()

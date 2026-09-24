@@ -9,6 +9,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import http.client
 
 logger = logging.getLogger(__name__)
 
@@ -104,12 +105,22 @@ def _get(params: dict) -> list:
     while True:
         attempt += 1
         _throttle()
+        # Set once a status line arrives, so an unreadable body still
+        # records what RentCast answered (normally 200) in api_call_log.
+        # Stays None if the status line itself was unreadable.
+        response_status = None
         try:
             with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+                response_status = response.status
                 data = json.loads(response.read())
                 if not isinstance(data, list):
+                    # Raised, not returned as []: an empty list would log
+                    # the zip as a clean 200 with no listings, and read the
+                    # same as a zip that genuinely has none.
                     logger.error("event=rentcast_unexpected_shape type=%s", type(data).__name__)
-                    return [], attempt
+                    raise RentCastResponseError(
+                        f"expected a list, got {type(data).__name__}",
+                        attempts=attempt, status=response_status)
                 return data, attempt
 
         except urllib.error.HTTPError as exc:
@@ -165,13 +176,14 @@ def _get(params: dict) -> list:
             time.sleep(backoff)
             continue
 
-        except (json.JSONDecodeError, ValueError, OSError) as exc:
+        except (json.JSONDecodeError, ValueError, OSError, http.client.HTTPException) as exc:
             # Reqeust sent and answered, ready or parsing the body failed
             # not retried.  No way to know whether a partial read means data
             # is recoverable, and RentCast billed call either way
             logger.error("event=rentcast_unreadable_response attempts=%d error=%s",
                          attempt, exc)
-            raise RentCastResponseError(str(exc), attempts=attempt) from exc
+            raise RentCastResponseError(str(exc), attempts=attempt,
+                                        status=response_status) from exc
 
 def search_sale_listings(zip_code: str, status: str = "Active", 
                         days_old: int | None = None) -> tuple[list, int]:
