@@ -120,13 +120,9 @@ def log_event(event, run_id=None, level=logging.INFO, **fields):
 
 
 def configure_logging():
-    """stdout only.  systemd captures it into journald tagged by unit, so
-    there is no file to rotate and no path to get wrong.  No timestamp or
-    logger name in the format -- journald supplies both.
-    """
-    logging.basicConfig(
-        stream=sys.stdout, level=logging.INFO, format="%(message)s",
-    )
+    """Ingest-side logging, format lives in hailsys/logconfig.py"""
+    from hailsys.logconfig import configure_logging as _configure
+    _configure(include_logger=False)
 
 
 def build_url(**params):
