@@ -25,31 +25,44 @@
 </ul>
 {% endif %}
 
+<div class="feed-columns">
 {% if feed.pulls %}
-<h3>Pulls ({{ feed.pulls | length }})</h3>
-<ul>
-    {% for p in feed.pulls[:feed_limit] %}
-    <li>
-        {{ p.emp_fname }} pulled
-        {% if p.storm_date %}{{ p.storm_date }} {{ p.report_text }}{% else %}a manual zip set{% endif %}
-        — {{ p.zip_count }} zip{{ '' if p.zip_count == 1 else 's' }},
-        {% if p.api_status == 'running' %}still running{% else %}{{ p.listings_returned or 0 }} listings, {{ p.api_status }}{% endif %}
-    </li>
-    {% endfor %}
-</ul>
+    {# <details>/<summary> is the browser's own disclosure widget: no
+       JavaScript, keyboard-accessible, and it degrades to plain visible
+       content if CSS fails. Closed by default so the storm table, which
+       is what this page is for, starts higher up. Also closed on
+       /activity, by choice. #}
+    <details class="feed-section">
+        <summary>Pulls ({{ feed.pulls | length }})</summary>
+        <ul>
+            {% for p in feed.pulls[:feed_limit] %}
+            <li>
+                <span class="feed-when">{{ p.started_at.astimezone(display_tz).strftime('%m-%d %H:%M') }}</span>
+                {{ p.emp_fname }} pulled
+                {% if p.storm_date %}{{ p.storm_date }} {{ p.report_text }}{% else %}a manual zip set{% endif %}
+                — {{ p.zip_count }} zip{{ '' if p.zip_count == 1 else 's' }},
+                {% if p.api_status == 'running' %}still running{% else %}{{ p.listings_returned or 0 }} listings, {{ p.api_status }}{% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </details>
 {% endif %}
 
 {% if feed.match_runs %}
-<h3>Match runs ({{ feed.match_runs | length }})</h3>
-<ul>
-    {% for m in feed.match_runs[:feed_limit] %}
-    <li>
-        {{ m.emp_fname or 'Unattributed' }} matched {{ m.storm_date }} {{ m.report_texts }}
-        — {{ m.listings }} listing{{ '' if m.listings == 1 else 's' }}
-    </li>
-    {% endfor %}
-</ul>
+    <details class="feed-section">
+        <summary>Match runs ({{ feed.match_runs | length }})</summary>
+        <ul>
+            {% for m in feed.match_runs[:feed_limit] %}
+            <li>
+                <span class="feed-when">{{ m.matched_at.astimezone(display_tz).strftime('%m-%d %H:%M') }}</span>
+                {{ m.emp_fname or 'Unattributed' }} matched {{ m.storm_date }} {{ m.report_texts }}
+                — {{ m.listings }} listing{{ '' if m.listings == 1 else 's' }}
+            </li>
+            {% endfor %}
+        </ul>
+    </details>
 {% endif %}
+</div>
 
 {% if feed_limit and (feed.new_storms | length > feed_limit
                       or feed.pulls | length > feed_limit

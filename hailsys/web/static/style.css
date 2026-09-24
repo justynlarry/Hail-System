@@ -514,6 +514,34 @@ h1 ~ table, h1 ~ p { margin-left: 1.5rem; margin-right: 1.5rem; }
     padding-left: 1.25rem;
 }
 
+/* Pulls and match runs side by side: both are "what other people did",
+   and stacking them pushed the storm table -- the page's actual subject --
+   below the fold. Grid rather than float so the two columns stay equal
+   width regardless of which has more lines. */
+.feed-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+.feed-section summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--muted);
+}
+.feed-section ul { margin: 0.375rem 0 0; padding-left: 1.25rem; }
+.feed-section li { margin-bottom: 0.25rem; }
+.feed-when {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    margin-right: 0.375rem;
+}
+
+/* One column on a narrow screen: two columns of this text would each be
+   too narrow to read. */
+@media (max-width: 48rem) {
+    .feed-columns { grid-template-columns: 1fr; }
+}
+
 .flashes {
     background: #e0f2fe;
     border-left: 4px solid #0284c7;
