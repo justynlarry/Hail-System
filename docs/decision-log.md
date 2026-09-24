@@ -3932,3 +3932,75 @@ and they carry no tier word implying a distinction the data doesn't support.
 *Territory browse is its own page, grouped by city-and-type* (2026-09-16);
 *Initial `roof_relevant` set and magnitude floors* (2026-09-03);
 *Confidence is a tiered label computed at query time* (2026-09-01).
+
+---
+
+## 2026-09-24 — Scheduled ingest runs a built artifact, not the working tree
+
+The nightly `iem_ingest.timer` and weekly `iem_weekly_replay.timer` run
+`docker compose run --rm ingest` without building first. The `ingest` image
+bakes in `hailsys/` and `scripts/` at build time and mounts nothing from the
+repo.
+
+**Why:** an unattended job that picks up whatever is half-finished in the
+working tree is worse than one that needs a deliberate rebuild. A known
+artifact makes a failed night traceable to a specific build.
+
+**Tradeoff:** ingest code changes, including changes anywhere under
+`hailsys/` that ingest imports, do not take effect until someone runs
+`docker compose build ingest`. `web` and `loader` bind-mount the repo and see
+edits immediately; `app` is baked like `ingest`. See `docs/command-ref.md`,
+*Which services see your edits*.
+
+---
+
+## 2026-09-24 — The activity feed shows who did what, to everyone
+
+/activity and the storm-list feed join users to show first and last names
+next to pulls and match runs, and viewers see them. That is deliberate.
+
+The feed exists so people know what has already been worked -- "someone
+pulled this yesterday" doesn't tell you who to ask, and the whole point is
+to stop two people spending money on the same storm. Anonymizing it for
+viewers would keep the surface tidy at the cost of the thing it's for.
+
+RBI is an office of five who work together and already know each other's
+names. Every account is created by an admin; there are no self-service or
+external accounts. This is a shared work log, not a surveillance surface.
+
+The permission matrix (2026-09-22) is unchanged by this: the feed is read-
+only and behind login_required, and nothing in it exposes a user's
+credentials, contact details, or anything beyond the fact that they did a
+piece of work in this system.
+
+Revisit if the account model changes -- external or customer-facing
+accounts, or a headcount where people don't all know each other.
+
+---
+
+## 2026-09-24 — RentCast's billing boundary timezone is unknown; our dashboard is the check
+
+Our billing period runs from settings.rentcast_billing_day at Denver
+midnight. RentCast's own documentation never states which timezone its
+period boundary uses -- it covers the reset, the no-carryover rule, the
+overage fees and the 85%/100% notification emails, but not the boundary.
+Searched 2026-09-24; not answerable from their docs.
+
+Left as-is rather than guessed at. Denver midnight is 06:00 UTC under MDT
+and 07:00 UTC under MST, so a UTC-based vendor boundary would put our period
+start six or seven hours late relative to theirs, depending on DST. Only
+calls made inside that window -- the evening before our billing day, Denver
+time -- land on the wrong side of the line, and on a 1,000-request plan that
+is unlikely to change a decision.
+
+Two free checks rather than more investigation: compare what /admin reports
+against RentCast's own API dashboard for the current period, and watch for
+their automated 85% email -- its arrival date against our period start and
+our count against 850 pins the boundary from both ends.
+
+Worth naming the failure this avoids: a public project hit exactly this,
+counting RentCast spend in UTC calendar months against a vendor billing
+11th-to-11th. The drift made their counter read ~2,333 against a real
+vendor total of 315, producing repeated false "quota exhausted" reports.
+Our period is at least anchored to the right day; only the hour is in
+question.
