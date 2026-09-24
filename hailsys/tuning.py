@@ -44,13 +44,14 @@ METRES_PER_MILE = 1609.344
 # stay at or below that threshold.  Raising the ceiling means a migration
 # and a full recompute (scripts/backfill_zip_distances.py)
 
-
-# This is the value 020_settings_radii.sql seeded settings.default_zip_radius_miles
-# with at inception.  Live request-serving code reads the settings table
-# (hailsys.settings.fetch_settings, exposed as g.settings) instead of this
-# constant, so an admin's change on the settings page takes effect without a
-# deploy.  Kept here as the default/fallback for standalone scripts that run
-# outside a request and don't have g.settings.
+# The values sql/020_settings_radii.sql seeded into the settings table.
+# The application does NOT read these -- it reads settings per request via
+# hailsys/settings.py, so an admin change takes effect without a deploy.
+# These remain for scripts/ only: CLI --radius defaults and, in
+# verify_zip_distances.py, a deliberately fixed radius so a verification
+# run doesn't change behaviour when someone edits the setting. A script
+# run with the default may therefore disagree with the UI; pass --radius
+# to match it.
 DEFAULT_ZIP_RADIUS_MILES = 5.0
 
 # How far from a report a listing may be and still be matched.  This is the
