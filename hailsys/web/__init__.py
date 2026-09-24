@@ -4,6 +4,9 @@ from flask import Flask, g, render_template
 from flask_wtf.csrf import CSRFError, CSRFProtect
 
 def create_app():
+    from hailsys.logconfig import configure_logging
+    configure_logging()
+
     app = Flask(__name__)
     app.secret_key = os.environ["FLASK_SECRET_KEY"]
 
