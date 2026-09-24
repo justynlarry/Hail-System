@@ -69,6 +69,13 @@ def run_pull(conn, *, emp_id, storm_date, report_text, zip_codes,
             logger.warning("event=zip_failed pull_id=%s zip=%s status=%s error=%s",
                            pull_id, zip_code, http_status, exc)
 
+        except Exception:
+            # Anything client didn't classify.
+            logger.exception("event=zip_unclassified pull_id=%s zip=%s",
+                             pull_id, zip_code)
+            _finish_pull(conn, pull_id, total_calls, total_listings, "failed")
+            raise
+
         with conn.cursor() as cur:
             cur.execute(_LOG_ZIP_SQL, {
                 "pull_id": pull_id, "zip_code": zip_code,

@@ -69,6 +69,15 @@ class RentCastConnectionError(RentCastError):
 
 _last_request_time = 0.0
 
+class RentCastResponseError(RentCastError):
+    """200, but body could not be read or parsed.
+
+    Request was served and billed, so this should carry
+    attempts like any other RentCastError    
+    """
+    user_message = ("RentCast returned a response we couldn't read "
+                    "Safe to retry.")
+
 def _throttle():
     """Sleep for just long enough to stay under RentCast's 20 req/sec limit"""
     global _last_request_time
@@ -155,6 +164,14 @@ def _get(params: dict) -> list:
                             exc.reason, attempt, backoff)
             time.sleep(backoff)
             continue
+
+        except (json.JSONDecodeError, ValueError, OSError) as exc:
+            # Reqeust sent and answered, ready or parsing the body failed
+            # not retried.  No way to know whether a partial read means data
+            # is recoverable, and RentCast billed call either way
+            logger.error("event=rentcast_unreadable_response attempts=%d error=%s",
+                         attempt, exc)
+            raise RentCastResponseError(str(exc), attempts=attempt) from exc
 
 def search_sale_listings(zip_code: str, status: str = "Active", 
                         days_old: int | None = None) -> tuple[list, int]:
