@@ -11,7 +11,8 @@ Read `CLAUDE.md` and `docs/database-schema.md` first. Do not skim them; the
 non-obvious reasoning behind several tables is documented there and the DDL is
 supposed to match it.
 
-Review every file in `sql/` (001 through 017) plus `scripts/load_reference.sh`.
+Review every file in `sql/` (001 through 023) plus `scripts/load_reference.sh`
+and `scripts/load_municipal.sh`.
 This is a **review, not a rewrite** — report findings and wait for my go-ahead
 before changing anything. Do not refactor working code, and do not add anything
 I did not ask for.
@@ -23,9 +24,14 @@ of those is proposed as a new additive migration, not an edit to the file.
 `properties.geom` and its two GiST indexes; 015 `storm_listing_matches.emp_id`
 and a `matched_at` index; 016 an `iem_data.ingested_at` index; 017
 `report_zip_distances`, its `AFTER INSERT` trigger and the ceiling/guard
-functions. `010_roles.sql` holds the roles and the grants for tables that
-existed when it was written; 012 and 017, the two later files that create
-tables, carry their own grants.
+functions; 018 `users.sessions_invalidated_at` and the single-row `settings`
+table; 019 the deferred last-admin constraint trigger; 020 the radius columns
+in `settings`, `settings_history` and its trigger; 021 `municipal_boundaries`
+(for the parked permits work); 022 `match_runs`; 023 the RentCast billing-day
+and quota columns, which also replaces 020's history function and trigger.
+`010_roles.sql` holds the roles and the grants for tables that existed when it
+was written; every later file that creates a table (012, 017, 018, 020, 021,
+022) carries its own grants.
 
 **A reconciliation pass has already run.** Documentation and DDL now agree on
 table count, `api_pulls` naming, `send_log` naming, the `system` role, email
@@ -48,7 +54,7 @@ for f in sql/*.sql; do
 done
 ```
 
-Then confirm with `\dt` (expect 19 tables, plus PostGIS's own `spatial_ref_sys`)
+Then confirm with `\dt` (expect 23 tables, plus PostGIS's own `spatial_ref_sys`)
 and `\d <table>` on each. Drop the scratch database when done.
 
 If PostgreSQL is not reachable on this host, say so rather than guessing — the
@@ -81,7 +87,19 @@ do not fix without my go-ahead, and remember 001–009 are frozen:
 - `sql/012_counties.sql` declares `county_fips CHAR(5)` and `state_fips CHAR(2)`,
   which §3 forbids (`CHAR(n)` blank-pads; use `TEXT` plus a `CHECK`). FIPS codes
   are fixed-width, so this may be a deliberate choice — flag it as a decision,
-  not an error.
+  not an error. `sql/021`'s `municipal_boundaries.place_fips CHAR(5)` is the
+  same case (with a five-digit `CHECK`), and should get the same answer.
+
+**Open — observed 2026-09-24, not yet triaged:**
+
+- `sql/022`'s index is named `match_runs_storm_idx`, which breaks the
+  `{table}_{column}_idx` convention (`match_runs_storm_date_report_text_idx`).
+  Left as applied; a rename would be a new migration.
+- `sql/020` grants `USAGE` on `settings_history_history_id_seq`, which is
+  redundant for an identity column (decision log 2026-09-22, correction).
+  Harmless, and left in place.
+
+018–023 are all wrapped in `BEGIN;` / `COMMIT;`.
 
 ## 3. Error classes I have made in these files
 
@@ -132,6 +150,8 @@ Confirm these exist and flag any that are redundant:
   `county_boundaries.geom` (`sql/012`)
 - `storm_listing_matches (matched_at DESC)` (`sql/015`) and
   `iem_data (ingested_at DESC)` (`sql/016`), both for the activity feed
+- GiST on `municipal_boundaries.geom` (`sql/021`), and
+  `match_runs (storm_date, report_text)` (`sql/022`), for the work-state query
 - `report_zip_distances` is keyed `(iem_id, zcta5)`, so lookups by `iem_id`
   are covered. There is deliberately **no** index on `zcta5` — parking-lot item
   41 defers it until an address lookup needs it; do not flag it as missing
@@ -171,6 +191,22 @@ application-layer only:
 - Removal column pairs (`removed_at` / `removed_by`) move together.
 - `dnc_list.source` permits `'legacy_import'`, or the legacy DNC import fails on
   its first row.
+- **Never zero active admins:** `trg_last_admin` is an `AFTER UPDATE OR DELETE`
+  constraint trigger, `DEFERRABLE INITIALLY DEFERRED`, so a demote-and-promote
+  swap in one transaction passes and demoting the only admin is refused at
+  `COMMIT`.
+- **`settings` is one row:** `CHECK settings_is_singleton (id = 1)`, and
+  `hail_app` has `SELECT, UPDATE` only, no `INSERT`.
+- **Every settings change is attributed:** `trg_log_settings_change` fires
+  `AFTER UPDATE OF` the two radius and two RentCast columns, and **not**
+  `global_sessions_invalidated_at` (the sign-out-everyone update must not fire
+  it). Its `WHEN` skips a save that changes nothing, and the function reads
+  `current_setting('app.current_emp_id')` with no `missing_ok`, so an
+  unattributed change raises.
+- **Settings ranges:** both radii `> 0 AND <= 10.0`, match radius `<=` zip
+  radius, billing day `BETWEEN 1 AND 28`, quota `> 0`.
+- **`match_runs`:** `finished_has_timestamp` (a finished run has
+  `finished_at`), and `run_status` limited to `running`/`complete`/`failed`.
 
 ## 7. DDL versus documentation
 
@@ -194,6 +230,20 @@ matches the DDL; confirm it still does.
   discards an unterminated statement at EOF
 - Confirm `PGHOST` and `PGUSER` are exported — this runs inside the
   `postgis/postgis` container, not on the Rocky host
+
+## 9. `load_municipal.sh`
+
+- The same shell checks as §8: `bash -n`, `set -euo pipefail`, `PGHOST` and
+  `PGUSER` exported, `\copy` rather than `COPY`
+- Confirm it is idempotent the **other** way from `load_reference.sh`:
+  `DELETE` then `INSERT` in one transaction, so a reload replaces the set (an
+  annexation must replace the old boundary). `ON CONFLICT DO NOTHING` here
+  would be a bug
+- Confirm DOLA's literal string `'null'` is converted to JSON null, and that
+  geometries go through `ST_MakeValid` → `ST_CollectionExtract(…, 3)` →
+  `ST_Multi` before the `MultiPolygon` insert
+- Confirm the in-transaction check fails the load if the row count doesn't
+  match the file or any geometry is still invalid
 
 ## Output
 

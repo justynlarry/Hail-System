@@ -19,59 +19,32 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-09-17**, commit `e22c02f`. Since the
-2026-09-14 sync (commit `65f5e36`), the project did not stay in planning —
-**Phase 2's storm-browser web app got built**, in 52 commits with zero updates
-to this file along the way. Two small patches landed right after the last
-sync (`b46596a`, `8246532`, fixing `county_boundaries` and `coverage_zips`
-drift this file itself had introduced) and then this file went stale for the
-entire build: a Flask app (auth, the recent-storm-days browser, a territory
-browse grouped by city or zip, a lazy-loaded zip/day drill-down, a CSV export,
-a Leaflet map, and a NEXRAD radar-verification study that changed what the UI
-shows) shipped before anyone reconciled it here. `decision-log.md` and
-`parking-lot.md` were brought current two days into that gap (`7dfb8d6`,
-2026-09-16 dated entries) — this file was not. **The gap itself is the
-finding worth carrying forward**: a doc that summarizes decisions and
-parking-lot items but is regenerated on its own schedule can drift a full
-phase behind the two files it depends on, silently, because nothing forces
-the three to move together. See "The web app — built, Phase 2 substantially
-underway" under §2 for what actually exists, and the loose ends flagged at
-the end of that section for what this sync found still disagreeing with
-itself.
+Last synced against the repo: **2026-09-24**, commit `0f628f4`. The previous
+sync was **2026-09-17** (commit `e22c02f`), at the start of Phase 3. In the
+week between, **Phase 3 closed (2026-09-21) and Phase 4 closed (2026-09-24)**,
+and this file was not touched once. The same drift the 2026-09-17 sync
+recorded happened again, a full phase and a half this time: `decision-log.md`,
+`parking-lot.md`, `phases.md` and `database-schema.md` were kept current as
+the work landed, and this summary fell behind them. Nothing forces the files
+to move together. **Treat this file as the last to update, never the first to
+read for a recent fact**: for anything since 2026-09-17, check the decision
+log.
 
-Eight Phase 2 decisions were recorded in the decision log **as of the last
-sync** — Tailscale over a Cloudflare tunnel for Phase 2 access, USPS-city
-grouping, county from TIGER polygons, Flask over FastAPI, scrypt password
-hashing, the `hailsys/` package layout, `hailsys/db.py`'s connection design
-(`dict_row`, no pool), and pulling the storm query itself into
-`hailsys/queries/storms.py` behind two projections (`pairs`, `zips`),
-resolving **parking-lot item 6 (PL-06)**. **Ten more were recorded
-2026-09-15 and 2026-09-16**, covering the query-core fixes the two-projection
-design didn't by itself prevent, the storm-browser/match-view page split, the
-map, the CSV export, and the radar-verification findings that dropped
-`confidence_tier` from the UI. See §6 for all eighteen, condensed.
-
-**Everything decided in the 2026-09-14 sync is now built, not just decided**
-— the `hailsys/` package move, `hailsys/db.py`, `hailsys/queries/storms.py`,
-`county_boundaries` (`sql/012_counties.sql`, loaded, 3,235 counties, all SRID
-4326, resolving database-schema.md open question 4 / parking-lot item 4), and
-now Flask itself, scrypt auth, and the Tailscale-serve deployment path. See
-§10 for the current tree.
-
-**Phase 1's "done when" bar is one day from fully met, verified by running,
-not by reading a timer file.** `iem_ingest.timer` has fired automatically at
-10:00 UTC every day from 2026-09-12 through 2026-09-17 — six consecutive
-unattended nightly runs, all `run_status = complete`, confirmed against
-`ingest_runs` and cross-checked in `journalctl` rather than assumed from
-`systemctl list-timers` alone. The timer has been `active (waiting)` without
-interruption since installation at 2026-09-11 21:04:16 UTC; one more
-automatic firing (2026-09-18 10:00 UTC) completes the seven days Phase 1's
-"done when" calls for. See "Nightly timer: the unattended week, checked" under
-§2.
+What this sync adds: §2 gains Phase 3's close, Phase 4 (accounts, roles, the
+admin page, CSRF, `match_runs`, re-pull, the RentCast quota and the storm-list
+pagination), and the parked permits and jurisdiction research. §5 grows from
+eighteen tables to twenty-three. §6 gains the Phase 3 and Phase 4 decisions,
+condensed. §7 gains the RentCast response-handling trap and the
+bind-mount-versus-baked-image trap. §9 notes that the web app has no logging
+configuration. §10 and §11 are brought up to date. Where an older paragraph
+below is now wrong, it is marked **Superseded** or **Update 2026-09-24**
+inline, not rewritten, so the history of what was believed when stays
+readable.
 
 Everything below was verified against the **`hail-dev`** stack rather than read
-off the source. Where a number appears — 177,100, 33,791, 3,235, 37,104 — it
-came from a query on 2026-09-17 unless marked otherwise. A few facts are
+off the source. Where a number appears — 177,523, 33,791, 3,235, 37,104 — it
+came from a query on the sync date unless marked otherwise (2026-09-24 for
+this sync; older sections keep the date they were written). A few facts are
 per-machine deployment state rather than project state (the territory load,
 most notably); those are marked inline.
 
@@ -119,19 +92,23 @@ The pitch is deliberately narrow: *"hail of X size was reported near this
 listing."* It reports a public record. It never claims damage.
 
 **Scale.** Single developer (Justyn). Two machines — a `hail-dev` VM and the
-production OptiPlex (§9). Four or five user accounts, probably ever — **one
-exists today**, `justyn`, `role = admin`. **177,100 storm report rows** on
-`hail-dev` as of 2026-09-17 (176,957 after the backfill, plus six days of live
-nightly ingest since), 2004-01-26 to present — about 23 years of Colorado, not
-ten.
+production OptiPlex (§9). Four or five user accounts, probably ever — **two
+people accounts exist today**, `justyn` (`admin`) and `testview` (`viewer`,
+kept for role testing), plus the non-login `system` account. **177,523 storm
+report rows** on `hail-dev` as of 2026-09-24, 2004-01-26 to present — about 23
+years of Colorado, not ten. **1,964 properties** from seven RentCast pulls
+across 15 zips, 11 of them in El Paso County.
 
 ---
 
 ## 2. Where the project actually stands
 
-**Phases 0 through 3 are closed. Phase 2 — the storm-browser web app — closed
-2026-09-17; Phase 3 — RentCast listings — closed 2026-09-21. Phase 4 —
-Accounts — is the current phase.** Phase 3 delivered the sale-listings client,
+**Phases 0 through 4 are closed. Phase 2 — the storm-browser web app — closed
+2026-09-17; Phase 3 — RentCast listings — closed 2026-09-21; Phase 4 —
+Accounts — closed 2026-09-24. Phase 5 — Email — is the current phase**, begun
+2026-09-23 with nothing built yet: `send_log`, `email_templates` and
+`dnc_list` exist from `sql/007` and are empty, and the legacy DNC import comes
+before any send. See "Phase 4 — Accounts" below. Phase 3 delivered the sale-listings client,
 the pre-pull estimate, a background-thread pull path, upserts into
 `properties`/`listings`/`realtors`, storm-to-listing matching (automatic when a
 pull finishes), the match page and the activity feed, all through the web UI,
@@ -148,6 +125,12 @@ the last check — no second real account has ever logged in, no CSRF
 protection, county grouping never wired into the territory browse UI — were
 still true at that check and are not claimed fixed by this entry. They carry
 forward as open items against a closed phase, not as blockers reopening it.
+
+**Update 2026-09-24:** of those three, CSRF protection now exists (Phase 4,
+Flask-WTF, 2026-09-22), and county grouping is decided as deferred rather than
+missed (decision log 2026-09-23, "Three Phase 2 outline items…"). Nobody other
+than the developer has logged in yet. `testview` was signed in by Justyn, and
+parking-lot item 63 (a path to `hail-dev` for anyone else) is still open.
 
 ### Infrastructure — verified on a running stack, 2026-09-08 through 2026-09-10
 
@@ -500,6 +483,9 @@ since 2026-09-11.
   on `hail-dev` today: two rows in `users`** — `system` (`role=system`,
   inactive, unauthenticatable by design) and `justyn` (`role=admin`, active,
   `last_login_at` populated). No second real account has been created.
+  **Superseded 2026-09-22:** `/admin` now creates and manages accounts, and
+  `create_user.py`'s future is parking-lot item 65. `users` holds three rows
+  as of 2026-09-24, adding `testview` (`viewer`).
 - **Routes**, all under `hailsys/web/views.py`, one blueprint (`main`):
   `/` (recent-storm-days browser — day range 30/90/365, report-type filter,
   an "actionable only" checkbox defaulting **on** unless the form was
@@ -509,7 +495,11 @@ since 2026-09-11.
   fragment, same lazy-fetch pattern), `/export.csv` (zip-level CSV,
   streamed from `fetch_zips`), `/map/points.geojson` (a `FeatureCollection`
   of report points, capped at 2,000 rows), plus `/login` and `/logout`.
-  Every route but `/login` is `@login_required`.
+  Every route but `/login` is `@login_required`. **Superseded 2026-09-22:**
+  `/pull/estimate`, `/pull` and `/match` carry `@role_required("sender",
+  "admin")` instead, which also redirects a signed-out visitor, and the
+  `/admin` blueprint checks for an admin in one `before_request` hook. See
+  "Phase 4 — Accounts" below.
 - **The query core absorbed two cross-projection bugs after the 2026-09-14
   extraction, both instructive.** `_ACTIONABLE` was first written directly
   into `RECENT_DAYS_SQL` rather than the shared `_FROM_WHERE` — so expanding
@@ -597,7 +587,8 @@ decide, not silently patched:
   returns nothing but the decision-log sentence that raised its priority.
   `/logout` is a bare POST with no token, and the Funnel window made this a
   live, if brief, exposure rather than a theoretical one. **Left open** —
-  a real fix, not a doc fix.
+  a real fix, not a doc fix. **Update 2026-09-24: fixed** — `CSRFProtect` on
+  every POST since 2026-09-22, failures returning a 400 page since 2026-09-23.
 - **Phase 2's own "done when" — "someone *other than the developer* can log
   in ... and download it as a spreadsheet" — was not independently
   demonstrated before the phase was called closed (2026-09-17, Justyn's
@@ -610,7 +601,10 @@ decide, not silently patched:
   has existed and been loaded since 2026-09-14. `territory()`'s `GROUP_BYS`
   is `("zip", "city")` only — `phases.md`'s Phase 2 checklist ("group by
   city, county, **or zip**") is still one option short of what it describes.
-  **Left open** — a real feature, not a doc fix.
+  **Left open** — a real feature, not a doc fix. **Update 2026-09-24:**
+  recorded as deliberately deferred, not missed. The browse was scoped to
+  questions that don't include county (decision log 2026-09-23, "Three Phase 2
+  outline items, settled in scoping and recorded late").
 - **`phases.md` named a Cloudflare tunnel under the Phase 2 checklist**, three
   days after the 2026-09-14 decision (Tailscale over Cloudflare) updated
   `CLAUDE.md` and `server-setup.md` but not this one. **Fixed this session**
@@ -677,17 +671,91 @@ consistent with how the web app already treats `report_text` as a
 free-standing filter value (§2, "The web app"), not a new gap this file
 introduces.
 
+### Phase 3 closes — 2026-09-21
+
+Pull orchestration (`hailsys/rentcast/pull.py`), upserts into
+`properties`/`listings`/`realtors` (`upsert.py`), a background-thread pull path
+(`hailsys/web/jobs.py`), storm-to-listing matching (`hailsys/matching/matcher.py`,
+run automatically when a pull finishes and by the Match button), the match page
+(`/storms/matches`), derived work state per storm day
+(`hailsys/queries/workstate.py`), the activity feed, and `report_zip_distances`
+(`sql/017`), which precomputes report-to-zip distances so storm queries stop
+running a live spatial join. On a 2019-wide range, the storm list went from
+about 141 s to under 1 s. The done-when was a real pull on 2026-09-21:
+4 requests estimated, 4 used (`api_pulls` row 12), 231 listings stored and
+matched.
+
+### Phase 4 — Accounts — 2026-09-22 through 2026-09-24
+
+- **Roles enforced on the server.** `viewer` browses and exports; `sender` adds
+  the pull estimate, the pull and Match; `admin` is **everything a sender can
+  do plus users and settings** (the 2026-09-01 "admin manages users and nothing
+  else" rule was reversed 2026-09-22). `role_required` guards the three paid
+  routes, and the UI greys what a role can't do rather than hiding it.
+- **`/admin`** (its own blueprint, one admin check for every route on it):
+  - **Users:** add, change role, sign out, deactivate, reactivate, reset
+    password. Never on your own row, refused on the server since 2026-09-23.
+  - **Settings:** the two radii, the RentCast billing day and monthly quota,
+    this billing period's usage, and the change history.
+- **Forced logout by timestamp** (`sql/018`): a per-user and a system-wide
+  `*_sessions_invalidated_at`, compared against the session's `issued_at` on
+  every request. **Last-admin protection** (`sql/019`) is a deferred
+  constraint trigger. **Radii** moved from `tuning.py` into `settings`
+  (`sql/020`), read per request. Self-service **change-password**.
+- **CSRF** on every POST (Flask-WTF, 2026-09-22); a failure renders a 400 page
+  (2026-09-23).
+- **`match_runs`** (`sql/022`) records every match attempt, so an empty match
+  on a pulled storm reads "Matched, none in range" instead of looking like it
+  never ran (item 40). **Re-pull** ("Pull again", greyed past the 365-day claim
+  window) goes through `/pull/estimate` (item 46).
+- **RentCast quota** (`sql/023`, `hailsys/queries/quota.py`): billing day and
+  quota in `settings`, usage summed from `api_call_log` per billing period
+  (rolled over at Denver midnight), shown on the admin page, the storm list for
+  senders and admins, and the pull estimate. **Warn and allow**, not a hard
+  block (item 50).
+- **Closing follow-ups, 2026-09-24:**
+  - Unreadable RentCast responses now fail loudly with an attempt count.
+  - Every aborted zip's calls reach `api_call_log` (item 88).
+  - The storm list pages at 50 storm days (item 86).
+  - UI fixes: the login page, header wrapping, the admin table.
+- **Done-when verified:** signed in as `testview`, Pull is greyed; and with a
+  **valid CSRF token** a viewer session gets 403 on `/pull`, `/pull/estimate`,
+  `/match` and `/admin/`, and 200 on `/` and `/export.csv`. Without the token
+  the POST would fail CSRF first and the 403 would prove nothing.
+
+### Permits and jurisdiction research — parked, 2026-09-23 / 2026-09-24
+
+Groundwork for building-permit data as a future source, allowed as a
+deliberate exception to "do not build ahead". `municipal_boundaries`
+(`sql/021`, DOLA's dissolved layer, 274 municipalities) is loaded. Permits
+themselves are **parked until the system is running**. The findings are in
+`docs/data-sources.md` §5 and the decision log (2026-09-23):
+- **82 permit issuers** cover the territory.
+- **The Pikes Peak Regional Building Department** is the only regional one.
+- **The claim rule:** permit data never becomes "your roof is X years old".
+
+A viability grading of all 82 is in `data/research/permit_viability_2026-09-24/`,
+which is gitignored: 3 A, 7 B, 59 C, 13 D.
+
+### Still open against closed phases, as of this sync
+
+- **Phase 2:** nobody other than the developer has logged in (item 63).
+- **Nothing under `hailsys/web/` has tests** (item 53).
+- **Logging is unconfigured in the web app**, so every `logger.info` is
+  dropped. Warnings and errors still reach the container log (item 99, §9).
+- **No stale-pull sweep** after a restart mid-pull (item 47). None is stuck
+  today.
+- **RentCast's billing boundary hour** can't be checked until after
+  2026-10-09 (item 87).
+
 **Do not build ahead of the current phase.**
 
 **Phase 1 is done when** a spreadsheet of affected zip codes can be produced for
 a real storm from last month, and the nightly job has run unattended for a week.
-**The first half has been true since 2026-09-11**: `export_storm_zips.py`
-produces the spreadsheet (§2, "Storm-zip export and the `app` service"), and
-the web app's own `/export.csv` (above) is a second, independent way to get
-one. **The second half is one day from true, verified 2026-09-17**: see
-"Nightly timer: the unattended week, checked" above — six of the seven
-required unattended days have run clean, with the next automatic firing due
-2026-09-18 10:00 UTC.
+**Both halves are met.** `export_storm_zips.py` and the web app's `/export.csv`
+produce the spreadsheet. The nightly timer has run automatically every day
+since 2026-09-12; the most recent `complete` nightly run was 2026-09-24
+10:00 UTC.
 
 ---
 
@@ -771,8 +839,13 @@ privilege list can be read against this diagram.
 
 ## 5. The data model
 
-**Eighteen tables** — seventeen from `sql/001`–`009`, plus `county_boundaries`
-(`sql/012_counties.sql`, 2026-09-14). **Drift found this sync, fixed as part
+**Twenty-three tables** as of 2026-09-24, counted against `hail-dev`. That's
+seventeen from `sql/001`–`009`, plus `county_boundaries` (`sql/012`,
+2026-09-14), `report_zip_distances` (`sql/017`, 2026-09-21), `settings`
+(`sql/018`) and `settings_history` (`sql/020`, both 2026-09-22),
+`municipal_boundaries` (`sql/021`) and `match_runs` (`sql/022`, both
+2026-09-23). **The rest of this paragraph is from the 2026-09-14 sync:**
+eighteen tables at the time. **Drift found this sync, fixed as part
 of it:** `database-schema.md` said "Seventeen tables" and had no field-level
 entry for `county_boundaries` at all — only prose under its open-question 4.
 Both fixed today: the header now says eighteen, and `county_boundaries` has
@@ -784,15 +857,17 @@ is in `docs/db-schema-diagram.md`.
 | Table | What it holds |
 |---|---|
 | `report_types` | 37 rows. Meaning of a report type: magnitude unit, unit confidence, `roof_relevant`, and `min_magnitude` (the outreach floor; NULL means none). Composite PK `(report_type, report_text)`. `mag_unit` is nullable — NULL means "we do not know the unit", which is not the same as `none`. |
+| `report_zip_distances` | Every ZCTA within 10 miles of every report, nationwide, not just coverage zips, so adding a coverage zip later needs no recompute. Nearest-edge distance in metres. PK `(iem_id, zcta5)`. **Derived**, kept current by an `AFTER INSERT` trigger on `iem_data`, so storm queries join it instead of running a live spatial join. Added `sql/017`, 2026-09-21; about 2.26 M rows. |
 | `iem_data` | One row per NWS Local Storm Report. Exact lat/lon, generated `geom` (GiST indexed), UTC timestamp, magnitude, qualifier, remark. Natural key is `UNIQUE NULLS NOT DISTINCT` so null-magnitude rows deduplicate. The only table fed by an automatic job. |
 
 ### Reference
 | Table | What it holds |
 |---|---|
-| `report_sources` | **Loaded on `hail-dev`: 47 rows** (18 high / 19 moderate / 8 low / 2 unrated / 5 unknown_automation; 0 unmatched against `iem_data.report_source_norm`), from the curated seed `planning/report_sources.csv`. What a reporting source is and how far to trust it — `confidence_tier`, `is_automated`. **No FK from `iem_data`**: source is free text typed at NWS offices and an FK would break the nightly ingest. A lookup, joined on `report_source_norm`, never a constraint. |
+| `report_sources` | **Loaded on `hail-dev`: 49 rows** as of 2026-09-24 (18 high / 21 moderate / 8 low / 2 unrated / 5 unknown_automation; 0 unmatched against `iem_data.report_source_norm`). The two added 2026-09-23 are GJT's new 17-character spellings of long-standing sources, from the curated seed `planning/report_sources.csv`. What a reporting source is and how far to trust it — `confidence_tier`, `is_automated`. **No FK from `iem_data`**: source is free text typed at NWS offices and an FK would break the nightly ingest. A lookup, joined on `report_source_norm`, never a constraint. |
 | `zcta_boundaries` | 33,791 Census ZCTA polygons, nationwide, EPSG 4326. `centroid` is generated with `ST_PointOnSurface`, not `ST_Centroid`, so it cannot fall outside a C-shaped zip. Two GiST indexes, one on `geom` and one on `(geom::geography)` — see §2. Loaded once, never written to. **No foreign keys** — joined spatially. |
 | `coverage_zips` | RBI's service territory. **Loaded on `hail-dev`: 183 rows** from the 193-entry `config/coverage_zips.txt` — the other 10 have no ZCTA polygon and are uninsertable by design (§7). `load_coverage.sh` reproduces the load. Keyed on `zcta5` with an FK to `zcta_boundaries`. `area_name` comes from USPS; `reason` is deliberately left NULL by the loader. Ours, and it will be edited — retirement is a marked row, never a delete. |
-| `county_boundaries` | 3,235 Census TIGER county polygons, nationwide, EPSG 4326, GiST-indexed the same way as `zcta_boundaries`. **Loaded on `hail-dev`: 3,235 rows.** Added `sql/012_counties.sql`, 2026-09-14 — an authoritative zip→county crosswalk across all 22 years of the archive, resolving database-schema.md open question 4 / parking-lot item 4. **Not yet surfaced anywhere in the web UI** — the territory browse's `group_by` only offers `zip` and `city` (§2). No foreign keys — joined spatially, like `zcta_boundaries`. |
+| `county_boundaries` | 3,235 Census TIGER county polygons, nationwide, EPSG 4326, GiST-indexed the same way as `zcta_boundaries`. **Loaded on `hail-dev`: 3,235 rows.** Added `sql/012_counties.sql`, 2026-09-14 — an authoritative zip→county crosswalk across all 22 years of the archive, resolving database-schema.md open question 4 / parking-lot item 4. **Not yet surfaced anywhere in the web UI** — the territory browse's `group_by` only offers `zip` and `city` (§2), deliberately deferred (decision log 2026-09-23). No foreign keys — joined spatially, like `zcta_boundaries`. |
+| `municipal_boundaries` | 274 Colorado municipalities from DOLA's dissolved layer, EPSG 4326, keyed on the Census place code. Replaced wholesale on reload, since an annexation must replace the old boundary. Added `sql/021`, 2026-09-23, for the parked permits work; not read by any query in the app. Hudson appears under two codes, a known source error. |
 
 ### Property side
 | Table | What it holds |
@@ -806,6 +881,7 @@ is in `docs/db-schema-diagram.md`.
 | Table | What it holds |
 |---|---|
 | `storm_listing_matches` | "This listing was within N miles of that storm report." Unique on `(iem_id, listing_id, radius_used)` so the same pairing can exist at multiple radii. Points at `listing_id`, **not** `rentcast_id`. |
+| `match_runs` | One row per match attempt, written `running` before the work and finished `complete` or `failed`, so a run that matched nothing is a record instead of an absence. `matches_created` counts **new** rows only. Added `sql/022`, 2026-09-23. |
 
 ### Sending
 | Table | What it holds |
@@ -816,9 +892,11 @@ is in `docs/db-schema-diagram.md`.
 ### Operations
 | Table | What it holds |
 |---|---|
-| `users` | Logins. Roles `admin` / `sender` / `viewer`, plus `system` — a non-login account, bootstrapped in `sql/002`, that owns machine-initiated rows (automatic bounce and complaint suppressions, the legacy DNC import). Constrained in the database so it cannot be activated or given a real password. Unlike the other three it is **not a cost stage**. **Live on `hail-dev`: 2 rows** — `system` and `justyn` (`admin`, active, created via `scripts/create_user.py`, the Phase 4-placeholder CLI — see §2). |
+| `users` | Logins. Roles `admin` / `sender` / `viewer`, plus `system` — a non-login account, bootstrapped in `sql/002`, that owns machine-initiated rows (automatic bounce and complaint suppressions, the legacy DNC import). Constrained in the database so it cannot be activated or given a real password. Unlike the other three it is **not a cost stage**. **Live on `hail-dev`: 3 rows** as of 2026-09-24 — `system`, `justyn` (`admin`) and `testview` (`viewer`, kept for role testing). `sessions_invalidated_at` (`sql/018`) forces one user out; last-admin protection (`sql/019`) refuses leaving zero active admins. Accounts are managed on `/admin`. |
+| `settings` | Single row (`sql/018`): the system-wide sign-out timestamp, both radii (`sql/020`), and the RentCast billing day and monthly quota (`sql/023`). Read per request, never cached. |
+| `settings_history` | One row per change to the radii or quota columns, written only by trigger, attributed through a transaction-local `app.current_emp_id`. Added `sql/020`; the quota columns `sql/023`. |
 | `api_pulls` | One row per user-initiated RentCast pull. Records `estimated_api_calls` vs. `actual_api_calls` side by side; `api_status` tracks the run. `iem_id` is nullable — a pull need not be tied to one storm. |
-| `api_call_log` | One row per zip within a pull. Powers the "this zip was pulled recently" warning. |
+| `api_call_log` | One row per zip within a pull. Powers the "this zip was pulled recently" warning, and since 2026-09-23 **the RentCast usage figure**: every zip that makes a request gets a row, including one that ends the pull. A NULL `http_status` means no usable status was ever received. |
 | `ingest_runs` | One row per execution of an IEM ingest script (`nightly` / `backfill` / `replay`). Records the UTC window actually requested plus `rows_seen` / `rows_inserted` / `rows_skipped`. No `emp_id` — system-initiated. Written before the work starts, like `api_pulls`. **The alert that matters is the absence of a row**, which is why it is a table and not log output. |
 | `iem_ingest_rejects` | One row per input line the parser refused. FK → `ingest_runs`. `raw_row` holds the line verbatim (TEXT, not JSONB — it is here because it did not parse), so rejecting is not lossy. `reason` is a closed **five**-value CHECK; anything outside it must terminate the run rather than be skipped. |
 
@@ -826,7 +904,8 @@ is in `docs/db-schema-diagram.md`.
 
 - **Surrogate `BIGINT` PKs** on every table we control: `iem_id`, `listing_id`,
   `realtor_id`, `match_id`, `send_id`, `template_id`, `emp_id`, `pull_id`,
-  `api_log_id`, `dnc_id`, `run_id`, `reject_id`.
+  `api_log_id`, `dnc_id`, `run_id`, `reject_id`, and since Phase 4
+  `history_id` and `match_run_id`.
 - **Natural keys enforced as unique constraints** on every table ingesting
   external data. `iem_data` is unique on
   `(utc_datetime, latitude, longitude, report_text, magnitude)` — this is what
@@ -894,6 +973,9 @@ through; re-proposing the opposite needs a new reason, not a fresh opinion.
   "admin" conventionally means "can do everything." Note that all three
   application roles share one *database* role, `hail_app`; the split between
   them is Python's job, not Postgres's.
+  **Superseded 2026-09-22:** admin is now a full superset of sender. The
+  person who administers the system is the one who pulls and will send, and
+  two accounts for one human is ceremony, not a control.
 - **Whole-country boundary data, not Colorado-only.** The spatial index makes
   national scope free to query.
 - **No `qualifiers` table — deferred, not rejected.** Three codes, and the
@@ -1084,8 +1166,68 @@ day as decided — condensed from `decision-log.md`:**
   `tailscale serve` is tailnet-only; Funnel briefly made the same hostname
   reachable over public TLS for one non-technical viewer, which also
   briefly made the application's own login the sole gate — raising CSRF's
-  priority (still not implemented, §2) — and was turned off after. Verified
-  off as of this sync (§2).
+  priority (implemented 2026-09-22, §2) — and was turned off after. Verified
+  off as of the 2026-09-17 sync, and still tailnet-only 2026-09-24.
+
+**Phase 3 decisions, 2026-09-17 through 2026-09-21** (see the decision log for
+each):
+
+- **RentCast client in stdlib `urllib`**, `status=Active`, `daysOld` filtered on
+  the server, throttled to 20 req/sec, and every physical request counted,
+  retries included.
+- **A pull links to a storm by `(storm_date, report_text)`**, not one
+  `iem_data` row, because a storm has never been one row.
+- **Continue past a bad zip, abort past a bad key.** A bad key fails
+  identically on every remaining zip.
+- **Pulls run in a background thread and match automatically.** Status lives
+  in `api_pulls`, never in process memory, because a poll can land on a
+  different Gunicorn worker.
+- **The pull POST recomputes zips** and checks a count, rather than trusting
+  hidden form fields.
+- **Work state is derived, never stored.** Looking at a storm never changes
+  its state. The one-year claim window turns an old "Not pulled" into history.
+- **Matching:** Active listings only, New Construction and Land excluded, and
+  `COUNT(DISTINCT listing_id)` for anything counting leads.
+- **`report_zip_distances`: compute once, store.** Plus the lesson that with
+  `./hailsys` bind-mounted into `web`, **editing is deploying**.
+
+**Phase 4 decisions, 2026-09-22 through 2026-09-24:**
+
+- **Roles are enforced on the route first, and the UI follows.** Admin is a
+  superset of sender. The admin routes are one blueprint with one check, so a
+  new admin route can't forget it.
+- **Role is cached in the session; account state is re-checked every
+  request.** Forced logout compares timestamps, because signed cookies leave
+  no session list to delete. A role change or an admin password reset signs
+  the user out, and your own password change keeps your current session.
+- **Last-admin protection is a deferred constraint trigger**, checked at
+  `COMMIT` so a demote-and-promote swap in one transaction passes.
+- **Settings changes are attributed** through a transaction-local setting, and
+  the history trigger is scoped to the columns it logs.
+- **CSRF through Flask-WTF**, failing closed, with no token time limit; a
+  failure returns a 400 page (supersedes the 2026-09-22 redirect).
+- **Radii are read from `settings` per request.** `tuning.py`'s constants stay
+  for `scripts/` only.
+- **`match_runs` makes an empty match visible**, and "Matched, none in range"
+  needs both a completed run and a pull.
+- **Re-pull goes through the estimate page.** Storms past the claim window are
+  greyed, not blocked, and the estimate page deliberately doesn't block them.
+- **RentCast quota:**
+  - Billing day capped at 28.
+  - Warn and allow.
+  - Usage summed from `api_call_log`, with the period rolling over at Denver
+    midnight. RentCast's own boundary timezone is unconfirmed.
+- **Admins can't act on their own row.** A forced password change after a
+  reset was declined for now.
+- **The activity feed shows who did what, to everyone**, deliberately, for an
+  office of five with admin-created accounts.
+- **Scheduled ingest runs a built image, not the working tree.** `app` and
+  `ingest` bake their code in; `web` and `loader` see edits live.
+- **Unreadable RentCast responses fail loudly with an attempt count**, and
+  every aborted zip's calls reach `api_call_log`.
+- **The storm list pages at 50 storm days.**
+- **Parked, with the claim rule:** permits and jurisdiction work.
+  Jurisdiction is always point-in-polygon, never a mailing city.
 
 ---
 
@@ -1235,10 +1377,33 @@ These have already bitten. Do not re-discover them.
   listings have null agent fields.
 - **New Construction is not worth outreach** — a brand-new roof is not a hail
   claim.
+- **A body that can't be read must still carry an attempt count** (2026-09-24).
+  `http.client.IncompleteRead` is an `HTTPException`, **not** an `OSError` or
+  `ValueError`, so a handler catching `(JSONDecodeError, ValueError, OSError)`
+  misses the commonest short-body case. `RentCastResponseError` covers all
+  of them, and a JSON object where a list was expected raises too, instead of
+  reading as "no listings".
+- **RentCast geocodes some new-construction houses to one subdivision point**
+  (parking-lot item 100), and address variants mint duplicate properties at
+  nearly the same point (item 55: 186 candidate pairs). Distance alone tells
+  neither case apart.
 
 ### Shell, Docker, systemd, and psql
 
 These are newer and cost real time on 2026-09-08.
+
+- **Which containers see your edits** (2026-09-24). `web` bind-mounts
+  `./hailsys` and `loader` bind-mounts the whole repo, so both see edits
+  immediately; for `web`, editing is deploying at the next restart. `app` and
+  `ingest` bake their code in at build time, so running them without
+  `docker compose build` tests the code from the last build. This returned a
+  pre-migration answer through `app` on 2026-09-24. The nightly timers
+  deliberately don't build first. See `docs/command-ref.md`.
+- **A Jinja template can go live before the Python that feeds it.** Workers
+  read templates from disk on first use but load Python only at restart, so a
+  template edit that needs a new view variable can break the page on a worker
+  that hasn't cached the old template yet. Restart `web` once both halves are
+  in.
 
 - **A pipeline's exit status is its last command's.** `set -e` alone does not
   see an upstream failure. The precondition check `psql ... | grep -q 1 || fail
@@ -1383,7 +1548,8 @@ earlier Cloudflare-tunnel reasoning, which no longer applies in Phase 2 (§6).
 
 - **PostgreSQL 16 + PostGIS 3.4**, in Docker, database `weather-property`
 - **Python 3.12** backend, stdlib and boring dependencies preferred;
-  `psycopg[binary]==3.2.3` is currently the only dependency
+  `requirements.txt` is `psycopg[binary]==3.2.3`, `flask==3.1.3`, `gunicorn`
+  and `Flask-WTF==1.3.0` (added for CSRF, 2026-09-22)
 - **Web UI (Phase 2, decided 2026-09-14, built and running since):
   Flask**, server-rendered Jinja templates, `gunicorn` in its own
   `docker-compose.yml` service (`web`), reached via `tailscale serve` against
@@ -1439,9 +1605,19 @@ that never fired leaves no row to inspect at all. "When did a nightly run last
 *succeed*" is the only phrasing that holds across failed, crashed, and never
 started.
 
+**The web app has no logging configuration** (found 2026-09-24, parking-lot
+item 99). Nothing calls `logging.basicConfig`, so the `event=` lines the web
+app, the pull thread and the matcher emit at `info` are dropped at Python's
+default WARNING threshold. Warnings and errors still reach the container log
+through Python's fallback handler. A 12-zip pull and its match run left no
+`info` lines at all. The ingest scripts are unaffected: they write logfmt to
+stdout directly.
+
 **systemd schedules; the container is only the runtime.** A timer unit invokes
-`docker compose run`, and the unit carries `OnFailure=` and `Persistent=true` so
-a missed run fires after downtime rather than being skipped silently. Cron
+`docker compose run`, and the timer carries `Persistent=true` so a missed run
+fires after downtime rather than being skipped silently. **`OnFailure=` is
+deliberately not set** (decision log 2026-09-11): there is no notification path
+yet for it to trigger, and Irin alerting (parking-lot item 9) is unbuilt. Cron
 inside the container was declined — a second scheduler on a box that already has
 systemd, forfeiting journald capture, `systemctl --failed`, and `OnFailure=`.
 
@@ -1451,24 +1627,24 @@ systemd, forfeiting journald capture, `systemctl --failed`, and `OnFailure=`.
 
 ```
 CLAUDE.md                     rules for AI assistants — read first
-README.md                     currently empty
+README.md                     short project overview, pointing at the docs (2026-09-24)
 docker-compose.yml            postgis + ingest + loader + app + web on hailnet
 .dockerignore                 keeps data/ and secrets out of the build context
 .env                          gitignored — three passwords plus FLASK_SECRET_KEY
 .env.example                  same keys, no values
-requirements.txt              psycopg[binary]==3.2.3, flask==3.1.3, gunicorn (2026-09-11)
+requirements.txt              psycopg[binary]==3.2.3, flask==3.1.3, gunicorn, Flask-WTF==1.3.0 (CSRF, 2026-09-22)
 docs/
   hail-consolidated.md        this file
-  database-schema.md          field-level data model, 19 tables, open questions
+  database-schema.md          field-level data model, 23 tables, open questions
   db-schema-diagram.md        ASCII ER diagram
   decision-log.md             dated, append-only; supersede, never rewrite
   data-sources.md             IEM / TIGER / RentCast endpoints and traps
   phases.md                   phases 0–7 with a "done when" for each
   server-setup.md             bare-metal Rocky build, step by step
-  command-ref.md              Justyn's own Docker/Postgres/type notes
-  schema-review.md            re-runnable review prompt for sql/ + the loader
-  parking-lot.md              57 numbered items, several resolved and
-                               resolution-tracked; items 54-57 added 2026-09-22
+  command-ref.md              Justyn's own Docker/Postgres notes, including which services
+                               see your edits (2026-09-24)
+  schema-review.md            re-runnable review prompt for sql/ + the loader, 001-023
+  parking-lot.md              103 numbered items, many resolved and resolution-tracked
   analysis/
     radar-verification-2026-09.md   NEXRAD corroboration study behind the
                                confidence_tier / map-color decisions (§2, §6)
@@ -1500,9 +1676,20 @@ sql/                          apply in order; 010 after 001-009 (it grants on th
                                ceiling/guard functions; replaced storms.py's live
                                ST_DWithin join (2026-09-21, Phase 3 close); backfill
                                complete, old-vs-new output verified identical
+  018_admin_failsafe.sql      users.sessions_invalidated_at; the settings singleton with
+                               global_sessions_invalidated_at (2026-09-22)
+  019_last_admin_protection.sql  deferred constraint trigger: never zero active admins
+  020_settings_radii.sql      both radii into settings; settings_history + its trigger
+  021_municipal_boundaries.sql  DOLA municipal boundaries, for the parked permits work
+                               (2026-09-23)
+  022_matched_runs.sql        match_runs: every match attempt recorded (2026-09-23)
+  023_rentcast_quota.sql      RentCast billing day and monthly quota in settings; history
+                               trigger widened to four columns (2026-09-23)
 hailsys/                      importable package, moved out of scripts/ (2026-09-14)
   __init__.py                 empty
-  tuning.py                   read-time tuning constants (radius, etc.), reasoning in comments
+  tuning.py                   tuning constants and denver_day_bounds; the radius constants
+                               are for scripts/ only since 2026-09-22 (the app reads settings)
+  settings.py                 fetch_settings(): the settings row per request, radii as float
   formatting.py               display formatting with no Flask import: magnitude(value, unit),
                                the one implementation behind the `magnitude` Jinja filter and
                                map_points()'s magnitude_display (2026-09-21)
@@ -1525,6 +1712,8 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                (2026-09-21)
     activity.py                 "since your last login" feed: new storm days (by ingested_at),
                                pulls, match runs (2026-09-21)
+    quota.py                    RentCast usage for the billing period, summed from
+                               api_call_log (2026-09-23)
   matching/                   no __init__.py — implicit namespace package
     matcher.py                  storm-to-listing matching, writes storm_listing_matches;
                                excludes New Construction and Land; run by the /match POST and
@@ -1534,14 +1723,18 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
     __init__.py                Flask app factory (create_app); imports views inside the
                                factory, not at module scope, so the package stays importable
                                without a configured app; registers the `magnitude` Jinja filter
-    auth.py                    scrypt hash/verify, login_required decorator (2026-09-14)
+    auth.py                    scrypt hash/verify, login_required and role_required, and the
+                               per-request load_current_user check (2026-09-14; roles 2026-09-22)
+    admin.py                   the /admin blueprint: users, settings, usage, sign out everyone;
+                               one before_request admin check (2026-09-22)
     jobs.py                     background thread for a RentCast pull + its automatic match
                                run; daemon=True, so a thread dies with its process (known gap,
                                parking-lot item 47) (2026-09-18)
     views.py                   the `main` blueprint: /, /storms/zips, /territory,
                                /territory/days, /export.csv, /map/points.geojson, /login,
                                /logout, /pull/estimate, /pull, /match, /storms/matches,
-                               /activity (2026-09-14 through 2026-09-21)
+                               /activity, /account/password (2026-09-14 through 2026-09-24;
+                               the storm list pages at 50 days)
     templates/
       base.html                 single header bar (brand + nav + signed-in-as + Sign Out) and
                                the global flash-message panel; pulls in vendored Leaflet
@@ -1553,7 +1746,11 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                (2026-09-21)
       activity.html               full "since your last login" page, no item cap
       _activity.html              fragment shared by storms.html's panel and activity.html
-      pull_estimate.html          confirm-a-pull page: cost estimate, recently-pulled zips
+      pull_estimate.html          confirm-a-pull page: cost estimate, recently-pulled zips,
+                               billing-period usage and an overage warning (2026-09-23)
+      admin.html                  users table and settings form (2026-09-22)
+      change_password.html        self-service password change (2026-09-22)
+      csrf_error.html             the 400 page for a failed CSRF check (2026-09-23)
       _zips.html                 fragment: one storm day's zip breakdown
       _city_days.html            fragment: one city's day-by-day breakdown
     static/
@@ -1572,7 +1769,8 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
   rentcast/                  Phase 3, begun 2026-09-17
     __init__.py                empty
     client.py                  sale-listings search: pagination, throttle to 20 req/sec,
-                               RentCastAuthError/ValidationError/ServerError/ConnectionError
+                               RentCastAuthError/ValidationError/ServerError/ConnectionError,
+                               and RentCastResponseError for unreadable bodies (2026-09-24)
     estimate.py                pre-pull estimate: zip count + projected call count, from
                                fetch_zips and api_call_log history
     pull.py                     orchestrates a pull: api_pulls/api_call_log bookkeeping,
@@ -1589,8 +1787,11 @@ scripts/
   load_reference.sh           idempotent loader: report_types CSV, report_sources CSV, ZCTA shapefile, county shapefile (2026-09-14)
   load_coverage.sh            idempotent loader: one customer's territory
   status.sh                   four read-only operator checks; exit code = nightly-health verdict (2026-09-11)
-  create_user.py              CLI to create a web-app login; run as hail_admin; explicit
-                               placeholder until Phase 4 builds a real admin UI (2026-09-14)
+  create_user.py              CLI to create a web-app login; run as hail_admin. Predates
+                               /admin; keep for bootstrapping or retire (parking-lot item 65)
+  fetch_municipal.py          count-checked, dated GeoJSON snapshot of an ArcGIS layer
+                               (DOLA by default) (2026-09-23)
+  load_municipal.sh           DELETE + INSERT load of municipal_boundaries (2026-09-23)
   build_coverage_geojson.py   writes static/coverage.geojson from a one-time simplified
                                query; a fixture, not a per-request render (2026-09-16)
   backfill_zip_distances.py   fills report_zip_distances for reports that predate the
@@ -1605,8 +1806,9 @@ scripts/
   test_latest_call.py         direct check of estimate.py's recency lookup
   test_match.py                one-off manual check of the storm matcher
   test_rentcast_pull.py       one-off manual test of the RentCast pull orchestrator
-                               (all four: manual probes, not under tests/, default
-                               --emp-id 1 in their own usage examples — parking-lot item 43)
+                               (all four: manual probes, not under tests/; --emp-id is
+                               required, and only test_rentcast_pull.py's example still
+                               shows the system account's 1 — parking-lot item 43)
 tests/
   __init__.py                 empty; makes unittest discovery work
   test_iem_parse.py           stdlib unittest cases against hailsys/iem/parse.py
@@ -1623,7 +1825,8 @@ docker/
   app.Dockerfile              same shape as ingest.Dockerfile; connects as hail_app (2026-09-11); also builds `web` (below), which runs it under gunicorn instead of a one-shot script
 output/                       gitignored — CSVs from export_storm_zips.py (pairs/zips), bind-mounted into `app`
 reference/                    gitignored — derived statistical CSVs, DNC lists
-data/                         gitignored — raw LSR archive, TIGER shapefiles
+data/                         gitignored — raw LSR archive, TIGER shapefiles, DOLA and
+                               permit snapshots (raw/dola, raw/permits), research/
 planning/                     GENERIC national seed data + working notes
   report_types.csv            THE curated seed for report_types (tracked)
   zip_city_names.csv          37,104 USPS zip -> city, for coverage area_name
@@ -1687,7 +1890,16 @@ docker compose run --rm loader bash /repo/scripts/load_reference.sh
 # The path is an argument: a different customer passes a different file.
 docker compose run --rm loader bash /repo/scripts/load_coverage.sh
 docker compose run --rm loader bash /repo/scripts/load_coverage.sh /repo/config/other.txt
+
+# optional, for the parked permits work only: municipal boundaries from DOLA.
+# The fetch runs on the host (stdlib Python); the load runs in the loader.
+python3 scripts/fetch_municipal.py
+docker compose run --rm loader bash /repo/scripts/load_municipal.sh \
+  data/raw/dola/municipal_boundaries_<date>.geojson
 ```
+
+Rebuild `app` and `ingest` after any code change before running them
+(`docker compose build app` / `ingest`); `web` sees edits at its next restart.
 
 Order matters: `load_coverage.sh` refuses to run against an empty
 `zcta_boundaries`, because every insert depends on that FK and an empty boundary
@@ -1709,12 +1921,15 @@ this file summarizes a source.
    `storm_events` table would allow naming an event and reporting on it as a
    unit; the cost is defining a clustering rule. Deferring is safe *if* the
    query-based grouping stays consistent.
-2. **What is the default buffer radius, and where does it live?** Constant,
-   settings table, or per-user preference. Related and unanswered: **does the
-   radius vary by event type?** Hail swaths and straight-line wind do not have
-   the same footprint.
-3. **Is there a settings table at all?** Radius default, frequency-cap window,
-   monthly API ceiling, warmup limit — none of these currently has a home.
+2. **Resolved in part, 2026-09-22.** ~~What is the default buffer radius, and
+   where does it live?~~ 5.0 miles for both the zip and match radius, in the
+   `settings` table, editable on `/admin`. Still open: **does the radius vary
+   by event type?** Hail swaths and straight-line wind do not have the same
+   footprint (parking-lot item 38).
+3. **Resolved, 2026-09-22.** ~~Is there a settings table at all?~~ Yes:
+   `settings` holds the radii and the RentCast billing day and quota, with
+   changes logged to `settings_history`. The frequency-cap window and warmup
+   limit will need a home there in Phase 5.
 4. **Resolved and built, 2026-09-14.** ~~How are counties handled for
    browse-by-county?~~ County now comes from TIGER county polygons (§6) — a
    `county_boundaries` table gives an authoritative crosswalk across all 22
@@ -1780,7 +1995,8 @@ this file summarizes a source.
     as originally chosen. See decision-log, "Ingest stays state=CO-only; no
     widening."
 13. **Resolved and built.** ~~`report_sources` has DDL but no seed.~~
-    `planning/report_sources.csv` is the curated 47-row seed (commit `5e3eb53`,
+    `planning/report_sources.csv` is the curated seed, 47 rows at first and 49
+    since 2026-09-23 (two GJT spellings added) (commit `5e3eb53`,
     "Seed report_sources; fold the loader into load_reference.sh") and
     `load_reference.sh` loads it. Confirmed loaded on `hail-dev`, 2026-09-14:
     47 rows, 0 unmatched against `iem_data.report_source_norm`.
@@ -1810,6 +2026,9 @@ this file summarizes a source.
 Also open and blocked on RBI rather than on us: **DNS access and existing
 subscription status**, needed for the Phase 5 sending identity. The ask starts
 early because DNS changes at a small company can sit in an inbox for weeks.
+**Still unrecorded as of 2026-09-24**: nothing in the repo says whether RBI has
+answered (parking-lot item 96). Phase 5 is now current, so this is the item
+most likely to be waiting on someone else.
 
 ---
 

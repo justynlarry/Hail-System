@@ -307,7 +307,18 @@ enumeration — expect others.
 
 Recorded ahead of the Phase 3 RentCast client so the error-handling design
 has this to build against, rather than being worked out live against a paid
-API. Not built yet — no code reads these codes today.
+API. **Built since** (`hailsys/rentcast/client.py`): 401/403 raise
+`RentCastAuthError` and abort the pull; 400/405 raise `RentCastValidationError`;
+429/500/503/504 retry with backoff, then raise `RentCastServerError`; 404 is an
+empty result; no response at all is `RentCastConnectionError`. Every one of
+these carries the number of requests it made.
+
+One case this table doesn't cover, added 2026-09-24: **a response whose body
+can't be read or parsed**, or whose JSON isn't a list, raises
+`RentCastResponseError`, not retried. The body-unreadable form includes
+`http.client.IncompleteRead`, which is neither an `OSError` nor a
+`ValueError`. Its `api_call_log.http_status` is NULL when no usable status
+arrived, and the real status for a non-list body (decision log 2026-09-24).
 
 | Code | What it actually means | User-facing text |
 |---|---|---|

@@ -143,3 +143,63 @@
  reachable by timestamp, not by key.
 
  The alert is the ABSENCE of a row. That is why this is a table.
+
+
+ ADDED SINCE PHASE 1  (sql/012 – sql/023, drawn 2026-09-24)
+ ═══════════════════
+
+ New columns on tables drawn above, not repeated as boxes:
+   Users.SESSIONS_INVALIDATED_AT (018)     API_Pulls.STORM_DATE, REPORT_TEXT (013)
+   Properties.GEOM, generated (014)        Storm_Listing_Matches.EMP_ID (015)
+
+ ┌──────────────────────┐                 ┌──────────────────────────┐
+ │ Report_Zip_Distances │  017            │ Match_Runs               │  022
+ │──────────────────────│                 │──────────────────────────│
+ │ PK (IEM_ID, ZCTA5)   │                 │ PK MATCH_RUN_ID          │
+ │    DISTANCE_M        │                 │ FK EMP_ID ──► Users      │
+ └──────────────────────┘                 │    STORM_DATE,           │
+   IEM_ID ──► IEM_DATA   (FK)             │    REPORT_TEXT           │
+   ZCTA5  ╌╌  no FK: it would block a     │    RADIUS_MILES          │
+             TIGER reload                 │    MATCHES_CREATED (new) │
+   filled by AFTER INSERT trigger on      │    RUN_STATUS            │
+   IEM_DATA; derived, rebuildable         │ CK finished_has_timestamp│
+                                          └──────────────────────────┘
+                                            No FK to Storm_Listing_Matches:
+                                            a run that matched nothing still
+                                            leaves this row. Joined to storm
+                                            days by (STORM_DATE, REPORT_TEXT),
+                                            like API_Pulls.
+
+ ┌──────────────────────┐                 ┌──────────────────────────┐
+ │ Settings             │  018/020/023    │ Settings_History         │  020/023
+ │──────────────────────│                 │──────────────────────────│
+ │ PK ID  (CK id = 1)   │   AFTER UPDATE  │ PK HISTORY_ID            │
+ │    GLOBAL_SESSIONS_  │   OF 4 columns  │ FK CHANGED_BY ──► Users  │
+ │      INVALIDATED_AT  │ ───trigger────► │    both radii            │
+ │    ZIP / MATCH RADIUS│                 │    BILLING_DAY, QUOTA    │
+ │    BILLING_DAY, QUOTA│                 │      (NULL before 023)   │
+ │ CK match <= zip      │                 └──────────────────────────┘
+ └──────────────────────┘
+   one row; no FK to anything. The trigger ignores
+   GLOBAL_SESSIONS_INVALIDATED_AT on purpose.
+
+ Users ◄── trg_last_admin (019): deferred constraint trigger, refuses any
+           COMMIT that leaves no active admin.
+
+
+ REFERENCE DATA, joined spatially or by value (no FK from the data they describe)
+ ═══════════════════════════════════════════════════════════════════════════════
+
+ ┌──────────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
+ │ County_Boundaries    │   │ Municipal_Boundaries │   │ Report_Sources       │
+ │──────────────────────│   │──────────────────────│   │──────────────────────│
+ │ PK COUNTY_FIPS       │   │ PK PLACE_FIPS        │   │ PK SOURCE            │
+ │    STATE_FIPS, NAME  │   │    NAME, GEOM        │   │    CONFIDENCE_TIER   │
+ │    GEOM (multipoly)  │   │    SOURCE_ATTRS      │   │    IS_AUTOMATED      │
+ │                      │   │                      │   │ FK ADDED_BY,         │
+ │                      │   │                      │   │    REMOVED_BY ► Users│
+ └──────────────────────┘   └──────────────────────┘   └──────────────────────┘
+   012, TIGER              021, DOLA; parked            003; joined on
+                           permits work only            IEM_DATA.REPORT_SOURCE_NORM,
+                                                        never an FK (free text
+                                                        would break ingest)
