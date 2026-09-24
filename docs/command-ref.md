@@ -48,6 +48,18 @@ The `loader` image was last built 2026-09-09, the same day
 `docker/loader.Dockerfile` last changed. Rebuild it before its next use
 rather than trust that the build picked up that change (parking-lot item 101).
 
+**To check what an image actually runs**, print the source of the function
+you changed from inside it. This reads the baked-in copy, not your working
+tree:
+
+    docker compose run --rm ingest python -c \
+      "import inspect, hailsys.iem.common as c; print(inspect.getsource(c.configure_logging))"
+
+Swap in the module and function you care about, and `app` for `ingest`. If it
+prints the old code, rebuild before testing anything. That turns a would-be
+false result ("my change didn't work") into a clear one ("the image is
+stale") in two commands.
+
 ## Reading logs
 
     docker compose logs -f web            # the web app, pull thread and matcher

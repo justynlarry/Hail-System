@@ -17,8 +17,8 @@ import sys
 def configure_logging(include_logger=True):
     # basicConfig is quiet no-op if root logger has a
     # handler.  Works here because nothing configures
-    # root before create_app(), gunicorn only touches
-    # its own gunicorn.* loggers.
+    # root first: gunicorn only touches its own gunicorn.*
+    # loggers, and the ingest scripts call this at startup.
     fmt = "level=%(levelname)s "
     if include_logger:
         fmt += "logger=%(name)s "
