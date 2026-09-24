@@ -93,9 +93,10 @@ def _api_key() -> str:
     except KeyError as exc:
         raise RentCastAuthError("RENTCAST_KEY is not set in the environment") from exc
 
-def _get(params: dict) -> list:
-    """One logical reqeust to /listings/sale.  Returns the parsed listing array, which 
-    is empty if RentCast reports 0 matches"""
+def _get(params: dict) -> tuple[list, int]:
+    """One logical request to /listings/sale.  Returns (listings, attempts):
+    the parsed listing array, empty if RentCast reports 0 matches, and how
+    many physical requests it took, retries included."""
     url =f"{BASE_URL}?{urllib.parse.urlencode(params)}"
     request = urllib.request.Request(
         url, headers={"X-Api-Key": _api_key(), "Accept": "application/json"}
@@ -105,13 +106,8 @@ def _get(params: dict) -> list:
     while True:
         attempt += 1
         _throttle()
-        # Set once a status line arrives, so an unreadable body still
-        # records what RentCast answered (normally 200) in api_call_log.
-        # Stays None if the status line itself was unreadable.
-        response_status = None
         try:
             with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
-                response_status = response.status
                 data = json.loads(response.read())
                 if not isinstance(data, list):
                     # Raised, not returned as []: an empty list would log
@@ -120,7 +116,7 @@ def _get(params: dict) -> list:
                     logger.error("event=rentcast_unexpected_shape type=%s", type(data).__name__)
                     raise RentCastResponseError(
                         f"expected a list, got {type(data).__name__}",
-                        attempts=attempt, status=response_status)
+                        attempts=attempt, status=response.status)
                 return data, attempt
 
         except urllib.error.HTTPError as exc:
@@ -162,7 +158,7 @@ def _get(params: dict) -> list:
                 time.sleep(backoff)
                 continue
 
-            logger.error("event=rentcase_unexpected_status status=%s body=%r", status, body)
+            logger.error("event=rentcast_unexpected_status status=%s body=%r", status, body)
             raise RentCastError(f"unexpected status={status} body={body}",
                                 attempts=attempt, status=status) from exc
 
@@ -182,8 +178,11 @@ def _get(params: dict) -> list:
             # is recoverable, and RentCast billed call either way
             logger.error("event=rentcast_unreadable_response attempts=%d error=%s",
                          attempt, exc)
-            raise RentCastResponseError(str(exc), attempts=attempt,
-                                        status=response_status) from exc
+            # status stays None: a body that couldn't be read or parsed
+            # produced no usable answer, and NULL in api_call_log.http_status
+            # says exactly that. (The non-list case above does record the
+            # status, because there the response itself was complete.)
+            raise RentCastResponseError(str(exc), attempts=attempt) from exc
 
 def search_sale_listings(zip_code: str, status: str = "Active", 
                         days_old: int | None = None) -> tuple[list, int]:
