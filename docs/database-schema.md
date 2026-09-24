@@ -1015,9 +1015,9 @@ One row per zip within a pull.
 | `pull_id` | FK → `api_pulls` |
 | `zip_code` | |
 | `called_at` | |
-| `calls_made` | Pages fetched for this zip |
+| `calls_made` | Physical requests made for this zip, retries included (a zip with several pages makes several). For an unclassified failure, where the true count is unknowable, **1**: overstating spend is the safe direction |
 | `listings_returned` | |
-| `http_status` | So partial failures are diagnosable |
+| `http_status` | So partial failures are diagnosable. **NULL means no usable status was ever received**: the body couldn't be read or parsed, or the status line itself was bad. A complete response whose JSON wasn't a list records its real status, normally 200 (decision-log 2026-09-24, "Every aborted zip's calls reach `api_call_log`") |
 
 Index on `(zip_code, called_at DESC)` — powers the "this zip was pulled two days
 ago, re-pulling probably returns the same listings" warning.
@@ -1026,10 +1026,10 @@ Per-zip granularity also shows which zips are expensive. A dense metro zip may
 take six pages; a rural one takes one.
 
 **Also the source of RentCast usage.** `hailsys/queries/quota.py` sums
-`calls_made` over the billing period (see `settings`). One known gap: a pull
-that aborts on a bad API key adds those attempts to
-`api_pulls.actual_api_calls` but writes no row here, so they aren't in the
-usage figure.
+`calls_made` over the billing period (see `settings`). Since 2026-09-24 every
+zip that makes a request gets a row, including one that ends the pull. The
+bad-key abort records its attempts, and the unclassified catch-all records 1,
+so neither is missing from the usage figure any more (parking-lot item 88).
 
 ---
 

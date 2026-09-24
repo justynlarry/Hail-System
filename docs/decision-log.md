@@ -4004,3 +4004,137 @@ counting RentCast spend in UTC calendar months against a vendor billing
 vendor total of 315, producing repeated false "quota exhausted" reports.
 Our period is at least anchored to the right day; only the hour is in
 question.
+
+---
+
+## 2026-09-24 — Unreadable RentCast responses fail loudly, with an attempt count
+
+Parking-lot item 88. `_get` parsed the body with `json.loads(response.read())`
+inside its `try`, but only `HTTPError` and `URLError` were caught. A truncated
+body (`JSONDecodeError`), a short read (`IncompleteRead`) or a timeout during
+the read escaped `_get`. They then escaped `search_sale_listings`' attempts
+adjustment, escaped both of `run_pull`'s handlers, and landed in the
+catch-all in `jobs.py`. By then there was no `api_call_log` row for the zip,
+`_finish_pull` never ran, and the pull sat at `'running'` for good. Yet the
+request had been made, and presumably billed.
+
+**Fixed with `RentCastResponseError`**, a `RentCastError` that carries
+`.attempts` like every other one. `run_pull`'s existing `RentCastError`
+handler now catches it, so that zip fails on its own and the pull goes on.
+It is not retried: whether a partial read means the data could be recovered
+is unknowable, and the request has already been spent.
+
+**The invariant this establishes: the client never raises anything without
+an attempt count.** Cost bookkeeping depends on every failure saying how many
+requests it made, which is the reasoning of the 2026-09-17 client entry
+applied to one more failure shape.
+
+**`IncompleteRead` inherits from `http.client.HTTPException`, not from
+`OSError` or `ValueError`.** A first cut of the fix caught
+`(JSONDecodeError, ValueError, OSError)` and missed it for exactly that
+reason. It was caught by testing against a fake network layer, which is the
+kind of check this needs, because a real short read is hard to provoke on
+demand.
+
+**Related:** *RentCast client: stdlib urllib, Active-only, daysOld
+server-side* (2026-09-17); *Pull orchestration: continue past a bad zip,
+abort past a bad key* (2026-09-17).
+
+---
+
+## 2026-09-24 — Every aborted zip's calls reach `api_call_log`
+
+**Supersedes** one point of *RentCast quota: settings, warn and allow, usage
+from `api_call_log`* (2026-09-23): that entry's "known gap", that calls from
+a pull aborting on a bad API key never reach `api_call_log` and so are
+missing from the usage figure. They now do.
+
+`pull.py`'s new `_log_zip` writes the zip's row before `_finish_pull` on both
+abort paths:
+
+- **Bad-key abort:** it records `exc.attempts`. The rejected request itself
+  probably isn't billed, but any pages that zip had already fetched were, and
+  they used to vanish from usage. The first version also counted those
+  attempts twice in `api_pulls.actual_api_calls`; that is fixed.
+- **Unclassified catch-all** (anything the client didn't turn into a
+  `RentCastError`): it records **1 call**. The true count is unknowable
+  there, and overstating spend is the safe direction, as in the client entry.
+
+**A JSON object where a list was expected now raises** `RentCastResponseError`
+instead of returning an empty list. Returning `[]` logged the zip as a clean
+200 with no listings, which reads the same as a zip that genuinely has none.
+That is silent partial success, which CLAUDE.md forbids.
+
+**What `api_call_log.http_status` records for these:**
+- For a body that couldn't be read or parsed it is **NULL**: no usable answer
+  was ever received, and NULL says exactly that.
+- For the non-list case it is the **real status of the complete response**,
+  normally 200, because there the status was real and only the body's shape
+  was wrong.
+
+Either way, the match page's coverage check (`http_status = 200` means
+pulled) counts the NULL case as not pulled. The non-list case, with its real
+200, still counts as pulled even though its listings were rejected. That's
+rare enough to leave; recorded here so it isn't a surprise.
+
+---
+
+## 2026-09-24 — `testview` stays an active viewer account
+
+The `testview` viewer account stays active rather than being deactivated
+after Phase 4's done-when check. Being able to sign in as a viewer to check
+any change to role gating is worth more than the risk, while the app is
+reachable only over Tailscale by people already on the tailnet. **Revisit
+before Phase 6**, when the app becomes reachable by staff and possibly
+beyond the tailnet (parking-lot item 103). Deleting it was never an option:
+`sql/002_users.sql` says users are never deleted, because audit columns
+point at them. If it goes, it's deactivated.
+
+---
+
+## 2026-09-24 — Scripts keep the `tuning.py` radius constants; the app never reads them
+
+Parking-lot item 62. The web app reads both radii from `settings` on every
+request (2026-09-22). `DEFAULT_ZIP_RADIUS_MILES` and
+`DEFAULT_MATCH_RADIUS_MILES` stay in `tuning.py` only as `--radius` defaults
+for `scripts/`, and `tuning.py`'s comment now says so.
+
+Why the scripts don't read `settings` too:
+- `test_estimate.py` and `test_match.py` are manual test scripts.
+- `export_storm_zips.py` is run by hand, with `--radius` available whenever
+  the setting matters.
+- `verify_zip_distances.py` *wants* a fixed radius. A verification run must
+  not change behaviour because someone edited a setting that morning.
+
+**What a user downloads always matches what they saw.** The CSV export the UI
+offers is the `/export.csv` route, which reads `g.settings`. It is not
+`export_storm_zips.py`. The cost is that a script run with its default can
+disagree with the UI after an admin changes a radius, so pass `--radius` to
+match.
+
+This closes parking-lot item 62, which treated the CLI and the web app
+disagreeing by default as a problem to fix. It's accepted instead, for the
+reasons above.
+
+---
+
+## 2026-09-24 — The storm list pages at 50 storm days
+
+Parking-lot item 86. `index()` asked for `limit=50` with nothing saying more
+existed, so a wide date range silently dropped days. A 2024–2026 range never
+reached 2024-05-30. **The 50-day limit stays, with page links**, rather than
+raising the limit or adding a "showing 50 of N" notice. A notice would say
+what's missing without offering a way to reach it. Each page shows "Page X
+of Y — N storm days".
+
+**OFFSET is safe here.** The days CTE groups by `storm_date` and orders by
+`storm_date DESC`, so every row has a unique sort key and a page's contents
+are the same on every request. OFFSET over a sort with ties can return rows
+in a different order each time, repeating some rows across pages and
+skipping others. That doesn't arise here.
+
+A page is 50 storm *days*, not 50 table rows: one day with hail and wind
+shows as two rows. `fetch_day_count` runs first, so a `?page=` past the end
+**clamps to the last page** instead of showing an empty table. The page links
+carry every active filter (the "filters must travel" rule, 2026-09-18), so
+paging never changes the question being asked.

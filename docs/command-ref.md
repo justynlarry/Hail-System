@@ -39,6 +39,15 @@ Cost us a false test result on 2026-09-24: the same workstate check
 returned a pre-migration answer through `app` and the correct one through
 `web`.
 
+This had been half-found before: `scripts/verify_zip_distances.py`'s
+docstring already runs it with `-v "$PWD/scripts:/app/scripts:ro"`, because
+the `app` image bakes `scripts/` in. That mount covers `scripts/` only, so a
+change under `hailsys/` still needs a rebuild.
+
+The `loader` image was last built 2026-09-09, the same day
+`docker/loader.Dockerfile` last changed. Rebuild it before its next use
+rather than trust that the build picked up that change (parking-lot item 101).
+
 ## Posgres (in Docker)
 1. Create Database:
 ```

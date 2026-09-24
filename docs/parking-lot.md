@@ -702,6 +702,11 @@ something that matters.
 uses `--emp-id 2` and says why 1 is wrong. `--emp-id` was already a required
 flag with no default there. `scripts/test_rentcast_pull.py` was not checked.
 
+**Still partly open, 2026-09-24.** `scripts/test_rentcast_pull.py`'s usage
+example still shows `--emp-id 1`. The flag itself is required with no
+default, so this is the example text only. `test_match.py`'s example was
+fixed 2026-09-23.
+
 ## 44. A pull job produces two feed lines
 
 `hailsys/web/jobs.py`'s `_pull_and_match` runs `match_storm` right after
@@ -746,6 +751,11 @@ counts as pulled, so the Pull link stays hidden for that storm
 indefinitely.
 
 **When:** before background pulls are relied on for real operations.
+
+**Checked 2026-09-24:** no pull is currently stuck at `'running'`, so there
+are no existing rows to clear. The sweep is still needed for the next restart
+mid-pull. Diagnosing one also needs item 99 (logging), since the thread's
+`info` lines are dropped.
 
 ## 48. Badge CSS classes derive from `workstate.py` label strings
 
@@ -844,6 +854,28 @@ evidence. Needs a dedupe rule — likely address normalization or coordinate
 proximity plus unit — decided before the first send.
 
 **When:** Phase 5, before any email goes out.
+
+**Measured 2026-09-24: 186 candidate pairs.**
+```sql
+SELECT count(*) FROM properties a JOIN properties b
+  ON a.rentcast_id < b.rentcast_id
+ AND ST_DWithin(a.geom::geography, b.geom::geography, 25)
+WHERE a.year_built IS NOT DISTINCT FROM b.year_built;
+```
+**Distance is not what tells them apart.** 17 Clover Cir and 17 W Clover Cir
+are a real duplicate at about 5.5 m apart: same agent, same year, $2,500 apart.
+Distinct apartments sit 2.2 m apart. Proximity is only a pre-filter; the test
+is **address normalization**:
+- **Directional position:** N Wordsworth / Wordsworth N.
+- **Suffix conflicts:** Superior Dr / Superior St at one point.
+- **City aliases:** Security Widefield / Colorado Springs.
+- **Truncation:** Drummond S.
+
+**Apt and Unit stay distinguishing.** **Lot** is a duplicate when a no-Lot
+record exists at the same address, and distinguishing when every record has
+one: 205 N Murray Blvd has 13 legitimate lots at a single point. Still Phase 5,
+before sending: an agent must not get two emails about one house. Related:
+item 100, where shared points are *not* duplicates.
 
 ## 56. Backfill progress and ETA should count reports, not ID range
 
@@ -947,6 +979,11 @@ The web app reads radii from `settings` per request (2026-09-22), but
 by default — the same two-sources shape the `settings` table exists to remove.
 
 **When:** Phase 4, when convenient.
+
+**Resolved 2026-09-24.** See `docs/decision-log.md`, "Scripts keep the
+`tuning.py` radius constants; the app never reads them". Kept on purpose: the
+UI's CSV export reads `g.settings`, and `verify_zip_distances.py` wants a fixed
+radius. `tuning.py`'s comment now says the constants are for `scripts/` only.
 
 ## 63. A reachable path to `hail-dev` for anyone but the developer
 
@@ -1194,6 +1231,10 @@ page.
 
 **When:** before anyone relies on a long date range.
 
+**Resolved 2026-09-24.** See `docs/decision-log.md`, "The storm list pages at
+50 storm days". Page links carry the active filters, and an out-of-range
+`?page=` clamps to the last page.
+
 ## 87. Confirm RentCast's billing-period timezone
 
 `quota.fetch_usage` rolls the period over at midnight Denver time. Whether
@@ -1201,6 +1242,18 @@ RentCast rolls over on UTC or Denver time is unconfirmed. Near a boundary,
 up to seven hours of calls could land in the wrong month's count.
 
 **When:** before the quota figure is compared against a real invoice.
+
+**Count half resolved 2026-09-24.** See `docs/decision-log.md`, "RentCast's
+billing boundary timezone is unknown; our dashboard is the check". RentCast's
+docs don't state it. Our period runs from Denver midnight on the billing day,
+and the checks are /admin against RentCast's dashboard, plus their 85% email.
+
+**Boundary half still open.** The count comparison can be made now, but all 19
+logged calls fall between 2026-09-18 and 09-23, inside the period that started
+the 9th, so nothing yet sits on either side of a rollover. Re-check after
+2026-10-09, and watch for RentCast's 85% email as a second signal.
+
+**When:** after the 2026-10-09 rollover.
 
 ## 88. Calls from a key-rejected pull don't reach `api_call_log`
 
@@ -1210,6 +1263,13 @@ figure (which reads the log) leaves them out. Today both totals agree. It only
 matters if RentCast bills rejected-key requests, which is unconfirmed.
 
 **When:** if a real invoice disagrees with the usage figure.
+
+**Resolved 2026-09-24.** See `docs/decision-log.md`, "Unreadable RentCast
+responses fail loudly, with an attempt count" and "Every aborted zip's calls
+reach `api_call_log`". The bad-key abort and the unclassified catch-all now
+both write this zip's row: attempts, or 1 when unknowable. Unreadable bodies
+raise `RentCastResponseError` instead of escaping and leaving the pull stuck
+at `'running'`.
 
 ## 89. "Matched, none in range" on a pulled storm has never been seen
 
@@ -1262,6 +1322,10 @@ decision-log line: keep as is, or show names to senders and admins only.
 **When:** next decision-log pass; before staff accounts exist (Phase 7) at
 the latest.
 
+**Resolved 2026-09-24.** See `docs/decision-log.md`, "The activity feed
+shows who did what, to everyone". Kept as is, deliberately, for an office of
+five with admin-created accounts. Revisit if the account model changes.
+
 ## 94. The TIGER geocoder extension is installed, and `tiger` is on the search path
 
 `postgis_tiger_geocoder` and `postgis_topology` came with the
@@ -1294,6 +1358,7 @@ Phase 0. Nothing in the repo records the answer. Phase 5's first send needs a
 sending subdomain with SPF, DKIM and DMARC.
 
 **When:** now: Phase 5 is current, and this is the item most likely to be
+waiting on someone else.
 
 ## 97. Does the Pikes Peak Regional Building Department publish permit data?
 
@@ -1327,7 +1392,66 @@ could settle many at once, but it returned 403 to both the fetch tool and curl.
 
 **When:** parked with the permits work (item 70); per issuer, before that
 issuer's adapter.
-waiting on someone else.
+
+## 99. Logging is unconfigured anywhere in the app
+
+Nothing calls `logging.basicConfig` or sets up a handler, so every
+`logger.info` is dropped at Python's default WARNING threshold. Only
+warnings and errors reach the container log, via Python's fallback handler.
+A 12-zip pull and its match run on 2026-09-23 left **zero** `event=` lines
+over 24 hours. This is why the item-88 failures were invisible, and it blocks
+diagnosing anything a background thread does, item 47 included. The likely
+fix is a single `logging.basicConfig(level=logging.INFO, ...)` in
+`create_app()`, writing logfmt to stdout as the ingest already does.
+
+**When:** before background pulls are relied on.
+
+## 100. New-construction properties share a subdivision point
+
+RentCast geocodes some brand-new houses to a single subdivision point rather
+than to the lot:
+- 1843 Wildland Hts, 1876 Wildland Hts and 2115 Zipline Vw share one point.
+- 4536 Hawk Haven Vw and 4913 Havenward Vw share another.
+
+All were built in 2026. They are distinct houses, so this isn't a dedup case
+(item 55). It affects **distance accuracy**: any distance to these is to the
+subdivision point, not to the house. **Today it changes no match:** checked
+2026-09-24, all five are listed as New Construction, which the matcher
+excludes (decision log 2026-09-18). It would matter if one is resold, or
+relisted as Standard, before RentCast re-geocodes it to the lot.
+
+**When:** Phase 5, alongside item 55's address work.
+
+## 101. Rebuild the `loader` image before its next use
+
+The `loader` image was built 2026-09-09, the same day
+`docker/loader.Dockerfile` last changed (`7a731b4`, the bullseye EOL
+placeholder). Whether that build picked up the change isn't known. Rebuild
+with `docker compose build loader` before the next migration or reference
+load. See `docs/command-ref.md`, *Which services see your edits*; the
+`iem_weekly_replay` timer's staleness is covered there too.
+
+**When:** before the loader is next used.
+
+## 102. `_throttle` isn't thread-safe
+
+`hailsys/rentcast/client.py`'s `_throttle` keeps its last-request time in a
+module global with no lock. Pulls run in background threads, so two pulls at
+once could each stay under 20 requests/second and together exceed it. RentCast
+would answer with 429s, which the client retries. So the cost is time, and
+possibly extra calls counted, not data. Low risk while one person pulls at a
+time. Related to item 51 (concurrent pulls on one storm).
+
+**When:** with item 51.
+
+## 103. Revisit the `testview` account before Phase 6
+
+`testview` stays an active viewer for role testing (decision log 2026-09-24).
+That's acceptable while the app is reachable only over Tailscale. When Phase 6
+exposes it to staff, and possibly beyond the tailnet (item 63), deactivate it
+or give it a strong password nobody reuses.
+
+**When:** Phase 6, before the app is exposed.
 
 ---
 

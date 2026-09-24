@@ -125,11 +125,14 @@ new ones covered.
 
 **Done when:** a viewer account can browse and export but cannot trigger a pull.
 
-**Closed 2026-09-23.** The done-when is demonstrated: signed in as the
-`testview` viewer account, Pull shows greyed out; and with a valid CSRF token
-a viewer session gets 403 on `/pull`, `/pull/estimate`, `/match` and
-`/admin/`, and 200 on `/` and `/export.csv` (decision log, "Phase 4's done
-condition verified"; parking-lot item 58).
+**Closed 2026-09-24.** First marked closed 2026-09-23, then held open a day
+for follow-ups found after the close. The done-when is demonstrated: signed in
+as the `testview` viewer account, Pull shows greyed out; and with a valid CSRF
+token a viewer session gets 403 on `/pull`, `/pull/estimate`, `/match` and
+`/admin/`, and 200 on `/` and `/export.csv`. The valid token matters: without
+it the request fails CSRF before it reaches the role check, and a 403 would
+prove nothing about roles (decision log, "Phase 4's done condition verified";
+parking-lot item 58).
 
 **All four items above complete 2026-09-22.**
 
@@ -148,9 +151,18 @@ page (59); self-action refusal on the admin page (60); and the header, admin
 table and disabled-action CSS (67–69). Item 61 was declined. Decision log,
 2026-09-23 entries.
 
-Carried forward, not blocking: parking-lot items 62 (scripts still default
-radii from `tuning.py`), 65 (`create_user.py`), 66 (username convention),
-and 85–91 from the closing audit.
+Landed 2026-09-24, closing the phase: unreadable RentCast responses now fail
+loudly with an attempt count, and every aborted zip's calls reach
+`api_call_log` (item 88); the storm list pages at 50 days (86); the script
+radius defaults are kept, with the reason recorded (62); and the activity
+feed's names and the RentCast billing boundary are recorded as decisions (93,
+87's count half). Decision log, 2026-09-24 entries.
+
+Carried forward, not blocking: parking-lot items 47 (stale-pull sweep), 57
+("Pulling…" state), 65 (`create_user.py`), 66 (username convention), 85 (UTC
+times on the estimate page), 87's boundary half (after 2026-10-09), 89–91,
+and 99 (logging unconfigured), which should land before background pulls are
+relied on.
 
 ---
 

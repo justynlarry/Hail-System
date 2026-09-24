@@ -20,7 +20,7 @@ lat/lon, 1 on the IEM ingest and archive backfill going live, 2 on
 2026-09-17 with the storm-browser web app (Flask, Tailscale-reached) and its
 CSV export built and running, 3 on 2026-09-21 with RentCast pulls,
 storm-to-listing matching and the match page working through the web UI, and
-4 on 2026-09-23 when a viewer account could browse and export but not pull.
+4 on 2026-09-24 when a viewer account could browse and export but not pull.
 
 **Caveat on "Phase 0 closed":** that call was made against Phase 0's own
 done-when bar — the spatial query — not against every item Phase 0's task
