@@ -739,7 +739,10 @@ under the same dates.
     open to any signed-in role.
   - Every filename carries the export date, because a CSV is a snapshot:
     someone suppressed later is still in the file. **The send-time check is
-    still the only real protection.** The date range has no cap (item 49).
+    still the only real protection.** An explicit date range is capped at 400
+    days (2026-09-25). Timed then at under half a second and about 12 MB on
+    today's small dataset, and accepted; reopen above roughly 2 s or 10,000
+    rows (item 49).
   - `hail_app` reads `dnc_list` for this; the grant already existed.
 - **The match page** (`d1b08c5`) has fixed, positional column widths so every
   agent group lines up (item 108), and is condensed. It scrolls sideways on a

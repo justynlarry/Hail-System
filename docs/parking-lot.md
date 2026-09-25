@@ -768,15 +768,18 @@ itself, not a stable key. Renaming a label in `workstate.py` (`NOT_PULLED`,
 
 ## 49. No cap on export date-range width
 
-`/export.csv` and the underlying `storms.py` queries accept any start/end
-range with no upper bound. Fine today; the 2019 wide-range timing finding
+*(Resolved 2026-09-25: capped at 400 days, and the cost measured and accepted.
+Reopen conditions are at the end.)*
+
+`/export.csv` and the underlying `storms.py` queries accepted any start/end
+range with no upper bound. Fine at the time; the 2019 wide-range timing finding
 ("Performance: the spatial join was the cost, not the hardware") shows what
 an unbounded range can cost, and `report_zip_distances` fixes the specific
 cause found, not the general absence of a limit.
 
 **Larger since 2026-09-24.** The bulk match export (`/exports/matches.csv`,
 decision log "CSV exports: three projections, suppression optional,
-snapshot") takes the same unbounded range, and it is the heaviest query the
+snapshot") took the same unbounded range, and it is the heaviest query the
 web app runs: `storm_listing_matches` joined to `iem_data`, `report_types`,
 `listings`, `properties`, `realtors` and two `dnc_list` joins, grouped per
 listing, storm day and type. Three things make it worse than the storm-list
@@ -792,14 +795,48 @@ case:
   `StringIO` and returns it, so one wide request holds the entire file in a
   worker's memory.
 
-`_window_from_args` validates only the `days` shortcut against `DAY_RANGES`;
-an explicit `start`/`end` is not checked, and a reversed pair is swapped.
-Its cost has **not been timed** on a wide range. A single one-report storm
-already matched 949 listings (item 106), so a season is many thousands of
-rows.
+A single one-report storm already matched 949 listings (item 106), so a
+season could be many thousands of rows.
 
-**When:** if a wide range gets slow, and before the app is reachable by
-anyone but the developer (Phase 6, items 63 and 110).
+**Resolved 2026-09-25.** `_window_from_args` now clamps an explicit
+`start`/`end` to `MAX_RANGE_DAYS` (400, which covers the 365-day claim window
+with room to spare), after the `days` fallback and the reversed-pair swap so it
+sees two valid, ordered dates. It clamps rather than returning a 400, so a
+bookmarked URL keeps working, and the storm list, territory and `/exports`
+flash "Range limited to 400 days." (the map, CSV and fragment routes share the
+helper but don't flash, so a message can't surface on some later page). See
+`docs/decision-log.md`, "Explicit date ranges are capped at 400 days".
+Before that, only the `days` shortcut was checked against `DAY_RANGES`, and the
+date pickers could ask for any span.
+
+**Measured 2026-09-25, on `hail-dev`, read-only**, through `count_matches` and
+`fetch_matches` themselves:
+
+| Range | Rows | Count | Fetch | CSV | Python memory peak |
+|---|---|---|---|---|---|
+| 30 days | 4,765 | 0.29s | 0.35s | 1.2 MB | 11 MB |
+| 90 days | 5,671 | 0.20s | 0.44s | 1.4 MB | 12 MB |
+| 400 days | 5,671 | 0.19s | 0.40s | 1.4 MB | 12 MB |
+
+The realtor count took 0.01s. **This is not a stress test:** `storm_listing_matches`
+held only 11,575 rows, all from recent storms, so 400 days returned the same
+rows as 90. Single user, warm cache, the dev VM (the OptiPlex was not
+measured). It shows the cost today is trivial, and says nothing about a year of
+real matches, which could be ten to a hundred times larger. Memory came to
+roughly 2 KB of Python per row.
+
+**Closed on that basis, deliberately, with no further code.** The three
+concerns above stand as a description of how it *could* go wrong: the count
+runs the whole projection, any signed-in account can trigger it, and the file
+is built in memory. At today's size none is worth building against. Options
+considered and not built: a hard row ceiling that refuses with a message
+(the likeliest first step, about 50,000 rows), and streaming the response from
+a server-side cursor (only worthwhile far above that).
+
+**Reopen if** a count or fetch on `/exports` takes more than about 2 seconds,
+or a range returns more than about 10,000 rows (twice today's largest). Rate
+limiting for an internet-facing app belongs to the Cloudflare tunnel work
+(item 110), not the application.
 
 ## 50. Monthly RentCast quota tracker
 

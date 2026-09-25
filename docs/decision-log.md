@@ -4239,8 +4239,9 @@ browse and export).
 by design, and DNC is keyed on the address too, so an agent reachable at two
 addresses appears twice. `/exports` says this beside the count.
 
-**Known cost:** the bulk range has no cap, and the count on `/exports` runs
-the full projection (parking-lot item 49).
+**Known cost:** the count on `/exports` runs the full projection, and the file
+is built in memory (parking-lot item 49). The range was uncapped when this was
+written; it is capped at 400 days as of 2026-09-25 (see below).
 
 ## 2026-09-24 — Match page and activity panel: aligned columns, condensed, two columns
 
@@ -4326,3 +4327,50 @@ record. **No specific check is recorded as passed.** Item 114 lists what
 remains unconfirmed, including iOS focus-zoom and `100dvh`, which only show on
 a real phone. Estimated sizes (tap targets, breakpoints) came from the CSS
 and were not measured.
+
+## 2026-09-25 — Explicit date ranges are capped at 400 days
+
+Parking-lot item 49. `_window_from_args` in `views.py` validated only the
+`days` shortcut against `DAY_RANGES`; an explicit `start`/`end` came straight
+from the query string. That never mattered for the storm list, but the bulk
+match export (`/exports/matches.csv`, 2026-09-24) made an unbounded range
+expensive, and the date pickers can ask for any span as easily as a hand-typed
+URL can.
+
+**`MAX_RANGE_DAYS = 400`.** It covers the 365-day claim window with room to
+spare, so it can't block legitimate work. A wider range keeps its end date and
+moves its start to 400 days earlier.
+
+**The clamp runs last, after the fallback and the swap.** A first version sat
+right after the dates were parsed, where a missing or unparseable date is
+still `None`, so `end_day - start_day` raised `TypeError` on any page loaded
+without both dates (the default landing page among them). A reversed pair
+also slipped past it, since its width was negative until the later swap.
+Caught in review before it was committed. Checked in the web container across
+eight cases (no arguments, `?days=90`, a bad date, only one date, a normal
+range, exactly 400 days, 2000 to today, and the same reversed): the four
+default and bad-input cases give the 30-day default, and both wide ranges come
+out at exactly 400 days.
+
+**Clamped, not rejected.** A 400 would break a bookmarked URL. The user is told
+instead: the storm list, territory and `/exports` flash "Range limited to 400
+days." **The flash is raised by those three routes, not by the helper.**
+`_window_from_args` also serves `/map/points.geojson`, `/storms/zips`,
+`/territory/days` and the CSV downloads, and a flash from one of those would
+sit in the session and appear on whichever page was loaded next (the map's
+background fetch would have queued a duplicate of the page's own message). The
+helper only sets `g.range_clamped`. A clamped CSV download shows its dates in
+the filename.
+
+**The remaining cost was measured and accepted, not fixed.** The count beside
+Apply on `/exports` runs the whole projection, any signed-in account can ask
+for it, and the file is built in memory. Timed on 2026-09-25 (read-only, dev
+VM, single user): 30, 90 and 400 days returned 4,765, 5,671 and 5,671 rows,
+counted in 0.2 to 0.3s and fetched in 0.35 to 0.44s, a 1.4 MB file and about
+12 MB of Python memory at most. That is a small dataset (11,575 matches in all,
+all recent), so 400 days was no bigger than 90 and this is **not a stress
+test**. Considered and deliberately not built: a hard row ceiling (about
+50,000) that refuses with a message, and a streamed response. **Item 49 is
+closed on that basis and reopens** if a count or fetch takes over about 2
+seconds or a range returns over about 10,000 rows. Rate limiting is left to the
+Cloudflare tunnel work (item 110).
