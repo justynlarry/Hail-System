@@ -4436,6 +4436,14 @@ read-only `SELECT`.
 builds the app (tests, a script) runs an `UPDATE`, and so does each worker;
 `finished_at` is the sweep time, not when the pull died.
 
+**Match runs are swept too (`6d6ba63`).** `sweep_stale_pulls()` also sets
+`match_runs` rows still `running` after `PULL_STALE_AFTER` to `'failed'`, with
+`finished_at` and an `error_detail`, and logs `event=stale_match_run_swept`.
+`match_runs` has no `'cancelled'` status, and its CHECK requires `finished_at`
+unless a run is running. It matters because `workstate.py` counts a running
+match like a running pull, so an orphaned one would otherwise hold its storm on
+"Pulling...".
+
 **A dependency worth noting:** this was diagnosable because item 99 (logging)
 landed first. Until then the pull thread's `info` lines were dropped.
 
@@ -4450,7 +4458,9 @@ separate from `pulled` and not excluded from it, so a pull that never finishes
 still can't read "Not pulled". `_label` checks Sent, Matched and Matched-none
 first, then `running`, then `pulled`. **Consequence:** a re-pull of a storm
 that is already matched keeps its old label and never reads "Pulling...", so it
-isn't polled either.
+isn't polled either. *(Changed later the same day: `running` now comes first.
+See "Pull and Match return to the filtered list; a running pull or match
+outranks the other labels".)*
 
 **One template for the cell.** The storm-days Status cell is now
 `_status_cell.html`, included by `storms.html` for every row and rendered by
@@ -4478,5 +4488,128 @@ uses.
 template was rendered for six states through the app's own Jinja setup:
 "Pulling..." carried `data-poll` with the right values and no action links, and
 the other states kept theirs. **Not done:** the JavaScript has not been run (no
-`node` on `hail-dev`), and polling has not been watched on a real pull in a
-browser. No browser check is recorded as passed.
+`node` on `hail-dev`). **Later the same day the developer reported, from the
+browser, that the Status cell's "Pulling..." display works.** That is the only
+check of the polling, and what exactly was watched wasn't recorded.
+
+## 2026-09-25 — Pull and Match return to the filtered list; a running pull or match outranks the other labels
+
+`6d6ba63`. The "Pulling..." row wasn't being seen. The first theory, that a
+small pull finishes before the page renders, was wrong on the numbers: real
+pulls take 1 to 15 seconds (13 zips took 8.8 s), and the storm list renders in
+60 to 90 ms, with the work state read about 50 ms in. Two other things were
+hiding it.
+
+**The redirect dropped the filters.** `pull_start` and `match_start`
+redirected to a bare `main.index`, so after clicking you landed on the default
+30 days, and the storms being pulled (Aug 14 to 22 that day) were outside it.
+`_list_url()` in `views.py` accepts only `/` with its query string, from the
+same host, so a crafted value can't send anyone to another page or site. The
+estimate page carries it as a hidden `back` field, taken from `?back=` or else
+the `Referer` (the list when the estimate is opened from it, but the estimate
+page itself after the mismatch redirect, hence `?back=`). `pull_start`
+redirects to it and falls back to the default list. The zip-count mismatch
+redirect now keeps `submitted`, `actionable` and `back`, which it used to drop.
+`match_start` posts from the list itself and uses the `Referer` directly, and
+Cancel on the estimate page returns to the filtered list too.
+
+**`running` outranks the other labels.** `_label` checked Sent and Matched
+first, so a re-pull of an already matched storm read "Matched, not sent"
+throughout, and 14 of 20 rows in a wide window were matched. `running` is now
+checked first. A running `match_runs` row counts the same way as a running pull
+(same kind, same 10-minute age limit), so the cell stays on "Pulling..." through
+the pull and its automatic match, and doesn't drop to "Pulled, not matched" and
+stop polling in between. The startup sweep closes stale match runs too
+(decision log, "Stale pulls are swept at startup and marked cancelled").
+
+**Verified** in rolled-back transactions against the real database: `_list_url`
+against valid, foreign-host, `//host`, other-path and `javascript:` inputs; the
+estimate page's `back` field from the `Referer`, from `?back=`, and from a
+hostile `Referer`; the mismatch redirect, with and without a hostile `back`; a
+matched storm with a running pull, with a running match run, and with a
+3-day-old running match run (the last falls back to "Matched, not sent"); and
+the match-run sweep with one or several stale pulls and match runs mixed. **The
+developer confirmed in the browser that the date range now stays.**
+
+**Known gap:** a few milliseconds separate a pull finishing from its match run
+being inserted, and a poll landing exactly there would stop early.
+
+## 2026-09-25 — A live banner under the heading replaces the "Pull started" flash
+
+`ea8762d`. What the developer had been trying to fix all along was not the
+Status cell but the line right under "Recent storm days": "Pull started for …
+(n zips)" was a flash message, rendered once, and it sat there after the pull
+finished.
+
+**The banner is read from the database.** `pull_start` puts `{date, type,
+zips, since}` in the session as `pull_watch`, and the storm list pops it once
+(so a reload clears it, as it cleared the flash) and renders
+`_pull_banner.html` from `workstate.fetch_pull_banner()`, which reads the
+latest `api_pulls` and `match_runs` rows for that storm since the click. The
+marker means it says "Pulling 2026-08-13 HAIL (22 zips)…" from the first
+paint, even before the pull's own row exists. While the pull or match runs it
+carries `data-poll="1"`, and `storms.js` refreshes it every 3 seconds (at most
+200 times) from `/storms/banner`, which returns the same fragment, until the
+reply has no `data-poll`.
+
+**Phases:** pulling, matching (pull finished, match running), done ("Pull
+finished for …: 22 zips, 3,512 listings, 6,024 new matches."), match_failed
+(with a pointer to the row's Match button), failed (failed or swept), and lost.
+"Lost" means no row appeared within `BANNER_GRACE` (15 s) or a running row is
+older than `PULL_STALE_AFTER`. A `since` five seconds early absorbs the gap
+between the web process's clock and the database's. The banner reuses
+`.flashes`, so it looks as the flash did.
+
+**Choices:** it shows only the pull the user just started (other users' pulls
+are in the Status cells and the Activity page); the finished message stays
+until the next reload; the mismatch and Match flashes stay flashes. (Parking-lot
+item 118.)
+
+**Verified:** the phase logic against synthetic `api_pulls` and `match_runs`
+rows (13 cases), the template for every phase, and the route (200, and 400 for
+a bad date, a bad zip count, a missing or a timezone-less `since`; a redirect
+when signed out). Then the whole flow was replayed with a fake 1.2-second
+pull, first on copies of the files with my edits applied and then on the
+developer's files: landing at about 55 ms showed "Pulling…" with `data-poll`
+and no old flash, a poll at +0.7 s still said "Pulling…", and one at +2 s said
+"Pull finished … 6,024 new matches." with no `data-poll`. A reload cleared it.
+**Not done:** the JavaScript has not been run (no `node`), and no browser check
+of the banner is recorded.
+
+## 2026-09-25 — RentCast values a column can't hold are stored as NULL and logged
+
+`5933ebc`. Two pulls failed with `NumericValueOutOfRange`: numeric field
+overflow, precision 3, scale 1. RentCast had returned **615 Remington St, Fort
+Collins, 80524 with `bathrooms` 150**, and later **5331 S Delaware St,
+Littleton, 80120 with 912**, and `properties.bathrooms` is `NUMERIC(3,1)`. One
+bad listing rolled back the whole zip and ended the pull after its calls were
+spent, and a re-pull failed identically. Pulls 41 and 78 (2026-08-14 HAIL, 4
+calls each) and 79 (2026-07-06 NON-TSTM WND GST, 13 calls) spent 21 calls for
+nothing. The banner reported both failures correctly; this was a data problem.
+
+**The fix:** `_fits()` in `upsert.py` checks `bathrooms` (`NUMERIC(3,1)`),
+`bedrooms` and `yearBuilt` (`SMALLINT`) against what the column can hold, and
+returns `None` with an `event=field_out_of_range` warning (id, field, value)
+when the value doesn't fit or isn't a finite number. `isfinite` comes first, per
+the `Decimal('NaN')` trap in CLAUDE.md, since `float()` accepts `"nan"` and
+`"inf"`. Numeric strings such as `"2.5"` still pass, as they did before. The
+listing is kept and `raw_payload` holds the original value. No migration.
+
+**Chosen over the alternatives:** widening the column would have stored
+nonsense as if it were real and needed the admin role; a savepoint per listing
+would let a pull succeed with rows missing, so it would have to count and report
+them, and wasn't built. **The limits are what the column can hold, not what is
+plausible.** (Parking-lot item 116.)
+
+**Verified:** against fake listings in a rolled-back transaction, the old code
+reproduced the error with 250 bathrooms, and the new code stored `NULL` with a
+warning, kept 99.9, nulled 100 and -1, and handled `bedrooms` and `yearBuilt`
+of 99999, `'nan'`, `'abc'`, a missing value, and `'2.5'`. A first keyed version
+had a typo that made every listing raise `KeyError`; it was caught in review
+before any pull ran. Then real re-pulls: 2026-07-06 NON-TSTM WND GST (17 zips,
+3,040 listings, 930 new matches) and 2026-08-14 HAIL (26 zips, 3,323 listings)
+completed, logging one warning each for the two listings above.
+
+**Found on the way:** `api_pulls.storm_link_paired` means a pull with a storm
+date must have a report type, so a `POST /pull` without one can't be recorded
+(item 117).

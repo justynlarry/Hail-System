@@ -723,7 +723,7 @@ matched.
   `/match` and `/admin/`, and 200 on `/` and `/export.csv`. Without the token
   the POST would fail CSRF first and the 403 would prove nothing.
 
-### Exports, match-page layout and responsive CSS — 2026-09-24 / 2026-09-25
+### Exports, match page, responsive CSS and the pull flow — 2026-09-24 / 2026-09-25
 
 Phase 5 groundwork: nothing here sends. Decisions are in the decision log
 under the same dates.
@@ -754,6 +754,22 @@ under the same dates.
   territory split, admin settings and filter bars reflow; phone tap targets.
   **Written with no browser available**, and no specific check is recorded as
   passed (item 114).
+- **Pull flow, 2026-09-25** (`54cc7f2` to `5933ebc`):
+  - **Status cell:** a running pull or match reads "Pulling..." (a running
+    row outranks Sent and Matched), from one fragment (`_status_cell.html`)
+    polled from `/storms/state`; a dead pull stops reading it after 10 minutes,
+    and the startup sweep closes stale pulls and match runs (items 47, 57).
+  - **Banner:** the "Pull started" flash is now a live banner under the
+    heading, read from `api_pulls` and `match_runs` and polled from
+    `/storms/banner` (item 118).
+  - **Redirects:** Pull and Match return to the filtered list, not the default
+    30 days, through `_list_url()`.
+  - **Range cap:** an explicit date range is clamped to 400 days, with a flash.
+  - **Upsert guard:** a `bathrooms`, `bedrooms` or `yearBuilt` a column can't
+    hold is stored as NULL and logged, so one bad RentCast listing no longer
+    aborts a pull (item 116).
+  - **Not seen in a browser:** the banner's polling. The Status cell's
+    "Pulling..." display was reported working.
 
 ### Permits and jurisdiction research — parked, 2026-09-23 / 2026-09-24
 
@@ -773,12 +789,11 @@ which is gitignored: 3 A, 7 B, 59 C, 13 D.
 
 - **Phase 2:** nobody other than the developer has logged in (item 63).
 - **Nothing under `hailsys/web/` has tests** (item 53).
-- **Logging is unconfigured in the web app**, so every `logger.info` is
-  dropped. Warnings and errors still reach the container log (item 99, §9).
 - **Stale pulls:** a pull left `running` by a restart is swept at startup
   after 10 minutes, and stops reading "Pulling..." after 10 minutes without
-  waiting for the sweep (item 47, 2026-09-25). The sweep was verified with a
-  backdated `running` row; it hasn't met a genuine orphan.
+  waiting for the sweep (item 47, 2026-09-25); stale match runs are swept the
+  same way. The sweep was verified with a backdated `running` row; it hasn't
+  met a genuine orphan.
 - **RentCast's billing boundary hour** can't be checked until after
   2026-10-09 (item 87).
 
@@ -1745,7 +1760,9 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                pull-coverage lookup for the match page's gap warning (2026-09-21)
     workstate.py                per-storm-day work state (Not pulled / Pulled, not matched /
                                Matched, not sent / Sent), derived at read time, never stored
-                               (2026-09-21)
+                               (2026-09-21); a running pull or match reads "Pulling..." until
+                               PULL_STALE_AFTER; fetch_pull_banner() states the pull the user
+                               just started (2026-09-25)
     activity.py                 "since your last login" feed: new storm days (by ingested_at),
                                pulls, match runs (2026-09-21)
     quota.py                    RentCast usage for the billing period, summed from
@@ -1770,13 +1787,14 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
     jobs.py                     background thread for a RentCast pull + its automatic match
                                run; daemon=True, so a thread dies with its process.
                                sweep_stale_pulls(), called from create_app(), cancels pulls
-                               left 'running' over 10 minutes (parking-lot item 47)
-                               (2026-09-18; sweep 2026-09-25)
+                               left 'running' over 10 minutes and fails stale match runs
+                               (parking-lot item 47) (2026-09-18; sweep 2026-09-25)
     views.py                   the `main` blueprint: /, /storms/zips, /territory,
                                /territory/days, /export.csv, /map/points.geojson, /login,
                                /logout, /pull/estimate, /pull, /match, /storms/matches,
                                /storms/matches.csv, /exports, /exports/matches.csv,
-                               /exports/realtors.csv (sender/admin), /storms/state, /activity,
+                               /exports/realtors.csv (sender/admin), /storms/state, /storms/banner,
+                               /activity,
                                /account/password (2026-09-14 through 2026-09-24; the
                                storm list pages at 50 days)
     templates/
@@ -1800,6 +1818,8 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
       csrf_error.html             the 400 page for a failed CSRF check (2026-09-23)
       _status_cell.html          fragment: one storm row's Status cell; used by storms.html and
                                by /storms/state for the polling (2026-09-25)
+      _pull_banner.html          fragment: the line under the storm-list heading for the pull
+                               the user just started; polled from /storms/banner (2026-09-25)
       _zips.html                 fragment: one storm day's zip breakdown
       _city_days.html            fragment: one city's day-by-day breakdown
     static/
@@ -1808,7 +1828,8 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                column widths and .feed-columns 2026-09-24; responsive pass
                                (40rem and 48rem breakpoints) 2026-09-24/25
       storms.js                  generic expand/collapse + lazy-fetch-once handler; polls
-                               "Pulling..." Status cells every 3 s, up to 40 times (2026-09-25)
+                               "Pulling..." Status cells every 3 s, up to 40 times, and the pull
+                               banner up to 200 times (2026-09-25)
       map.js                     Leaflet map: coverage polygons, report points, 5-mi rings;
                                tooltip shows the server-formatted magnitude_display
       coverage.geojson           generated fixture (scripts/build_coverage_geojson.py)
@@ -1829,7 +1850,8 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                hands each zip's listings to upsert.py; a RentCast auth failure
                                aborts the whole pull (2026-09-21)
     upsert.py                   raw RentCast listing dicts -> properties/listings/realtors
-                               (2026-09-21)
+                               (2026-09-21); _fits() stores NULL and logs a bathrooms/bedrooms/
+                               yearBuilt value its column can't hold (2026-09-25)
 scripts/
   build_reference_tables.py   derives reference CSVs from the raw LSR archive
   zcat-data-check.py          checks coverage zips against the TIGER .dbf

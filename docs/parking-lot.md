@@ -775,6 +775,13 @@ constant shared with the sweep, which takes it as a query parameter). Past
 that the storm falls back to "Pulled, not matched", with Match and re-pull
 offered, before any sweep has run. `jobs.py`'s module docstring is updated.
 
+**Match runs too (`6d6ba63`).** The sweep also sets `match_runs` rows still
+`running` after the same 10 minutes to `'failed'`, with `finished_at` and an
+`error_detail`, and logs `event=stale_match_run_swept`. `match_runs` has no
+`'cancelled'`, and its CHECK requires `finished_at` unless a run is running.
+`workstate.py` counts a running match like a running pull, so an orphaned one
+would otherwise hold its storm on "Pulling...".
+
 **Still open:**
 - `create_app()` runs the sweep, so anything that builds the app (tests, a
   script) runs the `UPDATE`, and so does every gunicorn worker. It is
@@ -1011,30 +1018,39 @@ indefinitely instead, which is why the two were built together.)
 **When:** low priority while pulls take seconds; revisit if they get longer,
 which scales with zip count.
 
-**Resolved 2026-09-25** (`54cc7f2`), with gaps. See `docs/decision-log.md`,
-"A running pull reads \"Pulling...\" and the storm list polls it".
-A running pull reads "Pulling..." (`workstate.PULLING`), and the storm-days
-Status cell is one fragment, `_status_cell.html`, used by `storms.html` and by
-`/storms/state`. While a pull runs the cell carries `data-poll="1"`, and
-`storms.js` asks `/storms/state` for the same cell every 3 seconds, up to 40
-times, replacing it, until the reply has no `data-poll`. "Pull again" isn't
-offered while a pull is running.
-
-**Still open:**
-- **The label order means only some pulls read "Pulling...".** `_label` checks
-  Sent, Matched and Matched-none before running, so a re-pull of a storm that
-  is already matched keeps its old label and isn't polled.
-- **After 2 minutes the cell stops updating** and needs a refresh. That is the
-  poll cap, deliberate.
-- **The server doesn't refuse a second pull** while one is running (item 51).
-- **Not seen working.** The endpoint and fragment were rendered for six
-  states, but the JS has not been run (no `node` on `hail-dev`), and no browser
-  check of a real pull is recorded.
-
-A dead pull no longer reads "Pulling..." after 10 minutes (item 47), and the
+**Resolved 2026-09-25** (`54cc7f2`; label order and match runs in `6d6ba63`).
+See `docs/decision-log.md`, "A running pull reads \"Pulling...\" and the storm
+list polls it" and "Pull and Match return to the filtered list; a running pull
+or match outranks the other labels". A running pull reads "Pulling..."
+(`workstate.PULLING`), and the storm-days Status cell is one fragment,
+`_status_cell.html`, used by `storms.html` and by `/storms/state`. While a pull
+runs the cell carries `data-poll="1"`, and `storms.js` asks `/storms/state` for
+the same cell every 3 seconds, up to 40 times, replacing it, until the reply
+has no `data-poll`. "Pull again" isn't offered while a pull is running.
+`running` outranks Sent and Matched, so a re-pull of a matched storm reads
+"Pulling..." too, and a running `match_runs` row counts the same way, so the
+cell stays on "Pulling..." through the pull and its automatic match. A dead
+pull or match stops reading "Pulling..." after 10 minutes (item 47), and the
 badge has its own colour (`.badge-pulling`, purple).
 
-**When:** the browser check, next time the storm list is touched. Viewer gating not yet tested with a real viewer account
+**Confirmed by the developer in the browser, 2026-09-25:** the Status cell's
+"Pulling..." display works. The line under the page heading, which they had
+been trying to fix all along, is a separate thing (item 118).
+
+**Still open:**
+- After 2 minutes the cell stops updating and needs a refresh. That is the
+  poll cap, deliberate.
+- The server doesn't refuse a second pull while one is running (item 51).
+- The JS has not been run under `node` (none on `hail-dev`), so the browser
+  confirmation above is the only check of the polling, and what exactly was
+  watched wasn't recorded.
+- A few milliseconds separate a pull finishing from its match run being
+  inserted. A poll landing exactly there would stop early. Unlikely against a
+  3-second interval.
+
+**When:** nothing scheduled.
+
+## 58. Viewer gating not yet tested with a real viewer account
 
 `role_required` on `/pull/estimate`, `/pull` and `/match`, and the `can_pull`
 gating on `storms.html`, were written 2026-09-22 but have not been exercised
@@ -1780,6 +1796,68 @@ cancel is ever built, it either needs its own status or a column that says
 which kind of cancel this was.
 
 **When:** if a cancel affordance is ever wanted.
+
+## 116. RentCast values that don't fit their columns abort a pull
+
+**Resolved 2026-09-25** (`5933ebc`). See `docs/decision-log.md`, "RentCast
+values a column can't hold are stored as NULL and logged". Two listings broke
+pulls: **615 Remington St, Fort Collins, 80524 (`bathrooms` 150)** and **5331 S
+Delaware St, Littleton, 80120 (`bathrooms` 912)**. `properties.bathrooms` is
+`NUMERIC(3,1)`, which holds at most 99.9, so `NumericValueOutOfRange` rolled
+back the whole zip and ended the pull after its calls were spent, and a re-pull
+failed the same way. Pulls 41 and 78 (2026-08-14 HAIL, 4 calls each) and 79
+(2026-07-06 NON-TSTM WND GST, 13 calls) spent 21 calls for nothing. `_fits()`
+in `upsert.py` now stores `NULL` and logs `event=field_out_of_range` (id, field,
+value) for a `bathrooms`, `bedrooms` or `yearBuilt` its column can't hold, and
+the listing is kept, with the original in `raw_payload`. Both storms were
+re-pulled successfully afterwards (pull 80: 17 zips, 3,040 listings, 930 new
+matches; pull 81: 26 zips, 3,323 listings).
+
+**Still open:**
+- The limits are what the column can **hold**, not what is plausible, so 99
+  bathrooms is stored as a real value.
+- Only three fields are guarded. `square_footage` and `lot_size` are `INTEGER`
+  (about 2.1 billion), which no real listing reaches.
+- Any other bad listing, or another failure inside the upsert, still aborts the
+  zip and the pull. A savepoint per listing was considered and not built: it
+  would let a pull succeed with rows missing, so it would have to count and
+  report them.
+
+**When:** the next time a pull aborts in the upsert.
+
+## 117. An all-types pull can't be recorded
+
+`api_pulls` has a `storm_link_paired` CHECK: `storm_date` and `report_text` are
+both set or both NULL. `pull_start` accepts a missing `type`
+(`report_text = ... or None`), so a `POST /pull` without one would insert a
+storm date with no report type, fail the constraint in the pull thread, and
+log `event=pull_job_failed`. The banner would then say it lost track of the
+pull after about 15 seconds. The Pull links always send a type and `/match`
+requires one, so nothing in the UI reaches it; found 2026-09-25 while
+diagnosing item 116.
+
+**When:** if a pull of every type is ever wanted, or `/pull` is reachable from
+anywhere else.
+
+## 118. The live pull banner: limits, and not yet watched
+
+The banner under the storm-list heading replaced the "Pull started" flash
+(decision log, "A live banner under the heading replaces the \"Pull started\"
+flash"). What it doesn't do:
+- **It shows only the pull the user just started.** Another user's running pull
+  appears in the Status cells and the Activity page, not in the banner.
+- **It is one-shot.** Any reload of the storm list clears it, a marker older
+  than 10 minutes is ignored, and leaving the page and coming back before the
+  pull finishes loses it (the Status cell still shows the state).
+- **It polls up to 200 times** (10 minutes), then stops.
+- **A re-pull of an already matched storm ends with "0 new matches"**, because
+  `matches_created` counts new rows only.
+- **Not watched.** The state logic, template and route were tested against the
+  real database with a fake pull, and the whole flow was replayed against the
+  real files. The JS has not been run (no `node`), and no browser check of the
+  banner is recorded.
+
+**When:** watch a real pull with the banner up; the rest if it bothers anyone.
 
 ---
 

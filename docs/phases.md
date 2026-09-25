@@ -185,6 +185,10 @@ that import comes before any send. No sending code and no provider yet.
 - **A responsive CSS pass** for phones and tablets, in review on the
   `responsive-css` branch and not yet recorded as checked in a browser
   (item 114).
+- **Pull-flow fixes ahead of the first real batch:** a live "Pulling..." status
+  and pull banner, Pull and Match returning to the filtered list, a startup
+  sweep for pulls and match runs a restart leaves half-done (items 47, 57,
+  118), and a guard so a bad RentCast value can't abort a pull (item 116).
 - **Not started, and still the work of this phase:** the sending identity and
   provider, template CRUD, the legacy DNC import, the suppression check in the
   send transaction, the frequency cap, the send queue, bounce handling and
