@@ -158,6 +158,12 @@ def index():
     except ValueError:
         page = 1
 
+    watch = session.pop("pull_watch", None)
+    if watch and (datetime.now(timezone.utc)
+                  - datetime.fromisoformat(watch["since"])) > workstate.PULL_STALE_AFTER:
+        watch = None
+    banner = None
+
     with get_connection() as conn:
         # Count first so an out-of-range ?page= is clamped before the
         # offset is computed, not after an empty page has been fetched.
@@ -204,6 +210,15 @@ def index():
             quota=g.settings["rentcast_monthly_quota"],
             day_bounds=denver_day_bounds,
         ) if g.user["role"] in ("sender", "admin") else None
+        if watch:
+            banner = workstate.fetch_pull_banner(
+                conn,
+                storm_date=datetime.strptime(watch["date"], "%Y-%m-%d").date(),
+                report_text=watch["type"],
+                zips=watch["zips"],
+                since=datetime.fromisoformat(watch["since"]),
+                now=datetime.now(timezone.utc),
+                )
 
     for row in rows:
         row["work_state"] = workstate.state_for(
@@ -223,6 +238,7 @@ def index():
         feed_limit=FEED_PANEL_LIMIT,
         display_tz=DISPLAY_TZ,
         usage=usage,
+        banner=banner,
         page=page,
         total_pages=total_pages,
         total_days=total_days,
@@ -548,8 +564,13 @@ def pull_start():
         window_end=window_end,
     )
 
-    flash(f"Pull started for {day} {report_text or 'all types'} "
-          f"({result['zip_count']} zips).")
+    session["pull_watch"] = {
+        "date": day.isoformat(),
+        "type": report_text,
+        "zips": result["zip_count"],
+        "since": datetime.now(timezone.utc).isoformat(),
+    }
+     
     return redirect(back or url_for("main.index"))
 
 @bp.route("/match", methods=["POST"])
@@ -866,3 +887,28 @@ def storm_state():
                            can_pull=g.user["role"] in ("sender", "admin"),
                            actionable_only=_actionable_from_args(),
                            display_tz=DISPLAY_TZ)
+
+@bp.route("/storms/banner")
+@login_required
+def storm_banner():
+    """Banner under the Recent Storm Days Heading, re-rendered while the pull
+    the user just initiated is running.  Returns same fragment the page 
+    rendered initially, so wording all lives in one template.
+    """
+    try:
+        day = datetime.strptime(request.args["date"], "%Y-%m-%d").date()
+        zips = int(request.args["zips"])
+        since = datetime.fromisoformat(request.args["since"])
+    except (KeyError, ValueError):
+        abort(400)
+    if since.tzinfo is None:
+        abort(400)
+
+    report_text = request.args.get("type") or None
+
+    with get_connection() as conn:
+        banner = workstate.fetch_pull_banner(
+            conn, storm_date=day, report_text=report_text, zips=zips,
+            since=since, now=datetime.now(timezone.utc),
+        )
+    return render_template("_pull_banner.html", banner=banner)

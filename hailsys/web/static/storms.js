@@ -123,3 +123,56 @@ function pollRunningPulls() {
 const pollTimer = document.querySelector('td[data-poll="1"]')
     ? setInterval(pollRunningPulls, POLL_MS)
     : null;
+
+
+// Banner under the heading ("Pulling ... (22 zips)") for the pull
+// the user just started.  Server renders it with data-poll="1" while 
+// the pull o rits match is running, and /storms/banner sends back the 
+// same banner until it isn't.
+const MAX_BANNER_POLLS = 200;   // 200 X 3s = 10 minutes, server's own limit
+let bannerPolls = 0;
+let bannerBusy = false;
+
+function pollBanner() {
+    const banner = document.getElementById('pull-banner');
+    if (!banner || banner.dataset.poll !== '1') {
+        clearInterval(bannerTimer);     // finished or nothing to watch
+        return;
+    }
+    if (document.hidden || bannerBusy) return;
+    if (++bannerPolls > MAX_BANNER_POLLS) {
+        clearInterval(bannerTimer);
+        return;
+    }
+
+    const params = new URLSearchParams({
+        date: banner.dataset.date,
+        type: banner.dataset.type || '',
+        zips: banner.dataset.zips,
+        since: banner.dataset.since,
+    });
+
+    bannerBusy = true;
+    fetch('/storms/banner?' + params)
+        .then(function (response){
+            if (response.redirected) {      // singed out: don't paste the login page in
+                clearInterval(bannerTimer);
+                throw new Error('signed out');
+            }
+            if (!response.ok) throw new Error('HTTP '+ response.status);
+            return response.text();
+        })
+        .then(function (html) {
+            banner.outerHTML = html;
+        })
+        .catch(function (err) {
+            console.warn('banner poll failed: ' + err.message);
+        })
+        .finally(function () {
+            bannerBusy = false;
+        })
+}
+
+const bannerTimer = document.querySelector('#pull-banner[data-poll="1"]')
+    ? setInterval(pollBanner, POLL_MS)
+    : null;

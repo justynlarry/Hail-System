@@ -4,6 +4,7 @@
 
 {% block content %}
 <script src="{{ url_for('static', filename='storms.js') }}" defer></script>
+{% include "_pull_banner.html" %}
 <section class="activity-panel">
     {% include "_activity.html" %}
 </section>

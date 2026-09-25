@@ -187,4 +187,74 @@ def state_for(work_state, storm_date, report_text, today):
         "last_pulled_at": None,
     }
 
+# ------ ------ Banner Under Storm Page Heading ------ ------
+
+BANNER_GRACE = timedelta(seconds=15)
+
+_LATEST_PULL_SQL = """
+SELECT api_status, started_at, finished_at, listings_returned
+FROM api_pulls
+WHERE storm_date = %(storm_date)s
+    AND report_text IS NOT DISTINCT FROM %(report_text)s
+    AND started_at >=%(since)s
+ORDER BY started_at DESC
+LIMIT 1
+"""
+
+_LATEST_MATCH_SQL = """
+SELECT run_status, started_at, finished_at, matches_created
+FROM match_runs
+WHERE storm_date = %(storm_date)s
+    AND report_text IS NOT DISTINCT FROM %(report_text)s
+    AND started_at >= %(since)s
+ORDER BY started_at DESC
+LIMIT 1
+"""
+
+def fetch_pull_banner(conn, *, storm_date, report_text, zips, since, now):
+    """State of pull started at 'since' for on storm day and type.
+
+    'since' = when click happened, 'now' is passed in, both timezone-aware.
+    Returns dict for _pull_banner.html.  'phase' is one of pulling, matching,
+    done, match_failed, failed or lost.  'poll' is True while the page should
+    keep asking (pulling, matching).
+    """
+    params = {
+        "storm_date": storm_date,
+        "report_text": report_text,
+        "since": since - timedelta(seconds=5),
+    }
+    with conn.cursor() as cur:
+        cur.execute(_LATEST_PULL_SQL, params)
+        pull = cur.fetchone()
+        cur.execute(_LATEST_MATCH_SQL, params)
+        match = cur.fetchone()
+
+    banner = {
+        "date": storm_date, "type": report_text, "zips": zips, "since": since,
+        "listings": None, "matches": None,
+    }
+
+    if pull is None:
+        banner["phase"] = "pulling" if now - since < BANNER_GRACE else "lost"
+    elif pull["api_status"] == "running":
+        recent = now - pull["started_at"] < PULL_STALE_AFTER
+        banner["phase"] = "pulling" if recent else "lost"
+    elif pull["api_status"] != "complete":
+        banner["phase"] = "failed"
+    else:
+        banner["listings"] = pull["listings_returned"]
+        finished = pull["finished_at"] or pull["started_at"]
+        if match is None:
+            banner["phase"] = "matching" if now - finished < BANNER_GRACE else "done"
+        elif match["run_status"] == "running":
+            recent = now - match["started_at"] < PULL_STALE_AFTER
+            banner["phase"] = "matching" if recent else "lost"
+        elif match["run_status"] == "complete":
+            banner["phase"] = "done"
+            banner["matches"] = match["matches_created"]
+        else:
+            banner["phase"] = "match_failed"
+    banner["poll"] = banner["phase"] in ("pulling", "matching")
+    return banner
 

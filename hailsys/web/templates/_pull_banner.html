@@ -1,0 +1,31 @@
+{# The line under the page heading for a pull the user just started. It
+   replaces the old "Pull started" flash: the server renders it once from the
+   database, and while the pull or its match is still running it carries
+   data-poll="1", so storms.js asks /storms/banner for it again every few
+   seconds. When the reply has no data-poll, polling stops. #}
+{% if banner %}
+{% set what = banner.date ~ ' ' ~ (banner.type or 'all types') %}
+{% set zip_label = banner.zips ~ ' zip' ~ ('' if banner.zips == 1 else 's') %}
+<div id="pull-banner" class="flashes"
+     {% if banner.poll %}data-poll="1"{% endif %}
+     data-date="{{ banner.date }}"
+     data-type="{{ banner.type or '' }}"
+     data-zips="{{ banner.zips }}"
+     data-since="{{ banner.since.isoformat() }}">
+    <p>
+    {% if banner.phase == 'pulling' %}
+        Pulling {{ what }} ({{ zip_label }})&hellip;
+    {% elif banner.phase == 'matching' %}
+        Pull finished for {{ what }}; matching listings&hellip;
+    {% elif banner.phase == 'done' %}
+        Pull finished for {{ what }}: {{ zip_label }}, {{ '{:,}'.format(banner.listings or 0) }} listings{% if banner.matches is not none %}, {{ '{:,}'.format(banner.matches) }} new match{{ '' if banner.matches == 1 else 'es' }}{% endif %}.
+    {% elif banner.phase == 'match_failed' %}
+        Pull finished for {{ what }}, but matching failed. Press Match on that row to try again.
+    {% elif banner.phase == 'failed' %}
+        The pull for {{ what }} failed. See the Activity page.
+    {% else %}
+        Lost track of the pull for {{ what }}. It may have been interrupted; see the Activity page.
+    {% endif %}
+    </p>
+</div>
+{% endif %}
