@@ -175,6 +175,21 @@ Starting point: `send_log`, `email_templates` and `dnc_list` exist from
 `sql/007` and are all empty. The legacy DNC lists are not yet imported, and
 that import comes before any send. No sending code and no provider yet.
 
+**Progress, as of 2026-09-25 — groundwork only, nothing sends:**
+- **CSV exports built** (parking-lot item 92): the matched listings for one
+  storm, a bulk range export, and the realtor list (sender/admin only). They
+  exclude suppressed agents by default and say a CSV is a snapshot; that is a
+  convenience, and the send-time check is still the only real protection.
+- **The match page and activity panel** were tidied ahead of the first real
+  batch: aligned columns, condensed, pulls and match runs side by side.
+- **A responsive CSS pass** for phones and tablets, in review on the
+  `responsive-css` branch and not yet recorded as checked in a browser
+  (item 114).
+- **Not started, and still the work of this phase:** the sending identity and
+  provider, template CRUD, the legacy DNC import, the suppression check in the
+  send transaction, the frequency cap, the send queue, bounce handling and
+  warmup.
+
 - Sending identity: subdomain, SPF/DKIM/DMARC
 - Provider selected and verified as permitting this kind of outreach
 - Template CRUD, versioning, merge-field validation on save

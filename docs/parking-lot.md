@@ -774,7 +774,32 @@ range with no upper bound. Fine today; the 2019 wide-range timing finding
 an unbounded range can cost, and `report_zip_distances` fixes the specific
 cause found, not the general absence of a limit.
 
-**When:** if a wide range gets slow again.
+**Larger since 2026-09-24.** The bulk match export (`/exports/matches.csv`,
+decision log "CSV exports: three projections, suppression optional,
+snapshot") takes the same unbounded range, and it is the heaviest query the
+web app runs: `storm_listing_matches` joined to `iem_data`, `report_types`,
+`listings`, `properties`, `realtors` and two `dnc_list` joins, grouped per
+listing, storm day and type. Three things make it worse than the storm-list
+case:
+
+- **Pressing Apply on `/exports` runs it.** `count_matches` wraps the whole
+  projection in `count(*)`, so the count beside the download costs the same
+  as the download, before anyone downloads anything.
+- **Any signed-in account can ask for it.** The match exports are
+  `login_required`, viewers included. Only the realtor list is
+  sender/admin.
+- **The file is built whole in memory.** `_csv_response` writes to a
+  `StringIO` and returns it, so one wide request holds the entire file in a
+  worker's memory.
+
+`_window_from_args` validates only the `days` shortcut against `DAY_RANGES`;
+an explicit `start`/`end` is not checked, and a reversed pair is swapped.
+Its cost has **not been timed** on a wide range. A single one-report storm
+already matched 949 listings (item 106), so a season is many thousands of
+rows.
+
+**When:** if a wide range gets slow, and before the app is reachable by
+anyone but the developer (Phase 6, items 63 and 110).
 
 ## 50. Monthly RentCast quota tracker
 
@@ -1310,6 +1335,13 @@ someone will want in a spreadsheet.
 
 **When:** Phase 5, before the first real batch is worked from the match page.
 
+**Matched-listings half resolved 2026-09-24** (`28a0195`). See
+`docs/decision-log.md`, "CSV exports: three projections, suppression
+optional, snapshot". `/storms/matches` links to `/storms/matches.csv`, and
+`/exports` adds a bulk match export over a date range and a realtor list.
+**The `/activity` half is still open** and moved to item 107, so this item
+can close.
+
 ## 93. The activity feed shows other users' names to viewers
 
 `hailsys/queries/activity.py` joins `users` for first and last name, so
@@ -1496,6 +1528,139 @@ pull is what made it look unbounded.
 
 **When:** Phase 5, before the first real batch is worked from the match page.
 Related to item 92 (no CSV export on this page).
+
+**Partly resolved 2026-09-24** (`d1b08c5`, `28a0195`). Length: the page is
+condensed and every agent group's columns line up (decision log, "Match page
+and activity panel: aligned columns, condensed, two columns"), so a long page
+scans faster; the row count is unchanged. The page's matches can also be
+downloaded as a spreadsheet (item 92). **Not addressed: which report a listing
+matched.** The page and `/storms/matches.csv` both show the nearest distance
+and the worst magnitude across the storm day and type. The bulk export's
+grain, one row per listing per storm day and type, says which storm, not which
+report. That half stays open here.
+
+## 107. CSV export missing on the activity page
+
+Split from item 92, 2026-09-24. Phase 2's outline says "CSV export on every
+list." The storm list and territory have one (`/export.csv`), and the matched
+listings now do (`/storms/matches.csv`, `/exports`); `/activity` doesn't. The
+matched listings were the list Phase 5 acts on and the likeliest one someone
+would want in a spreadsheet; `/activity` is the list that is still without one.
+
+**When:** unphased.
+
+## 108. Match-page column widths are positional
+
+`style.css` sizes the matched-listings columns with
+`.agent-group th:nth-child(n), td:nth-child(n)` rules, one per column, nine
+today (Address, Zip, Type, Built, Price, Nearest, Max, Reports, MLS), and they
+sum to 71rem. Nothing ties the numbers to the headings in `matches.html`. Add,
+remove or reorder a column there and every width after it lands on the wrong
+column, with no error: the table still renders, just with an address-wide Zip
+column and a narrow Address.
+
+**When:** if those columns change.
+
+## 109. The match page on a phone: one column at a time
+
+The nine fixed columns total 71rem, and `table-layout: fixed` can't shrink
+below that, so on a phone each agent group scrolls sideways inside its own
+`.table-scroll`. The Address column alone (22rem) is wider than a 360px
+phone's content area (about 19.5rem), so it shows one column at a time. The
+right-edge shadow on `.table-scroll` is there so the scroll is discoverable.
+
+**Considered and declined 2026-09-24: stacked cards under 40rem** (each row a
+block of label/value pairs, from `data-label` attributes on the cells).
+That page is desktop scan-and-compare work, and cards would give up the
+side-by-side comparison it exists for. Smaller options if it comes up: one
+shared scroll container for all agent groups, so a phone scrolls sideways once
+and not once per agent; or a narrower Address column with a sticky first
+column, which would change the widths in item 108.
+
+**When:** if anyone actually works it on a phone.
+
+## 110. A Cloudflare tunnel for access from outside the tailnet
+
+Decided 2026-09-14 to revisit at Phase 6 (decision log, the Tailscale-access
+entry): today the app is reached over Tailscale only, and `web` publishes to
+`127.0.0.1:8000`. A tunnel is what puts it in front of real phones on real
+networks, which is what the responsive pass (decision log, "CSS
+responsiveness pass") was written for. It comes with its own checklist, none of
+it done: who can log in (item 63), what to do with the `testview` account
+(item 103), and how much a signed-in viewer can ask of the database (item 49).
+The realtor CSV, every agent's email and phone in one file, is sender/admin
+only for the same reason.
+
+**When:** Phase 6, with items 63 and 103.
+
+## 111. Tap targets under 44px
+
+The 2026-09-25 pass raised the storm-days Status cell's actions
+(`.pull-link`, `.inline-action button`, `.action-disabled`) to about 44px
+under 40rem, and form controls to 16px so iOS doesn't zoom on focus. What is
+still smaller, estimated from the CSS and not measured: the nav links at
+phone width (about 38px), the pagination links (about 34px), the admin
+`.row-actions` buttons (about 29px), the `.filters` Apply button and Download
+link, and the `+` expand button (24px, which meets WCAG 2.2's 24px minimum but
+not 44px).
+
+**When:** if anyone works from a phone; before Phase 6 exposes the app.
+
+## 112. The territory layout on tablets and landscape phones
+
+- **Landscape phone:** under 48rem the territory map stacks below the table at
+  `height: 50vh; min-height: 14rem`. On a phone in landscape that is nearly
+  the whole visible height, and a one-finger drag on a Leaflet map pans the map
+  instead of scrolling the page, so the page can get stuck on the map.
+- **Tablet landscape (about 1024px):** the split stays side by side and the
+  nine-column table gets about 45% of the width, so it scrolls sideways inside
+  its box. Stacking at a wider breakpoint would fix that, and would stack some
+  desktop windows too.
+
+**When:** if anyone uses the territory page on a tablet or phone.
+
+## 113. Small CSS leftovers
+
+- The `.table-scroll` shadow is drawn as a background, which cells with their
+  own background paint over, so it doesn't show behind a table's header row.
+- `.admin-form` caps the settings form at 24rem even on a desktop, so its
+  table is cramped there too. The label-above-value stacking only applies
+  under 48rem.
+- `td.addr { min-width: 12rem }` no longer does anything on the match page,
+  because `table-layout: fixed` ignores it. It is not dead everywhere:
+  `.table-scroll td.addr` would apply to any other table with an `addr` cell.
+- `h1 ~ table` is now unmatched by any template. The corrected rule is kept as
+  a guard for a future page.
+
+**When:** if any of them gets in the way.
+
+## 114. The responsive pass has not been recorded as checked
+
+The 2026-09-24 and 2026-09-25 responsiveness passes (decision log, "CSS
+responsiveness pass") were written with no browser available: the agent's
+environment had none, and `hail-dev` has no headless browser either. The
+developer reported looking at the result in a browser afterwards. Which pages,
+widths and devices, and what was seen, were not reported into this record, so
+**no specific check is recorded as passed.** To confirm, at 360, 768 and
+1024px and on a real iPhone:
+
+- Storm days: no page-level horizontal scrollbar; the table scrolls inside its
+  box; the Status cell's actions are separate taps.
+- Territory city view: stacks at 768px; the table scrolls in its box; a row
+  still expands; the map draws at full width when stacked.
+- Territory zip view, `/activity`, the flash box and the activity panel: inset
+  by the same gutter as the filter bar.
+- Match page: the shadow shows beside the body rows and disappears at the scroll
+  end.
+- Admin: settings rows stack below 768px; users and history tables scroll in
+  their own boxes.
+- Filters on storm days, territory and exports: each label stays with its
+  control when the bar wraps, including the date inputs on iOS.
+- iOS Safari: focusing a filter, date or password input doesn't zoom the page.
+- Login: still centred, and the page doesn't scroll when the keyboard opens
+  (`100dvh`, which only shows on a real phone).
+
+**When:** before Phase 6 exposes the app.
 
 ---
 

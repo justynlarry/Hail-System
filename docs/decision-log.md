@@ -4182,3 +4182,147 @@ in `docker compose logs web`, for example
 window_start=2026-08-26T00:00:00-06:00 report_text='TSTM WND GST'
 radius_miles=5.0 new_matches=949`. `docker inspect` confirms the container's
 log config: `json-file`, `max-size 20m`, `max-file 5`.
+
+## 2026-09-24 — CSV exports: three projections, suppression optional, snapshot
+
+Parking-lot item 92 (the matched-listings half; `/activity` is now item 107).
+`28a0195`. The SQL lives in `hailsys/queries/exports.py`
+(`MATCHES_SQL`, `REALTORS_SQL`, and a count for each); the routes and helpers
+(`_dnc_from_args`, `_csv_response`, `_stamp`) are in `views.py`.
+
+**Three exports:** the storm on the match page (`/storms/matches.csv`, linked
+from `matches.html`), a bulk export over a date range (`/exports/matches.csv`)
+and the realtor list (`/exports/realtors.csv`). `/exports` is the page for the
+last two, linked from the nav.
+
+**The bulk grain is one row per listing per local storm day and type.** The
+match page's own query groups by listing alone, which is right for a page
+scoped to one day. Over a range it would collapse a house matched on two
+storms into one row that can't say which storm. `LOCAL_TIME_EXPR` is
+**imported from `storms.py`, not copied**, so a download's `storm_date` is the
+same local day the browser shows, and a change to the DST handling can't drift
+between the two.
+
+**Actionability is not re-applied at export time.** `matcher.py` already
+applies `roof_relevant` and the magnitude floor when it creates a match
+(`_MATCH_SQL`), so a row in `storm_listing_matches` has passed both.
+Re-filtering on `actionable_only` would drop legitimately matched rows if
+`min_magnitude` were later raised. This **supersedes the assumption** that the
+export should mirror the storm browser's `actionable_only` filter.
+
+**Suppression: excluded by default, included with flags on request**
+(`?dnc=include`, the Suppressed dropdown on `/exports`).
+- It is keyed on the **agent's** address. The office flag is reported as
+  `office_dnc` but never filters, pending item 19 (whether outreach ever falls
+  back to an office address).
+- The joins put `removed_at IS NULL` **in the `ON` clause**. In `WHERE` it would
+  turn the `LEFT JOIN` into an inner join and silently drop every agent who
+  isn't suppressed.
+- `hail_app` already had `SELECT` on `dnc_list` (`sql/010_roles.sql`), so no
+  migration was needed. The exports read it with a plain `LEFT JOIN`; there is
+  still no sending code.
+
+**A CSV is a snapshot.** Anyone suppressed after a download is still in the
+file, and a list worked outside this system never passes the send-time check.
+So every filename carries the export date (`_stamp()`, Denver) and `/exports`
+says so. **The send-time check against `dnc_list`, in the send's transaction,
+remains the only real protection**; excluding suppressed agents from a
+download is a convenience, and it is not that check.
+
+**Who can download what:** the realtor export is `role_required("sender",
+"admin")`. Every agent's email and phone in one file is the most sensitive
+download here, and marketing works outside this system. The match exports stay
+`login_required`, viewers included, matching Phase 4's done-when (a viewer can
+browse and export).
+
+**The realtor list is not deduplicated.** `realtors` holds one row per address
+by design, and DNC is keyed on the address too, so an agent reachable at two
+addresses appears twice. `/exports` says this beside the count.
+
+**Known cost:** the bulk range has no cap, and the count on `/exports` runs
+the full projection (parking-lot item 49).
+
+## 2026-09-24 — Match page and activity panel: aligned columns, condensed, two columns
+
+`d1b08c5` (match page), `110bd8a` (activity panel).
+
+**Aligned columns.** The match page draws one table per agent, so the browser
+sized each table to its own content, and a long address pushed that group's
+columns out of line with every other group. **Measured:** the Zip column
+started at 650, 731 and 674px in three adjacent groups.
+`table-layout: fixed` plus an explicit width per column makes every group
+agree, and it stops the browser measuring content on a 656-row page.
+
+**Trade-off:** fixed layout wraps or clips content wider than its column, so
+Address is sized for a realistic worst case (22rem, where the longest address,
+66 characters, wraps to two lines). `td.addr`'s `min-width` no longer applies
+on this page. The widths are `nth-child` rules, positional, so they must be
+kept in step with the columns in `matches.html` (parking-lot item 108). The
+nine columns total 71rem, so on a phone each group scrolls sideways
+(item 109).
+
+**Condensed.** Padding and margins are tighter: the gap between an agent's last
+listing and the next agent's name was doing more separating than it needed.
+
+**Activity panel.** Pulls and match runs now sit **side by side in a grid**
+and collapse with `<details>`/`<summary>`, so the storm table, which is the
+page's actual subject, starts higher up. It is the browser's own disclosure
+widget: no JavaScript, and keyboard-accessible. Each line carries a
+Denver-time stamp. **New storm days stays full width above them.** The feed's
+since-last-login window is unchanged. Under 48rem the two columns collapse to
+one.
+
+## 2026-09-24 — CSS responsiveness pass
+
+`6ae56af` and `2060328`, committed on the `responsive-css` branch on
+2026-09-25 UTC. `style.css` and templates only: no Python, no JavaScript, no
+framework, and no page's information or columns changed.
+
+**The finding:** `h1 ~ table { margin: 0 1.5rem }` on a `width: 100%` table
+ended the table **1.5rem past the viewport at every width**, on every page with
+a bare table (storm days, the territory zip view), because CSS ignores the
+over-constrained `margin-right`. A desktop bug found by a mobile audit. Fixed
+with `width: calc(100% - 3rem)`; both tables are now wrapped in
+`.table-scroll`, and the corrected rule is kept as a guard (item 113).
+
+**What changed:**
+- **Territory:** `.split-table` scrolls sideways in its own box, and the split
+  stacks at `48rem`.
+- **Storm-days and territory zip tables** are in `.table-scroll`, and so is the
+  admin settings history table.
+- **Admin settings** stack (label above value) at `48rem`.
+- **Filter bars:** each label and its control is wrapped in
+  `<span class="field">`, so a label can't end one line with its input on the
+  next. Storm days, territory and exports.
+- **`40rem`, not `640px`:** the two existing `640px` queries (header, pagination)
+  are now `40rem`, the same value at the default font size, so a user's
+  font-size setting moves the breakpoint too. That is one scale with the
+  existing `48rem` `.feed-columns` query.
+- **A right-edge shadow on `.table-scroll`** (CSS only) as a scroll hint. It
+  is not a fade, and it doesn't show behind a table's header row (item 113).
+- **Gutters:** `.flashes` and `.activity-panel` get the side margin, `/activity`
+  is wrapped in `.page`, and `.note` no longer zeroes its side margins with a
+  shorthand that beat the `h1 ~ p` gutter.
+- **Phones (`40rem` and under):** form controls are 1rem, since iOS Safari
+  zooms the page when a focused control's font is under 16px; the storm-days
+  Status cell's actions (`.pull-link`, the Match button, `.action-disabled`)
+  are about 44px tall.
+- `body.login-page` uses `100dvh` with a `100vh` fallback.
+
+The viewport `<meta>` was already in `base.html`.
+
+**Decided against:** stacked cards for the match page on a phone (item 109).
+That page is desktop scan-and-compare work, and the scroll shadow is enough to
+make it reachable.
+
+**Verification, plainly:** no browser was available in the agent's
+environment, so every claim above was **reasoned from the CSS**, not observed.
+The one runtime check was that the templates still parse, and it stopped
+short: the templates wouldn't compile outside the app because the app's own
+`magnitude` filter wasn't registered, so a real page load is what confirms
+them. The developer reported checking the result in a browser afterwards, but
+which pages, widths and devices, and what was seen, were not reported into this
+record. **No specific check is recorded as passed.** Item 114 lists what
+remains unconfirmed, including iOS focus-zoom and `100dvh`, which only show on
+a real phone. Estimated sizes (tap targets, breakpoints) came from the CSS
+and were not measured.

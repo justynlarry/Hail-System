@@ -163,7 +163,7 @@ application's own login model enforced in Python:
 |---|---|---|
 | `hail_admin` | `postgis` superuser, and the `loader` service | Everything. Runs DDL and provisioning. |
 | `hail_ingest` | the `ingest` service | `SELECT` on `report_types`; `SELECT, INSERT` on `iem_data` and `iem_ingest_rejects`; `SELECT, INSERT, UPDATE` on `ingest_runs`. No `DELETE` anywhere. |
-| `hail_app` | the future web UI, and (2026-09-11) the `app` Compose service | The three cost stages: read reference and weather, write property/matching/sending/operations. No `DELETE` anywhere. |
+| `hail_app` | the future web UI, and (2026-09-11) the `app` Compose service | The three cost stages: read reference and weather, write property/matching/sending/operations. No `DELETE` anywhere. **It also reads `dnc_list`** (2026-09-24): the CSV exports `LEFT JOIN` it to flag or exclude suppressed agents. The grant was already in `010`, and it is a convenience, not the send-time check. |
 
 **Verified by trying it, not by reading the grants.** From inside the ingest
 container as `hail_ingest`: `send_log`, `dnc_list`, `email_templates` and
@@ -722,6 +722,35 @@ matched.
   **valid CSRF token** a viewer session gets 403 on `/pull`, `/pull/estimate`,
   `/match` and `/admin/`, and 200 on `/` and `/export.csv`. Without the token
   the POST would fail CSRF first and the 403 would prove nothing.
+
+### Exports, match-page layout and responsive CSS — 2026-09-24 / 2026-09-25
+
+Phase 5 groundwork: nothing here sends. Decisions are in the decision log
+under the same dates.
+
+- **CSV exports** (`hailsys/queries/exports.py`, `28a0195`), all from
+  `storm_listing_matches` and `realtors`, all excluding suppressed agents by
+  default and flagging them on request (`?dnc=include`):
+  - `/storms/matches.csv`: one storm day, linked from the match page.
+  - `/exports`: a page with a date range, a report type and the Suppressed
+    choice; **`/exports/matches.csv`** is the bulk export, one row per listing
+    per local storm day and type; **`/exports/realtors.csv`** is the realtor
+    list, not deduplicated, and **sender/admin only**. The match exports are
+    open to any signed-in role.
+  - Every filename carries the export date, because a CSV is a snapshot:
+    someone suppressed later is still in the file. **The send-time check is
+    still the only real protection.** The date range has no cap (item 49).
+  - `hail_app` reads `dnc_list` for this; the grant already existed.
+- **The match page** (`d1b08c5`) has fixed, positional column widths so every
+  agent group lines up (item 108), and is condensed. It scrolls sideways on a
+  phone (item 109).
+- **The activity panel** (`110bd8a`) shows pulls and match runs side by side
+  in collapsible `<details>` sections, each line stamped in Denver time.
+- **Responsive CSS** (`6ae56af`, `2060328`, branch `responsive-css`): a real
+  bug, tables 1.5rem wider than the viewport at every width, fixed; the
+  territory split, admin settings and filter bars reflow; phone tap targets.
+  **Written with no browser available**, and no specific check is recorded as
+  passed (item 114).
 
 ### Permits and jurisdiction research — parked, 2026-09-23 / 2026-09-24
 
@@ -1716,6 +1745,10 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                pulls, match runs (2026-09-21)
     quota.py                    RentCast usage for the billing period, summed from
                                api_call_log (2026-09-23)
+    exports.py                  CSV projections: matched listings (one row per listing per
+                               local storm day and type) and the realtor list, each with a
+                               count and a suppression LEFT JOIN on dnc_list; imports
+                               LOCAL_TIME_EXPR from storms.py (2026-09-24)
   matching/                   no __init__.py — implicit namespace package
     matcher.py                  storm-to-listing matching, writes storm_listing_matches;
                                excludes New Construction and Land; run by the /match POST and
@@ -1735,8 +1768,10 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
     views.py                   the `main` blueprint: /, /storms/zips, /territory,
                                /territory/days, /export.csv, /map/points.geojson, /login,
                                /logout, /pull/estimate, /pull, /match, /storms/matches,
-                               /activity, /account/password (2026-09-14 through 2026-09-24;
-                               the storm list pages at 50 days)
+                               /storms/matches.csv, /exports, /exports/matches.csv,
+                               /exports/realtors.csv (sender/admin), /activity,
+                               /account/password (2026-09-14 through 2026-09-24; the
+                               storm list pages at 50 days)
     templates/
       base.html                 single header bar (brand + nav + signed-in-as + Sign Out) and
                                the global flash-message panel; pulls in vendored Leaflet
@@ -1744,10 +1779,13 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
       login.html                no header — gated on session.emp_id, same as everywhere else
       storms.html                the recent-storm-days browser; includes _activity.html
       territory.html             city/zip grouped browse + the map (city mode only)
-      matches.html                match-detail page: agent groups, coverage-gap warning
-                               (2026-09-21)
+      matches.html                match-detail page: agent groups, coverage-gap warning,
+                               CSV download link (2026-09-21; link 2026-09-24)
+      exports.html                /exports: date range, type and suppression choice, then the
+                               match and realtor downloads (2026-09-24)
       activity.html               full "since your last login" page, no item cap
-      _activity.html              fragment shared by storms.html's panel and activity.html
+      _activity.html              fragment shared by storms.html's panel and activity.html;
+                               pulls and match runs in side-by-side <details> (2026-09-24)
       pull_estimate.html          confirm-a-pull page: cost estimate, recently-pulled zips,
                                billing-period usage and an overage warning (2026-09-23)
       admin.html                  users table and settings form (2026-09-22)
@@ -1757,7 +1795,9 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
       _city_days.html            fragment: one city's day-by-day breakdown
     static/
       style.css                  restyled 2026-09-17; header merged to one bar, flash-message
-                               and activity-panel styles added 2026-09-21
+                               and activity-panel styles added 2026-09-21; fixed match-page
+                               column widths and .feed-columns 2026-09-24; responsive pass
+                               (40rem and 48rem breakpoints) 2026-09-24/25
       storms.js                  generic expand/collapse + lazy-fetch-once handler
       map.js                     Leaflet map: coverage polygons, report points, 5-mi rings;
                                tooltip shows the server-formatted magnitude_display
