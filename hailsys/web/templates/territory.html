@@ -10,32 +10,42 @@
 <form method="get" action="{{ url_for('main.territory') }}" class="filters">
     <input type="hidden" name="submitted" value="1">
 
-    <label for="group_by">Group By</label>
-    <select id="group_by" name="group_by">
-        {% for g in group_bys %}
-        <option value="{{ g }}" {% if g == group_by %}selected{% endif %}>{{ g }}</option>
-        {% endfor %}
-    </select>
+    <span class="field">
+        <label for="group_by">Group By</label>
+        <select id="group_by" name="group_by">
+            {% for g in group_bys %}
+            <option value="{{ g }}" {% if g == group_by %}selected{% endif %}>{{ g }}</option>
+            {% endfor %}
+        </select>
+    </span>
 
-    <label for="start">From</label>
-    <input type="date" id="start" name="start" value="{{ start_day.isoformat() }}">
+    <span class="field">
+        <label for="start">From</label>
+        <input type="date" id="start" name="start" value="{{ start_day.isoformat() }}">
+    </span>
 
-    <label for="end">To</label>
-    <input type="date" id="end" name="end" value="{{ end_day.isoformat() }}">
+    <span class="field">
+        <label for="end">To</label>
+        <input type="date" id="end" name="end" value="{{ end_day.isoformat() }}">
+    </span>
 
-    <label for="type">Type</label>
-    <select id="type" name="type">
-        <option value="">All</option>
-        {% for t in types %}
-        <option value="{{ t }}" {% if t == selected_type %}selected{% endif %}>{{ t }}</option>
-        {% endfor %}
-    </select>
+    <span class="field">
+        <label for="type">Type</label>
+        <select id="type" name="type">
+            <option value="">All</option>
+            {% for t in types %}
+            <option value="{{ t }}" {% if t == selected_type %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+        </select>
+    </span>
 
-    <label>
-        <input type="checkbox" name="actionable" value="1"
-                {% if actionable_only %}checked{% endif %}>
-        Actionable Only
-    </label>
+    <span class="field">
+        <label>
+            <input type="checkbox" name="actionable" value="1"
+                    {% if actionable_only %}checked{% endif %}>
+            Actionable Only
+        </label>
+    </span>
 
     <button type="submit">Apply</button>
     <a href="{{ url_for('main.export_csv') }}?{{ request.query_string.decode() }}">Download CSV</a>
@@ -97,6 +107,7 @@
 </p>
 
 {% else %}
+<div class="table-scroll">
 <table>
     <thead>
         <tr>
@@ -125,5 +136,6 @@
         {% endfor %}
     </tbody>
 </table>
+</div>
 {% endif %}
 {% endblock %}

@@ -7,25 +7,33 @@
     <form method="get" action="{{ url_for('main.exports_page') }}" class="filters">
         <input type="hidden" name="submitted" value="1">
 
-        <label for="start">From</label>
-        <input type="date" id="start" name="start" value="{{ start_day.isoformat() }}">
+        <span class="field">
+            <label for="start">From</label>
+            <input type="date" id="start" name="start" value="{{ start_day.isoformat() }}">
+        </span>
 
-        <label for="end">To</label>
-        <input type="date" id="end" name="end" value="{{ end_day.isoformat() }}">
+        <span class="field">
+            <label for="end">To</label>
+            <input type="date" id="end" name="end" value="{{ end_day.isoformat() }}">
+        </span>
 
-        <label for="type">Type</label>
-        <select id="type" name="type">
-            <option value="">All</option>
-            {% for t in types %}
-            <option value="{{ t }}" {% if t == selected_type %}selected{% endif %}>{{ t }}</option>
-            {% endfor %}
-        </select>
+        <span class="field">
+            <label for="type">Type</label>
+            <select id="type" name="type">
+                <option value="">All</option>
+                {% for t in types %}
+                <option value="{{ t }}" {% if t == selected_type %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+        </span>
 
-        <label for="dnc">Suppressed</label>
-        <select id="dnc" name="dnc">
-            <option value="exclude" {% if dnc_exclude %}selected{% endif %}>Exclude</option>
-            <option value="include" {% if not dnc_exclude %}selected{% endif %}>Include, flagged</option>
-        </select>
+        <span class="field">
+            <label for="dnc">Suppressed</label>
+            <select id="dnc" name="dnc">
+                <option value="exclude" {% if dnc_exclude %}selected{% endif %}>Exclude</option>
+                <option value="include" {% if not dnc_exclude %}selected{% endif %}>Include, flagged</option>
+            </select>
+        </span>
 
         <button type="submit">Apply</button>
     </form>
