@@ -203,7 +203,10 @@ button.expand:hover { border-color: var(--accent); color: var(--accent); }
   #map { height: 50vh; min-height: 14rem; }
 }
 
-.note { font-size: 0.8125rem; color: var(--muted); margin: 0.75rem 0; }
+/* Top and bottom only: a "margin: 0.75rem 0" shorthand also zeroed the
+   sides, and outranked the "h1 ~ p" gutter below, so a note sitting
+   directly under the h1 (territory) had no side margin. */
+.note { font-size: 0.8125rem; color: var(--muted); margin-top: 0.75rem; margin-bottom: 0.75rem; }
 .error { color: #b00020; }
 
 /* Pages without .split still need the page margin */
@@ -537,7 +540,9 @@ h1 ~ table { width: calc(100% - 3rem); }
     border: 1px solid #e2e8f0;
     border-radius: 0.5rem;
     padding: 0.75rem 1rem;
-    margin: 0 0 1.5rem;
+    /* Side margin matches the page gutter; it sits directly under <body>,
+       where nothing else supplies one. */
+    margin: 0 1.5rem 1.5rem;
 }
 
 .activity-panel h3 {
@@ -582,7 +587,9 @@ h1 ~ table { width: calc(100% - 3rem); }
     background: #e0f2fe;
     border-left: 4px solid #0284c7;
     padding: 0.75rem 1rem;
-    margin: 0 0 1.5rem;
+    /* Side margin matches the page gutter (base.html renders this directly
+       under <body>). The login page overrides it. */
+    margin: 0 1.5rem 1.5rem;
 }
 .flashes p { margin: 0; }
 .flashes p + p { margin-top: 0.5rem; }
@@ -757,6 +764,9 @@ h1 ~ table { width: calc(100% - 3rem); }
    block, so no other page is affected. */
 body.login-page {
     min-height: 100vh;
+    /* dvh tracks the visible area as a phone's address bar shows and hides;
+       vh is the fallback for browsers without it. */
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -786,4 +796,35 @@ body.login-page {
 .login-form button {
     align-self: stretch;
     padding: 0.5rem 1rem;
+}
+
+/* ---- Touch targets, phones ---- */
+
+/* Placed last so it wins over the per-component font-size rules above at
+   equal specificity. iOS Safari zooms the page when a focused control's
+   font is under 16px, and doesn't zoom back; 1rem stops that. Checkboxes
+   are excluded, they have no text. */
+@media (max-width: 40rem) {
+  .filters select,
+  .filters input[type="date"],
+  .filters input[type="text"],
+  .filters input[type="password"],
+  .admin-form input,
+  .admin-form select,
+  .row-actions select,
+  .row-actions input { font-size: 1rem; }
+
+  /* The storm-days Status cell wraps a badge and up to three actions into
+     a cluster. Each action becomes a ~44px-tall block (13px text at 1.5
+     line height plus 0.75rem above and below) so a thumb lands on one, and
+     the horizontal padding keeps neighbours apart. inline-block because
+     vertical padding on a plain inline <a> doesn't add to its hit area.
+     .action-disabled is not tappable but shares the padding so a viewer's
+     rows line up with a sender's. */
+  .pull-link,
+  .inline-action button,
+  .action-disabled {
+    display: inline-block;
+    padding: 0.75rem 0.5rem;
+  }
 }
