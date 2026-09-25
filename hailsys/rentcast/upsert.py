@@ -7,6 +7,7 @@ _norm columns (email_norm, list_agent_email_norm, etc.) are DB-generated
 """
 
 import logging
+import math
 from psycopg.types.json import Jsonb
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,30 @@ ON CONFLICT (rentcast_id, list_date) DO UPDATE SET
     realtor_id = EXCLUDED.realtor_id, raw_payload = EXCLUDED.raw_payload
 """
 
+# What each column can hold.  RentCast data is not always sane, and a value
+# that doesn't fit raises NumericValueOutOfRange, which rolls back the whole
+# zip and ends the pull after its calls are spent
+_FIT = {
+    "bathrooms": (0, 99.9),     # properties.bathrooms  NUMERIC(3,1)
+    "bedrooms": (0, 32767),     # properties.bedrooms   SMALLINT
+    "yearBuilt": (0,32767),     # properties.year_built SMALLINT
+}
+
+def _fits(item, field):
+    value = item.get(field)
+    if value is None:
+        return None
+    low, high = _FIT[field]
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = math.nan
+    if not (math.isfinite(number) and low <= number <= high):
+        logger.warning("event=field_out_of_range rentcast_id=%s field=%s value=%s",
+                       item.get("id"), field, value)
+        return None
+    return value
+
 
 def upsert_listings(conn, raw_listings: list[dict]) -> None:
     for item in raw_listings:
@@ -118,9 +143,10 @@ def _upsert_one(conn, item:dict) -> None:
             "list_latitude": item.get("latitude"),
             "list_longitude": item.get("longitude"),
             "property_type": item.get("propertyType"),
-            "bedrooms": item.get("bedrooms"), "bathrooms": item.get("bathrooms"),
+            "bedrooms": _fits(item, "bedrooms"), 
+            "bathrooms": _fits(item, "bathrooms"),
             "square_footage": item.get("squareFootage"),
-            "lot_size": item.get("lotSize"), "year_built": item.get("yearBuilt"),
+            "lot_size": item.get("lotSize"), "year_built": _fits(item, "yearBuilt"),
             "hoa_dues": hoa.get("fee"), "created_date": item.get("createdDate"),
         })
 
