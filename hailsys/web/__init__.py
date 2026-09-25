@@ -7,6 +7,9 @@ def create_app():
     from hailsys.logconfig import configure_logging
     configure_logging()
 
+    from hailsys.web.jobs import sweep_stale_pulls
+    sweep_stale_pulls()
+
     app = Flask(__name__)
     app.secret_key = os.environ["FLASK_SECRET_KEY"]
 

@@ -1,0 +1,71 @@
+{# One storm row's Status cell. Rendered by storms.html for every row and by
+   /storms/state for the polling in storms.js, so what the cell looks like is
+   decided here and nowhere else. Needs: row (storm_date, report_text,
+   work_state), can_pull, actionable_only, display_tz.
+
+   While a pull is running the cell carries data-poll="1" and the data the
+   poll needs. The fragment the server sends back is this same template, so
+   once the pull finishes the new cell has no data-poll and polling stops
+   without the browser deciding what "finished" means. #}
+{% set pulling = row.work_state.state == 'Pulling...' %}
+<td class="status-cell"
+    {% if pulling %}
+    data-poll="1"
+    data-date="{{ row.storm_date }}"
+    data-type="{{ row.report_text }}"
+    data-actionable="{{ '1' if actionable_only else '' }}"
+    {% endif %}>
+    {# replace('.', '') so "Pulling..." gives the class badge-pulling, not one with dots in it #}
+    <span class="badge badge-{{ row.work_state.state | lower | replace(' ', '-') | replace(',', '') | replace('.', '') }}{% if row.work_state.is_stale %} badge-stale{% endif %}">
+        {% if row.work_state.is_stale and row.work_state.state == 'Not pulled' %}
+            No action taken
+        {% else %}
+            {{ row.work_state.state }}
+        {% endif %}
+    </span>
+    {% if row.work_state.state == 'Not pulled' %}
+      {% if can_pull %}
+    <a class="pull-link"
+       href="{{ url_for('main.pull_estimate') }}?date={{ row.storm_date }}&type={{ row.report_text | urlencode }}&submitted=1{% if actionable_only %}&actionable=1{% endif %}">Pull</a>
+      {% else %}
+    <span class="action-disabled"
+          title="Pulling requires sender access">Pull</span>
+      {% endif %}
+    {% elif row.work_state.state in ('Pulled, not matched', 'Matched, none in range') %}
+      {% if can_pull %}
+    <form method="post" action="{{ url_for('main.match_start') }}" class="inline-action">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="date" value="{{ row.storm_date }}">
+        <input type="hidden" name="type" value="{{ row.report_text }}">
+        <button type="submit">Match</button>
+    </form>
+      {% else %}
+    <span class="action-disabled"
+          title="Matching requires sender access">Match</span>
+      {% endif %}
+    {% elif row.work_state.state in ('Matched, not sent', 'Sent') %}
+    <a class="pull-link"
+       href="{{ url_for('main.storm_matches') }}?date={{ row.storm_date }}&type={{ row.report_text | urlencode }}">View matches</a>
+    {% endif %}
+    {# No re-pull offered while one is running: a second click would start a
+       second paid pull of the same zips. (The server doesn't refuse it; see
+       parking-lot item 51.) #}
+    {% if row.work_state.state not in ('Not pulled', 'Pulling...') %}
+      {% set repull_label = "Pull again" if row.work_state.last_pulled_at else "Pull" %}
+      {% if row.work_state.is_stale %}
+    <span class="action-disabled"
+          title="Past the 365-day claim window — an owner can no longer file a claim">{{ repull_label }}</span>
+    <small class="stale-note">past claim window</small>
+      {% elif can_pull %}
+    <a class="pull-link repull"
+       href="{{ url_for('main.pull_estimate') }}?date={{ row.storm_date }}&type={{ row.report_text | urlencode }}&submitted=1{% if actionable_only %}&actionable=1{% endif %}">{{ repull_label }}</a>
+      {% else %}
+    <span class="action-disabled"
+          title="Pulling requires sender access">{{ repull_label }}</span>
+      {% endif %}
+      {% if row.work_state.last_pulled_at %}
+    <small class="last-pulled">last pulled
+      {{ row.work_state.last_pulled_at.astimezone(display_tz).strftime("%Y-%m-%d") }}</small>
+      {% endif %}
+    {% endif %}
+</td>

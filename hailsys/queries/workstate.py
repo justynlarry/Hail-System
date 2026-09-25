@@ -16,6 +16,7 @@ from datetime import timedelta
 # history.
 
 CLAIM_WINDOW_DAYS = 365
+PULLING = "Pulling..."
 
 _LOCAL_DAY = "(i.utc_datetime AT TIME ZONE 'America/Denver')::date"
 
@@ -29,7 +30,7 @@ WITH activity AS (
     WHERE storm_date IS NOT NULL
         AND storm_date >= %(start_date)s
         AND storm_date < %(end_date)s
-        AND api_status <> 'failed'
+        AND api_status NOT IN ('failed', 'cancelled')
     
     UNION ALL
 
@@ -40,7 +41,19 @@ WITH activity AS (
     JOIN iem_data i ON i.iem_id = m.iem_id
     WHERE i.utc_datetime >= %(window_start)s
         AND i.utc_datetime < %(window_end)s
-    
+
+    UNION ALL
+    --  A pull still in flight, kept separate from 'pulled,' not
+    -- excluded from it.  The row should read 'Pulling...' while the
+    -- thread works, but a pull that doesn't finish shouldn't read
+    -- 'Not Pulled.'
+    SELECT storm_date, report_text, 'running', started_at
+    FROM api_pulls
+    WHERE storm_date is NOT NULL
+        AND storm_date >= %(start_date)s
+        AND storm_date < %(end_date)s
+        AND api_status = 'running'
+
     UNION ALL
     -- Match attempted: completed run, even an empty run.
     -- This is what distinguishes "ran, nothing in range from "never ran"
@@ -70,10 +83,13 @@ SELECT
     bool_or(kind = 'matched')   AS matched,
     bool_or(kind = 'sent')      AS sent,
     bool_or(kind = 'match_ran') AS match_ran,
+    bool_or(kind = 'running')   AS running,
+    max(at) FILTER (WHERE kind = 'running') AS running_since,
     max(at) FILTER (WHERE kind = 'pulled') AS last_pulled_at
 FROM activity
 GROUP BY storm_date, report_text 
 """
+
 
 NOT_PULLED = "Not pulled"
 PULLED = "Pulled, not matched"
@@ -89,6 +105,8 @@ def _label(row):
         return MATCHED
     if row["match_ran"] and row["pulled"]:
         return MATCHED_NONE
+    if row["running"]:
+        return PULLING
     if row["pulled"]:
         return PULLED
     return NOT_PULLED
@@ -138,3 +156,5 @@ def state_for(work_state, storm_date, report_text, today):
         "is_stale": storm_date < today - timedelta(days=CLAIM_WINDOW_DAYS),
         "last_pulled_at": None,
     }
+
+

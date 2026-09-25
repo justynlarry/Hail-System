@@ -24,6 +24,7 @@ from hailsys.tuning import (
 bp = Blueprint("main", __name__)
 
 DAY_RANGES = (30, 90, 365)
+MAX_RANGE_DAYS = 400
 DEFAULT_DAYS = 30
 GROUP_BYS = ("zip", "city")
 POINTS_SQL_LIMIT = 2000
@@ -74,9 +75,26 @@ def _window_from_args():
     if start_day > end_day:
         start_day, end_day = end_day, start_day
 
+    # Only the days shortcut was validated against DAY_RANGES; an explicit
+    # start/end came straight from the query string, so a URL could ask for
+    # any span at all. The date pickers can produce one too. After the
+    # fallback and the swap, so this only ever sees two valid, ordered dates.
+    # Clamped rather than a 400 so a bookmarked URL keeps working. Recorded
+    # on g, not flashed here: this also serves the map, CSV and fragment
+    # requests, whose flash would surface on some later page.
+    if (end_day - start_day).days > MAX_RANGE_DAYS:
+        start_day = end_day - timedelta(days=MAX_RANGE_DAYS)
+        g.range_clamped = True
+
     window_start, _ = denver_day_bounds(start_day)
     _, window_end = denver_day_bounds(end_day)
     return start_day, end_day, window_start, window_end
+
+def _flash_if_clamped():
+    """Tell the user _window_from_args shortened their range. Call from the
+    full-page routes only."""
+    if g.get("range_clamped"):
+        flash(f"Range limited to {MAX_RANGE_DAYS} days.")
 
 def _actionable_from_args():
     if "submitted" in request.args:
@@ -114,11 +132,12 @@ def _stamp():
 def index():
     today = datetime.now(DISPLAY_TZ).date()
     start_day, end_day, window_start, window_end = _window_from_args()
+    _flash_if_clamped()
     report_text = request.args.get("type") or None
     actionable_only = _actionable_from_args()
 
     try:
-        page = max(int(request.args.get("page", 1)), 1)
+        page =max(int(request.args.get("page", 1)), 1)
     except ValueError:
         page = 1
 
@@ -285,6 +304,7 @@ def territory():
         group_by = "city"
 
     start_day, end_day, window_start, window_end = _window_from_args()
+    _flash_if_clamped()
     report_text = request.args.get("type") or None
     actionable_only = _actionable_from_args()
 
@@ -720,9 +740,10 @@ def storm_matches_csv():
 @login_required
 def exports_page():
     start_day, end_day, window_start, window_end = _window_from_args()
+    _flash_if_clamped()
     report_text = request.args.get("type") or None
     dnc_exclude = _dnc_from_args()
-    submitted = request.args.get("submitted") == "1"
+    submitted =request.args.get("submitted") == "1"
 
     match_count = realtor_count = None
     with get_connection() as conn:
@@ -786,3 +807,37 @@ def exports_realtors_csv():
         rows = exports.fetch_realtors(conn, dnc_exclude=_dnc_from_args())
     return _csv_response(
         exports.REALTORS_COLUMNS, rows, f"realtors_{_stamp()}.csv")
+
+@bp.route("/storms/state")
+@login_required
+def storm_state():
+    """One storm row's Status cell, re-rendered.  Returns same
+    fragment the page rendered initially, so that the cell's
+    appearance is decided in one template rather than rebuilt 
+    in Javascript.
+    """
+    try:
+        day = datetime.strptime(request.args["date"], "%Y-%m-%d").date()
+    except (KeyError, ValueError):
+        abort(400)
+
+    report_text = request.args.get("type") or None
+    today = datetime.now(DISPLAY_TZ).date()
+    window_start, window_end = denver_day_bounds(day)
+
+    with get_connection() as conn:
+        work_state = workstate.fetch_work_state(
+            conn, window_start=window_start, window_end=window_end,
+            today=today,
+        )
+
+    row = {
+        "storm_date": day,
+        "report_text": report_text,
+        "work_state": workstate.state_for(
+            work_state, day, report_text, today),
+    }
+    return render_template("_status_cell.html", row=row,
+                           can_pull=g.user["role"] in ("sender", "admin"),
+                           actionable_only=_actionable_from_args(),
+                           display_tz=DISPLAY_TZ)
