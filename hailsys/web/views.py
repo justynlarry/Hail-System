@@ -3,6 +3,7 @@ import io
 
 from datetime import datetime, timedelta, timezone
 from itertools import groupby
+from urllib.parse import urlsplit
 
 from flask import flash, g, redirect, Blueprint, render_template, abort, request, session, url_for, Response
 
@@ -95,6 +96,22 @@ def _flash_if_clamped():
     full-page routes only."""
     if g.get("range_clamped"):
         flash(f"Range limited to {MAX_RANGE_DAYS} days.")
+
+
+def _list_url(raw):
+    """A same-site storm-list URL to return to after an action, or None.
+    Only '/' and its query string are accepted, so a crafted value can't send
+    a user to another page or another site.
+    """
+    if not raw:
+        return None
+    parts = urlsplit(raw)
+    if parts.netloc and parts.netloc != request.host:
+        return None
+    if parts.path != "/":
+        return None
+    return "/?" + parts.query if parts.query else "/"
+
 
 def _actionable_from_args():
     if "submitted" in request.args:
@@ -456,6 +473,8 @@ def pull_estimate():
     actionable_only = _actionable_from_args()
     window_start, window_end = denver_day_bounds(day)
 
+    back = _list_url(request.args.get("back")) or _list_url(request.referrer)
+
     with get_connection() as conn:
         result = estimate_pull(
             conn,
@@ -481,6 +500,7 @@ def pull_estimate():
         result=result,
         recent_window_days=RECENT_PULL_WINDOW_DAYS,
         usage=usage,
+        back=back,
     )
 
 @bp.route("/pull", methods=["POST"])
@@ -493,6 +513,7 @@ def pull_start():
         abort(400)
 
     report_text = request.form.get("type") or None
+    back = _list_url(request.form.get("back"))
     if "submitted" in request.form:
         actionable_only = "actionable" in request.form
     else:
@@ -513,7 +534,10 @@ def pull_start():
               f"({expected_zip_count} to {result['zip_count']}). "
               f"Nothing was pulled.  Review and confirm again.")
         return redirect(url_for("main.pull_estimate",
-                                date=day.isoformat(), type=report_text or ""))
+                                date=day.isoformat(), type=report_text or "",
+                                submitted="1",
+                                actionable="1" if actionable_only else None,
+                                back=back))
     start_pull(
         emp_id=session["emp_id"],
         storm_date=day,
@@ -526,7 +550,7 @@ def pull_start():
 
     flash(f"Pull started for {day} {report_text or 'all types'} "
           f"({result['zip_count']} zips).")
-    return redirect(url_for("main.index"))
+    return redirect(back or url_for("main.index"))
 
 @bp.route("/match", methods=["POST"])
 @role_required("sender", "admin")
@@ -576,7 +600,7 @@ def match_start():
     else:
         flash(f"No listings within range for {day} {report_text}.")
 
-    return redirect(url_for("main.index"))
+    return redirect(_list_url(request.referrer) or url_for("main.index"))
 
 @bp.route("/storms/matches")
 @login_required

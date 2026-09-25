@@ -64,6 +64,16 @@ WITH activity AS (
         AND api_status = 'running'
 
     UNION ALL
+    -- Automatic match that follows a pull.  Same kind as a running
+    -- pull, so the row reads 'Pulling...' for the whole job and the
+    -- polling doesn't stop between the pull finishing and the match.
+    SELECT storm_date, report_text, 'running', started_at
+    FROM match_runs
+    WHERE storm_date >= %(start_date)s
+        AND storm_date < %(end_date)s
+        AND run_status = 'running'
+
+    UNION ALL
     -- Match attempted: completed run, even an empty run.
     -- This is what distinguishes "ran, nothing in range from "never ran"
 
@@ -117,14 +127,14 @@ def _is_running(row, now):
 
 
 def _label(row, now):
+    if _is_running(row, now):
+        return PULLING
     if row["sent"]:
         return SENT
     if row["matched"]:
         return MATCHED
     if row["match_ran"] and row["pulled"]:
         return MATCHED_NONE
-    if _is_running(row, now):
-        return PULLING
     if row["pulled"]:
         return PULLED
     return NOT_PULLED

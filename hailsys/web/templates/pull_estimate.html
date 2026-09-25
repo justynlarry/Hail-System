@@ -58,9 +58,9 @@
     <!-- The count, not the zip list: the POST recomputes the zips and
          refuses if this number no longer matches. -->
     <input type="hidden" name="zip_count" value="{{ result.zip_count }}">
-
+    {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
     <button type="submit">Pull {{ result.zip_count }} zip{{ '' if result.zip_count == 1 else 's' }}</button>
-    <a href="{{ url_for('main.index') }}">Cancel</a>
+    <a href="{{ back or url_for('main.index') }}">Cancel</a>
 </form>
 
 <p class="note">

@@ -5,10 +5,12 @@ are not justified.
 
 A thread dies with its process.  A restart mid-pull leaves api_pulls
 stuck at 'running' with API requests already used; api_call_log shows how
-far the pull got.  Two things deal with that (parking-lot item 47):
-sweep_stale_pulls() below marks such rows 'cancelled' at startup, and
-workstate.py stops reading a 'running' row as "Pulling..." once it is older
-than PULL_STALE_AFTER, so it reads right before any sweep has run.
+far the pull got.  A match run cut off the same way is left at 'running'
+in match_runs.  Two things deal with both (parking-lot item 47):
+sweep_stale_pulls() below marks such rows 'cancelled' (pulls) or 'failed'
+(match runs) at startup, and workstate.py stops reading a 'running' row as
+"Pulling..." once it is older than PULL_STALE_AFTER, so it reads right before
+any sweep has run.
 """
 
 import logging
@@ -32,6 +34,16 @@ WHERE api_status = 'running'
     AND started_at < now() - %(age)s
 RETURNING pull_id, storm_date, report_text, started_at
 """
+
+_SWEEP_MATCH_SQL = """
+UPDATE match_runs
+SET run_status = 'failed', finished_at = now(),
+    error_detail = 'process ended before the run finished (swept at startup)'
+WHERE run_status = 'running'
+    AND started_at < now() - %(age)s
+RETURNING match_run_id, storm_date, report_text, started_at
+"""
+
 
 
 def _pull_and_match(*, emp_id, storm_date, report_text, zip_codes,
@@ -61,7 +73,7 @@ def start_pull(**kwargs):
 
 
 def sweep_stale_pulls():
-    """Mark pulls left 'running' by a dead process.
+    """Mark pulls and match runs left 'running' by a dead process.
 
     daemon=True - a pull thread dies with its process, so a restart
     mid-pull leaves api_pulls at 'running' forever:  workstate reads 
@@ -74,12 +86,15 @@ def sweep_stale_pulls():
     create_app().  A bare 'running' sweep would kill a live pull.
 
     api_call_log still records what was spent, this closes the bookkeeping row.
+    A match run has no 'cancelled' status, so a swept one is marked 'failed'.
     """
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(_SWEEP_SQL, {"age": PULL_STALE_AFTER})
                 rows = cur.fetchall()
+                cur.execute(_SWEEP_MATCH_SQL, {"age": PULL_STALE_AFTER})
+                match_rows = cur.fetchall()
     except Exception:
         logger.exception("event=sweep_failed")
         return
@@ -88,4 +103,10 @@ def sweep_stale_pulls():
             "event=stale_pull_swept pull_id=%s storm_date=%s "
             "report_text=%r started_at=%s",
             row["pull_id"], row["storm_date"], row["report_text"],
+            row["started_at"].isoformat())
+    for row in match_rows:
+        logger.warning(
+            "event=stale_match_run_swept match_run_id=%s storm_date=%s "
+            "report_text=%r started_at=%s",
+            row["match_run_id"], row["storm_date"], row["report_text"],
             row["started_at"].isoformat())
