@@ -775,8 +775,10 @@ which is gitignored: 3 A, 7 B, 59 C, 13 D.
 - **Nothing under `hailsys/web/` has tests** (item 53).
 - **Logging is unconfigured in the web app**, so every `logger.info` is
   dropped. Warnings and errors still reach the container log (item 99, §9).
-- **No stale-pull sweep** after a restart mid-pull (item 47). None is stuck
-  today.
+- **Stale pulls:** a pull left `running` by a restart is swept at startup
+  after 10 minutes, and stops reading "Pulling..." after 10 minutes without
+  waiting for the sweep (item 47, 2026-09-25). The sweep was verified with a
+  backdated `running` row; it hasn't met a genuine orphan.
 - **RentCast's billing boundary hour** can't be checked until after
   2026-10-09 (item 87).
 
@@ -1766,13 +1768,15 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
     admin.py                   the /admin blueprint: users, settings, usage, sign out everyone;
                                one before_request admin check (2026-09-22)
     jobs.py                     background thread for a RentCast pull + its automatic match
-                               run; daemon=True, so a thread dies with its process (known gap,
-                               parking-lot item 47) (2026-09-18)
+                               run; daemon=True, so a thread dies with its process.
+                               sweep_stale_pulls(), called from create_app(), cancels pulls
+                               left 'running' over 10 minutes (parking-lot item 47)
+                               (2026-09-18; sweep 2026-09-25)
     views.py                   the `main` blueprint: /, /storms/zips, /territory,
                                /territory/days, /export.csv, /map/points.geojson, /login,
                                /logout, /pull/estimate, /pull, /match, /storms/matches,
                                /storms/matches.csv, /exports, /exports/matches.csv,
-                               /exports/realtors.csv (sender/admin), /activity,
+                               /exports/realtors.csv (sender/admin), /storms/state, /activity,
                                /account/password (2026-09-14 through 2026-09-24; the
                                storm list pages at 50 days)
     templates/
@@ -1794,6 +1798,8 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
       admin.html                  users table and settings form (2026-09-22)
       change_password.html        self-service password change (2026-09-22)
       csrf_error.html             the 400 page for a failed CSRF check (2026-09-23)
+      _status_cell.html          fragment: one storm row's Status cell; used by storms.html and
+                               by /storms/state for the polling (2026-09-25)
       _zips.html                 fragment: one storm day's zip breakdown
       _city_days.html            fragment: one city's day-by-day breakdown
     static/
@@ -1801,7 +1807,8 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                and activity-panel styles added 2026-09-21; fixed match-page
                                column widths and .feed-columns 2026-09-24; responsive pass
                                (40rem and 48rem breakpoints) 2026-09-24/25
-      storms.js                  generic expand/collapse + lazy-fetch-once handler
+      storms.js                  generic expand/collapse + lazy-fetch-once handler; polls
+                               "Pulling..." Status cells every 3 s, up to 40 times (2026-09-25)
       map.js                     Leaflet map: coverage polygons, report points, 5-mi rings;
                                tooltip shows the server-formatted magnitude_display
       coverage.geojson           generated fixture (scripts/build_coverage_geojson.py)

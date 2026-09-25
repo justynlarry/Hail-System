@@ -18,6 +18,15 @@ from datetime import timedelta
 CLAIM_WINDOW_DAYS = 365
 PULLING = "Pulling..."
 
+# How long a pull can sit at 'running' and still read "Pulling...".  Past
+# this it is treated as dead: the row falls back to "Pulled, not matched",
+# with Match and re-pull offered again.  hailsys/web/jobs.py's startup sweep
+# uses the same number to mark such pulls 'cancelled', so a pull orphaned by
+# a restart reads right at once here and is cleaned up at the next startup.
+# Long enough that a slow live pull isn't declared dead (a 4-zip pull took
+# under 2 seconds), short enough that a dead one doesn't hold its row hostage.
+PULL_STALE_AFTER = timedelta(minutes=10)
+
 _LOCAL_DAY = "(i.utc_datetime AT TIME ZONE 'America/Denver')::date"
 
 _WORKSTATE_SQL = f"""
@@ -98,20 +107,29 @@ SENT = "Sent"
 MATCHED_NONE = "Matched, none in range"
 
 
-def _label(row):
+def _is_running(row, now):
+    """A pull counts as running only while it is recent.  A row left at
+    'running' by a process that died stops reading "Pulling..." after
+    PULL_STALE_AFTER, without waiting for a restart to sweep it."""
+    since = row["running_since"]
+    return bool(row["running"]) and since is not None \
+        and now - since < PULL_STALE_AFTER
+
+
+def _label(row, now):
     if row["sent"]:
         return SENT
     if row["matched"]:
         return MATCHED
     if row["match_ran"] and row["pulled"]:
         return MATCHED_NONE
-    if row["running"]:
+    if _is_running(row, now):
         return PULLING
     if row["pulled"]:
         return PULLED
     return NOT_PULLED
 
-def fetch_work_state(conn, *, window_start, window_end, today):
+def fetch_work_state(conn, *, window_start, window_end, today, now):
     """Work state for each storm day in a window that has activity
     
     Returns {(storm_date, report_text): {"state": str, "is_stale": bool}}
@@ -122,7 +140,9 @@ def fetch_work_state(conn, *, window_start, window_end, today):
 
     'today' is passed in instead of computed, container clock is UTC, and
     "what day is it" is a DISPLAY_TZ question already answered in the web
-    layer.
+    layer.  'now' is passed in for the same reason, and is timezone-aware,
+    since it is compared with api_pulls.started_at (a TIMESTAMPTZ); it decides
+    whether a 'running' pull is recent enough to read "Pulling...".
     """
     stale_before = today - timedelta(days=CLAIM_WINDOW_DAYS)
 
@@ -137,7 +157,7 @@ def fetch_work_state(conn, *, window_start, window_end, today):
 
     return {
         (row["storm_date"], row["report_text"]): {
-            "state": _label(row),
+            "state": _label(row, now),
             "is_stale": row["storm_date"] < stale_before,
             "last_pulled_at": row["last_pulled_at"],
         }

@@ -158,8 +158,8 @@ radius defaults are kept, with the reason recorded (62); and the activity
 feed's names and the RentCast billing boundary are recorded as decisions (93,
 87's count half). Decision log, 2026-09-24 entries.
 
-Carried forward, not blocking: parking-lot items 47 (stale-pull sweep), 57
-("Pulling…" state), 65 (`create_user.py`), 66 (username convention), 85 (UTC
+Carried forward, not blocking: parking-lot items 47 (stale-pull sweep) and 57
+("Pulling…" state), both built 2026-09-25 with gaps listed in the items, 65 (`create_user.py`), 66 (username convention), 85 (UTC
 times on the estimate page), 87's boundary half (after 2026-10-09), 89–91,
 and 99 (logging unconfigured), which should land before background pulls are
 relied on.

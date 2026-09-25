@@ -757,6 +757,41 @@ are no existing rows to clear. The sweep is still needed for the next restart
 mid-pull. Diagnosing one also needs item 99 (logging), since the thread's
 `info` lines are dropped.
 
+**Resolved 2026-09-25** (`54cc7f2`; age rule and docstring in the commit
+after). See `docs/decision-log.md`, "Stale pulls are swept at startup and
+marked cancelled".
+`sweep_stale_pulls()` in `jobs.py`, called from `create_app()`, marks any pull
+still `running` after 10 minutes as `cancelled`, sets `finished_at`, and logs
+an `event=stale_pull_swept` warning for each. `workstate.py` no longer counts
+`cancelled` as pulled, so the storm reads as not pulled again, as `failed`
+does, and Pull is offered. The calls already spent stay in `api_call_log`, so
+a re-pull spends again.
+
+**A pull orphaned early is covered too.** The 10-minute floor stops a
+restarted worker cancelling another worker's live pull, so a pull orphaned in
+its first 10 minutes isn't swept at that restart. `workstate.py` now counts a
+`running` pull only while it is under `PULL_STALE_AFTER` (10 minutes, one
+constant shared with the sweep, which takes it as a query parameter). Past
+that the storm falls back to "Pulled, not matched", with Match and re-pull
+offered, before any sweep has run. `jobs.py`'s module docstring is updated.
+
+**Still open:**
+- `create_app()` runs the sweep, so anything that builds the app (tests, a
+  script) runs the `UPDATE`, and so does every gunicorn worker. It is
+  idempotent and floored at 10 minutes, but it is a write on import.
+- `finished_at` holds the sweep time, not when the pull died.
+- **Verification.** The sweep was verified 2026-09-25 with a backdated
+  `'running'` row (as reported by the developer): a restart logged
+  `event=stale_pull_swept` and the row read `'cancelled'` with `finished_at`
+  set; the test row was deleted. It has not met a genuine orphan. The label
+  rule was tested with synthetic rows (a pull 1 minute and 9m59s old reads
+  "Pulling..."; exactly 10 minutes, 3 days, and a missing start time read
+  "Pulled, not matched"), and the sweep's age parameter binds, checked with a
+  read-only `SELECT`.
+
+**When:** if the write on import ever surprises a test or script, or the first
+time a storm is seen stuck on "Pulling...".
+
 ## 48. Badge CSS classes derive from `workstate.py` label strings
 
 `storms.html` builds `badge-{{ row.work_state.state | lower | replace(' ',
@@ -765,6 +800,12 @@ itself, not a stable key. Renaming a label in `workstate.py` (`NOT_PULLED`,
 `PULLED`, etc.) silently breaks styling with no error anywhere.
 
 **When:** if a label ever needs to change wording.
+
+**Added 2026-09-25:** `PULLING` ("Pulling...") gives the class `badge-pulling`
+(`_status_cell.html` strips the dots). It first shipped with no rule in
+`style.css`, so it showed as an unstyled badge, the failure this item
+describes; `.badge-pulling` (purple) was added in the follow-up commit
+(item 57).
 
 ## 49. No cap on export date-range width
 
@@ -864,6 +905,11 @@ Nothing stops two people clicking Pull on the same storm day within
 seconds of each other; both would spend real RentCast calls for the same
 zips. Low risk at five known users, but a real gap if headcount grows.
 
+Since 2026-09-25 the storm list's Status cell doesn't offer "Pull again"
+while a pull is running, which removes the easiest way to do this from that
+page. The server still doesn't refuse a second pull, and two people can still
+click Pull within seconds of each other.
+
 **When:** low priority at current headcount.
 
 ## 52. Re-check for NULL property coordinates as more zips are pulled
@@ -959,12 +1005,36 @@ is still `running` reads "Pulled, not matched" until its match run lands. The
 2026-09-21 pull ran under 2 seconds (22:52:49.18 to 22:52:51.13 UTC) for 4
 zips, so the wrong label lasts about that long. Related to item 47: a pull
 stuck at `running` after a restart would also read "Pulled, not matched"
-indefinitely.
+indefinitely. (Once `running` gets its own label, an orphan reads "Pulling..."
+indefinitely instead, which is why the two were built together.)
 
 **When:** low priority while pulls take seconds; revisit if they get longer,
 which scales with zip count.
 
-## 58. Viewer gating not yet tested with a real viewer account
+**Resolved 2026-09-25** (`54cc7f2`), with gaps. See `docs/decision-log.md`,
+"A running pull reads \"Pulling...\" and the storm list polls it".
+A running pull reads "Pulling..." (`workstate.PULLING`), and the storm-days
+Status cell is one fragment, `_status_cell.html`, used by `storms.html` and by
+`/storms/state`. While a pull runs the cell carries `data-poll="1"`, and
+`storms.js` asks `/storms/state` for the same cell every 3 seconds, up to 40
+times, replacing it, until the reply has no `data-poll`. "Pull again" isn't
+offered while a pull is running.
+
+**Still open:**
+- **The label order means only some pulls read "Pulling...".** `_label` checks
+  Sent, Matched and Matched-none before running, so a re-pull of a storm that
+  is already matched keeps its old label and isn't polled.
+- **After 2 minutes the cell stops updating** and needs a refresh. That is the
+  poll cap, deliberate.
+- **The server doesn't refuse a second pull** while one is running (item 51).
+- **Not seen working.** The endpoint and fragment were rendered for six
+  states, but the JS has not been run (no `node` on `hail-dev`), and no browser
+  check of a real pull is recorded.
+
+A dead pull no longer reads "Pulling..." after 10 minutes (item 47), and the
+badge has its own colour (`.badge-pulling`, purple).
+
+**When:** the browser check, next time the storm list is touched. Viewer gating not yet tested with a real viewer account
 
 `role_required` on `/pull/estimate`, `/pull` and `/match`, and the `can_pull`
 gating on `storms.html`, were written 2026-09-22 but have not been exercised
@@ -1698,6 +1768,18 @@ widths and devices, and what was seen, were not reported into this record, so
   (`100dvh`, which only shows on a real phone).
 
 **When:** before Phase 6 exposes the app.
+
+## 115. Nothing writes `'cancelled'` except the sweep
+
+`api_pulls.api_status` allows `'cancelled'` (`sql/008`), and until 2026-09-25
+nothing wrote it. Now only `sweep_stale_pulls()` does, for a pull whose
+process was lost (item 47). There is no user-facing cancel: once a pull is
+running, nobody can stop it, and its cost is spent as it goes. So `'cancelled'`
+in `api_pulls` currently means "lost", never "someone chose to stop it". If a
+cancel is ever built, it either needs its own status or a column that says
+which kind of cancel this was.
+
+**When:** if a cancel affordance is ever wanted.
 
 ---
 

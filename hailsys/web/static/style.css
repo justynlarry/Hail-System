@@ -236,6 +236,9 @@ h1 ~ table { width: calc(100% - 3rem); }
    coming later. */
 .badge-matched-none-in-range { background: #e0e7ff; color: #3730a3; }
 .badge-sent             { background: #dcfce7; color: #166534; }
+/* A pull in flight -- purple, a hue none of the states above uses, so a row
+   that is still working doesn't look like one of the finished ones. */
+.badge-pulling          { background: #f3e8ff; color: #6b21a8; }
 
 /* Past the claim window: drained of urgency rather than recoloured, so
    an old storm reads as history instead of as a task. */

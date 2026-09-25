@@ -3,11 +3,12 @@
 At this scale, a worker container, new Dockerfile, etc.
 are not justified.
 
-Known gap:  a thread dies with its process.  A restart
-mid-pull leaves api_pulls stuck at 'running' with API 
-requests already used, the api_call_log will show how
-far the api_pull got.  Requires a stale-pull
-sweep before this is load-bearing.
+A thread dies with its process.  A restart mid-pull leaves api_pulls
+stuck at 'running' with API requests already used; api_call_log shows how
+far the pull got.  Two things deal with that (parking-lot item 47):
+sweep_stale_pulls() below marks such rows 'cancelled' at startup, and
+workstate.py stops reading a 'running' row as "Pulling..." once it is older
+than PULL_STALE_AFTER, so it reads right before any sweep has run.
 """
 
 import logging
@@ -16,16 +17,19 @@ import threading
 
 from hailsys.db import get_connection
 from hailsys.matching.matcher import match_storm
+from hailsys.queries.workstate import PULL_STALE_AFTER
 from hailsys.rentcast.pull import run_pull
 
 logger = logging.getLogger(__name__)
 
 
+# The age comes from workstate.PULL_STALE_AFTER, so the sweep and the label
+# can't disagree about when a running pull is dead.
 _SWEEP_SQL = """
 UPDATE api_pulls
 SET api_status = 'cancelled', finished_at = now()
 WHERE api_status = 'running'
-    AND started_at < now() - interval '10 minutes'
+    AND started_at < now() - %(age)s
 RETURNING pull_id, storm_date, report_text, started_at
 """
 
@@ -74,7 +78,7 @@ def sweep_stale_pulls():
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(_SWEEP_SQL)
+                cur.execute(_SWEEP_SQL, {"age": PULL_STALE_AFTER})
                 rows = cur.fetchall()
     except Exception:
         logger.exception("event=sweep_failed")

@@ -4374,3 +4374,109 @@ test**. Considered and deliberately not built: a hard row ceiling (about
 closed on that basis and reopens** if a count or fetch takes over about 2
 seconds or a range returns over about 10,000 rows. Rate limiting is left to the
 Cloudflare tunnel work (item 110).
+
+## 2026-09-25 — Stale pulls are swept at startup and marked cancelled
+
+Parking-lot item 47. `54cc7f2`, with the age rule below in the commit after.
+
+**The problem.** A pull runs in a `daemon=True` thread, which dies with its
+process. A restart mid-pull left `api_pulls` at `'running'` forever, and
+`workstate.py` read that as pulled, so the Pull link stayed hidden and the
+storm looked done when it wasn't.
+
+**The fix.** `sweep_stale_pulls()` in `jobs.py`, called from `create_app()`
+right after `configure_logging()`, sets `api_status = 'cancelled'` and
+`finished_at = now()` on any pull still `running` and started over 10 minutes
+ago, and logs `event=stale_pull_swept` at WARNING for each.
+
+**Startup is the signal, not an age threshold alone:** nothing a process
+started is still running when it starts.
+
+**The 10-minute floor exists because gunicorn runs 2 workers**
+(`docker-compose.yml`, `--workers 2`) and can replace one crashed worker while
+the other's pull is genuinely in flight. Both call `create_app()`, so a bare
+"every `running` row" sweep would kill the live pull. Pulls have taken seconds,
+so real work doesn't reach the floor.
+
+**`'cancelled'`, not `'failed'`:** the pull didn't fail, its process went away.
+The value was already in the `api_pulls` CHECK constraint (`sql/008`) and
+nothing used it, so no migration was needed. `workstate.py` excludes both, so
+the Pull link returns either way, but pull history can tell a RentCast error
+from a lost process.
+
+**`workstate.py`'s `pulled` CTE had to change too.** It excluded only
+`'failed'`, so a swept row would still have read as pulled: the exact bug the
+sweep exists to fix. It now excludes `('failed', 'cancelled')`.
+
+**The sweep's own failure is caught and logged** (`event=sweep_failed`), and
+doesn't stop the app starting. `api_call_log` still records what was actually
+spent; the sweep only closes the bookkeeping row. A swept pull reads "Not
+pulled" again, so a re-pull spends again.
+
+**A pull orphaned early is covered by an age rule, added the same day.** The
+floor means a pull orphaned in its first 10 minutes isn't swept at that
+restart. `workstate.py` now counts a `running` pull as "Pulling..." only while
+`running_since` is under `PULL_STALE_AFTER` (10 minutes); past that the storm
+reads "Pulled, not matched" again, with Match and re-pull offered, without
+waiting for a sweep. `fetch_work_state` takes a timezone-aware `now`, passed in
+like `today`, and both callers in `views.py` pass it. **The sweep takes its
+age from the same constant** as a query parameter, so the label and the sweep
+can't disagree about when a running pull is dead.
+
+**Verified 2026-09-25, as reported by the developer:** with a backdated
+`'running'` row, a restart logged `event=stale_pull_swept` and the row read
+`'cancelled'` with `finished_at` set; the test row was deleted afterwards. For
+the age rule: the label logic was checked with synthetic rows (1 minute and
+9m59s old read "Pulling...", exactly 10 minutes, 3 days and a missing start
+time read "Pulled, not matched", and Matched still outranks running), the real
+query returns states, and the sweep's age parameter binds, checked with a
+read-only `SELECT`.
+
+**Known gaps, not fixed:** `create_app()` runs the sweep, so anything that
+builds the app (tests, a script) runs an `UPDATE`, and so does each worker;
+`finished_at` is the sweep time, not when the pull died.
+
+**A dependency worth noting:** this was diagnosable because item 99 (logging)
+landed first. Until then the pull thread's `info` lines were dropped.
+
+## 2026-09-25 — A running pull reads "Pulling..." and the storm list polls it
+
+Parking-lot item 57, built with item 47: once a running pull has its own
+label, an orphan would read "Pulling..." forever instead of "Pulled, not
+matched", which is why the age rule above exists. `54cc7f2`.
+
+**The label.** `workstate.py` selects `running` as its own activity kind, kept
+separate from `pulled` and not excluded from it, so a pull that never finishes
+still can't read "Not pulled". `_label` checks Sent, Matched and Matched-none
+first, then `running`, then `pulled`. **Consequence:** a re-pull of a storm
+that is already matched keeps its old label and never reads "Pulling...", so it
+isn't polled either.
+
+**One template for the cell.** The storm-days Status cell is now
+`_status_cell.html`, included by `storms.html` for every row and rendered by
+`/storms/state` for the polling, so how the cell looks and what it offers is
+decided in one place and not rebuilt in JavaScript. While a pull runs it
+carries `data-poll="1"` and the storm's date, type and actionable flag. The
+browser never decides that a pull has finished: the reply is the same cell,
+and when it has no `data-poll`, polling for that row stops.
+
+**Polling (`storms.js`):** every 3 seconds, at most 40 times per row (about 2
+minutes, then it stops and a refresh is needed). The count lives in a JS `Map`,
+because replacing the cell discards its attributes and a counter kept there
+would restart every time. One request per row at a time; nothing is sent while
+the tab is hidden; a failed poll is logged with `console.warn` and retried;
+a redirect (signed out) stops polling for the row and isn't inserted into the
+table. `submitted=1` is always sent, so an unticked "Actionable Only" isn't
+read as the default.
+
+**"Pull again" isn't offered while a pull runs**, since a second click would
+start a second paid pull of the same zips. The server doesn't refuse one
+either (item 51). The badge is `.badge-pulling`, purple, a hue no other state
+uses.
+
+**Verification, plainly.** The Python compiles and the app builds. The cell
+template was rendered for six states through the app's own Jinja setup:
+"Pulling..." carried `data-poll` with the right values and no action links, and
+the other states kept theirs. **Not done:** the JavaScript has not been run (no
+`node` on `hail-dev`), and polling has not been watched on a real pull in a
+browser. No browser check is recorded as passed.

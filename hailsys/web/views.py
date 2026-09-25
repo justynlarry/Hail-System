@@ -171,6 +171,7 @@ def index():
             window_start=window_start,
             window_end=window_end,
             today=today,
+            now=datetime.now(timezone.utc),
         )
         since = _previous_login()
         feed = activity.build_feed(
@@ -828,7 +829,7 @@ def storm_state():
     with get_connection() as conn:
         work_state = workstate.fetch_work_state(
             conn, window_start=window_start, window_end=window_end,
-            today=today,
+            today=today, now=datetime.now(timezone.utc),
         )
 
     row = {
