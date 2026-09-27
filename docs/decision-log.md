@@ -4574,6 +4574,14 @@ developer's files: landing at about 55 ms showed "Pulling…" with `data-poll`
 and no old flash, a poll at +0.7 s still said "Pulling…", and one at +2 s said
 "Pull finished … 6,024 new matches." with no `data-poll`. A reload cleared it.
 **Not done:** the JavaScript has not been run (no `node`), and no browser check
+of the banner was recorded at the time.
+
+**Confirmed working end to end, 2026-09-27.** The developer watched a real
+pull with the banner up: it read "Pulling…", followed the pull through to the
+finished message, with no refresh. This was the display they had been trying
+to fix from the start of this work — a separate thing from the Status cell's
+own "Pulling..." display (parking-lot item 118 confirmed; see also the
+"Pulling..." entry above, confirmed 2026-09-25).
 of the banner is recorded.
 
 ## 2026-09-25 — RentCast values a column can't hold are stored as NULL and logged

@@ -1035,7 +1035,8 @@ badge has its own colour (`.badge-pulling`, purple).
 
 **Confirmed by the developer in the browser, 2026-09-25:** the Status cell's
 "Pulling..." display works. The line under the page heading, which they had
-been trying to fix all along, is a separate thing (item 118).
+been trying to fix all along, is a separate thing (item 118) — confirmed
+working too, 2026-09-27.
 
 **Still open:**
 - After 2 minutes the cell stops updating and needs a refresh. That is the
@@ -1839,11 +1840,14 @@ diagnosing item 116.
 **When:** if a pull of every type is ever wanted, or `/pull` is reachable from
 anywhere else.
 
-## 118. The live pull banner: limits, and not yet watched
+## 118. The live pull banner: limits
 
 The banner under the storm-list heading replaced the "Pull started" flash
 (decision log, "A live banner under the heading replaces the \"Pull started\"
-flash"). What it doesn't do:
+flash"). **Confirmed working end to end by the developer in the browser,
+2026-09-27:** this was the display they had been trying to fix all along, and
+it now updates on its own from "Pulling…" through to the finished message,
+with no refresh. What it still doesn't do:
 - **It shows only the pull the user just started.** Another user's running pull
   appears in the Status cells and the Activity page, not in the banner.
 - **It is one-shot.** Any reload of the storm list clears it, a marker older
@@ -1852,12 +1856,8 @@ flash"). What it doesn't do:
 - **It polls up to 200 times** (10 minutes), then stops.
 - **A re-pull of an already matched storm ends with "0 new matches"**, because
   `matches_created` counts new rows only.
-- **Not watched.** The state logic, template and route were tested against the
-  real database with a fake pull, and the whole flow was replayed against the
-  real files. The JS has not been run (no `node`), and no browser check of the
-  banner is recorded.
 
-**When:** watch a real pull with the banner up; the rest if it bothers anyone.
+**When:** the rest, if it bothers anyone.
 
 ---
 
