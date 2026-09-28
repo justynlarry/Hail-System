@@ -1924,6 +1924,14 @@ mailboxes.
 **When:** before a provider is chosen for Phase 5 — get the exact use case
 in writing from whichever one it is, first.
 
+**Self-hosting reassessed, 2026-09-28, against the smaller warm audience
+(item 122) — not decided, still weighed.** See `docs/decision-log.md`,
+"Self-hosting reassessed against the smaller, warmer audience (no decision
+made)." A concrete build estimate (VPS, Postfix, DKIM/SPF/DMARC on
+`send.roofbrokersinc.com`, `smtplib`) and its genuine advantage over
+Constant Contact (the DNC check can run in the same transaction as the
+send) are recorded there.
+
 ## 120. Email templates need CAN-SPAM's footer requirements built in
 
 Checked actual draft outreach copy ("...Our inspections are free...")

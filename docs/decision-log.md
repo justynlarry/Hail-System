@@ -5085,3 +5085,57 @@ recipient's consent basis before deciding whether to include it is a policy
 that will eventually get it wrong for someone. This supersedes any
 per-recipient judgment call about whether the footer is "needed" for that
 specific person.
+
+## 2026-09-28 — Self-hosting reassessed against the smaller, warmer audience (no decision made)
+
+**Not a decision — analysis to inform one, still being weighed alongside
+Constant Contact and the provider options above.** Prompted by the shift to
+the ~1,014-person combined pool (item 122; 339 CC-active-two-years-ago +
+675 service-request clients) and a stated preference for staying
+self-contained rather than adding vendor dependencies.
+
+**What the smaller, warmer audience actually changes:** not the fixed cost
+of building the infrastructure — the risk profile of using it. A brand-new
+sending domain's biggest exposure is high bounce and complaint rates during
+the window before it has any track record. A batch of people who either
+called RBI directly and requested an inspection, or were actively receiving
+RBI mail within the last two years, has materially lower expected bounces
+(real, validated addresses, not scraped) and complaints (a real reason to
+recognize the sender), and higher expected engagement — close to the
+textbook profile for how a new domain's warmup is supposed to go, rather
+than the cold, thousands-large, ongoing case examined earlier (see "Throttled
+sending from a personal account: considered and rejected" — that entry was
+about *personal* Gmail/Outlook accounts specifically, not a self-hosted
+domain-owned MTA; this is a different, more capable option than that one).
+
+**The build, concretely, if pursued:**
+- One-time: a VPS with a dedicated IP (checked against blacklists first), a
+  PTR record matching the sending domain, Postfix with TLS, DKIM signing
+  (`opendkim`) plus SPF and DMARC — all on `send.roofbrokersinc.com`,
+  self-service through the Cloudflare delegation already planned (item 96),
+  and the actual send call in hailsys via `smtplib` (stdlib, no new
+  dependency).
+- Ongoing: bounce classification from Postfix's own delivery logs (more
+  fiddly than the send path itself), registering for and processing
+  Google Postmaster Tools, Microsoft SNDS/JMRP, and Yahoo's feedback loop
+  (partly bottlenecked on provider approval timelines, not build time),
+  manual deliverability monitoring (no bundled dashboard the way a paid
+  provider gives), and ongoing patching/maintenance of an internet-facing
+  service — not a one-time cost.
+- Estimated, calibrated to the existing Postgres/PostGIS/Flask/Docker
+  skillset and the DNS work already done: roughly a few days to a week for
+  the initial build, another few days to a week for bounce/complaint
+  handling, then indefinite light ongoing operational attention.
+
+**A genuine advantage over Constant Contact specifically:** the DNC
+suppression check can run in the literal same database transaction as the
+send — no approximation needed, since hailsys would control every step.
+That satisfies `CLAUDE.md`'s rule exactly, rather than the narrowed-window
+compromise a third-party campaign tool requires.
+
+**Where this leaves it:** self-hosting is the most genuinely self-contained
+option on the table — no vendor policy to satisfy, only the law itself
+(item 120 still applies in full) — and now a better-suited case for it than
+the original cold-audience problem ever was. Still weighed against Constant
+Contact (faster to a first send, leans on their already-built reputation
+and feedback loops) and the provider options (item 119). No decision made.
