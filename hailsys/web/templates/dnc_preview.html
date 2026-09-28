@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Preview DNC import{% endblock %}
+{% block heading %}Preview: {{ batch.filename }}{% endblock %}
+
+{% block content %}
+<div class="page">
+<p class="note">
+    Uploaded by {{ batch.user_name }} at
+    {{ batch.uploaded_at.astimezone(display_tz).strftime('%Y-%m-%d %H:%M') }}.
+    Nothing has been written yet.
+</p>
+
+<ul>
+    <li><strong>{{ summary.to_add }}</strong> would be added</li>
+    <li>{{ summary.already_listed }} already suppressed, skipped</li>
+    <li>{{ summary.rejected }} rejected</li>
+    {% if summary.no_date %}
+    <li>{{ summary.no_date }} with no readable date — these get today's
+        date, noted in the record</li>
+    {% endif %}
+</ul>
+
+{% if rejects %}
+<h3>Rejected rows</h3>
+<div class="table-scroll">
+<table>
+    <thead><tr><th class="num">Line</th><th>Email</th><th>Reason</th></tr></thead>
+    <tbody>
+    {% for r in rejects %}
+    <tr><td class="num">{{ r.line_no }}</td>
+        <td>{{ r.email_raw or '' }}</td><td>{{ r.rejected }}</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+
+{% if sample %}
+<h3>First {{ sample | length }} to be added</h3>
+<div class="table-scroll">
+<table>
+    <thead><tr><th class="num">Line</th><th>Email</th><th>Name</th>
+               <th>Unsubscribed</th></tr></thead>
+    <tbody>
+    {% for r in sample %}
+    <tr><td class="num">{{ r.line_no }}</td>
+        <td>{{ r.email_raw }}</td><td>{{ r.name_at_add or '' }}</td>
+        <td>{% if r.added_at %}{{ r.added_at.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('admin.dnc_commit', token=batch.token) }}"
+      class="inline-action">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit">Import {{ summary.to_add }}</button>
+</form>
+<form method="post" action="{{ url_for('admin.dnc_discard', token=batch.token) }}"
+      class="inline-action">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit">Discard</button>
+</form>
+</div>
+{% endblock %}

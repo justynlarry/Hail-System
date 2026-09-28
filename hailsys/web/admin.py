@@ -2,7 +2,7 @@ import psycopg
 
 from flask import Blueprint, flash, g, redirect, render_template, request, url_for
 
-from hailsys.queries import quota
+from hailsys.queries import quota, dncimport
 from hailsys.db import get_connection
 from hailsys.web.auth import MIN_PASSWORD_LENGTH, hash_password, require_role
 from hailsys.tuning import DISPLAY_TZ, denver_day_bounds
@@ -315,3 +315,73 @@ def reset_password(emp_id):
 def _refuse_self(emp_id):
     """True if this action targets the acting admin's own row."""
     return emp_id ==g.user["emp_id"]
+
+
+
+@admin_bp.route("/dnc/upload", methods=["POST"])
+def dnc_upload():
+    upload = request.files.get("file")
+    if upload is None or not upload.filename:
+        flash("Choose a .csv file first.")
+        return redirect(url_for("admin.index"))
+
+    rows, error = dncimport.parse_upload(upload.read())
+    if error:
+        flash(error)
+        return redirect(url_for("admin.index"))
+    if not rows:
+        flash("That file has a header but no rows.")
+        return redirect(url_for("admin.index"))
+
+    with get_connection() as conn:
+        token = dncimport.stage(
+            conn, rows=rows, filename=upload.filename,
+            uploaded_by=g.user["emp_id"])
+
+    return redirect(url_for("admin.dnc_preview", token=token))
+
+
+@admin_bp.route("/dnc/preview/<token>")
+def dnc_preview(token):
+    with get_connection() as conn:
+        batch = dncimport.fetch_batch(conn, token)
+        if batch is None:
+            flash("That preview has expired or was already used.")
+            return redirect(url_for("admin.index"))
+        summary, sample, rejects = dncimport.fetch_preview(
+            conn, batch["batch_id"]
+        )
+
+    return render_template("dnc_preview.html", batch=batch, summary=summary,
+                           sample=sample, rejects=rejects,
+                           display_tz=DISPLAY_TZ)
+
+
+@admin_bp.route("/dnc/commit/<token>", methods=["POST"])
+def dnc_commit(token):
+    with get_connection() as conn:
+        batch = dncimport.fetch_batch(conn, token)
+        if batch is None:
+            flash("That preview has expired or was already used.")
+            return redirect(url_for("admin.index"))
+        if batch["committed_at"] is not None:
+            flash("That file was already imported.")
+            return redirect(url_for("admin.index"))
+
+        added = dncimport.commit_batch(
+            conn, batch_id=batch["batch_id"], added_by=g.user["emp_id"],
+            filename=batch["filename"])
+
+    flash(f"Imported {added} new suppression"
+          f"{'' if added == 1 else 's'} from {batch['filename']}.")
+    return redirect(url_for("admin.index"))
+
+
+@admin_bp.route("/dnc/discard/<token>", methods=["POST"])
+def dnc_discard(token):
+    with get_connection() as conn:
+        batch = dncimport.fetch_batch(conn, token)
+        if batch is not None and batch["committed_at"] is None:
+            dncimport.discard_batch(conn, batch["batch_id"])
+        flash("Upload discarded. Nothing was imported")
+        return redirect(url_for("admin.index"))

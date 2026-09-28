@@ -190,5 +190,20 @@
   </div>
 </section>
 
+<section>
+  <h2>Do-not-contact list</h2>
+  <p class="note">
+    A Constant Contact export, unsubscribed contacts only. You'll see what
+    would be added before anything is written.
+  </p>
+  <form method="post" action="{{ url_for('admin.dnc_upload') }}"
+        enctype="multipart/form-data" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>CSV file
+      <input type="file" name="file" accept=".csv,text/csv" required></label>
+    <button type="submit">Upload and preview</button>
+  </form>
+</section>
+
 </div>
 {% endblock %}
