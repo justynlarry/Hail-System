@@ -992,6 +992,44 @@ one: 205 N Murray Blvd has 13 legitimate lots at a single point. Still Phase 5,
 before sending: an agent must not get two emails about one house. Related:
 item 100, where shared points are *not* duplicates.
 
+**The address-normalization key is built and live, 2026-09-28** (`sql/024_
+address_key.sql`, `905895b`). `properties.address_key` via PostGIS's
+`address_standardizer`: house number, directional (prefix or suffix
+collapsed to one slot, position made irrelevant per the finding above),
+street name, suffix, unit, zip — city deliberately excluded, exactly because
+of the "Security Widefield / Colorado Springs" case already found here.
+Backfilled: 16,237 of 16,407 properties keyed, 170 `NULL` (no house
+number — vacant land, `TBD` roads, and rural addresses with a road number
+after a comma that don't parse one either). Verified: every stored value
+matches a fresh call, zero mismatches across the full table; `hail_app` can
+call the function itself (needed a grant on `address_standardizer`'s
+`us_lex`/`us_gaz`/`us_rules` lookup tables, missing in the first version of
+the migration, added after review before being relied on).
+
+**It's already finding real duplicates: 21 `address_key` groups, 42
+properties.** Sampled and confirmed genuine — the same street address under
+two different RentCast-supplied city labels, the exact pattern this item
+already flagged:
+```
+10720 Briarglen Cir, Highlands Ranch, CO 80130
+10720 Briarglen Cir, Littleton, CO 80130
+
+1104 Hallam Ave, Colorado Springs, CO 80911
+1104 Hallam Ave, Security Widefield, CO 80911
+```
+This is narrower than the 186 candidate pairs from the proximity check
+above — exact-match on the normalized key, not a distance threshold, so it
+won't catch two records that are the same house but where the standardizer
+parses one input differently due to noise. Not compared against the 186
+directly yet.
+
+**Still not done:** nothing reads `address_key` yet. It exists and is
+populated, but the matcher, the match page, and the CSV exports still treat
+every `properties` row as distinct — an agent can still get two emails about
+one house today. Also open: whether Lot 13-at-one-point stays correctly
+undeduplicated once this key is actually wired into anything (its own
+`unit` field, not `address_key` alone, is what has to keep those distinct).
+
 ## 56. Backfill progress and ETA should count reports, not ID range
 
 `scripts/backfill_zip_distances.py` batches by `iem_id` range and reports
