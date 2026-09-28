@@ -10,10 +10,16 @@
 
 # ---- Real people's data -------------------------------------------------
 # This remote is PUBLIC. DNC and unsubscribe lists hold live email addresses.
-# Belt and braces: reference/ is ignored wholesale below, but these patterns
-# catch a copy dropped anywhere else in the tree.
-*[Dd][Nn][Cc]*
-*[Uu]nsubscribe*
+# Real people's suppression data never enters this repo. Ignore by file
+# type and location, not by name: the old rule was *[Dd][Nn][Cc]*, which
+# also swallowed hailsys/queries/dncimport.py and
+# sql/026_dnc_import_batches.sql, silently, because "dnc" appears in
+# their names. reference/ and data/ (below) already cover where these
+# files actually live; this catches a copy dropped anywhere else.
+*.csv
+*.xlsx
+*.xls
+!planning/*.csv
 
 # ---- Derived data -------------------------------------------------------
 # reference/ is entirely regenerable by scripts/build_reference_tables.py
