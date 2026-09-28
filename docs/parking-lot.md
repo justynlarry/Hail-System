@@ -1347,13 +1347,19 @@ RentCast pulls, with a different email template for agents RBI already
 knows. **Open question:** what system holds these contacts now.
 
 **Partly answered, 2026-09-28.** It's a CSV export, `Final Realtor Database-
-09-25.csv`, 4,187 unique contacts — not a live system, a snapshot. 675 of
-them (16.1%) already appear in the hail system's own `realtors` table. See
-`docs/decision-log.md`, "Comparing RBI's existing contacts, the hail
-system's realtors, and the legacy DNC list" (item 122). Still open: whether
-this file is the current source of truth or there's a live system behind it,
-and whether/how a "different template for known agents" distinction gets
-built.
+09-25.csv`, 4,187 unique contacts. **Per the developer, it's not an email
+list at all** — it's RBI's record of clients who signed up for RBI's
+roofing service at some point over the last 12+ years, and an updated copy
+is coming. That explains why it barely overlaps with Constant Contact (item
+122): it's a different kind of relationship (service/referral), not a
+newsletter subscription. 675 of the 4,187 (16.1%) already appear in the
+hail system's own `realtors` table, but none of the 675 are corroborated as
+current recipients by either Constant Contact or the DNC list — see item
+122. Still open: exactly what "signed up for our service" means (a
+personal roofing job versus a referral-partner or vendor program), which
+matters for item 120 — either could plausibly fit CAN-SPAM's transactional/
+relationship exemption for at least a subset; and whether/how a "different
+template for known agents" distinction gets built.
 
 **When:** Phase 5.
 
@@ -1964,23 +1970,39 @@ a report, never damage" rule in `CLAUDE.md`), and it needs the frequency cap
 **When:** item 15/19, when the send queue and frequency cap are designed —
 this is a concrete input to that design, not a separate task.
 
-## 122. The legacy DNC list is checked in against the current realtor pool — the import itself still isn't done
+## 122. The current DNC list is checked in against the realtor pool and Constant Contact — the import itself still isn't done
 
-Compared `rbi-dnc-list-09-28-2026.csv` (719 unique emails, Mailchimp
-audience-export format), RBI's existing contact list (item 83, 4,187
-unique), and the hail system's `realtors` table (7,082 unique), 2026-09-28.
-See `docs/decision-log.md`, "Comparing RBI's existing contacts, the hail
-system's realtors, and the legacy DNC list." **83 of the current 7,082
-hail-system realtor emails (1.2%) are already on the legacy DNC list** —
-concrete evidence, not just the general rule, for why the DNC import (item
-4 / `CLAUDE.md`) has to land before any send. Zero overlap between RBI's own
-client list and its own DNC list, checked and not a bug (52 shared domains,
-zero exact matches — plausibly years of realtor-roster turnover between the
-DNC list's 2017–2025 entries and the current client list).
+Compared `rbi-dnc-list-09-28-2026.csv` (719 unique emails, the **full,
+current** DNC list — old `Created At` dates on individual entries, 2017 to
+2025, mark when each was added, not the export's freshness), RBI's client/
+service list (item 83, 4,187 unique), the hail system's `realtors` table
+(7,082 unique), and a two-years-old Constant Contact export (2,432 "Active,"
+613 "Unsubscribed," all "Implied" permission, none "Confirmed"),
+2026-09-28. See `docs/decision-log.md`, "Comparing RBI's existing contacts,
+the hail system's realtors, and the legacy DNC list" and "Constant Contact
+cross-reference: the client list and CC are different relationships, and the
+CC copy is two years old."
+
+**83 of the current 7,082 hail-system realtor emails (1.2%) are already on
+the DNC list** — concrete evidence, not just the general rule, for why the
+DNC import (item 4 / `CLAUDE.md`) has to land before any send. 66 more
+(0.9%) show as unsubscribed in the two-year-old CC export, a separate signal
+worth checking against a fresh CC export before treating as authoritative.
+
+**The client list and Constant Contact are almost entirely different
+people** (1 of 4,187 overlaps) — expected, once it was clarified that the
+client list is a 12+-year service/referral record, not an email list (item
+83). **339 hail-system realtors were CC-Active two years ago** — the
+best-corroborated warm-start subset found so far, though "were active then"
+is not the same claim as "are active now." Zero overlap between the client
+list and the DNC list is real, not a bug (52 shared domains, zero exact
+matches).
 
 **Still not done:** no import into `dnc_list` — this was read-only
-comparison only. The full email-level breakdown was saved outside the repo,
-not committed.
+comparison only. The full email-level breakdowns were saved outside the
+repo, not committed. A current Constant Contact export would meaningfully
+sharpen the 339 figure and is RBI's own vendor account, not blocked
+externally.
 
 **When:** before any send (item 4) — the comparison narrows the work, it
 doesn't replace the import.

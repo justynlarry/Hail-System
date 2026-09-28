@@ -4988,3 +4988,66 @@ distinction.
 only. The full email-level breakdown (which specific addresses fall in each
 overlap) was saved to a scratchpad file, not committed to the repo or
 printed in full here.
+
+## 2026-09-28 — Constant Contact cross-reference: the client list and CC are different relationships, and the CC copy is two years old
+
+Follow-up to the previous entry, after the developer clarified what each
+file actually is:
+- `rbi-dnc-list-09-28-2026.csv` — the full **current** DNC list, dated
+  today. Individual entries carry old `Created At` dates (2017–2025)
+  because that's when each suppression was *added*, not because the
+  export itself is stale. The earlier "83 of 7,082 hail-system realtors
+  already on DNC" finding stands as current and actionable.
+- `Final Realtor Database-09-25.csv` — **not** an email-marketing list. It's
+  RBI's own record of clients who signed up for RBI's roofing service at
+  some point over the last 12+ years. An updated copy is coming. This
+  reframes the near-zero overlap with Constant Contact from the previous
+  entry: it was never expected to overlap, because it's a different kind of
+  relationship (service/referral) from a newsletter subscription.
+- `alyx-constant-contact-full-list-10-24.csv` — a copy of the full Constant
+  Contact list, but **from two years ago**, not current.
+
+**The four-way comparison, run against these files and the hail-system
+`realtors` table:**
+
+| | |
+|---|---|
+| Client list ∩ Constant Contact, at all | 1 of 4,187 |
+| CC Active (as of the 2-years-ago snapshot) | 2,432, all "Implied" permission, zero "Confirmed" |
+| CC Unsubscribed (same snapshot) | 613 |
+| DNC file ∩ CC Unsubscribed | 613 of 719 (85%) — the rest came from elsewhere |
+| Hail-system realtors ∩ CC Active | 339 (4.8%) |
+| Hail-system realtors ∩ CC Unsubscribed | 66 (0.9%) — must stay excluded |
+| The 675-set (client ∩ hail, prior entry) ∩ CC or DNC | 0 — unknown status to both |
+
+**The 339 needs a caveat the original framing didn't have: it's "were
+active two years ago," not "are currently active."** Real subscription
+status can move in either direction over two years. It's still the
+best-corroborated warm-start subset available today — meaningfully better
+than the 675, which has zero corroboration from either CC or the DNC file —
+but it should be re-verified against a current CC export before being
+treated as safe to email, and a fresh export is worth requesting since it's
+RBI's own vendor account, not blocked on anything external.
+
+**A real open question, not yet resolved:** what "signed up for our
+service" means for the Final Realtor Database specifically — a personal
+roofing job on the recipient's own property, versus a referral-partner or
+preferred-vendor program membership. Either could plausibly fit
+§ 7702(17)(A)'s "transactional or relationship message" exemption (item
+120) for at least a subset of that list, which would be stronger footing
+than "existing relationship, better than cold" — it could mean CAN-SPAM's
+opt-out framework doesn't even need to be invoked for those contacts. Not
+confirmed; worth asking RBI directly what the signup actually represents.
+
+**Also surfaced: Constant Contact itself, for the CC-active subset
+specifically, wasn't previously considered as an option.** The earlier
+objection to Mailchimp/Constant-Contact-style tools (item 119) was scoped to
+cold outreach to thousands of never-contacted agents; it doesn't apply the
+same way to continuing to send, through a channel RBI already owns and
+already has standing (if "Implied," not "Confirmed") permission on, to
+people already on it. The one caveat: that permission was presumably given
+for whatever RBI has historically sent through CC (list names read as
+broker-relationship/networking content — "DMAR Industry Partners,"
+"Diamond Circle Club Members"), and storm-alert content is a real change in
+kind, worth being thoughtful about even with an audience that has some
+standing relationship.
