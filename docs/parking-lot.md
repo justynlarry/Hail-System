@@ -1922,6 +1922,39 @@ still-undesigned merge-field vocabulary.
 designed — this is a concrete requirement for that design, not a separate
 task.
 
+## 121. Real send volume, measured: consolidating across storms is a real lever, throttling a personal account isn't
+
+Measured against the real database, 2026-09-28, HAIL only, 2026-08-13
+through 2026-09-22: one storm alone (2026-08-13) touched 1,415 distinct
+agents; per-storm sending over the six-week window sums to 5,628 agent-sends,
+against 3,259 distinct agents if consolidated — about a 42% reduction, from
+1,594 listings genuinely recurring across more than one storm (not
+duplicate data — the period was an active one). See `docs/decision-log.md`,
+"How much HAIL-storm listing/agent overlap exists, and what consolidating
+sends would save."
+
+**Every one of these numbers dwarfs a personal account's daily limits**
+(500/day Gmail, ~300/day Outlook.com) many times over, on the single
+smallest storm in the data, let alone the whole window. **Throttling a
+personal account to stay "well below" that threshold was considered and
+rejected** — the published caps aren't the flagging threshold, a personal
+account has no bounce/complaint visibility, the backlog math doesn't close
+(82 days to clear just this one past window at a conservative 40/day, while
+new storms keep arriving), and slowing down doesn't cure a category
+prohibition that every provider's AUP (item 119) states as "no unsolicited
+bulk email," not "no more than N per day." See `docs/decision-log.md`,
+"Throttled sending from a personal account: considered and rejected."
+
+**What's real:** consolidating an agent's sends across storms in a period,
+on top of a genuine warmup schedule (`phases.md`) once a real provider is in
+place, not instead of one. This needs a send design that still names which
+specific storm day(s) a consolidated email refers to (item 106; the "claims
+a report, never damage" rule in `CLAUDE.md`), and it needs the frequency cap
+(items 15, 19) built around windows of agents, not per-storm counts.
+
+**When:** item 15/19, when the send queue and frequency cap are designed —
+this is a concrete input to that design, not a separate task.
+
 ---
 
 ## Also worth carrying

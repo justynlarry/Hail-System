@@ -4802,3 +4802,86 @@ impose a stricter opt-in requirement, voluntarily, through their own
 policies, to protect their own infrastructure's reputation. Legal is not the
 same question as usable-with-a-given-provider — both entries above stand
 independently.
+
+## 2026-09-28 — How much HAIL-storm listing/agent overlap exists, and what consolidating sends would save
+
+Prompted by the volume finding above. Queried `storm_listing_matches`, HAIL
+only, 2026-08-13 through 2026-09-22 (the real range in the database at the
+time):
+
+| | |
+|---|---|
+| Total match rows (one per listing per HAIL storm day it was near) | 13,974 |
+| Distinct listings across the whole window | 5,086 |
+| Listings that recurred across more than one HAIL storm day | 1,594 |
+| Extra rows from that recurrence | 8,888 |
+| Most HAIL storm days any single listing was near | 4 |
+| Sum of per-storm agent counts (what per-storm sending totals) | 5,628 |
+| Distinct agents if consolidated into one send for the period | 3,259 |
+| Agents who'd get more than one email if sent per-storm instead | 2,369 |
+
+**This is not duplicate or bad data.** All matches used the same 5-mile
+radius; about 31% of listings genuinely fell within range of more than one
+distinct hail report in this six-week stretch, which was an active one for
+the Front Range. Consolidating sends across a period rather than sending once
+per storm would cut the required email count by about 42% for this window —
+real, but nowhere near enough on its own to make a personal account viable
+(see the entry below).
+
+**Not built.** The matcher deliberately writes one row per listing per storm
+(`storm_listing_matches`), so the page and exports can say which report a
+listing matched — this is item 106's still-open point, "no row says which
+report it matched." Nothing consolidates recipients across storms before
+sending; `send_log` and the frequency-cap items (15, 19) are schema and open
+questions only.
+
+**A constraint on any consolidation design, not just an implementation
+detail.** `CLAUDE.md`'s rule that the message claims a *report*, never
+damage, means a consolidated send has to still name which specific storm
+day(s) it's referring to. Folding four separate hail events into "storms
+have hit your area lately" blurs the report-backed claim that makes the
+message defensible in the first place.
+
+## 2026-09-28 — Throttled sending from a personal account: considered and rejected
+
+Raised as an alternative to a dedicated provider, given how much harder that
+search turned out to be (items 96, 119). Rejected, for reasons worth keeping
+on record so it isn't re-proposed without re-deriving them.
+
+**The published daily caps (500/day personal Gmail, ~300/day personal
+Outlook.com) are not the flagging threshold — they're where the server
+outright refuses more mail.** Spam/abuse detection runs on behavioral
+signals — an account suddenly emailing strangers with no prior
+correspondence, at a steady cadence, with commercial-reading content and a
+link — and that pattern is caught well under any published cap. Providers
+deliberately don't publish a "safe" threshold, because a fixed number is
+exactly what a sender trying to evade detection would throttle to; the real
+system is adaptive.
+
+**A personal account gives no visibility into whether it's working.** No
+bounce webhook, no complaint feedback, no Postmaster Tools — those require a
+verified sending domain. The only signal on a personal account is the
+account itself being restricted, a catastrophic and lagging indicator, and
+it's the developer's own daily-use account at risk, not a disposable
+identity.
+
+**The backlog math fails even absent any detection risk.** 3,259 distinct
+agents for the six weeks already in the database (previous entry), with new
+storms arriving roughly weekly. At a conservative 40/day, clearing just that
+already-past window takes about 82 days, during which several more storms'
+worth of agents queue up behind it. The backlog only grows, and the
+project's 365-day claim window means a growing backlog actively burns real
+claim time.
+
+**Slower doesn't change what the activity is.** Every provider AUP checked
+(item 119), and ordinary consumer Gmail/Outlook terms, prohibit unsolicited
+commercial bulk email as a category, not "more than N per day." Throttling
+doesn't cure a category prohibition.
+
+**What's still correct in the instinct:** gradual ramp-up is exactly how
+sending reputation gets built — that's `phases.md`'s "Warmup schedule:
+deliberately low volume, ramping." It has to run on infrastructure built to
+carry it (a verified subdomain, real bounce/complaint feedback), not a
+personal account. The more promising lever is the consolidation finding
+above: fewer required sends to begin with, on top of a real warmup, not
+instead of one.
