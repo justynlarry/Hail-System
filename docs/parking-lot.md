@@ -2108,9 +2108,11 @@ CC copy is two years old."
 
 **83 of the current 7,082 hail-system realtor emails (1.2%) are already on
 the DNC list** — concrete evidence, not just the general rule, for why the
-DNC import (item 4 / `CLAUDE.md`) has to land before any send. 66 more
-(0.9%) show as unsubscribed in the two-year-old CC export, a separate signal
-worth checking against a fresh CC export before treating as authoritative.
+DNC import (`CLAUDE.md`'s non-negotiable rules; `phases.md`'s Phase 5
+checklist — there is no dedicated numbered parking-lot item for this) has
+to land before any send. 66 more (0.9%) show as unsubscribed in the
+two-year-old CC export, a separate signal worth checking against a fresh CC
+export before treating as authoritative.
 
 **The client list and Constant Contact are almost entirely different
 people** (1 of 4,187 overlaps) — expected, once it was clarified that the
@@ -2127,8 +2129,21 @@ repo, not committed. A current Constant Contact export would meaningfully
 sharpen the 339 figure and is RBI's own vendor account, not blocked
 externally.
 
-**When:** before any send (item 4) — the comparison narrows the work, it
-doesn't replace the import.
+**When:** before any send — the comparison narrows the work, it doesn't
+replace the import.
+
+**Two more DNC sources cross-referenced, 2026-09-28: `reference/Airtable-
+DNC-List.csv` and `reference/rbi-constant-contact-dnc-list-09-28-2026.csv`.**
+See `docs/decision-log.md`, "The Airtable DNC list was populated from
+Constant Contact, and the two have since drifted apart." Airtable was
+populated directly from a Constant Contact export on 2025-10-21 (confirmed,
+not inferred — 94% of its rows share one bulk-import timestamp, and the
+shared entries' dates match Constant Contact's to the minute once timezone
+is accounted for), then diverged: 40 entries added to Airtable since, only
+there; 26 entries in Constant Contact's current DNC list that predate the
+sync and never made it into Airtable. **The real import source is the union
+of all suppression files found so far** (the original DNC export, this
+Constant Contact copy, and Airtable), not any single one.
 
 ## 123. 11 non-Land properties have no house number and can't be deduplicated by address
 
@@ -2182,7 +2197,7 @@ no-dedup basis.
   identities was suppressed, does the merged identity inherit that, and
   does merging ever need to *split* a suppression back out.
 
-**When:** after the RBI realtor import (item 4/83) lands — merging now,
+**When:** after the RBI realtor import (item 83) lands — merging now,
 against the pre-import data, would just need redoing.
 
 ## 127. Login skips `verify_password` for an unknown user — timing-based username enumeration

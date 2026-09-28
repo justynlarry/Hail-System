@@ -4970,8 +4970,8 @@ specifically. Not confirmed either way — worth asking RBI if the history
 matters.
 
 **The concrete, load-bearing number:** 83 of the hail system's current 7,082
-realtor emails are already on the legacy DNC list. `dnc_list` is still empty
-(item 4). Sending today, before that import lands, would improperly contact
+realtor emails are already on the legacy DNC list. `dnc_list` is still
+empty. Sending today, before that import lands, would improperly contact
 83 people who already asked not to be — direct, specific evidence for
 CLAUDE.md's rule that the DNC import comes before any send, not just a
 general precaution.
@@ -5201,3 +5201,47 @@ unnoticeable at pull scale (the largest pull recorded so far was 26 zips).
 
 **Verified:** zero mismatches between every stored `address_key` and a
 freshly computed value, across all 16,407 rows.
+
+## 2026-09-28 — The Airtable DNC list was populated from Constant Contact, and the two have since drifted apart
+
+Two more suppression files found: `reference/Airtable-DNC-List.csv` (735
+rows: `Email`, `Name`, `Name2`, `Name3`, `Time Removed`, `Unsubscribed`,
+`Date`) and `reference/rbi-constant-contact-dnc-list-09-28-2026.csv` (719
+rows — same shape and, by its early rows, the same underlying data as the
+`rbi-dnc-list-09-28-2026.csv` already analyzed). Asked whether Airtable was
+built independently or populated from Constant Contact's data.
+
+**Populated from Constant Contact — confirmed, not inferred.**
+- **691 of Airtable's 735 rows (94%) share one exact `Time Removed`
+  timestamp: `10/21/2025 9:07pm`.** No one unsubscribes at the same minute
+  691 times; this is a single bulk-import event.
+- **For the 693 emails the two files share, Airtable's `Date` matches
+  Constant Contact's `Created At` to the minute**, once converted through
+  US Eastern time with daylight-saving handling (UTC-4 for summer
+  timestamps, UTC-5 for winter ones): 481 matched under the summer offset,
+  208 under the winter offset — 689 of 693, not a coincidental resemblance,
+  the same recorded moment in two timezones. A naive same-calendar-day
+  string comparison first flagged 242 as "mismatches"; all were this
+  timezone artifact, not real differences — worth noting since the wrong
+  comparison method would have understated the match badly.
+
+**But they've diverged since the sync, in both directions.**
+- **40 entries exist only in Airtable**, every one with a `Time Removed`
+  date *after* 2025-10-21 — scattered across November and December 2025,
+  one or two at a time (11/1, 11/8, 11/13, 11/22, 12/4, 12/8, 12/9…). This
+  reads as Airtable becoming the active, ongoing DNC list after the sync,
+  with nothing shown flowing back into Constant Contact.
+- **26 entries exist only in Constant Contact's current DNC export, and
+  every one predates the 2025-10-21 sync** (0 of 26 are newer). These were
+  already suppressed in Constant Contact at sync time but didn't make it
+  into that particular Airtable import — a gap in the sync, not newer
+  Constant Contact activity.
+
+**What this means for the DNC import (still blocking any send — no
+dedicated parking-lot item, tracked in `CLAUDE.md` and `phases.md`'s Phase
+5 checklist):** these aren't two lists to reconcile disagreements between —
+one lineage, two different sets of drift since a shared origin. **The
+correct import source is the union of all suppression files found so
+far** — the original DNC export, this Constant Contact copy, and Airtable
+together — not any single one. Using only one would under-suppress by
+whichever of the 40 or 26 it's missing.
