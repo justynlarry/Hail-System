@@ -1513,6 +1513,33 @@ weeks, and asks for "DNS access and existing subscription status" in
 Phase 0. Nothing in the repo records the answer. Phase 5's first send needs a
 sending subdomain with SPF, DKIM and DMARC.
 
+**Narrowed considerably, 2026-09-28, from public WHOIS and DNS lookups — no
+access to RBI's DNS needed.** See `docs/decision-log.md`, "RBI's domain, its
+live mail setup, and the sending-subdomain plan." The domain is
+`roofbrokersinc.com`; DNS is hosted directly at GoDaddy; RBI's live business
+email is Microsoft 365 (MX and a hard-fail SPF both point at
+`spf.protection.outlook.com`), which this project must never touch.
+`send.roofbrokersinc.com` is confirmed free (no `A`/`CNAME`/`TXT`);
+`mail.roofbrokersinc.com` is not (a live `A` record already answers). The
+root domain's DMARC (`p=none`) won't block a new subdomain. **Direct, current
+evidence of the prior Mailchimp use:** a live Mailchimp DKIM key still
+resolves at `k2._domainkey.roofbrokersinc.com`, never cleaned up — confirms
+Mailchimp was set up on the root domain itself, matching the "led to
+blacklisting" note below. `justyn@roofbrokersinc.com` does not exist as a
+mailbox.
+
+**The one-shot ask is now a single, concrete request, not a checklist.**
+Create a Cloudflare account, add `send.roofbrokersinc.com` itself as its own
+Cloudflare zone, and Cloudflare hands back two nameservers. The entire ask of
+RBI's contact becomes: *"please add these two NS records for
+`send.roofbrokersinc.com`."* Everything downstream — SPF, DKIM for whatever
+provider gets chosen, a DMARC record for the subdomain, and MX + Email
+Routing to forward `justyn@send.roofbrokersinc.com` to Gmail with no
+Microsoft 365 or Outlook involved — becomes self-service from there, with no
+further requests. Also worth asking while the conversation is happening: the
+Mailchimp history (bounces, complaints, blacklist notices, if known), and
+what an unidentified root TXT verification token is for.
+
 **When:** now: Phase 5 is current, and this is the item most likely to be
 waiting on someone else.
 
@@ -1858,6 +1885,42 @@ with no refresh. What it still doesn't do:
   `matches_created` counts new rows only.
 
 **When:** the rest, if it bothers anyone.
+
+## 119. Mainstream email-sending providers all prohibit this use case
+
+Fetched the current AUP/ToS directly from SendGrid, Postmark, Mailgun,
+Resend, and Amazon SES, 2026-09-28: every one prohibits sending to a
+recipient who hasn't opted in, with no B2B or professional-contact
+exception. See `docs/decision-log.md`, "Mainstream email-sending providers
+all prohibit this use case; a different category might not." This is the
+same wall the prior Mailchimp attempt hit (item 96), under a different name.
+A different category — cold-outreach/sales-engagement platforms (Instantly,
+Smartlead, lemlist, Apollo), built around CAN-SPAM's opt-out model rather
+than requiring prior consent — might fit, but it's unconfirmed whether any
+of them offer a plain single-email API suitable for this codebase, versus
+requiring their own campaign-builder UI and a pool of rotated, warmed-up
+mailboxes.
+
+**When:** before a provider is chosen for Phase 5 — get the exact use case
+in writing from whichever one it is, first.
+
+## 120. Email templates need CAN-SPAM's footer requirements built in
+
+Checked actual draft outreach copy ("...Our inspections are free...")
+against `15 U.S.C. § 7702` and `16 CFR § 316.3`, 2026-09-28: it reads as a
+"commercial electronic mail message," not an exempted "transactional or
+relationship message" (it fits none of that definition's five categories).
+See `docs/decision-log.md`, "Is this a 'commercial' email under CAN-SPAM?
+Yes, and here's what that requires." CAN-SPAM is an opt-out law, so this
+doesn't block sending — it requires four things in every message: a
+non-deceptive subject line, a clear ad notice if not obvious from context, a
+valid physical postal address for RBI, and a working opt-out honored within
+10 business days. None of this exists in `email_templates` or item 16's
+still-undesigned merge-field vocabulary.
+
+**When:** item 16, when the merge-field vocabulary and templates are
+designed — this is a concrete requirement for that design, not a separate
+task.
 
 ---
 

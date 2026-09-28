@@ -4621,3 +4621,184 @@ completed, logging one warning each for the two listings above.
 **Found on the way:** `api_pulls.storm_link_paired` means a pull with a storm
 date must have a report type, so a `POST /pull` without one can't be recorded
 (item 117).
+
+## 2026-09-28 — RBI's domain, its live mail setup, and the sending-subdomain plan
+
+Parking-lot item 96. WHOIS plus public DNS lookups (`dig`), confirmed against
+`roofbrokersinc.com` directly — no access to RBI's DNS was needed for any of
+this, it's all public record.
+
+**The domain.** `roofbrokersinc.com`, registered 2006, registrar GoDaddy.com,
+LLC, registrant privacy-shielded via Domains By Proxy. **DNS is hosted
+directly at GoDaddy**, not a separate provider: the nameservers
+(`ns1-4.domaincontrol.com`) are GoDaddy's own defaults. The "client transfer/
+update/delete prohibited" WHOIS statuses are anti-hijacking locks on domain
+*transfer* only — they don't block DNS record edits.
+
+**RBI's live business email is Microsoft 365 / Exchange Online.** MX is
+`roofbrokersinc-com.mail.protection.outlook.com`; SPF is `v=spf1
+include:spf.protection.outlook.com -all` — a hard fail for anything not
+Microsoft's servers. **This is the load-bearing fact for everything else
+here: nothing about this project may ever touch the root domain's MX or
+SPF.** A mistake there breaks RBI's actual company email, not just this
+system's outreach.
+
+**A DMARC record already exists at the root, and it's permissive.**
+`_dmarc.roofbrokersinc.com` → `v=DMARC1; p=none;` — monitor-only, no `sp=`
+subdomain override, no `rua=` reporting address. Default alignment is
+therefore relaxed, so it won't block a new sending subdomain, and RBI
+currently gets zero visibility into anyone spoofing their domain (worth
+offering a `rua=` address later, not required).
+
+**Direct, current evidence of the prior Mailchimp use the docs already
+flagged as an open question.** `k2._domainkey.roofbrokersinc.com` still
+resolves to a live Mailchimp DKIM key (`dkim2.mcsv.net`), full public key
+still published. This confirms Mailchimp was configured to send **from the
+root domain itself**, and the record was never cleaned up after — matching
+`hail-consolidated.md`'s "a contractor-built predecessor used Mailchimp and
+led to blacklisting." It doesn't confirm damage occurred, but it turns a
+vague worry into a specific, informed question for RBI's contact. (`k1`,
+`google._domainkey`, `selector1/2._domainkey` are all empty — no other ESP's
+DKIM found.) One other TXT record on the root, an unidentified verification
+token (`7gv5oc0n8qoj2q79a5k29kacsu`), couldn't be attributed to anything and
+is also worth asking about directly.
+
+**Candidate subdomain names, checked, not guessed:** `send.roofbrokersinc.com`
+has no `A`, `CNAME`, or `TXT` record at all — free. `mail.roofbrokersinc.com`
+already has a live `A` record (`64.29.145.40`) — something's there; don't
+propose that name.
+
+**The one-shot ask, narrowed to something concrete.** Rather than asking
+RBI's DNS admin for individual SPF/DKIM/DMARC records piecemeal (which would
+mean going back every time the provider changes or a record needs updating),
+DNS supports delegating just one subdomain's zone to a different nameserver
+without moving the rest of the domain. The plan: sign up for a free
+Cloudflare account, add `send.roofbrokersinc.com` **itself** as its own
+Cloudflare zone (not the root domain), and Cloudflare hands back two
+nameservers. **The entire ask becomes: "please add these two NS records for
+`send.roofbrokersinc.com`."** Nothing else, ever, needs to go back to RBI —
+every future record (SPF, DKIM for whatever provider is chosen, a DMARC
+override for the subdomain, MX for receiving) becomes self-service in that
+Cloudflare account. This also confirmed Cloudflare's actual role here: DNS
+hosting and Email Routing (receiving/forwarding), **not** an outbound sending
+platform — that's a separate, still-open decision (see below).
+
+**`justyn@roofbrokersinc.com` does not exist as a mailbox.** The person who
+controls GoDaddy is believed to be the same person who'd handle a Microsoft
+365 mailbox request, i.e. one admin covers both — worth confirming, not
+assuming. Since Outlook/M365 involvement isn't wanted, the plan is to send
+and receive on the subdomain entirely: use `justyn@send.roofbrokersinc.com`
+as both the From and Reply-To address, with Cloudflare Email Routing (free,
+part of the same delegation) forwarding it straight to a personal Gmail
+account. This needs no Microsoft 365 mailbox, no Outlook, and no change to
+the root domain's mail flow at all. Trade-off, not yet decided: the visible
+sender reads `@send.roofbrokersinc.com` rather than the plain company
+domain — normal for this category of email, and arguably better reputation
+isolation, but a judgment call on how it reads to recipients.
+
+## 2026-09-28 — Mainstream email-sending providers all prohibit this use case; a different category might not
+
+Parking-lot item 96 / the "Email provider" row, `hail-consolidated.md`
+External sources. Fetched the actual current Acceptable Use Policy or Terms
+of Service from each provider directly — not blog summaries, which
+disagreed with each other and with the primary sources on details.
+
+**Every mainstream transactional/API provider checked prohibits sending to
+someone who hasn't opted in, with no exception for B2B or professional
+contact:**
+
+| Provider | What its own policy says |
+|---|---|
+| SendGrid | Prohibits "sending unsolicited or unwanted emails in bulk"; bans emailing addresses "obtained from the internet or social media... without obtaining prior affirmative consent"; bans purchased/rented lists |
+| Postmark | "All email lists... must be permission-based subscriptions"; purchased/rented lists prohibited; unsolicited email "will receive abuse complaints... reflected on your account" |
+| Mailgun | Requires "confirmed single or double opt-in"; "acquiring or sending to a third-party mailing list is prohibited" |
+| Resend | "Prohibited from sending unsolicited messages of any kind, including cold outreach"; complaint rate must stay under 0.08%, bounce under 4% |
+| Amazon SES | Prohibits "unsolicited mass email... or solicitations (spam)"; enforcement is complaint/bounce-rate based rather than an explicit upfront opt-in check, but the same prohibition applies |
+
+Read plainly: a listing agent who never asked to hear from anyone is exactly
+what all five prohibit, regardless of it being professional, individualized,
+or about information the agent themselves made public (their own listing).
+**This is the same wall the prior Mailchimp attempt hit, just under a
+different name** — not a case of "some are stricter than others."
+
+**A different category exists for exactly this gap, with a real caveat.**
+Cold-outreach/sales-engagement platforms (Instantly, Smartlead, lemlist,
+Apollo) are built around CAN-SPAM's opt-out model rather than requiring prior
+consent. Checked Instantly's actual sending policy: it requires an
+unsubscribe link, honored promptly, and non-deceptive headers — **no prior
+opt-in requirement**, a genuine structural difference from the five above.
+**Not yet confirmed:** whether these platforms offer a plain API to send one
+individualized email per call from this project's own backend, or whether
+everything routes through their own campaign-builder UI and a pool of
+rotated, individually warmed-up mailboxes (their marketing language —
+"unlimited sending accounts," "email warmup" — points toward the latter,
+which would be a materially heavier architecture than the single-subdomain,
+single-API plan sketched so far). This needs a direct answer from their
+support before it's a real candidate, not just a policy read.
+
+**Recommended next steps, unresolved:** rule out SendGrid/Postmark/Mailgun/
+Resend/SES for this use case as currently policied (this isn't a "convince
+support to bend the rule" situation — the rule is the point); investigate the
+cold-outreach category specifically on the API-architecture question; and
+before building against whichever is chosen, get the exact use case
+("emailing real-estate listing agents about specific storm-damaged
+properties they have listed, not a purchased list, not a newsletter") in
+writing from that provider's own compliance team.
+
+## 2026-09-28 — Is this a "commercial" email under CAN-SPAM? Yes, and here's what that requires
+
+Prompted by drafting an actual line of outreach copy: *"It looks like hail
+hit within 5 miles of this listed property, it might be worth it to have a
+licensed roofer (Roof Brokers) come look to see if there's any damage. Our
+inspections are free, and we'll tell you what kind of shape the roof is
+in."* Checked against the primary sources — `15 U.S.C. § 7702` and its
+implementing regulation `16 CFR § 316.3` — not a summary.
+
+**The statutory test (§ 7702(2)(A)):** a "commercial electronic mail message"
+is one "the primary purpose of which is the commercial advertisement or
+promotion of a commercial product or service." The only exemption
+(§ 7702(17)(A)) is a "transactional or relationship message" — five
+categories: facilitating a transaction the recipient already agreed to;
+warranty/recall/safety notices; a change to an existing subscription/
+account; employment/benefit information; or delivering something the
+recipient is already owed. **CAN-SPAM draws no distinction for B2B or
+professional recipients** — only for what the message is *for*.
+
+**The mixed-content test (16 CFR § 316.3):** a message combining commercial
+and non-transactional content is deemed commercial if a recipient would
+reasonably conclude, from the subject line or from how the content is
+placed and proportioned, that its primary purpose is commercial promotion.
+
+**"Free" doesn't exempt it — if anything it's the textbook case.** Nothing
+in either the statute or the regulation ties "commercial" to a price tag in
+the message; "free inspection," "free estimate," "free consultation" are
+themselves forms of advertising, which is exactly why the FTC has a separate
+rule specifically governing "free" claims in advertising (16 CFR § 251.1) —
+that rule wouldn't need to exist if "free" took a message outside commercial
+speech.
+
+**Applied to the draft:** it doesn't fit any of the five transactional/
+relationship categories at all (no prior transaction, no existing account,
+nothing owed), so there's no exemption route to check in the first place.
+Roughly half the message is a direct recommendation of RBI's own named
+service ("have a licensed roofer (Roof Brokers)... our inspections are
+free"). Under the mixed-content test this reads as commercial — not a close
+call.
+
+**What that requires, in practice — and this is the useful part, not bad
+news.** CAN-SPAM is an **opt-out** law, not opt-in: being "commercial" under
+it doesn't make cold email illegal, it just triggers four requirements —
+non-deceptive headers and subject line; a clear notice it's an ad if that
+isn't obvious from context; a valid physical postal address for RBI in the
+message; and a working, conspicuous opt-out mechanism, honored within 10
+business days. None of this exists in the schema or template plan yet
+(`email_templates` is still empty; item 16's merge-field vocabulary is still
+undesigned) — this is now a concrete requirement for that design, not an
+abstract legal note.
+
+**The distinction worth keeping straight:** the *law* only requires opt-out.
+It's the individual providers (SendGrid, Postmark, Mailgun, Resend) that
+impose a stricter opt-in requirement, voluntarily, through their own
+policies, to protect their own infrastructure's reputation. Legal is not the
+same question as usable-with-a-given-provider — both entries above stand
+independently.
