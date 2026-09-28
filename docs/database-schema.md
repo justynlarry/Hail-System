@@ -547,11 +547,19 @@ Year built yes, price no.
 | `bedrooms`, `bathrooms`, `square_footage`, `lot_size`, `year_built`, `hoa_dues` | Structural attributes |
 | `created_date` | When *RentCast* first saw the property |
 | `first_seen_at` | When *we* ingested it. A different fact — since pulls are user-initiated, the gap can be weeks. The same distinction is drawn on `listings` |
+| `address_key` | **Generated**, `sql/024`/`sql/025`, 2026-09-26: `GENERATED ALWAYS AS (address_key(property_address)) STORED`. Parses the address via PostGIS's `address_standardizer` into `house_num \| coalesce(predir, sufdir) \| name \| suftype \| unit \| postcode` — a directional's position is made irrelevant while its value is kept, so `1677 Rosemary` and `1677 S Rosemary` stay distinct. City is deliberately excluded (RentCast reports different city names for the same house across municipal boundaries). **`NULL`** when the address has no house number (vacant land, `Tbd` parcels, some rural road-and-number formats) — those can't be told apart by address and are never merged. Generated, not written by the upsert, specifically because a plain written-once column would go stale: `upsert.py`'s `ON CONFLICT` updates `property_address` on every re-pull, and a key computed only at insert wouldn't follow an address correction. `address_key(text)` must be used on any typed search input too (Phase 6), or the comparison is against differently-shaped strings |
 
 **Known weakness:** because the key comes from the address string, an upstream
 formatting change mints a new id for the same building. Would produce two rows
-for one house. Not worth solving now; a periodic lat/lon proximity check would
-catch it later.
+for one house. `address_key` (above) now identifies these — 21 groups, 42
+properties, as of 2026-09-26 — but nothing yet acts on that identification;
+see parking-lot item 55.
+
+**`address_key()` reads `address_standardizer`'s reference tables
+(`us_lex`, `us_gaz`, `us_rules`) internally.** `hail_app` needs `SELECT` on
+all three for the function to work under the app's own role, not just under
+an admin connection — missing in the first version of `sql/024`, found in
+review, granted before anything relied on it.
 
 Has no storm awareness at all. It is a catalog of buildings.
 

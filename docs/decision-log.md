@@ -5139,3 +5139,65 @@ option on the table — no vendor policy to satisfy, only the law itself
 the original cold-audience problem ever was. Still weighed against Constant
 Contact (faster to a first send, leans on their already-built reputation
 and feedback loops) and the provider options (item 119). No decision made.
+
+## 2026-09-26 — Address identity: parsed components, not string cleaning
+
+`sql/024_address_key.sql` (`905895b`, grant `7555d71`), `sql/025_address_
+key_generated.sql` (`7872aa3`). Parking-lot item 55.
+
+**The bug.** RentCast's `rentcast_id` is a slug of the address as typed, so
+a formatting difference mints a second id for the same house.
+`4518 Wordsworth Cir N` and `4518 N Wordsworth Cir` are two `properties`
+rows for one building — confirmed live, one of the 21 duplicate groups
+found once the key was built. String cleaning (trim, case-fold, strip
+punctuation) cannot fix a directional that *moved position* in the string;
+only parsing the address into components can.
+
+**`address_standardizer` was available but not installed; the TIGER
+geocoder alone does not provide it.** `postgis_tiger_geocoder` came
+pre-installed with the base image (item 94) and is unrelated —
+`tiger.normalize_address()` exists but is weaker, a simpler string-level
+normalizer, not a full lexer/gazetteer/rules parse. `address_standardizer`
+and `address_standardizer_data_us` needed installing explicitly.
+
+**The key:** `house_num | coalesce(predir, sufdir) | name | suftype | unit
+| postcode`. The directional's position is made irrelevant while its value
+is kept, so `1677 Rosemary` and `1677 S Rosemary` stay distinct — a
+directional present at all is a different street segment from one absent,
+regardless of which side of the name RentCast happened to put it on.
+
+**Checked, not assumed: this collapsing has a real, if currently dormant,
+gap.** The original assumption was that no address carries both a prefix
+and a suffix directional, so `coalesce` would never have to choose between
+them. Checked directly against all 16,407 properties: **31 do carry
+both** — real streets, not data errors, concentrated in Centennial,
+Littleton and Englewood's compound-directional naming (`1280 W Oxford Ave
+S`, `7314 S Downing Cir W`, `5995 W Hampden Ave E`). For these, `coalesce`
+keeps the prefix and silently drops the suffix, so two *genuinely
+different* streets sharing a prefix but differing only in suffix
+directional would collide under one key. Checked whether this has already
+happened: **none of the 31 currently share a key with a different
+address** — the gap is real and verified, not theoretical, but it has not
+yet produced an incorrect merge. Parking-lot item 55 carries this forward.
+
+**City is deliberately not in the key.** RentCast reports different city
+names for the same house depending on which municipal boundary layer it
+resolved against — `3690 Gray St` reads `Wheat Ridge` on one record and
+`Denver` on the other, same zip. Zip is stable and is in the key.
+
+**The column is `GENERATED`, not written by the upsert — this was the
+correction that mattered, not a footnote.** The first attempt was a plain
+column with a one-time backfill (`sql/024`'s original form). That was
+wrong on inspection: `upsert.py` never sets `address_key`, and its
+`ON CONFLICT` clause updates `property_address` on every re-pull, so a key
+written only at insert time would silently go stale the moment an address
+got corrected upstream. `GENERATED ALWAYS AS (address_key(property_address))
+STORED` (`sql/025`) recomputes on every write and cannot be forgotten by a
+future write path — the same reasoning as `realtors.email_norm`.
+
+**Measured cost:** about 7ms per call. A full-table recompute (16,407 rows)
+is a couple of minutes; a large pull paying it per inserted row is
+unnoticeable at pull scale (the largest pull recorded so far was 26 zips).
+
+**Verified:** zero mismatches between every stored `address_key` and a
+freshly computed value, across all 16,407 rows.

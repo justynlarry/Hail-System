@@ -189,6 +189,21 @@ that import comes before any send. No sending code and no provider yet.
   and pull banner, Pull and Match returning to the filtered list, a startup
   sweep for pulls and match runs a restart leaves half-done (items 47, 57,
   118), and a guard so a bad RentCast value can't abort a pull (item 116).
+- **Address identity built, 2026-09-26** (item 55): `properties.address_key`,
+  generated from a PostGIS `address_standardizer` parse, identifies the
+  RentCast duplicate-address problem — 21 groups, 42 properties found so
+  far. Not yet acted on: nothing dedupes at match or send time yet, so an
+  agent can still get two emails about one house today.
+- **RBI's DNS, sending-domain, and provider research** (items 96, 119, 122):
+  the domain, its live Microsoft 365 mail, a free sending subdomain, and a
+  path to delegate just that subdomain to Cloudflare without touching the
+  rest of RBI's DNS; every mainstream transactional provider's policy
+  checked directly, none currently permit this use case as-is; Constant
+  Contact's own "implied consent" framework checked and found to fit
+  better; the current DNC list, RBI's client/service list, and a Constant
+  Contact export cross-referenced, surfacing a ~1,014-person warm-start
+  pool clear of DNC. Self-hosting reassessed against that smaller pool —
+  no decision made on a sending path yet.
 - **Not started, and still the work of this phase:** the sending identity and
   provider, template CRUD, the legacy DNC import, the suppression check in the
   send transaction, the frequency cap, the send queue, bounce handling and

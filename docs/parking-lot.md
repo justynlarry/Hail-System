@@ -537,6 +537,14 @@ print, a server-side static map render, or a `@media print` stylesheet.
 `MM-DD-YYYY HH:MM:SS`. Applies to both the CLI and web exports, since they
 share `ZIPS_COLUMNS`.
 
+**Scope grown, 2026-09-26.** This item's text describes only the original
+zip export. There are now five: the zip export, per-storm matched listings,
+the bulk matched-listings export, the realtor list, and whatever `sql/024`/
+`025`'s work eventually surfaces in a properties-facing export — all
+sharing the same raw-column-name convention (`report_text`,
+`max_magnitude`, `agent_dnc`, and so on). Fixing this is a wider job now
+than when it was filed against one export.
+
 **When:** before the PDF.
 
 ## 28. Vendor Leaflet into `static/` instead of the CDN
@@ -926,6 +934,10 @@ missing either produces a NULL `geom`, silently dropping that property from
 any spatial join. Worth a periodic check as more zips get pulled and the
 `properties` table grows past its Phase-3 size.
 
+**Re-checked 2026-09-26 — figure was stale.** Still zero, but against
+16,407 properties, not the 1,964 this item originally cited. No property
+has a NULL `list_latitude`/`list_longitude` or a NULL `geom` today.
+
 **When:** periodic, as pull volume grows.
 
 ## 53. Zero test coverage under `hailsys/web/`
@@ -962,11 +974,13 @@ RentCast's `id` is derived from the address string, so a formatting change
 upstream mints a new id for the same building (`docs/data-sources.md`). Two
 `properties` rows for one lot can each carry a listing and an agent, produce
 two matches, and lead to two emails about one property, possibly to two
-different people. Not observed yet: an exact check on lower-cased `address_1`,
-`address_2` and zip finds no duplicates in the 508 properties, but exact match
-cannot see variants like "St" versus "Street", so absence there is not
-evidence. Needs a dedupe rule — likely address normalization or coordinate
-proximity plus unit — decided before the first send.
+different people. *(At the time this was filed, an exact check on
+lower-cased `address_1`, `address_2` and zip found no duplicates in the 508
+properties then in the table — since superseded, see below: absence there
+was never evidence, exact match can't see "St" versus "Street", and at
+16,407 properties the duplicates are real.)* Needs a dedupe rule — likely
+address normalization or coordinate proximity plus unit — decided before
+the first send.
 
 **When:** Phase 5, before any email goes out.
 
@@ -1022,6 +1036,42 @@ above — exact-match on the normalized key, not a distance threshold, so it
 won't catch two records that are the same house but where the standardizer
 parses one input differently due to noise. Not compared against the 186
 directly yet.
+
+**Re-measured 2026-09-26, current figures, replacing the stale ones
+above: 21 duplicate groups, 42 properties, every group a clean pair** (the
+508-property, zero-duplicate finding at the top of this item was accurate
+when filed and is now superseded — 16,407 properties, not 508). Every
+group inspected by hand; **three causes, confirmed, not guessed:**
+- **Directional position** — `4518 N Wordsworth Cir` / `4518 Wordsworth Cir N`.
+- **City disagreement within one zip** — the large majority of the 21
+  (Highlands Ranch/Littleton, Colorado Springs/Security Widefield,
+  Brighton/Thornton, Denver/Lakewood, Denver/Wheat Ridge, Arvada/Golden,
+  Castle Pines/Castle Rock, and more), all the same RentCast
+  municipal-boundary variance the key was built to route around.
+  `8557 Highway, 86, Kiowa` / `8557 State Hwy, 86, Kiowa` is the same
+  cause one level down — a name/suffix spelling difference the
+  standardizer resolves to the same parsed street.
+- **A stray leading colon on one record** — `: 6637 E 149th Ave, Thornton,
+  CO 80602` versus `6637 E 149th Ave, Thornton, CO 80602`, otherwise
+  identical. A RentCast data artifact, not an address-format issue.
+
+**A fourth, currently dormant risk, checked and recorded, not guessed:**
+31 of 16,407 addresses carry both a prefix and a suffix directional
+(`1280 W Oxford Ave S`, real Centennial/Littleton/Englewood street names,
+not errors) — `address_key`'s `coalesce(predir, sufdir)` keeps the prefix
+and drops the suffix for these. Checked whether this has caused an
+incorrect merge: **it hasn't** — none of the 31 currently share a key with
+a different address. See `docs/decision-log.md`, "Address identity: parsed
+components, not string cleaning."
+
+**Dedup stays at send time, per the original design.** `storm_listing_
+matches` points at `listings`, not `properties` — a match is already keyed
+to a specific listing by the time it exists, so deduplicating properties
+earlier (at match time) would mean rewriting what a match points at, not
+just filtering what's shown. The 21 existing pairs are **deliberately left
+unmerged** for now — `address_key` exists precisely so a future send-time
+step can collapse them into one email, not so today's pull or match
+pipeline treats them as one property already.
 
 **Still not done:** nothing reads `address_key` yet. It exists and is
 populated, but the matcher, the match page, and the CSV exports still treat
@@ -1551,6 +1601,16 @@ query an empty NAD83 table instead of failing, the same silent-SRID shape
 CLAUDE.md warns about. Options: drop the two unused extensions, or take
 `tiger` off the search path for `hail_app` and `hail_ingest`.
 
+**Resolved 2026-09-26.** The TIGER geocoder was already installed, as this
+item describes — unintentional, came with the base image, and stays that
+way for now. What's changed: `address_standardizer` and
+`address_standardizer_data_us` were *not* installed and now are (`sql/024`,
+item 55), a deliberate addition, not the same extensions this item is
+about. The `tiger` schema itself is untouched; the silent-empty-table risk
+this item describes is still real and still open, just no longer confused
+with the (separate, now-resolved) question of whether address parsing was
+available.
+
 **When:** before production deployment, alongside item 3 (the base image).
 
 ## 95. No test for the `R` = RAIN / HEAVY RAIN composite key
@@ -1747,6 +1807,18 @@ matched.** The page and `/storms/matches.csv` both show the nearest distance
 and the worst magnitude across the storm day and type. The bulk export's
 grain, one row per listing per storm day and type, says which storm, not which
 report. That half stays open here.
+
+**Considered and declined, so this doesn't read as unfinished:** a
+storm-date/type column on each row (the page heading already names both —
+one storm, one type per page, so a per-row repeat would be redundant, not
+informative); collapsing rows by agent, sorting agents by listing count,
+and adding on-page filters (all three declined together — unclear anyone
+works this page on screen rather than exporting it, so building
+scan-and-filter tooling for a use pattern that may not exist wasn't worth
+it).
+
+**When (the declined items specifically):** if someone actually works this
+page on screen rather than exporting it.
 
 ## 107. CSV export missing on the activity page
 
@@ -2057,6 +2129,87 @@ externally.
 
 **When:** before any send (item 4) — the comparison narrows the work, it
 doesn't replace the import.
+
+## 123. 11 non-Land properties have no house number and can't be deduplicated by address
+
+`address_key` is `NULL` for 170 properties (item 55). 159 are `property_type
+= 'Land'`, already excluded from matching by `_MATCH_SQL` — vacant land has
+no roof, so this doesn't matter for outreach. **11 are not Land** (9 Single
+Family, 1 Condo, 1 Manufactured) — real, matchable properties with an
+address RentCast gave with no leading house number (a rural road-and-number
+format, or a literal `Tbd` placeholder), so none of the dedup work in item
+55 can ever apply to them, even after it's wired in.
+
+**When:** known gap, revisit if one of the 11 is ever actually matched and
+emailed about.
+
+## 124. Address search (Phase 6) must run typed input through `address_key()`
+
+Whenever a "look up this address" feature gets built, the typed input has
+to go through `address_key()` too, or the comparison is against
+differently-shaped strings — the function's own comment already says this
+(`sql/024`). `fuzzystrmatch` is installed (confirmed) and would cover
+typos a user might make; `address_key()` won't — it standardizes structure,
+not spelling.
+
+**When:** Phase 6, when the search feature is built.
+
+## 125. `address_key`'s `house_num` can hold a range, not just a number
+
+`3440-3450 W 55th Pl` (one of the 21 duplicate groups, item 55) standardizes
+to `house_num = '3440 3450'` — a range, not a single number. Nothing
+downstream currently assumes `house_num` is a single integer-like value, so
+this isn't breaking anything today, but it's a shape the key can take that
+isn't obvious from the column's own name.
+
+**When:** if it ever breaks a comparison or a parse.
+
+## 126. Realtor deduplication rule — decided, not built; supersedes the 2026-09-01 decision
+
+**Supersedes** `docs/decision-log.md`, "No realtor deduplication beyond
+exact normalized email" (2026-09-01). The rule: dedupe on matching
+normalized email, and on matching name plus phone, keeping the most recent
+record. Not implemented — `realtors` still has 7,082 rows on the old,
+no-dedup basis.
+
+**Open sub-questions, not yet answered:**
+- **Link, don't delete.** `listings.realtor_id`, `send_log.realtor_id` and
+  `dnc_list.realtor_id` all point at `realtors` rows; merging two rows
+  means repointing three FKs' worth of history, not removing a row.
+- **Phone match scope** — the agent's own phone only, or the office phone
+  too (a shared office line would over-merge distinct agents).
+- **How DNC applies across a merged group** — if one of the pre-merge
+  identities was suppressed, does the merged identity inherit that, and
+  does merging ever need to *split* a suppression back out.
+
+**When:** after the RBI realtor import (item 4/83) lands — merging now,
+against the pre-import data, would just need redoing.
+
+## 127. Login skips `verify_password` for an unknown user — timing-based username enumeration
+
+`views.py:297-299`: when the username doesn't exist, `verify_password` is
+never called, so an invalid username returns measurably faster than a valid
+username with a wrong password (scrypt verification has a real, deliberate
+cost; skipping it entirely is fast). An attacker can use response time
+alone to enumerate valid usernames without ever seeing a different error
+message. The "one message for every failure" comment is true of what's
+*shown*, not of how long the response takes to arrive. Fix is a dummy hash
+comparison on the no-user path, so both branches cost about the same.
+
+**When:** before the app is reachable beyond Tailscale — group with items
+110 (Cloudflare tunnel) and 103 (`testview`'s account), not the general
+code-review backlog, since exposure is exactly what turns this from a
+theoretical gap into a real one.
+
+## 128. `api_pulls` has identity gaps from rolled-back verification tests
+
+27 rows, `pull_id` running 7 to 81 — the gap is from sequence values consumed
+by `INSERT`s inside test transactions that were rolled back during this
+project's verification work (the sequence itself doesn't roll back with the
+transaction, by design). Normal, expected Postgres behavior, not a sign of
+lost or failed pulls. Recorded so nobody spends time investigating it twice.
+
+**When:** none — informational only.
 
 ---
 
