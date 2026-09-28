@@ -1355,11 +1355,16 @@ is coming. That explains why it barely overlaps with Constant Contact (item
 newsletter subscription. 675 of the 4,187 (16.1%) already appear in the
 hail system's own `realtors` table, but none of the 675 are corroborated as
 current recipients by either Constant Contact or the DNC list — see item
-122. Still open: exactly what "signed up for our service" means (a
-personal roofing job versus a referral-partner or vendor program), which
-matters for item 120 — either could plausibly fit CAN-SPAM's transactional/
-relationship exemption for at least a subset; and whether/how a "different
-template for known agents" distinction gets built.
+122. **"Signed up for our service" answered, 2026-09-28:** the realtor
+called RBI directly and requested an inspection, of a property they
+represent or their own roof. A voluntary, recipient-initiated engagement —
+a clean fit for Constant Contact's own "implied consent via existing
+business relationship" standard (decision log, "What 'signed up for our
+service' means, and always including the CAN-SPAM footer regardless"). What
+it does *not* do: exempt the storm-alert message itself from being
+"commercial" under CAN-SPAM (item 120 still applies in full, by decision).
+Still open: whether/how a "different template for known agents" distinction
+gets built.
 
 **When:** Phase 5.
 

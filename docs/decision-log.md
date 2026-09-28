@@ -5051,3 +5051,37 @@ broker-relationship/networking content — "DMAR Industry Partners,"
 "Diamond Circle Club Members"), and storm-alert content is a real change in
 kind, worth being thoughtful about even with an audience that has some
 standing relationship.
+
+## 2026-09-28 — What "signed up for our service" means, and always including the CAN-SPAM footer regardless
+
+Closes the open question from the previous two entries and item 83. Per the
+developer: it means the realtor **called RBI directly and requested an
+inspection** — of a property on a buyer or seller side of a transaction
+they're representing, or their own roof. A voluntary, recipient-initiated
+service request, not a name collected in passing.
+
+**This is a clean fit for Constant Contact's own stated "implied consent"
+standard** ("an existing business relationship, including making a purchase
+from you") — stronger than "used our service" in the abstract, since it's a
+specific, direct engagement the recipient started. It's also the strongest
+available framing for a Category-A provider's compliance team (item 119),
+if that route is still pursued for any part of this. It confirms the
+relationship is with the realtor as a professional, which makes a future
+storm alert about a *different* property they now represent a natural
+continuation, not a fresh cold contact.
+
+**What it doesn't do:** the storm-alert message is still a new solicitation,
+not a continuation of that specific past inspection, so it's still
+"commercial" under the CAN-SPAM analysis (item 120) regardless of how strong
+the relationship is.
+
+**Decided: the CAN-SPAM footer (physical address, working opt-out, no
+deceptive subject/headers) goes in every send regardless of which consent
+theory covers a given recipient** — including the two now well-grounded
+pools (the 339 CC-active, the 675 service-request clients). Not because
+either pool is legally required to have it under every reading, but because
+it's cheap, and a policy that depends on correctly classifying every
+recipient's consent basis before deciding whether to include it is a policy
+that will eventually get it wrong for someone. This supersedes any
+per-recipient judgment call about whether the footer is "needed" for that
+specific person.
