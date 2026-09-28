@@ -53,3 +53,5 @@ COMMENT ON FUNCTION address_key(text) IS
     'against differently-shaped strings.';
 
 COMMIT;
+
+GRANT SELECT ON us_lex, us_gaz, us_rules TO hail_app;
