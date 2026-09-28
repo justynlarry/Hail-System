@@ -1346,6 +1346,15 @@ A searchable store of known realtors, beyond what `realtors` holds from
 RentCast pulls, with a different email template for agents RBI already
 knows. **Open question:** what system holds these contacts now.
 
+**Partly answered, 2026-09-28.** It's a CSV export, `Final Realtor Database-
+09-25.csv`, 4,187 unique contacts — not a live system, a snapshot. 675 of
+them (16.1%) already appear in the hail system's own `realtors` table. See
+`docs/decision-log.md`, "Comparing RBI's existing contacts, the hail
+system's realtors, and the legacy DNC list" (item 122). Still open: whether
+this file is the current source of truth or there's a live system behind it,
+and whether/how a "different template for known agents" distinction gets
+built.
+
 **When:** Phase 5.
 
 ## 84. Historical hail aggregation — which areas were hit hardest over n years
@@ -1954,6 +1963,27 @@ a report, never damage" rule in `CLAUDE.md`), and it needs the frequency cap
 
 **When:** item 15/19, when the send queue and frequency cap are designed —
 this is a concrete input to that design, not a separate task.
+
+## 122. The legacy DNC list is checked in against the current realtor pool — the import itself still isn't done
+
+Compared `rbi-dnc-list-09-28-2026.csv` (719 unique emails, Mailchimp
+audience-export format), RBI's existing contact list (item 83, 4,187
+unique), and the hail system's `realtors` table (7,082 unique), 2026-09-28.
+See `docs/decision-log.md`, "Comparing RBI's existing contacts, the hail
+system's realtors, and the legacy DNC list." **83 of the current 7,082
+hail-system realtor emails (1.2%) are already on the legacy DNC list** —
+concrete evidence, not just the general rule, for why the DNC import (item
+4 / `CLAUDE.md`) has to land before any send. Zero overlap between RBI's own
+client list and its own DNC list, checked and not a bug (52 shared domains,
+zero exact matches — plausibly years of realtor-roster turnover between the
+DNC list's 2017–2025 entries and the current client list).
+
+**Still not done:** no import into `dnc_list` — this was read-only
+comparison only. The full email-level breakdown was saved outside the repo,
+not committed.
+
+**When:** before any send (item 4) — the comparison narrows the work, it
+doesn't replace the import.
 
 ---
 

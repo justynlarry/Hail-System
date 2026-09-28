@@ -4885,3 +4885,106 @@ carry it (a verified subdomain, real bounce/complaint feedback), not a
 personal account. The more promising lever is the consolidation finding
 above: fewer required sends to begin with, on top of a real warmup, not
 instead of one.
+
+## 2026-09-28 — Two provider categories, not one: correcting an over-generalization, and three next steps
+
+Follow-up to items 119/121, after checking the cold-outreach platforms
+(Instantly, Smartlead, lemlist, Apollo) directly: they do require building
+campaigns through their own system, much like Mailchimp — confirming the
+architecture caveat item 119 flagged as unconfirmed. Worth being precise
+about what that does and doesn't close off.
+
+**Two separate axes were getting collapsed into one "everything requires
+someone else's system" conclusion.** SendGrid, Postmark, Mailgun, SES, and
+Resend (checked in item 119) are plain APIs — a backend calls `POST /send`
+with a From, To, subject and body, exactly like this app already calls
+RentCast. No campaign builder, no UI. They were ruled out on **policy**
+grounds, not architecture. Instantly and its category are ruled out (or at
+least made harder) on **architecture** grounds, not policy — their AUP is
+opt-out-model-compatible, but the product wants to own the sending
+mechanism. No single option checked so far satisfies both axes at once,
+which is a real bind, but narrower than "no way around it."
+
+**Three threads not yet exhausted, in order of effort:**
+1. **Ask a Category-A provider's compliance/sales team directly**, describing
+   the specific use case — individualized outreach to named listing agents
+   about a specific property they're publicly advertising, low volume, not a
+   purchased list. AUP text is a default a human reviewer can grant an
+   exception to; this costs only the conversation.
+2. **Amazon SES's policy is structurally different from the other four.**
+   SendGrid, Postmark, Mailgun and Resend all state an explicit up-front
+   proof-of-opt-in requirement. SES's AUP prohibits "unsolicited mass email"
+   without that same explicit prior-proof language, and its actual gate is a
+   "production access" request where the use case is described to AWS
+   directly, with complaint/bounce-rate monitoring afterward — outcome-based,
+   not input-gated. Under-weighted the first time through; worth a direct
+   production-access conversation.
+3. **Self-hosting is real and fully code-controlled** — a mail server on the
+   sending subdomain, SPF/DKIM/DMARC, sending via plain SMTP from Python, no
+   one else's UI, no monthly bill. It does not remove the reputation-building
+   burden, it relocates it: building sending reputation from zero, handling
+   every bounce and complaint directly, and registering for the free
+   feedback-loop/reputation programs the major mailbox providers offer to any
+   sender with a verified domain (Google Postmaster Tools, Microsoft SNDS,
+   Yahoo's JMRP) rather than getting them bundled with a paid provider.
+
+**The one thing that removes the conflict rather than working around it:** a
+real opt-in mechanism over time (an agent proactively signs up to be
+notified about storms near their listings). That would make every Category-A
+provider usable outright, no exception needed — a product change, not a
+near-term technical one, but worth being on the roadmap as the actual exit
+rather than a permanent workaround.
+
+## 2026-09-28 — Comparing RBI's existing contacts, the hail system's realtors, and the legacy DNC list
+
+Three files: RBI's DNC export (`rbi-dnc-list-09-28-2026.csv`, 719 unique
+normalized emails, every row "Unsubscribed" / "Added by you" — a Mailchimp
+audience-export format, another piece of evidence alongside the live
+`k2._domainkey` DKIM record (item 96) that Mailchimp was RBI's prior
+sender); RBI's own existing realtor/contact list
+(`Final Realtor Database-09-25.csv`, 4,187 unique emails, 3 duplicate rows);
+and the hail system's `realtors` table (7,082 unique emails, sourced from
+RentCast pulls). Relates to items 4 (DNC import, blocking any send) and 83
+(in-house realtor database, open question of what system holds it — this
+file is apparently the answer).
+
+| Comparison | Result |
+|---|---|
+| RBI's client list ∩ hail-system realtors | 675 (16.1% of the client list) |
+| RBI's client list ∩ DNC list | 0 |
+| Hail-system realtors ∩ DNC list | 83 (1.2% of hail-system realtors) |
+| All three | 0 |
+
+**The zero overlap between RBI's own client list and RBI's own DNC list was
+checked, not assumed.** Raw-string inspection found no whitespace/encoding
+issue, and the two lists share 52 domains (`kw.com`, `remax.net`,
+`coloradohomes.com`, and others) despite zero exact-email matches — so it
+isn't a data or normalization bug. The DNC list's `Created At` values span
+2017-10-26 to 2025-09-16, with two large clusters (213 rows on 2018-07-19,
+103 on 2018-11-14) suggesting bulk unsubscribe events years apart from the
+current client list's roster. Plausible explanation: several years of
+realtor turnover (brokerage changes, new emails, agents leaving the
+industry) between the DNC list's older entries and the client list's current
+one, and/or the DNC list drawing from a broader audience than realtors
+specifically. Not confirmed either way — worth asking RBI if the history
+matters.
+
+**The concrete, load-bearing number:** 83 of the hail system's current 7,082
+realtor emails are already on the legacy DNC list. `dnc_list` is still empty
+(item 4). Sending today, before that import lands, would improperly contact
+83 people who already asked not to be — direct, specific evidence for
+CLAUDE.md's rule that the DNC import comes before any send, not just a
+general precaution.
+
+**The 675 is a useful subset, not yet acted on.** These are RBI's own known
+contacts who also already appear in the hail-matched realtor pool — a
+meaningfully stronger footing for the provider conversations above (item
+119's next steps) than "every listing agent within 5 miles of a hail
+event," since there's a plausible prior-relationship signal on RBI's side
+for this subset specifically. Not yet decided whether or how to use this
+distinction.
+
+**Not done:** no import into `dnc_list`, and this was read-only analysis
+only. The full email-level breakdown (which specific addresses fall in each
+overlap) was saved to a scratchpad file, not committed to the repo or
+printed in full here.
