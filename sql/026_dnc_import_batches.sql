@@ -29,5 +29,9 @@ CREATE TABLE dnc_import_rows (
 
 COMMIT;
 
-GRANT SELECT, INSERT, DELETE ON dnc_import_batches TO hail_app;
+BEGIN;
+
+GRANT SELECT, INSERT, DELETE, UPDATE ON dnc_import_batches TO hail_app;
 GRANT SELECT, INSERT, DELETE ON dnc_import_rows TO hail_app;
+
+COMMIT;

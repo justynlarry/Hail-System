@@ -204,6 +204,20 @@ that import comes before any send. No sending code and no provider yet.
   Contact export cross-referenced, surfacing a ~1,014-person warm-start
   pool clear of DNC. Self-hosting reassessed against that smaller pool —
   no decision made on a sending path yet.
+- **DNC import built and run, 2026-09-28** (`CLAUDE.md`'s non-negotiable
+  rule and this checklist's own "before any send" line — there's no
+  dedicated numbered item for it; documented in `docs/decision-log.md`,
+  "DNC import: admin upload, staged and previewed before commit"): an
+  admin can upload a Constant Contact export, preview
+  exactly what would be added before anything is written, and commit or
+  discard. `dnc_list` now holds 759 real suppressions (719 from the current
+  Constant Contact export, ~40 legacy-only from Airtable), and 108 of the
+  hail system's 7,082 realtors are suppressed — up from 83 against the
+  Constant Contact list alone, which is the concrete case for having
+  imported both sources. **Still open:** whether the Constant Contact
+  export itself is missing roughly nine months of unsubscribes (item 129),
+  and the suppression check still doesn't run anywhere, because nothing
+  sends yet.
 - **Not started, and still the work of this phase:** the sending identity and
   provider, template CRUD, the legacy DNC import, the suppression check in the
   send transaction, the frequency cap, the send queue, bounce handling and

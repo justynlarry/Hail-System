@@ -666,6 +666,30 @@ where the interface hides suppressed agents and everyone assumes that is the
 protection — then a bug, a stale page, or a quick script bypasses it.
 
 Nothing is ever deleted. Un-suppressing sets `removed_at` and `removed_by`.
+**No UI does this yet** — reversing a suppression today means writing
+`removed_at`/`removed_by` by hand (parking-lot item 134).
+
+**Has rows, as of 2026-09-28: 759**, all `source = 'legacy_import'`, written
+by the admin DNC upload (below) — not yet by anything at send time, since
+nothing sends yet.
+
+### `dnc_import_batches` / `dnc_import_rows`
+
+Staging for an admin-uploaded suppression file. `sql/026`. One
+`dnc_import_batches` row per upload (`token`, `filename`, who uploaded it,
+`row_count`, `committed_at` — `NULL` until confirmed); one
+`dnc_import_rows` row per parsed line (`email_raw`, `name_at_add`,
+`added_at`, and `rejected` — `NULL` when the row parsed cleanly, the
+reason otherwise). The preview page reads from here, and commit promotes
+from here into `dnc_list`, so what an admin confirms is provably the same
+rows they reviewed, not a re-parse of a file that could have changed. Swept
+(uncommitted, older than a day) at the start of the next upload, the same
+shape as the stale-pull sweep. `hail_app` needs `SELECT`, `INSERT`,
+`DELETE`, and `UPDATE` on `dnc_import_batches` (`UPDATE` for marking a
+batch committed) and `SELECT`, `INSERT`, `DELETE` on `dnc_import_rows` —
+the `UPDATE` grant was missing in the first version of the migration, found
+once the feature was actually used, not caught by the earlier
+transaction-level testing (which ran as a privileged role, not `hail_app`).
 
 ---
 

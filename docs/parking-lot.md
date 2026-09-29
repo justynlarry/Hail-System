@@ -2226,6 +2226,73 @@ lost or failed pulls. Recorded so nobody spends time investigating it twice.
 
 **When:** none — informational only.
 
+## 129. The Constant Contact export may be missing ~9 months of unsubscribes
+
+`rbi-constant-contact-dnc-list-09-28-2026.csv`'s newest recorded unsubscribe
+is 2025-12-13, but the export itself was pulled 2026-09-28 and Constant
+Contact is still RBI's active marketing vendor — so either nobody has
+unsubscribed from anything RBI sent in the last nine months, or the export
+was date-filtered somewhere upstream and is quietly missing that whole
+window. Ask RBI's marketing contact whether the export was filtered by
+date, and if so, pull an unfiltered one before relying on this list.
+
+**When:** before the first send.
+
+## 130. `dnc_list.realtor_id` isn't maintained automatically
+
+The DNC import's commit SQL never sets `realtor_id` — today's 108 linked
+rows came from a one-time manual backfill (`UPDATE 108`), run once against
+the realtors that existed at the time. A realtor added to the hail system
+*after* their suppression was recorded stays unlinked, silently — the
+suppression itself still works (`dnc_list.email_norm` is the enforcement
+key, `realtor_id` is documented as "convenience only, never a requirement"
+in `database-schema.md`), but anything that reports "which of our known
+realtors are suppressed" by joining on `realtor_id` rather than email would
+undercount. Decide between a periodic backfill job and setting it on
+every `realtors` insert.
+
+**When:** with the send path — whichever report or check first needs
+`realtor_id` to be trustworthy.
+
+## 131. The ~40 Airtable-only suppressions carry the wrong kind of date
+
+Converting Airtable's rows to the Constant Contact import shape used the
+`Date` column (when the contact was created) for `added_at`, not the
+`Time Removed` column (when they actually asked to stop) — that column
+was dropped in the conversion since the importer only understands the
+Constant Contact shape. Suppression itself is unaffected, since it's
+enforced on `email_norm`, not on any date — but for these ~40 rows,
+`dnc_list.added_at` is not evidence of when the person unsubscribed, if
+that's ever asked.
+
+**When:** note only, no action expected.
+
+## 132. `dnc_list.email_raw` can carry leading whitespace; only `email_norm` is trimmed
+
+`email_norm` (the enforcement key) is always `lower(trim(email_raw))`, so
+suppression itself is never affected by stray whitespace in `email_raw` —
+but the raw value shown in any admin view or audit is whatever the source
+file had, untouched.
+
+**When:** cosmetic.
+
+## 133. The DNC upload has no `MAX_CONTENT_LENGTH`
+
+`dnc_upload` reads the whole file into memory (`upload.read()`) with
+nothing capping its size. Fine at hundreds of rows; worth a limit before
+someone uploads something much larger by mistake.
+
+**When:** if a large file ever actually arrives.
+
+## 134. No way to un-suppress through the UI
+
+`dnc_list.removed_at`/`removed_by` exist specifically for this and are
+already documented as the reversal path (`database-schema.md`), but
+nothing in the admin UI writes them — reversing a mistaken suppression
+today means doing it by hand at the database.
+
+**When:** if someone is suppressed by mistake and needs to be un-suppressed.
+
 ---
 
 ## Also worth carrying

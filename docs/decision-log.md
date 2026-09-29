@@ -5245,3 +5245,119 @@ correct import source is the union of all suppression files found so
 far** — the original DNC export, this Constant Contact copy, and Airtable
 together — not any single one. Using only one would under-suppress by
 whichever of the 40 or 26 it's missing.
+
+## 2026-09-28 — DNC import: admin upload, staged and previewed before commit
+
+`sql/026_dnc_import_batches.sql`, `hailsys/queries/dncimport.py`,
+`hailsys/web/admin.py` (`dnc_upload`, `dnc_preview`, `dnc_commit`,
+`dnc_discard`), `hailsys/web/templates/dnc_preview.html` and the upload
+section in `admin.html` (`3ebb5e7`, `f94d27f` for the `.gitignore` fix
+below). There is still no dedicated parking-lot item for "the DNC
+import blocks any send" -- it lives in `CLAUDE.md` and `phases.md`'s
+Phase 5 checklist, per the correction two entries up. Related: items
+96/119/122's DNC research.
+
+**Suppression is the one table where getting an import wrong is expensive
+in both directions.** Suppress someone who never asked, and RBI loses a
+real contact silently, with no error to notice. Miss someone who did ask,
+and they get mail they explicitly refused — the exact failure `CLAUDE.md`'s
+non-negotiable rule exists to prevent. Neither failure announces itself.
+Hence preview-then-confirm, not a straight import: an admin sees precisely
+what would happen before anything is written.
+
+**The parsed rows are staged in `dnc_import_batches`/`dnc_import_rows`, not
+in the session and not re-read from a re-upload.** A signed cookie can't
+hold 700-plus rows, and re-reading the file on confirm would let the
+confirm silently apply to a *different* file if it changed between preview
+and click. What an admin confirms is provably what they reviewed, because
+it's the same staged rows, referenced by the same batch token.
+
+**Admin only, not sender.** Considered and declined: the admin blueprint's
+`before_request` already calls `require_role("admin")` for everything on
+it, and widening this one feature to senders would mean either duplicating
+that check or exposing user management alongside it. Suppression list
+changes stay with the same role that already manages settings and users.
+
+**The importer verifies rather than trusts the file.** It requires the
+Constant Contact header set (`Email address`, `Email status`, `Created
+At`) and rejects any row whose status isn't `Unsubscribed`, naming the
+reason and line number in the preview rather than silently dropping it.
+The export is filtered by hand upstream today; a future one assembled
+differently — by someone who doesn't know that convention — must not
+silently suppress people it shouldn't, or silently skip people it should
+catch.
+
+**`source` is `'legacy_import'`**, already present in `dnc_list`'s `source`
+CHECK constraint before this work started — no migration needed for it.
+
+**`added_at` is `NOT NULL`, so an unreadable source date gets `now()`, and
+the reason records that explicitly** — "(source data unreadable)" appended,
+never a silent claim that the person unsubscribed today when the real date
+is simply unknown. The date matters if consent is ever questioned later.
+
+**`ON CONFLICT (email_norm) DO NOTHING`:** an address already suppressed
+keeps its first suppression and its original date — the date that actually
+matters — rather than being overwritten by a later import's guess.
+
+**Abandoned previews are swept at the start of the next upload** (any batch
+uncommitted and older than a day), not on a timer — the same shape as the
+stale-pull sweep (item 47).
+
+**Re-posting a confirm is refused via `committed_at`**, so a page reload
+after a successful import can't import the same batch twice.
+
+**The Airtable/legacy format has no importer.** It isn't a live,
+re-pullable source — see the entry below — so its roughly 40 rows not
+already in a Constant Contact export were converted to the Constant Contact
+shape by hand rather than building a second parser for a one-time need.
+
+**Measured outcome — the actual justification for building this:**
+759 suppressed addresses imported (719 from the current Constant Contact
+export, ~40 legacy-only from Airtable), spanning 2017-10-26 to 2025-12-13.
+**108 of the hail system's 7,082 realtors are now suppressed**, up from the
+83 measured against the Constant Contact list alone (item 122) — the
+legacy file caught roughly 25 more people who would otherwise have been
+emailed. That gap is the concrete argument for having imported both
+sources rather than just the newer one.
+
+**A gap in my own earlier verification, worth recording plainly:** the
+rolled-back-transaction test that confirmed this feature worked end to end
+ran as `hail_admin`, not `hail_app` — so it never actually exercised the
+grants `hail_app` needs. `sql/026`'s first version was missing `UPDATE` on
+`dnc_import_batches` (`_MARK_COMMITTED_SQL` needs it), found only once the
+feature was actually used on `hail-dev`. Fixed by appending the grant.
+Testing SQL correctness under a privileged role and testing the actual
+runtime role's permissions are two different checks; this was the second
+time in this project a missing grant slipped past the first kind (the
+`address_standardizer` lookup tables, item 55, was the first).
+
+## 2026-09-28 — The `.gitignore` DNC pattern was too broad, and excluded code, not just data
+
+`.gitignore` (`f94d27f`). Found while trying to commit the DNC import work
+above: `sql/026_dnc_import_batches.sql` and `hailsys/queries/dncimport.py`
+never showed up in `git status` at all.
+
+**The rule was `*[Dd][Nn][Cc]*`**, meant to keep real suppression data —
+CSV exports holding live email addresses — out of this public repo. It
+matched on the *word* "dnc" appearing anywhere in a filename, which also,
+silently, matched two legitimate source files that happen to have "dnc" in
+their module and migration names. No error, no warning — `git status`
+simply never mentioned them, exactly the kind of failure that's invisible
+until someone goes looking for it.
+
+**Fixed by excluding data by location and type, not name:** `*.csv`,
+`*.xlsx`, `*.xls`, with `!planning/*.csv` to keep the three CSVs that are
+genuinely meant to be tracked (`report_sources.csv`, `report_types.csv`,
+`zip_city_names.csv`) from being caught by the same blanket rule.
+`reference/` and `data/` (both already ignored, for unrelated reasons)
+already cover where the real DNC/unsubscribe files actually live; the new
+rule catches a stray copy dropped anywhere else in the tree.
+
+**The general point, worth keeping:** a name-pattern ignore rule fails
+silently and sweeps up code that happens to share a word with what it was
+meant to catch. Excluding by location or file type doesn't have that
+failure mode — a `.py` or `.sql` file is never going to match `*.csv`.
+**Still open:** `*[Uu]nsubscribe*`, right next to the old rule, has the
+identical problem and hasn't been fixed — a future `unsubscribe.py` route
+(Phase 5 will need one, item 120's opt-out requirement) would hit the same
+silent exclusion. Not fixed here; flagged for whenever that file exists.
