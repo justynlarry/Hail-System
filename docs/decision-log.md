@@ -5361,3 +5361,89 @@ failure mode — a `.py` or `.sql` file is never going to match `*.csv`.
 identical problem and hasn't been fixed — a future `unsubscribe.py` route
 (Phase 5 will need one, item 120's opt-out requirement) would hit the same
 silent exclusion. Not fixed here; flagged for whenever that file exists.
+
+## 2026-09-28 — Email copy and merge fields: first draft, not final
+
+**Provisional.** This entry records a first draft that captures the
+intent, not finished copy. Images and more content are expected before any
+real send — recorded here so the draft doesn't get mistaken for something
+settled just because it's written down. Parking-lot item 16.
+
+**The old system's email (Mailchimp, a seasonal newsletter) is the
+reference point for tone and offer, not for structure.** It was general
+marketing with exactly one merge field (`FNAME`) and nothing about a
+property or a storm — a genuinely different kind of message from a
+storm-specific alert, so this draft's fields are new, not inherited.
+**Worth keeping from it:** the free inspection / $35 five-year
+certification offer, the agent testimonials, "700+ real estate agents in
+the Denver Metro area since 1992," and the fallback pattern on a missing
+first name (the old template fell back to an em dash).
+
+**Draft copy, verbatim:**
+
+```
+Subject: Hail reported near your listing at {{property_address}}
+
+{{agent_first_name}},
+
+Hail was reported {{nearest_miles}} from your listing at
+{{property_address}} on {{storm_date}} — the largest stones
+reported nearby were {{hail_size}}.
+
+Roof damage isn't always visible from the ground, and an
+unresolved roof question can slow a closing down. We'll
+inspect it free, and certify it for five years if it passes.
+
+[TRY ROOF BROKERS]
+
+Roof Brokers has served 700+ real estate agents in the
+Denver Metro area since 1992.
+
+Roof Brokers Inc. · 2222 S Fraser St · Aurora, CO 80014
+(303) 750-1900 · RoofExperts@RoofBrokersInc.com
+
+This is an advertisement. Unsubscribe | Preferences
+```
+
+**Rationale for the length:** a storm alert earns its open on the specific
+fact in the subject line; the trust material (testimonials, the "since
+1992" line) competes with that fact if placed above the fold, so it's kept
+below the offer rather than opening with it. The footer's physical address
+and unsubscribe link are the CAN-SPAM requirements already decided as
+non-negotiable regardless of consent theory (the CAN-SPAM analysis
+entry, "always including the CAN-SPAM footer regardless").
+
+**Merge-field vocabulary:**
+
+*Required — a missing value blocks that one send, which is reported, and
+the batch continues:*
+`property_address`, `storm_date`, `hail_size`, `nearest_miles`,
+`rbi_address`, `unsubscribe_link`.
+
+*Optional, with a fallback:*
+`agent_first_name` (first token of `realtors.agent_name`),
+`agent_office_name`, `mls_number` (omitted when absent).
+
+*Defined but unused by the current draft:*
+`agent_name`, `property_city`, `property_zip`.
+
+**Fallbacks for cosmetic fields, blocking for fields the message cannot do
+without.** Conditional blocks in the template itself were considered and
+declined — that's designing a template language, not choosing
+placeholders, and it's a much bigger scope than this phase needs.
+
+**Required-field failures must be visible, not silent.** If 40 of 600
+sends are skipped for a missing required field, the operator has to see
+that 40 were skipped, or the missing 40 look sent when they weren't. The
+check is meant to run at preview as well as at send — the same shape as
+the DNC import's preview-then-confirm (the entry above).
+
+**Measured 2026-09-28, checked against the live database, not assumed:**
+across all 7,082 realtors — 0 missing `agent_name`, 0 missing
+`agent_email`, 1 missing `agent_office_name`, 3 single-word names
+(`Coloradohomesource`, `Nikkiowen`, `Heather` — the first two are
+brand/team names concatenated without a space, not a person missing a
+last name). Empty required-ish fields are nearly theoretical for RentCast
+data today; the required/optional split and the visible-failure design
+exist anyway because the in-house realtor import (item 83) is expected to
+be messier than RentCast's own data.

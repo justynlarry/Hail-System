@@ -2293,6 +2293,40 @@ today means doing it by hand at the database.
 
 **When:** if someone is suppressed by mistake and needs to be un-suppressed.
 
+## 135. The email copy is a first draft, not final
+
+See `docs/decision-log.md`, "Email copy and merge fields: first draft, not
+final." Images, the testimonials block, and the offer list from the old
+Mailchimp newsletter are expected additions — the current draft is short
+on purpose (the trust material competes with the storm-specific hook if
+placed above the fold), but "short by design" and "short because it isn't
+finished yet" need to stay distinguishable, and right now this is mostly
+the second one.
+
+**When:** before the first real send.
+
+## 136. Open question: should `nearest_miles` always appear in the email?
+
+"Hail was reported 4.8 miles from your listing" is a much weaker hook than
+"0.3 miles," and may undercut the message rather than strengthen it for
+the far end of the match radius. Options: always show it, only show it
+under some distance threshold, or drop it from the copy entirely and rely
+on the fact that a report happened at all. Not decided.
+
+**When:** with the template build.
+
+## 137. `agent_first_name` (splitting `agent_name` on the first space) has known failure modes
+
+Fails on titles (`"Dr. Susan Clark"` gives `"Dr."`) and on people who go by
+two given names. Checked against the current data (item 16's decision-log
+entry): 3 single-word names exist today, all of which render as the whole
+name and read fine as a greeting — no titles or two-given-name cases found
+in the current 7,082. Not a problem yet, but the in-house realtor import
+(item 83) is expected to be messier than RentCast's data, and that's where
+this is more likely to actually bite.
+
+**When:** if the in-house realtor import makes this worse.
+
 ---
 
 ## Also worth carrying

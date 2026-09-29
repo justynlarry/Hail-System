@@ -218,6 +218,13 @@ that import comes before any send. No sending code and no provider yet.
   export itself is missing roughly nine months of unsubscribes (item 129),
   and the suppression check still doesn't run anywhere, because nothing
   sends yet.
+- **Merge-field vocabulary (item 16) provisionally settled, 2026-09-28**
+  (`docs/decision-log.md`, "Email copy and merge fields: first draft, not
+  final"): a first draft of the actual email copy, the required/optional/
+  unused field split, and the visible-failure design for a missing
+  required field. **Blocked on final copy** — the draft is short on
+  purpose but still missing the testimonials, offer list, and images
+  expected before any real send (item 135).
 - **Not started, and still the work of this phase:** the sending identity and
   provider, template CRUD, the legacy DNC import, the suppression check in the
   send transaction, the frequency cap, the send queue, bounce handling and
