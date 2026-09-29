@@ -12,7 +12,11 @@
     {% if session.emp_id %}
     <header class="site-header">
         <div class="site-header-left">
-            <a class="brand" href="{{ url_for('main.index') }}">Hail System</a>
+            <a class="brand" href="{{ url_for('main.index') }}">
+                <img src="{{ url_for('static', filename='images/RBi Logo - Black with Blue Highlights.png') }}"
+                     alt="Roof Brokers Inc." class="brand-logo">
+                Hail System
+            </a>
             <nav class="nav">
                 {% if session.role == 'admin' %}
                 <a href="{{ url_for('admin.index') }}"

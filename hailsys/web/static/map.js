@@ -4,6 +4,29 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const map = L.map('map').setView([39.74, -104.99], 9);
 
+  // Colorado county context, behind the coverage layer, a static fixture
+  // (scripts/build_colorado_counties_geojson.py), not per-request data.
+  const COUNTY_COLORS = [
+    '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628',
+    '#f781bf', '#999999', '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3',
+  ];
+  const counties = L.geoJSON(null, {
+    style: function (feature, index) {
+      return{
+        color: COUNTY_COLORS[feature.properties.county_fips.charCodeAt(2) % COUNTY_COLORS.length],
+        weight: 1.5,
+        fillColor: '#999',
+        fillOpacity: 0.35,
+      };
+    },
+  }).addTo(map);
+
+  fetch('/static/colorado_counties.geojson')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {counties.addData(data); })
+    .catch(function (err) { console.error('counties load failed', err); });
+
+
   // No tile layer: a basemap means a third-party tile service on every pan,
   // with its own terms of use. The coverage polygons are the basemap here.
   const coverage = L.geoJSON(null, {
