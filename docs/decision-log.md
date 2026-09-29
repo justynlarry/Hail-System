@@ -5447,3 +5447,59 @@ last name). Empty required-ish fields are nearly theoretical for RentCast
 data today; the required/optional split and the visible-failure design
 exist anyway because the in-house realtor import (item 83) is expected to
 be messier than RentCast's own data.
+
+## 2026-09-29 — `address_key`: coalescing every field, not just the directional
+
+`sql/027_address_key_coalesce_fix.sql`. Parking-lot item 55.
+
+**The bug:** `concat_ws` skips a `NULL` argument entirely rather than
+leaving an empty slot — `025`'s function only wrapped `predir`/`sufdir` in
+`coalesce(...)`, so a `NULL` street name, suffix, unit, or zip dropped a
+field and shifted every field after it one position left. A key that
+should read `house|dir|street|suffix|unit|zip` could come out
+`house|dir|street|zip` — four fields, with the zip landing where the unit
+would normally be. Position, not just value, is load-bearing for this key
+(the function's own comment says so), so a shifted key isn't just
+cosmetically wrong, it's a false match waiting to happen.
+
+**Checked against the live data before writing anything down, not
+assumed:** the file's own header comment claimed "245 of 24,932 keys built
+with only five fields" and "3 groups collided as a result." The 24,932 and
+the 3 collisions are both exactly right, verified independently. **The 245
+figure is wrong — the real count is 425.** Every short key has exactly
+five fields, none shorter. Worth fixing in the file's comment; doesn't
+change what the migration does.
+
+**One existing finding in item 55 needs re-checking, not just noting.**
+`8557 Highway, 86` / `8557 State Hwy, 86` (Kiowa) was recorded there as a
+genuine duplicate — "a name/suffix spelling difference the standardizer
+resolves to the same parsed street." Its actual pre-fix key
+(`8557||86||80117`) has empty slots exactly where `predir`/`suftype`
+belong, which is this bug's signature, not necessarily a real semantic
+match. It may still be a genuine duplicate once re-parsed correctly — it
+just isn't confirmed as one by the evidence that was cited for it. Re-check
+after `027` runs, before trusting that pair either way.
+
+**Why this doesn't threaten a fresh production setup, even though it hit
+`hail-dev` for months.** Migrations here have no automatic runner —
+`docker-compose.yml`'s own comment shows the real mechanism, one file at a
+time: `docker compose run --rm loader psql -v ON_ERROR_STOP=1 -f
+/repo/sql/0NN_name.sql`. On `hail-dev`, real `properties` data already
+existed — months of RentCast pulls — before `027` was written, so `025`'s
+under-coalesced function sat live for that whole window, generating short
+keys on every insert. **On a fresh production database, if `001` through
+`027` are applied in numeric order before the first pull, that window
+never opens** — `properties` starts empty, and by the time any row is ever
+inserted, `address_key`'s generation expression is already `027`'s fixed
+version. The bug requires a gap between "buggy function is live" and "real
+data starts flowing through it" to produce anything; run straight through
+in order, and that gap is zero. The manual backfill `UPDATE` run on
+`hail-dev` is also unnecessary on production for the same reason — a
+`GENERATED ALWAYS AS (...) STORED` column computes itself on every insert,
+automatically, correctly, from the first pull onward.
+
+**The one real requirement, precisely because there's no automatic
+runner:** every file `001` through `027` (and beyond) has to be applied in
+strict numeric order before the first real pull, or this exact class of
+problem can resurface. Nothing in the tooling enforces that — it's a
+manual discipline point for whoever stands up the production box.

@@ -1048,9 +1048,15 @@ group inspected by hand; **three causes, confirmed, not guessed:**
   Brighton/Thornton, Denver/Lakewood, Denver/Wheat Ridge, Arvada/Golden,
   Castle Pines/Castle Rock, and more), all the same RentCast
   municipal-boundary variance the key was built to route around.
-  `8557 Highway, 86, Kiowa` / `8557 State Hwy, 86, Kiowa` is the same
-  cause one level down — a name/suffix spelling difference the
-  standardizer resolves to the same parsed street.
+  `8557 Highway, 86, Kiowa` / `8557 State Hwy, 86, Kiowa` was recorded
+  here as the same cause one level down — a name/suffix spelling
+  difference the standardizer resolves to the same parsed street.
+  **Correction, 2026-09-29: this characterization is unconfirmed.** Its
+  key (`8557||86||80117`) has empty slots exactly matching the `coalesce`
+  bug fixed in `sql/027` (decision log, "`address_key`: coalescing every
+  field, not just the directional") — this pair may be a bug artifact,
+  not a genuine standardizer match. Re-check once `027` runs; don't cite
+  this specific pair as evidence of anything until then.
 - **A stray leading colon on one record** — `: 6637 E 149th Ave, Thornton,
   CO 80602` versus `6637 E 149th Ave, Thornton, CO 80602`, otherwise
   identical. A RentCast data artifact, not an address-format issue.
@@ -2346,6 +2352,32 @@ about to be superseded:**
 **When:** as soon as the updated in-house realtor list is available —
 re-run all three comparisons (item 122's pattern) against current data,
 not these interim numbers.
+
+## 139. Production setup: migrations must run in strict numeric order before the first pull, and nothing enforces that
+
+There is no automatic migration runner — `docker-compose.yml`'s own
+comment shows the real mechanism, one file at a time:
+`docker compose run --rm loader psql -v ON_ERROR_STOP=1 -f
+/repo/sql/0NN_name.sql`. `docs/server-setup.md` documents the SELinux
+volume-mount config for `./sql` but not an explicit "apply these in
+order" step. This matters concretely for `address_key` (item 55,
+`sql/024`/`025`/`027`): on `hail-dev`, real `properties` data existed for
+months between `025` (the under-coalesced version) and `027` (the fix),
+which is exactly what let the bug touch real rows. On a fresh production
+database, running `001` through `027`-and-beyond in order *before the
+first RentCast pull* closes that gap entirely — `properties` starts
+empty, and by the time any row exists, the generated column is already
+computing with the final, fixed function. Skip a file, run them out of
+order, or start pulling before the sequence finishes, and the same class
+of bug (or worse — a genuinely missing grant, a genuinely missing table)
+can resurface with nothing to catch it. See `docs/decision-log.md`,
+"`address_key`: coalescing every field, not just the directional," for
+the full reasoning.
+
+**When:** before the production OptiPlex's software setup (`CLAUDE.md`'s
+caveat that Phase 0's physical/software build is still open) — add an
+explicit, ordered migration checklist to `docs/server-setup.md` rather
+than relying on numeric filenames and care alone.
 
 ---
 
