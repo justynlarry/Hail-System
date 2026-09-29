@@ -2327,6 +2327,26 @@ this is more likely to actually bite.
 
 **When:** if the in-house realtor import makes this worse.
 
+## 138. Re-run the RentCast/DNC/in-house comparison once the updated in-house realtor list arrives
+
+The comparisons in items 55/83/122 were run against `realtors` at 7,082
+rows and `Final Realtor Database-09-25.csv`. As of 2026-09-29, `realtors`
+has grown to 9,163 (this year's hail dates were added), and a fresh
+in-house realtor export is still pending — the file on hand is still the
+09-25 one. Checked against the current data as an interim reference point,
+**not recorded as a finding, since the in-house list it's half-built on is
+about to be superseded:**
+- 118 of 9,163 RentCast realtors are on the current DNC list (up from 83 of
+  7,082 — the DNC list itself didn't change, the larger realtor pool
+  caught more matches).
+- 780 RentCast realtors also appear in the (still-old) in-house list, of
+  which 4 are already suppressed — up from 675 of 7,082 last time, for the
+  same reason.
+
+**When:** as soon as the updated in-house realtor list is available —
+re-run all three comparisons (item 122's pattern) against current data,
+not these interim numbers.
+
 ---
 
 ## Also worth carrying
