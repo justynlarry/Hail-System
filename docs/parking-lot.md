@@ -1051,15 +1051,35 @@ group inspected by hand; **three causes, confirmed, not guessed:**
   `8557 Highway, 86, Kiowa` / `8557 State Hwy, 86, Kiowa` was recorded
   here as the same cause one level down — a name/suffix spelling
   difference the standardizer resolves to the same parsed street.
-  **Correction, 2026-09-29: this characterization is unconfirmed.** Its
-  key (`8557||86||80117`) has empty slots exactly matching the `coalesce`
-  bug fixed in `sql/027` (decision log, "`address_key`: coalescing every
-  field, not just the directional") — this pair may be a bug artifact,
-  not a genuine standardizer match. Re-check once `027` runs; don't cite
-  this specific pair as evidence of anything until then.
+  **Correction, 2026-09-29: this characterization was wrong, resolved by
+  re-checking after `027` ran.** The pair's pre-fix key (`8557||86||80117`)
+  is gone from the table, confirming `027` fixed it — but the pair still
+  collides under its corrected key, `8557||86|||80117`. There's no street
+  name here for the standardizer to resolve two spellings of:
+  `address_standardizer` drops "Highway"/"State Hwy" entirely for a rural
+  route address, leaving only the house number and the bare route number.
+  Not a coalesce artifact and not a spelling match — a fourth, distinct
+  cause (see below).
 - **A stray leading colon on one record** — `: 6637 E 149th Ave, Thornton,
   CO 80602` versus `6637 E 149th Ave, Thornton, CO 80602`, otherwise
-  identical. A RentCast data artifact, not an address-format issue.
+  identical. A RentCast data artifact, not an address-format issue. Still
+  present, unaffected by `027` (decision log, 2026-09-29) — still
+  unexplained.
+
+**Re-measured 2026-09-29, after `027` ran: 50 duplicate groups, 100
+properties.** `properties` itself grew from 16,407 to 25,219 rows over the
+same period, so a larger duplicate count is expected on its own; the 50
+have not been diffed group-by-group against the earlier 21 to confirm all
+of them are still intact inside it. All 50 inspected, not sampled — four
+causes now, the fourth new:
+- **39** city-label disagreement within one zip (as above).
+- **7** directional position, same city both times (as above).
+- **3** — **new cause: rural highway/route addressing.** The Kiowa pair
+  above, plus two more in Peyton (`10985 E Hwy, 24` / `10985 E Us Hwy, 24`
+  and `21295 E Hwy, 24` / `21295 E Us Hwy, 24`) — confirms this is a real,
+  recurring pattern, not a Kiowa-only quirk.
+- **1** the stray-leading-colon record, still the same pair from
+  2026-09-26.
 
 **A fourth, currently dormant risk, checked and recorded, not guessed:**
 31 of 16,407 addresses carry both a prefix and a suffix directional

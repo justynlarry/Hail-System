@@ -5503,3 +5503,55 @@ runner:** every file `001` through `027` (and beyond) has to be applied in
 strict numeric order before the first real pull, or this exact class of
 problem can resurface. Nothing in the tooling enforces that — it's a
 manual discipline point for whoever stands up the production box.
+
+## 2026-09-29 — `027` ran on hail-dev: verified, and the Kiowa re-check resolved
+
+Checked against the live database after the run, not assumed. `properties`
+is now 25,219 rows (up from 24,932 — ordinary growth from pulls since the
+last check, unrelated to this migration). Of those, every one of the
+24,932 non-`NULL` keys has exactly six fields — zero short keys remain, the
+`concat_ws` bug's signature is gone. 287 rows are `NULL` (no house number),
+proportionally in line with the 170-of-16,407 figure recorded when the key
+was first built.
+
+**The Kiowa pair, flagged above for re-checking, is resolved — but not the
+way either prior note guessed.** Its pre-fix key, `8557||86||80117`, no
+longer exists anywhere in the table (zero rows), confirming the fix
+actually took effect for this pair specifically. But `8557 Highway, 86` and
+`8557 State Hwy, 86` **still collide** under the corrected key,
+`8557||86|||80117` (house_num `8557`, name `86`, every other field empty).
+So this was never a bug artifact, which settles that question — but item
+55's original characterization, "a name/suffix spelling difference the
+standardizer resolves to the same parsed street," is also wrong. There is
+no street name here for the standardizer to resolve two spellings of:
+`address_standardizer` drops "Highway"/"State Hwy" entirely for a rural
+route address, leaving only the house number and the bare route number
+behind. Two more pairs in the current 50 groups show the identical
+pattern — `10985 E Hwy, 24` / `10985 E Us Hwy, 24` and `21295 E Hwy, 24` /
+`21295 E Us Hwy, 24`, both Peyton — so this is a real, recurring fourth
+cause (rural highway/route addressing), not a one-off.
+
+**Full re-audit of the current 50 duplicate `address_key` groups (100
+properties), all inspected, not sampled:**
+- **39 groups** — the already-documented cause: city-label disagreement
+  within one zip (RentCast's municipal-boundary variance).
+- **7 groups** — the already-documented cause: directional-position
+  variance, same city both times (`1043 Nolte Dr W` / `1043 W Nolte Dr`,
+  and five more of the same shape).
+- **3 groups** — the new cause above: rural highway/route addressing
+  collapsing to house number + route number.
+- **1 group — not new, already on record.** `6637 E 149th Ave, Thornton, CO
+  80602` (`rentcast_id` `:-6637-E-149th-Ave,-Thornton,-CO-80602`) has a
+  stray leading `": "` in its stored `property_address`, against an
+  otherwise identical clean row. Item 55 already documented this exact
+  pair on 2026-09-26 as a fourth, minor cause. Re-checking it here only
+  confirms it's still present, unaffected by `027` (it was never the
+  coalesce bug) and still unexplained — whether it's how RentCast sent it
+  or something in the pull path remains open.
+
+**Not yet done:** the 50-group, 100-property count here isn't diffed
+group-by-group against the 21-group, 42-property count from 2026-09-26 —
+`properties` grew from 16,407 to 25,219 rows in between, so more
+duplicates from more data is expected on its own, but whether every one of
+the original 21 groups is still intact inside today's 50 hasn't been
+checked directly.
