@@ -1106,6 +1106,18 @@ one house today. Also open: whether Lot 13-at-one-point stays correctly
 undeduplicated once this key is actually wired into anything (its own
 `unit` field, not `address_key` alone, is what has to keep those distinct).
 
+**Partly resolved, 2026-09-29 (decision log, "Item 55: send-time dedup,
+scoped to what the data supports"): Part 1 decided, Part 2 deferred.**
+Send-time grouping by exact `address_key` (one email per key, a
+`DISTINCT ON`) is the agreed design — measured on the current 50
+duplicate groups / 25,219 properties and one real storm (656 matched
+properties, 654 distinct keys). Still not wired into the matcher, match
+page, or exports — "still not done" above still holds. The broader
+unit-plus-shared-agent case (126 groups) is designed but deliberately not
+built; revisit only if a duplicate email is actually reported. No suffix
+merging, ever — decided, not deferred, because a same-zip suffix
+disagreement could be a genuine distinct street.
+
 ## 56. Backfill progress and ETA should count reports, not ID range
 
 `scripts/backfill_zip_distances.py` batches by `iem_id` range and reports
@@ -2459,3 +2471,41 @@ entire runtime is currently `psycopg`.
 pilot — storms RBI knows happened that the browse cannot show — rather than a
 known property of the data we have already accounted for. Phase 6 at the
 earliest.
+
+## 140. Match page: mark, don't hide, listings past the freshness threshold
+
+Once a listing-freshness threshold exists (decision log, item 55 area —
+threshold work in progress as of 2026-09-29, `sql/028`), the match page
+needs to decide what to do with a listing older than it. Marking is
+preferred over hiding: a stale listing is still evidence the storm hit
+that address, and hiding rows would make the page's count disagree with
+what the export contains.
+
+**When:** with the send path, once the freshness setting itself lands.
+
+## 141. RentCast street names sometimes carry an embedded comma
+
+A meaningful share of `property_address` values put a comma inside what
+should be one continuous street name before RentCast's own city/state/zip
+commas — `13456 Via, Varra`, `County Road, 22`, the highway addresses
+already covered under item 55 (`8557 Highway, 86`). RentCast's own
+`address_1`/`address_2` split breaks at that comma too, so the street name
+lands partly in each field. Degrades `address_key` and any other parsing
+built on the raw string. Reported at roughly 1,721 addresses (6.9%) of the
+current table; **that count is as reported, not independently reproduced
+this session** — two different reproduction attempts landed at 24.2% (too
+broad, catches the ordinary Unit/Apt comma) and 1.66% (too
+narrow), neither matching. The phenomenon itself is confirmed real via
+direct examples; the precise count needs its exact method double-checked
+before it's cited elsewhere.
+
+**When:** known limitation, not currently blocking anything.
+
+## 142. One property has house number 0
+
+`0 County Rd, 102 Lot 3, Elbert, CO 80106` — confirmed, a single row,
+`address_key` `0||102||LOT 3|80106`. Not investigated further; noted in
+case it ever causes a downstream surprise (a `0` house number failing a
+truthiness check somewhere, for instance).
+
+**When:** note only.

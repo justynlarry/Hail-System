@@ -5555,3 +5555,65 @@ group-by-group against the 21-group, 42-property count from 2026-09-26 —
 duplicates from more data is expected on its own, but whether every one of
 the original 21 groups is still intact inside today's 50 hasn't been
 checked directly.
+
+## 2026-09-29 — Item 55: send-time dedup, scoped to what the data supports
+
+Measured on 25,219 properties with corrected keys, checked against the
+live database:
+- 50 duplicate groups on exact `address_key`, all clean pairs — about
+  0.2% of properties.
+- On one real storm (2026-09-22, `HAIL`): 656 matched properties, 654
+  distinct `address_key` — exact-key dedup removes 2, about 0.3%.
+- The item's original "186 candidate pairs" figure was proximity-based (a
+  25-metre `ST_DWithin` self-join) against 508 properties. It measured a
+  different thing — closeness, not identity — and is superseded by the
+  `address_key` approach, not contradicted by it.
+
+**Decision: build Part 1 only — group by `address_key` at send time, one
+email per key.** A `DISTINCT ON`, essentially free, and matches what the
+measured rate actually justifies.
+
+**Part 2 is designed and NOT built:** same house number, directional,
+street, suffix and zip, one record carrying a unit and another not, AND a
+shared listing agent. 126 groups qualify (see the entry below). Deferred
+because the measured duplicate rate doesn't yet justify the added
+complexity. Revisit if a duplicate email is ever reported.
+
+**Also decided: no suffix merging.** Genuine same-zip suffix conflicts
+exist (516 Superior Dr / St, 6765 Utica Ave / Cir, 1915 Canyonpoint Ln /
+Pl) and could be either distinct streets or RentCast disagreeing with
+itself. Sending two emails is better than silently dropping a real
+address.
+
+**Nothing is merged in the `properties` table.** Send-time only, per the
+item's original reasoning: matches point at listings, not properties.
+
+## 2026-09-29 — What the unit-mismatch groups actually are
+
+Checked against the live database (`address_key` split into its
+components, joined to `listings`/`realtors`), not assumed:
+- 561 groups share the same house number, directional, street, suffix and
+  zip, with some records carrying a unit and some not.
+- 412 of them (73%) have **no agent at all** on the unit-less records, so
+  they can never produce an email regardless of dedup — documentation,
+  not logic. **Independently rechecked this figure exactly: 412.**
+- Of the remaining 149, 126 share a listing agent across the unit
+  boundary (Part 1's true duplicates) and 23 do not, and are treated as
+  genuinely distinct units.
+- The no-agent majority is **new construction**: a builder lists several
+  floor plans at one address, with one lot-numbered record carrying a
+  real agent alongside them. Confirmed example, 13796 Daffodil Pt: one
+  "Lot 76" at $899,990 with agent Batey Mcgraw, three unnumbered at
+  $724,990, $664,990 and $654,990 with none.
+- This inverts the item's stated Lot rule in effect but not in outcome: a
+  no-Lot record at an address with Lot records IS a duplicate, but
+  because it's a builder plan listing, not a variant unit.
+
+**Independent recheck, noted rather than smoothed over:** rebuilding this
+from scratch landed at 566 mixed groups / 130 shared-agent / 24 distinct
+— close to the 561/126/23 above but not identical, while the 412 no-agent
+figure and the Daffodil Pt example both matched exactly. The gap is most
+likely a handful of properties carrying multiple listings with different
+agents, where "which agent counts" wasn't pinned down with an explicit
+tie-break on this rebuild. Not chased further; the headline numbers and
+the underlying pattern are solid either way.
