@@ -38,19 +38,19 @@
         <button type="submit">Apply</button>
     </form>
 
-{% if submitted %}
-    <h3>Matched listings</h3>
-    <p><strong>{{ match_count }}</strong> row{{ '' if match_count == 1 else 's' }},
-       one per listing per storm day and type, within {{ radius_miles }} miles.</p>
-    <p><a href="{{ url_for('main.exports_matches_csv') }}?{{ request.query_string.decode() }}">Download CSV</a></p>
-
     <h3>Realtors</h3>
     <p><strong>{{ realtor_count }}</strong> realtor record{{ '' if realtor_count == 1 else 's' }}.
        One row per address, not per person: an agent reachable at two
        addresses appears twice, which is how suppression is keyed.</p>
     <p><a href="{{ url_for('main.exports_realtors_csv') }}?{{ request.query_string.decode() }}">Download CSV</a></p>
+
+{% if submitted %}
+    <h3>Matched listings</h3>
+    <p><strong>{{ match_count }}</strong> row{{ '' if match_count == 1 else 's' }},
+       one per listing per storm day and type, within {{ radius_miles }} miles.</p>
+    <p><a href="{{ url_for('main.exports_matches_csv') }}?{{ request.query_string.decode() }}">Download CSV</a></p>
 {% else %}
-    <p>Choose a range and press Apply.</p>
+    <p>Choose a range and press Apply to also pull matched listings.</p>
 {% endif %}
 
     <p class="note">

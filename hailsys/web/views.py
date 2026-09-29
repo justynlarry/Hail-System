@@ -791,9 +791,10 @@ def exports_page():
     dnc_exclude = _dnc_from_args()
     submitted =request.args.get("submitted") == "1"
 
-    match_count = realtor_count = None
+    match_count = None
     with get_connection() as conn:
         types = storms.fetch_report_types(conn)
+        realtor_count = exports.count_realtors(conn, dnc_exclude=dnc_exclude)
         if submitted:
             match_count = exports.count_matches(
                 conn,
@@ -803,8 +804,7 @@ def exports_page():
                 radius_miles=g.settings["match_radius_miles"],
                 dnc_exclude=dnc_exclude,
             )
-            realtor_count = exports.count_realtors(
-                conn, dnc_exclude=dnc_exclude)
+
     return render_template(
         "exports.html",
         start_day=start_day,
