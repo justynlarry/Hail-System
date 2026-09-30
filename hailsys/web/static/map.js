@@ -10,8 +10,15 @@ document.addEventListener('DOMContentLoaded', function () {
     '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628',
     '#f781bf', '#999999', '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3',
   ];
+  // Own pane below overlayPane (400), and not interactive: both layers load
+  // by separate fetches, so without this whichever finished last drew on top
+  // and its fill swallowed the coverage layer's hover tooltips.
+  map.createPane('counties');
+  map.getPane('counties').style.zIndex = 350;
   const counties = L.geoJSON(null, {
-    style: function (feature, index) {
+    pane: 'counties',
+    interactive: false,
+    style: function (feature) {
       return{
         color: COUNTY_COLORS[feature.properties.county_fips.charCodeAt(2) % COUNTY_COLORS.length],
         weight: .25,
