@@ -57,7 +57,11 @@ item 65.
 
 What exists for Phase 5 so far: `send_log`, `email_templates` and `dnc_list`
 from `sql/007`, and `workstate.py` reading `send_log` for the "Sent" state.
-`send_log` and `email_templates` are empty. `dnc_list` holds 759 suppressions,
+`send_log` and `email_templates` are empty. `sql/029` and `sql/030` enforce
+append-only on both with triggers (applied to `hail-dev` 2026-09-30, not
+checked on the production box; `sql/guard_test.sql` tests them). The table
+owner can still `TRUNCATE` — accepted, decision log 2026-09-30. `dnc_list`
+holds 759 suppressions,
 imported 2026-09-29 through the admin upload (`/admin`, `sql/026`,
 `hailsys/queries/dncimport.py`) from the Constant Contact export plus the
 Airtable-only entries. That union may still be incomplete (`docs/parking-lot.md`

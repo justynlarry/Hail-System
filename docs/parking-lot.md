@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*60 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
+*59 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
 
 ## 1. Which role sees operational views
 
@@ -189,27 +189,6 @@ about" — a different fact under the same name.
 
 **When:** Phase 5, when sending is built. *(`database-schema.md`, open
 question 9)*
-
-## 20. Should append-only be enforced by the database, not just convention?
-
-**Status:** open
-
-`send_log` and `email_templates` are append-only by convention and by code —
-no trigger, no rule, no `REVOKE`. Every other rule this project treats as
-load-bearing lives in the database; this is the one exception.
-
-Options, cheapest first: `REVOKE UPDATE, DELETE` from the application role
-(but that also blocks the legitimate provider-status update on `send_log`); a
-`BEFORE UPDATE OR DELETE` trigger allowing only status columns to change; or
-splitting status updates into a separate table so the log itself is
-genuinely insert-only.
-
-**Explicitly deferred to Phase 5** in `database-schema.md` — deciding now
-would mean designing against a guess of the real update pattern.
-
-**When:** Phase 5. *(`database-schema.md`, open question 10)*
-
-**Reframed 2026-09-30: this is a live gap, not only a Phase 5 design question.** `CLAUDE.md` states as a non-negotiable rule that `send_log` and `email_templates` are append-only. Checked 2026-09-30: `hail_app` holds `INSERT, SELECT, UPDATE` on **both** tables, and no trigger guards either (the only non-internal triggers are `layer_integrity_checks`, `trg_last_admin`, `iem_data_compute_zip_distances` and `trg_log_settings_change`). The rule holds by convention alone today. Both tables are empty, so nothing has been lost, but the gap should be closed before the first send; it is the design decision described above, now with a deadline.
 
 ## 23. Address lookup — "did this address get hit?"
 
@@ -1951,7 +1930,7 @@ earliest.
 
 ## Closed
 
-*39 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
+*40 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
 
 <details>
 <summary>Closed items (resolved and dropped)</summary>
@@ -2138,6 +2117,29 @@ send time and letting the sender decide, but the rule is unstated today.
 *(`database-schema.md`, open question 7)*
 
 **Resolved 2026-09-30, by developer answer.** "Active at match time" is the whole rule: `matcher.py:59` filters `l.list_status = 'Active'`, and there is no send-time re-check. Related: item 140 (marking listings past the freshness threshold).
+
+## 20. Should append-only be enforced by the database, not just convention?
+
+**Status:** resolved 2026-09-30 3726c08
+
+`send_log` and `email_templates` are append-only by convention and by code —
+no trigger, no rule, no `REVOKE`. Every other rule this project treats as
+load-bearing lives in the database; this is the one exception.
+
+Options, cheapest first: `REVOKE UPDATE, DELETE` from the application role
+(but that also blocks the legitimate provider-status update on `send_log`); a
+`BEFORE UPDATE OR DELETE` trigger allowing only status columns to change; or
+splitting status updates into a separate table so the log itself is
+genuinely insert-only.
+
+**Explicitly deferred to Phase 5** in `database-schema.md` — deciding now
+would mean designing against a guess of the real update pattern.
+
+**When:** Phase 5. *(`database-schema.md`, open question 10)*
+
+**Reframed 2026-09-30: this is a live gap, not only a Phase 5 design question.** `CLAUDE.md` states as a non-negotiable rule that `send_log` and `email_templates` are append-only. Checked 2026-09-30: `hail_app` holds `INSERT, SELECT, UPDATE` on **both** tables, and no trigger guards either (the only non-internal triggers are `layer_integrity_checks`, `trg_last_admin`, `iem_data_compute_zip_distances` and `trg_log_settings_change`). The rule holds by convention alone today. Both tables are empty, so nothing has been lost, but the gap should be closed before the first send; it is the design decision described above, now with a deadline.
+
+**Closed 2026-09-30.** `sql/029` (`send_log`) and `sql/030` (`email_templates`) enforce append-only with `BEFORE UPDATE` and `BEFORE DELETE` triggers; `DELETE` and `TRUNCATE` are revoked from `hail_app`. Applied to `hail-dev`, and `sql/guard_test.sql` passed 18 of 18. The production OptiPlex was not checked. **Residual, accepted:** the table owner (`hail_admin`) can still `TRUNCATE`, and can disable the triggers. See decision log 2026-09-30.
 
 ## 21. Should ingest widen past `state=CO`?
 

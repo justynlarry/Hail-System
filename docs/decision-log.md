@@ -5649,3 +5649,52 @@ enforced on `email_norm`, not on any date — but for these ~40 rows,
 that's ever asked.
 
 **When:** note only, no action expected.
+
+## 2026-09-30 — Append-only is now enforced in the database; owner TRUNCATE left open
+
+Supersedes the 2026-09-03 entry "Append-only is application-layer; database
+enforcement deferred" (parking-lot item 20). `sql/029` (`send_log`) and
+`sql/030` (`email_templates`) add `BEFORE UPDATE` and `BEFORE DELETE` row
+triggers. Applied to `hail-dev` 2026-09-30; `sql/guard_test.sql` (18 checks,
+run in a transaction that rolls back) passed 18 of 18. Not checked on the
+production OptiPlex.
+
+**`send_log` — what may change after insert:** `send_status`,
+`status_updated_at`, `provider_message_id`, `error_detail`, and `sent_at`
+(write-once, NULL to a value). Frozen: `send_id`, `realtor_id`,
+`recipient_email`, `match_id`, `template_id`, `queued_at`, `sent_by`.
+`DELETE` is refused.
+
+**`send_log` status only moves forward:** `queued` to `sent` or `failed`;
+`sent` to `bounced` or `complained`; `bounced` to `complained`. `failed` is
+terminal. A same-status update is allowed so a retried provider webhook is a
+no-op. **Known edge:** `queued` cannot go straight to `bounced` or
+`complained`. If the provider accepts a message but we never record `sent`, a
+later bounce webhook hits the exception instead of being recorded. Left as is
+until the send path is decided. Also, `queued` to `sent` must set `sent_at` in
+the same `UPDATE` (the `sent_has_timestamp` CHECK requires it, and the
+write-once rule then freezes it).
+
+**`email_templates`:** every column frozen except `is_active`, which may go
+true to false only. A retired template is never reactivated; write a new one.
+`DELETE` is refused.
+
+**Decision: `TRUNCATE` by the table owner is not blocked, and that is
+acceptable for now.** Row triggers never fire on `TRUNCATE`. `DELETE` and
+`TRUNCATE` are revoked from `hail_app` on both tables, which covers the
+application role (it held only `INSERT, SELECT, UPDATE` to begin with, so the
+revokes are belt-and-braces and make the intent explicit). `hail_admin` owns
+the tables and can still `TRUNCATE`, and can also disable or drop the
+triggers, so a statement-level `BEFORE TRUNCATE` trigger would narrow the gap
+without closing it. Accepted because `hail_admin` is one person, the only one
+with access. `sql/guard_test.sql` has a `KNOWN GAP` check that expects
+`TRUNCATE` to succeed.
+
+**Why:** the audit trail's guarantee is against the application, not against
+someone with admin access. That is enough while it is one person. The
+application must never connect as `hail_admin`, or the revokes do nothing.
+
+**When:** revisit when a second person gets database access, or before anyone
+needs to show the log is tamper-proof. Adding the trigger is a few lines: a
+`no_truncate()` function and a `BEFORE TRUNCATE ... FOR EACH STATEMENT` trigger
+on each table, plus flipping the test's expected result to `23001`.
