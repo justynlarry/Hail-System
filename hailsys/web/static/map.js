@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', function () {
     style: function (feature, index) {
       return{
         color: COUNTY_COLORS[feature.properties.county_fips.charCodeAt(2) % COUNTY_COLORS.length],
-        weight: 1.5,
+        weight: .25,
         fillColor: '#999',
         fillOpacity: 0.35,
       };
