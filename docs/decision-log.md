@@ -5617,3 +5617,35 @@ likely a handful of properties carrying multiple listings with different
 agents, where "which agent counts" wasn't pinned down with an explicit
 tie-break on this rebuild. Not chased further; the headline numbers and
 the underlying pattern are solid either way.
+
+## 2026-09-30 — `api_pulls` identity gaps are expected (moved from parking-lot item 128)
+
+Moved out of `docs/parking-lot.md`, where it was informational with no action
+attached; the parking-lot number 128 is left vacant.
+
+27 rows, `pull_id` running 7 to 81 — the gap is from sequence values consumed
+by `INSERT`s inside test transactions that were rolled back during this
+project's verification work (the sequence itself doesn't roll back with the
+transaction, by design). Normal, expected Postgres behavior, not a sign of
+lost or failed pulls. Recorded so nobody spends time investigating it twice.
+
+**When:** none — informational only.
+
+Re-counted 2026-09-30: `api_pulls` now holds 38 rows, `pull_id` 7 to 92 (the
+figures above, 27 rows and 7 to 81, were current when it was written).
+
+## 2026-09-30 — The Airtable-only suppressions carry the wrong kind of date (moved from parking-lot item 131)
+
+Moved out of `docs/parking-lot.md`, where it was note-only with no action
+expected; the parking-lot number 131 is left vacant.
+
+Converting Airtable's rows to the Constant Contact import shape used the
+`Date` column (when the contact was created) for `added_at`, not the
+`Time Removed` column (when they actually asked to stop) — that column
+was dropped in the conversion since the importer only understands the
+Constant Contact shape. Suppression itself is unaffected, since it's
+enforced on `email_norm`, not on any date — but for these ~40 rows,
+`dnc_list.added_at` is not evidence of when the person unsubscribed, if
+that's ever asked.
+
+**When:** note only, no action expected.
