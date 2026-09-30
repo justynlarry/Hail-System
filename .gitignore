@@ -46,3 +46,5 @@ __pycache__/
 output/
 spatial_ref_sys
 .vscode/
+cloudflared/*.json
+
