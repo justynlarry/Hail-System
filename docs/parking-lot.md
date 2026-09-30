@@ -2195,7 +2195,7 @@ deferred — the `state=CO` filter (2026-09-04) stands as originally chosen.
 
 ## 22. Map — side-by-side with the storm list
 
-**Status:** resolved 2026-09-16 89afdfe
+**Status:** resolved 2026-09-16
 
 Leaflet from a CDN, no build step, consistent with the server-rendered
 decision. Three layers: the 183 coverage zips as a static pre-generated
@@ -2298,7 +2298,7 @@ If so, there's no silent-match problem.
 
 ## 39. Admin page — settings table, users and roles, role_required
 
-**Status:** resolved 2026-09-22 ef01c03
+**Status:** resolved 2026-09-22
 
 Concrete Phase 4 shape, elaborating item 14: a single-row typed settings
 table (zip radius, match radius, `hail_pair_ceiling_m()` shown read-only
@@ -2418,7 +2418,7 @@ time a storm is seen stuck on "Pulling...".
 
 ## 50. Monthly RentCast quota tracker
 
-**Status:** resolved 2026-09-23 c34c662
+**Status:** resolved 2026-09-23
 
 The plan is 1,000 requests/month flat, overage billed after. Nothing in the
 system tracks usage against that ceiling — `api_pulls`/`api_call_log`
@@ -2768,7 +2768,7 @@ matches; pull 81: 26 zips, 3,323 listings).
 
 ## 122. The current DNC list is checked in against the realtor pool and Constant Contact — the import itself still isn't done
 
-**Status:** resolved 2026-09-29 3ebb5e7
+**Status:** resolved 2026-09-29
 
 Compared `rbi-dnc-list-09-28-2026.csv` (719 unique emails, the **full,
 current** DNC list — old `Created At` dates on individual entries, 2017 to
