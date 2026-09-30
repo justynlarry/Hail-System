@@ -56,9 +56,14 @@ still exists; whether it stays for bootstrapping is `docs/parking-lot.md`
 item 65.
 
 What exists for Phase 5 so far: `send_log`, `email_templates` and `dnc_list`
-from `sql/007`, all empty, and `workstate.py` reading `send_log` for the
-"Sent" state. No sending code, no provider chosen, and the legacy DNC lists
-not yet imported — that import must land before any send.
+from `sql/007`, and `workstate.py` reading `send_log` for the "Sent" state.
+`send_log` and `email_templates` are empty. `dnc_list` holds 759 suppressions,
+imported 2026-09-29 through the admin upload (`/admin`, `sql/026`,
+`hailsys/queries/dncimport.py`) from the Constant Contact export plus the
+Airtable-only entries. That union may still be incomplete (`docs/parking-lot.md`
+item 129: the Constant Contact export may be missing ~9 months of
+unsubscribes) — settle it before the first send. No sending code and no
+provider chosen.
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
 with CSV export → 3 RentCast listings → 4 accounts → 5 email → 6 pilot →
