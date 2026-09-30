@@ -24,6 +24,8 @@ UNIQUE_MESSAGES = {
 CHECK_MESSAGES = {
     "match_within_zip_radius":
         "Match radius can't be larger than the zip radius.",
+    "settings_listing_freshness_days_check":
+        "Listing freshness must be between 1 and 90 days",
     "settings_default_zip_radius_miles_check":
         "Zip radius must be more than 0 and no more than 10 miles.",
     "settings_default_match_radius_miles_check":
@@ -253,6 +255,7 @@ def update_settings():
         match_radius = Decimal(request.form.get("match_radius") or "")
         billing_day = int(request.form.get("billing_day") or "")
         monthly_quota = int(request.form.get("monthly_quota") or "")
+        freshness_days = int(request.form.get("freshness_days") or "")
     except (InvalidOperation, ValueError):
         flash("Radii, billing day, and quota must all be numbers.")
         return redirect(url_for("admin.index"))
@@ -267,9 +270,10 @@ def update_settings():
                 "UPDATE settings SET default_zip_radius_miles = %s, "
                 "       default_match_radius_miles = %s, "
                 "        rentcast_billing_day = %s, "
-                "         rentcast_monthly_quota = %s " 
+                "         rentcast_monthly_quota = %s, " 
+                "          listing_freshness_days = %s "
                 " WHERE id = 1",
-                (zip_radius, match_radius, billing_day, monthly_quota),
+                (zip_radius, match_radius, billing_day, monthly_quota, freshness_days),
             )
             conn.commit()
     except psycopg.errors.CheckViolation as e:
@@ -283,7 +287,8 @@ def update_settings():
         flash("One of those numbers is too large to store.")
     else:
         flash(f"Settings updated.  Zip {zip_radius} mi, match {match_radius} mi. "
-              f"Billing day {billing_day}, quota {monthly_quota}.")
+              f"Billing day {billing_day}, quota {monthly_quota}, "
+              f"listings fresh for {freshness_days} days.")
     return redirect(url_for("admin.index"))
 
 

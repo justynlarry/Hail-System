@@ -140,6 +140,10 @@
                        value="{{ settings.rentcast_monthly_quota }}" required>
                 <br><small>Overage is billed, not blocked — the pull estimate
                 warns and allows.</small></td></tr>
+        <tr><th><label for="freshness_days">Listing freshness (days)</label></th>
+            <td><input id="freshness_days" name="freshness_days" type="number"
+                       step="1" min="1" max="90"
+                       value="{{ settings.listing_freshness_days }}" required></td></tr>
         <tr><th>Ceiling (read-only)</th>
             <td>{{ "%.1f"|format(ceiling_miles) }} mi — raising it needs a migration
                 and a full recompute, not a settings change.</td></tr>
