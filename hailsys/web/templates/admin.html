@@ -174,7 +174,7 @@
   <div class="table-scroll">
   <table>
     <thead><tr><th>When</th><th>By</th><th>Zip radius</th><th>Match radius</th>
-               <th>Billing day</th><th>Monthly quota</th></tr></thead>
+               <th>Billing day</th><th>Monthly quota</th><th>Freshness (days)</th></tr></thead>
     <tbody>
     {% for h in history %}
       <tr>
@@ -185,9 +185,11 @@
         {# NULL on rows written before sql/023, which added these columns #}
         <td>{{ h.rentcast_billing_day if h.rentcast_billing_day is not none else "—" }}</td>
         <td>{{ h.rentcast_monthly_quota if h.rentcast_monthly_quota is not none else "—" }}</td>
+        {# NULL on rows written before sql/028, which added this column #}
+        <td>{{ h.listing_freshness_days if h.listing_freshness_days is not none else "—" }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="6">No changes yet.</td></tr>
+      <tr><td colspan="7">No changes yet.</td></tr>
     {% endfor %}
     </tbody>
   </table>

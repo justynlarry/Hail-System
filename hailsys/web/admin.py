@@ -71,7 +71,8 @@ def _render_admin(form=None, status=200):
             SELECT default_zip_radius_miles, default_match_radius_miles,
                    rentcast_billing_day, rentcast_monthly_quota,
                    global_sessions_invalidated_at,
-                   hail_pair_ceiling_m() AS ceiling_m
+                   hail_pair_ceiling_m() AS ceiling_m,
+                   listing_freshness_days
             FROM settings
             """
         )
@@ -81,14 +82,14 @@ def _render_admin(form=None, status=200):
             today=datetime.now(DISPLAY_TZ).date(),
             billing_day=settings["rentcast_billing_day"],
             quota=settings["rentcast_monthly_quota"],
-            day_bounds=denver_day_bounds
+            day_bounds=denver_day_bounds,
         )
 
         cur.execute(
             """
             SELECT h.changed_at, u.user_name,
                    h.default_zip_radius_miles, h.default_match_radius_miles,
-                   h.rentcast_billing_day, h.rentcast_monthly_quota
+                   h.rentcast_billing_day, h.rentcast_monthly_quota, h.listing_freshness_days
             FROM settings_history h
             JOIN users u ON u.emp_id = h.changed_by
             ORDER BY h.changed_at DESC
