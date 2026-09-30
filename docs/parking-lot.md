@@ -14,7 +14,7 @@ problem this file now exists to remove.
 (gated on something named), `resolved`, `resolved (residuals)` (shipped, with
 named leftover work), `deferred`, `dropped` or `superseded by <n>`. Items are
 grouped by status: Open, Watch list, the parked permits workstream, the two
-unnumbered notes, then Resolved (which also holds dropped items) at the end.
+unnumbered notes, then Closed (resolved and dropped items) at the end.
 Item numbers never change. Items 128 and 131 were informational and moved to
 `docs/decision-log.md` (2026-09-30 entries); their numbers are left vacant.
 
@@ -603,7 +603,7 @@ disagreement could be a genuine distinct street.
 
 ## 61. Force a password change on next login after an admin reset
 
-**Status:** deferred 2026-09-23 — revisit at system completion
+**Status:** deferred 2026-09-30 — revisit at system completion
 
 An admin reset sets a password the admin now knows. Nothing makes the user
 replace it. A `must_change_password` flag, set by the reset and cleared by
@@ -612,9 +612,13 @@ close that.
 
 **When:** Phase 4, if wanted.
 
-**Deferred, 2026-09-23** (recorded at the time as "declined for now"; corrected 2026-09-30 — it was deferred, not dropped). See `docs/decision-log.md`, "No forced
+**Prior decision, 2026-09-23: declined for now.** See `docs/decision-log.md`, "No forced
 password change after an admin reset, for now". Reconsider before staff
 accounts exist (Phase 7).
+
+**Deferred, 2026-09-30.** Not dropped: the developer intends to revisit it at
+system completion. (The 2026-09-23 marker on this item read "declined", which
+overstated it.)
 
 ## 63. A reachable path to `hail-dev` for anyone but the developer
 
@@ -1703,7 +1707,7 @@ truthiness check somewhere, for instance).
 
 ## Deferred workstream: permits
 
-*Items 70–82, 97 and 98, all gated on item 70 ("until the system is running"); item 74 is resolved and sits in the Resolved section. 14 items here. A future workstream, not a backlog.*
+*Items 70–82, 97 and 98, all gated on item 70 ("until the system is running"); item 74 is resolved and sits in the Closed section. 14 items here. A future workstream, not a backlog.*
 
 ## 70. Permits as a source — corroboration first, roof age later
 
@@ -1945,12 +1949,12 @@ earliest.
 
 ---
 
-## Resolved
+## Closed
 
 *39 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
 
 <details>
-<summary>Resolved and dropped items</summary>
+<summary>Closed items (resolved and dropped)</summary>
 
 ## 4. `county` has case variants and no normalized column
 
@@ -2766,7 +2770,7 @@ matches; pull 81: 26 zips, 3,323 listings).
 
 **Watch, 2026-09-30:** reopen if another listing aborts a pull in the upsert (this item's own "when it happens again"). No recurrence so far: no pull has failed since 2026-09-25, and 33 have completed. The three failed pulls this item names (41, 78, 79) are in `api_pulls` as described.
 
-## 122. The current DNC list is checked in against the realtor pool and Constant Contact — the import itself still isn't done
+## 122. The current DNC list is checked in against the realtor pool and Constant Contact — and the import is done (2026-09-29)
 
 **Status:** resolved 2026-09-29
 
@@ -2820,7 +2824,7 @@ sync and never made it into Airtable. **The real import source is the union
 of all suppression files found so far** (the original DNC export, this
 Constant Contact copy, and Airtable), not any single one.
 
-**Import done, 2026-09-30.** Batch #1 (the Constant Contact export, 719 rows) was committed 2026-09-29 15:26 UTC through the admin upload (`3ebb5e7`), and batch #3 (Airtable, converted by hand to the Constant Contact shape; 735 rows, 40 of them new) at 15:27. `dnc_list` holds 759 suppressions, all `source = 'legacy_import'`, none removed, 108 linked to a realtor. See the decision log, "DNC import: admin upload, staged and previewed before commit". This item's heading and first section still describe the state on 2026-09-28 and are kept for the reasoning. **Residuals:** item 129 means the loaded union may still be incomplete (the Constant Contact export's newest unsubscribe is 2025-12-13), and the original `rbi-dnc-list-09-28-2026.csv` was judged the same data as the Constant Contact copy "by its early rows" without a recorded full comparison. `CLAUDE.md` still says the legacy lists are not yet imported; that is stale.
+**Import done, 2026-09-30.** Batch #1 (the Constant Contact export, 719 rows) was committed 2026-09-29 15:26 UTC through the admin upload (`3ebb5e7`), and batch #3 (Airtable, converted by hand to the Constant Contact shape; 735 rows, 40 of them new) at 15:27. `dnc_list` holds 759 suppressions, all `source = 'legacy_import'`, none removed, 108 linked to a realtor. See the decision log, "DNC import: admin upload, staged and previewed before commit". This item's first section still describes the state on 2026-09-28 and is kept for the reasoning. **Residuals:** item 129 means the loaded union may still be incomplete (the Constant Contact export's newest unsubscribe is 2025-12-13), and the original `rbi-dnc-list-09-28-2026.csv` was judged the same data as the Constant Contact copy "by its early rows" without a recorded full comparison. `CLAUDE.md` still says the legacy lists are not yet imported; that is stale.
 
 ## 132. `dnc_list.email_raw` can carry leading whitespace; only `email_norm` is trimmed
 
