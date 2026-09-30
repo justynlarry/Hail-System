@@ -27,6 +27,8 @@ where it had been recorded four days earlier.
 
 ## 1. Which role sees operational views
 
+**Status:** open
+
 Open question 11. The three application roles are defined as **cost stages** —
 `viewer` browses free data, `sender` spends money and reputation, `admin`
 manages users and nothing else. Ingest health is not a cost stage: it costs
@@ -52,7 +54,11 @@ paragraph explicitly declines to say which role sees `ingest_runs`; it only
 confirms the application still needs its own login. Not resolved by that
 entry or any other from that day.
 
+**Decision, 2026-09-30:** everyone should see ingest health, not one role. No web route reads `ingest_runs` or `iem_ingest_rejects` today (checked 2026-09-30), so the work is to build one. `hail_app`'s provisional `SELECT` on those two tables (`sql/010`) stays. `api_pulls` and `api_call_log` have the same unanswered question and are not covered by this decision.
+
 ## 2. `nws_issuer` is NOT NULL and unguarded
+
+**Status:** open (watch)
 
 `iem_data.nws_issuer` is `NOT NULL`, but `iem_parse.parse_row` returns
 `_clean(row["WFO"])`, which is `None` for an empty WFO field. No reject reason
@@ -66,6 +72,8 @@ skip-and-continue from drifting into swallowing whatever goes wrong.
 **When:** if a run ever fails naming `nws_issuer`.
 
 ## 3. The base image is on an EOL operating system
+
+**Status:** open
 
 `postgis/postgis:16-3.4` is built on Debian bullseye, which went EOL
 2026-09-07. The day after, the loader build began failing on expired apt
@@ -87,7 +95,11 @@ plus the PostGIS extension, or waiting for upstream.
 **When:** before RBI deployment. Not acceptable to ship to a box on a company
 network and forget.
 
+**Gate, 2026-09-30:** recheck when the production machine is set up; its hardware is still pending receipt. Not a Phase 5 fix. Verified 2026-09-30 that the running `postgis` container still reports Debian 11 (bullseye) and that `docker/loader.Dockerfile` still carries the workaround. The `web`, `app` and `ingest` images are `python:3.12-slim` and are not affected; the registry was not checked for a newer upstream tag.
+
 ## 4. `county` has case variants and no normalized column
+
+**Status:** resolved 2026-09-14 65f5e36
 
 `iem_data.county` is free text: `EL PASO` has 10,299 rows and `El Paso` has
 2,549, and **64 county groups differ only by case**. `iem_data` carries a
@@ -117,6 +129,8 @@ file's own rule that the reasoning is worth more than the conclusion.
 
 ## 5. Workable hail days swing 10–42 per year
 
+**Status:** dropped 2026-09-30
+
 Within `coverage_zips`, at ≥1.00″, within 5 miles: **542 distinct hail days
 across 22 years**, averaging ~25/year but ranging from 10 (2022) to 42 (2023).
 
@@ -132,7 +146,11 @@ way.
 
 **When:** Phase 2 capacity planning.
 
+**Dropped 2026-09-30.** Capacity is a non-issue: if volume is high, the business is doing well and can afford it (developer).
+
 ## 6. Aggregated one-row-per-zip export
+
+**Status:** resolved 2026-09-14 578709d
 
 `scripts/export_storm_zips.py` currently emits one row per **report-zip pair**.
 A single report falls within the radius of several coverage zips, so a busy day
@@ -162,6 +180,8 @@ alongside it, or a distinct-report count, covers that.
 
 ## 7. mPING arrives as `PUBLIC`
 
+**Status:** dropped 2026-09-30
+
 Several reports in the archive carry remarks like *"Report from mPING: Half
 Dollar (1.25 in.)"* — mPING is a crowd-sourced phone app where a user taps a
 hail-size icon. It flows through `SOURCE = PUBLIC`, the same label as a walk-up
@@ -176,7 +196,11 @@ Only findable in `remark`, which means it cannot be filtered on cleanly.
 
 **When:** Phase 2, if the confidence display turns out to need the distinction.
 
+**Dropped 2026-09-30.** Moot: the radar study kept `confidence_tier` out of the UI (decision log 2026-09-16), so the display never needed the mPING distinction.
+
 ## 8. `WALL CLOUD` and `ICE STORM` are not in `report_types`
+
+**Status:** open (watch)
 
 Two real IEM type pairs absent from the curated 37: `('X', 'WALL CLOUD')` from
 2010-08-04 and `('5', 'ICE STORM')` from 2006-12-20. Both rejected as
@@ -194,6 +218,8 @@ seed gap to fix rather than a parser bug.
 **When:** decide if a third unknown type ever appears.
 
 ## 9. The absence query has no schedule and nowhere to alert
+
+**Status:** open
 
 Ingest health is an **absence** query, not a status query:
 
@@ -221,6 +247,8 @@ is wired up and no alert fires today.
 
 ## 10. Do IEM reports arrive after their event date?
 
+**Status:** resolved 2026-09-30
+
 The ingest window filters on `VALID`, the time the event happened, not on when
 IEM received the report. A report entered days after its storm falls outside
 every nightly window and is **never fetched** — not late, permanently missed.
@@ -235,7 +263,11 @@ was not recorded here.** Check `ingest_runs` for `run_mode = 'replay'`.
 
 **When:** check after a few weeks of replay runs.
 
+**Answered 2026-09-30.** Four weekly replays (`ingest_runs` 18, 21, 32, 42) inserted 6, 0, 106 and 3 rows, 115 in total, so reports do arrive after their event date and the weekly replay earns its keep. The 2026-09-11 count this item said was unrecorded is 6. Nightlies ran continuously 09-11 to 09-21, so run 32's 106 is not an outage backfill. The developer accepted these numbers as the answer.
+
 ## 11. Hail size names for email templates
+
+**Status:** open
 
 StormerSite renders hail as *"Golf Ball"*, *"Half Dollar"*, *"Ping Pong"*
 alongside the inch measurement. An agent reads 1.75″ fine; a homeowner says
@@ -248,6 +280,8 @@ has somewhere to live. The email wording rule stands: the message claims a
 **When:** Phase 5, when templates are written.
 
 ## 12. Is a "storm" a first-class entity, or just a query?
+
+**Status:** open (watch)
 
 The UI concept is *"Hail — August 24 — 14 neighborhoods."* That groups many
 individual reports into one event. Currently that grouping is a query
@@ -266,6 +300,8 @@ belong to — a backfill problem created by waiting, not avoided by it.
 event rather than only group by query. *(`database-schema.md`, open question 1)*
 
 ## 13. Buffer radius default — value, storage, and the per-type asymmetry
+
+**Status:** resolved 2026-09-21 2e0932e
 
 `storm_listing_matches.radius_used` records what was used per match, but
 nothing states a default, or where it would live — a constant in config, a row
@@ -295,6 +331,8 @@ and remains unresolved; carried forward as item 38.
 
 ## 14. Is there a settings table at all?
 
+**Status:** resolved 2026-09-22 6a43191
+
 Radius default, frequency-cap window, monthly API ceiling, warmup send limit —
 none of these has a home today. A settings table means tuning them without a
 deploy, the same argument that already justified putting `roof_relevant` in
@@ -312,6 +350,8 @@ frequency-cap window (item 15) will need a home there too.
 
 ## 15. Does the frequency cap have a hard floor?
 
+**Status:** open
+
 Decided in principle: a short window nobody can click past, plus a soft
 warning above it. The actual numbers are unset, and the hard floor needs
 enforcing in the database rather than the application, or it is not really a
@@ -325,6 +365,8 @@ question 5)*
 
 ## 16. Merge field vocabulary — where is it stored?
 
+**Status:** open
+
 Established that the merge-field list for email templates should be reference
 data, not a hardcoded list, but it is not yet designed. Likely a small table:
 placeholder name, source expression, whether it's required.
@@ -335,6 +377,8 @@ question 6)*
 
 ## 17. What happens to a listing that goes inactive after a match?
 
+**Status:** resolved 2026-09-30
+
 A match points at a listing that may since have sold. Does the browser still
 show it? Does it still get emailed? Probably worth surfacing `list_status` at
 send time and letting the sender decide, but the rule is unstated today.
@@ -342,7 +386,11 @@ send time and letting the sender decide, but the rule is unstated today.
 **When:** Phase 3, when matches start getting made against real listings.
 *(`database-schema.md`, open question 7)*
 
+**Resolved 2026-09-30, by developer answer.** "Active at match time" is the whole rule: `matcher.py:59` filters `l.list_status = 'Active'`, and there is no send-time re-check. Related: item 140 (marking listings past the freshness threshold).
+
 ## 18. Retention policy for `raw_payload`
+
+**Status:** open (watch)
 
 The `JSONB` of every RentCast response is cheap at current volume but grows
 without bound. No policy set — probably fine indefinitely, worth revisiting if
@@ -352,6 +400,8 @@ without bound. No policy set — probably fine indefinitely, worth revisiting if
 trigger item, not a deadline. *(`database-schema.md`, open question 8)*
 
 ## 19. Does outreach ever fall back to the office email when an agent has none?
+
+**Status:** open
 
 `listingAgent.email` is frequently missing; `office_email_norm` and
 `list_office_email_norm` exist so a batch can be pre-flighted against
@@ -377,6 +427,8 @@ question 9)*
 
 ## 20. Should append-only be enforced by the database, not just convention?
 
+**Status:** open
+
 `send_log` and `email_templates` are append-only by convention and by code —
 no trigger, no rule, no `REVOKE`. Every other rule this project treats as
 load-bearing lives in the database; this is the one exception.
@@ -392,7 +444,11 @@ would mean designing against a guess of the real update pattern.
 
 **When:** Phase 5. *(`database-schema.md`, open question 10)*
 
+**Reframed 2026-09-30: this is a live gap, not only a Phase 5 design question.** `CLAUDE.md` states as a non-negotiable rule that `send_log` and `email_templates` are append-only. Checked 2026-09-30: `hail_app` holds `INSERT, SELECT, UPDATE` on **both** tables, and no trigger guards either (the only non-internal triggers are `layer_integrity_checks`, `trg_last_admin`, `iem_data_compute_zip_distances` and `trg_log_settings_change`). The rule holds by convention alone today. Both tables are empty, so nothing has been lost, but the gap should be closed before the first send; it is the design decision described above, now with a deadline.
+
 ## 21. Should ingest widen past `state=CO`?
+
+**Status:** resolved 2026-09-17 9f0027a
 
 Filed under this heading rather than the source's own — *"Out-of-state reports
 are excluded permanently"* — because that title states a fact, not a question,
@@ -450,6 +506,8 @@ deferred — the `state=CO` filter (2026-09-04) stands as originally chosen.
 
 ## 22. Map — side-by-side with the storm list
 
+**Status:** resolved 2026-09-16 89afdfe
+
 Leaflet from a CDN, no build step, consistent with the server-rendered
 decision. Three layers: the 183 coverage zips as a static pre-generated
 GeoJSON fixture in `static/`, simplified once by a script and cached by the
@@ -478,6 +536,8 @@ coloured by normalized source, and 5-mile `L.circle` rings.
 
 ## 23. Address lookup — "did this address get hit?"
 
+**Status:** open (parked) — gated on Phase 6
+
 A one-off tool: paste an address, get the reports near it. Different unit of
 analysis from everything else built — the coverage-zip join drops out
 entirely, since the question is whether a report fell within X miles of one
@@ -496,7 +556,11 @@ that and is a single `ST_DWithin`.
 work (items 70–84; decision log 2026-09-23): a jurisdiction can only be
 stated for an address once the address is a point.
 
+**Re-gated 2026-09-30:** address search is a Phase 6 feature (see item 124). No geocoder or address route exists yet (checked 2026-09-30).
+
 ## 24. Replace the "Last N days" dropdown with a date picker
+
+**Status:** resolved 2026-09-18 854f5bc
 
 Explicit start and end dates, rather than a fixed set of ranges (30/90/365).
 
@@ -504,7 +568,11 @@ Explicit start and end dates, rather than a fixed set of ranges (30/90/365).
 grouped by zip or city is naturally scoped to an explicit date range, not one
 of three preset day counts.
 
+**Resolved 2026-09-18 (`854f5bc`).** `index()` switched from a `?days=` dropdown to explicit `?start=&end=`; date inputs are on the storm list, territory and exports pages, and `?days=` survives only as a URL shortcut. Confirmed by the developer on 2026-09-30 as what this item meant.
+
 ## 25. The match view can only show listings already pulled
+
+**Status:** resolved 2026-09-21 67bf831
 
 RentCast pulls cost money and the monthly ceiling has no settled home yet
 (open question 3 in `database-schema.md`; item 5's "runaway-bug tripwire"
@@ -525,12 +593,18 @@ so "never queried" and "queried, nothing there" no longer read the same.
 
 ## 26. PDF export with table and map
 
+**Status:** open (parked) — gated on Phase 6
+
 Depends on how the map got built; the three options are a headless-browser
 print, a server-side static map render, or a `@media print` stylesheet.
 
 **When:** after the map.
 
+**Re-gated 2026-09-30:** PDF export is a Phase 6 item. No PDF code exists (checked 2026-09-30; the only hit is Leaflet's own `@media print`).
+
 ## 27. CSV header labels
+
+**Status:** open
 
 `"Closest Report (mi)"` / `"Farthest Report (mi)"` (0 = inside the zip),
 `mag_unit` folded into the magnitude values, timestamps as
@@ -549,6 +623,8 @@ than when it was filed against one export.
 
 ## 28. Vendor Leaflet into `static/` instead of the CDN
 
+**Status:** resolved 2026-09-17 e22c02f
+
 **When:** before prod deployment.
 
 **Resolved 2026-09-17.** See `docs/decision-log.md`, "Vendor Leaflet into
@@ -560,11 +636,15 @@ here per this file's convention rather than deleted.
 
 ## 29. Extract the repeated filter parsing
 
+**Status:** open
+
 Five routes now duplicate the `days`/`type`/`actionable` parsing block.
 
 **When:** next time a route needs it.
 
 ## 30. Bind-mount `hailsys/` into the `app` service
+
+**Status:** open
 
 So one-off checks reflect the working tree rather than the last build. Cost
 us time twice.
@@ -572,6 +652,8 @@ us time twice.
 **When:** soon; dev-only.
 
 ## 31. Derive column lists from `cur.description`
+
+**Status:** open (watch)
 
 Rather than maintaining them alongside the SQL. `ZIPS_COLUMNS` and
 `ZIPS_SQL` have drifted twice, and the symptom is a blank cell, not an
@@ -581,6 +663,8 @@ error.
 
 ## 32. `StrictUndefined` in the Jinja environment
 
+**Status:** open
+
 Missing template variables currently render blank rather than raising,
 which has produced two silently-wrong pages.
 
@@ -588,11 +672,15 @@ which has produced two silently-wrong pages.
 
 ## 33. `REPORT_POINTS_SQL`'s `LIMIT` keeps the lowest `iem_id`, not the most recent reports
 
+**Status:** open (watch)
+
 Because `DISTINCT ON` pins the `ORDER BY`.
 
 **When:** if the map ever hits the 2000 cap.
 
 ## 34. A favicon
+
+**Status:** open
 
 To stop the 404 on every page load.
 
@@ -600,12 +688,16 @@ To stop the 404 on every page load.
 
 ## 35. Reverse direction of the radar analysis — signatures with no report
 
+**Status:** open (watch)
+
 Needs event clustering; five overlapping radars re-detecting every ~5
 minutes make raw counts meaningless.
 
 **When:** only if the forward result raises a question it can answer.
 
 ## 36. `CLAUDE.md` is stale
+
+**Status:** resolved 2026-09-18 f8913fd
 
 Claims the ingest scripts and test suite don't exist.
 
@@ -622,11 +714,17 @@ this file's convention rather than deleted.
 
 ## 37. Verify whether the 10 zip-less coverage zips are the already-removed rows
 
+**Status:** resolved 2026-09-30
+
 If so, there's no silent-match problem.
 
 **When:** next docs pass.
 
+**Resolved 2026-09-30.** Verified against the database: `coverage_zips` has 183 rows and none of the ten zips named in the decision log (80502, 80522, 80539, 80632, 80638, 80901, 80225, 80523, 80639, 80213) is in it, so there is no silent-match problem. The 10 were reported and excluded at load (`load_coverage.sh`: 183 inserted, 10 reported).
+
 ## 38. Per-event-type radius — needs wind analysis first
+
+**Status:** open (watch)
 
 Split out of item 13, which item 13's resolution note didn't settle. Hail
 cores are narrow, straight-line wind is broad, and a downburst is very
@@ -639,6 +737,8 @@ already version-controlled, queryable from SQL.
 comment already points here.)*
 
 ## 39. Admin page — settings table, users and roles, role_required
+
+**Status:** resolved 2026-09-22 ef01c03
 
 Concrete Phase 4 shape, elaborating item 14: a single-row typed settings
 table (zip radius, match radius, `hail_pair_ceiling_m()` shown read-only
@@ -662,6 +762,8 @@ change that leaves zero active admins. See the 2026-09-22 decision-log entries.
 
 ## 40. "Matched, found nothing" is indistinguishable from "never matched"
 
+**Status:** resolved 2026-09-23 9b3fad3
+
 A match run that inserts zero rows (nothing was in range) leaves no trace —
 `storm_listing_matches` gets no new rows either way, so the badge stays
 `Pulled, not matched` whether or not anyone has actually clicked Match.
@@ -678,6 +780,8 @@ listings in range (item 89).
 
 ## 41. Index on `report_zip_distances (zcta5)` — for address lookup
 
+**Status:** open (watch)
+
 The table's only index today is the `(iem_id, zcta5)` primary key, which
 serves the `d.iem_id = i.iem_id` join `storms.py` runs. A `zcta5`-first
 index would serve a different access pattern — "every report near this one
@@ -686,6 +790,8 @@ zip" — which nothing queries yet but item 23's address-lookup tool would.
 **When:** when item 23 is built.
 
 ## 42. A complete pull where every zip failed still counts as pulled
+
+**Status:** open (watch)
 
 `run_pull` marks `api_status = 'complete'` once it's iterated every zip,
 regardless of how many individual zips returned a non-200 and zero
@@ -696,6 +802,8 @@ same as one that worked.
 about.
 
 ## 43. Test scripts attribute to `emp_id 1` (system) by accident
+
+**Status:** open
 
 `scripts/test_match.py`, `scripts/test_rentcast_pull.py` default `--emp-id
 1` in their own usage examples — the bootstrap system account, not a real
@@ -717,6 +825,8 @@ fixed 2026-09-23.
 
 ## 44. A pull job produces two feed lines
 
+**Status:** open (watch)
+
 `hailsys/web/jobs.py`'s `_pull_and_match` runs `match_storm` right after
 `run_pull`, so one click surfaces as a pull line and a separate match-run
 line in the activity feed. Accurate — both things happened — but reads as
@@ -726,6 +836,8 @@ more activity than one decision produced.
 
 ## 45. Rebuild step belongs in the verification loop
 
+**Status:** open
+
 Companion to the already-filed "Nothing rebuilds automatically" entry
 (2026-09-18): that entry names the failure mode, this item is the standing
 todo to make a build-and-recreate step a checklist item — or a script —
@@ -734,6 +846,8 @@ rather than something that has to be remembered fresh each audit.
 **When:** process improvement, no deadline.
 
 ## 46. No "pull again" affordance — Pull link only shows on Not pulled
+
+**Status:** resolved 2026-09-23 306056d
 
 Once a storm moves off `Not pulled`, there's no button to re-pull it — by
 design, since a duplicate pull spends real money, but there's also no
@@ -750,6 +864,8 @@ recent-pull warnings. Storms past the claim window show it greyed, and
 `/pull/estimate` is deliberately not gated on staleness.
 
 ## 47. Stale `'running'` pulls after a restart — needs a sweep
+
+**Status:** resolved (residuals) 2026-09-25 54cc7f2
 
 `hailsys/web/jobs.py`'s own docstring already names the gap: `daemon=True`
 means a thread dies with its process, leaving `api_pulls` stuck at
@@ -809,6 +925,8 @@ time a storm is seen stuck on "Pulling...".
 
 ## 48. Badge CSS classes derive from `workstate.py` label strings
 
+**Status:** open (watch)
+
 `storms.html` builds `badge-{{ row.work_state.state | lower | replace(' ',
 '-') | replace(',', '') }}` — the CSS class is computed from the label text
 itself, not a stable key. Renaming a label in `workstate.py` (`NOT_PULLED`,
@@ -823,6 +941,8 @@ describes; `.badge-pulling` (purple) was added in the follow-up commit
 (item 57).
 
 ## 49. No cap on export date-range width
+
+**Status:** open (reopened)
 
 *(Resolved 2026-09-25: capped at 400 days, and the cost measured and accepted.
 Reopen conditions are at the end.)*
@@ -894,7 +1014,19 @@ or a range returns more than about 10,000 rows (twice today's largest). Rate
 limiting for an internet-facing app belongs to the Cloudflare tunnel work
 (item 110), not the application.
 
+**Reopened 2026-09-30.** The cap shipped (`54cc7f2`, `MAX_RANGE_DAYS = 400` at `views.py:28`, clamp at `views.py:79-98`), but this item's own reopen conditions ("more than about 2 seconds", "more than about 10,000 rows") are now met. Measured 2026-09-30 on `hail-dev`, read-only, through `exports.count_matches` and `fetch_matches` as `hail_app` (all report types, 5.0 mi radius, DNC excluded, one run each, warm cache):
+
+| Range | Rows | Count | Fetch |
+|---|---|---|---|
+| 30 days | 1,126 | 0.08s | 0.06s |
+| 90 days | 11,868 | 0.57s | 0.62s |
+| 400 days | 29,870 | 2.51s | 2.89s |
+
+`storm_listing_matches` held 97,370 rows, against 11,575 when this item was closed. The options already considered (a hard row ceiling, about 50,000 rows; streaming from a server-side cursor) are the next step. Not built; documentation only.
+
 ## 50. Monthly RentCast quota tracker
+
+**Status:** resolved 2026-09-23 c34c662
 
 The plan is 1,000 requests/month flat, overage billed after. Nothing in the
 system tracks usage against that ceiling — `api_pulls`/`api_call_log`
@@ -916,6 +1048,8 @@ not a hard block.** Open follow-ups: RentCast's own rollover timezone
 
 ## 51. Concurrent pulls by two users on one storm — duplicate spend
 
+**Status:** open
+
 Nothing stops two people clicking Pull on the same storm day within
 seconds of each other; both would spend real RentCast calls for the same
 zips. Low risk at five known users, but a real gap if headcount grows.
@@ -929,6 +1063,8 @@ click Pull within seconds of each other.
 
 ## 52. Re-check for NULL property coordinates as more zips are pulled
 
+**Status:** open (watch)
+
 `properties.geom` is generated from `list_latitude`/`list_longitude`; a row
 missing either produces a NULL `geom`, silently dropping that property from
 any spatial join. Worth a periodic check as more zips get pulled and the
@@ -940,7 +1076,11 @@ has a NULL `list_latitude`/`list_longitude` or a NULL `geom` today.
 
 **When:** periodic, as pull volume grows.
 
+**Re-checked 2026-09-30:** still zero NULL `geom`, now against 25,219 properties (16,407 on 2026-09-26, 1,964 when filed).
+
 ## 53. Zero test coverage under `hailsys/web/`
+
+**Status:** open
 
 Of the 100 test cases in `tests/`, 88 cover `hailsys/iem/` and the ingest
 scripts, and 12 (`tests/test_formatting.py`, 2026-09-22) cover
@@ -956,6 +1096,8 @@ have caught before a live check did.
 
 ## 54. Missing agent email — watch it as a rate
 
+**Status:** open (watch)
+
 `listingAgent.email` is frequently missing (`docs/data-sources.md`), and a
 listing with none gets no `realtor_id`, so it has nobody to send to. Measured
 2026-09-22: the 2026-09-21 pull returned 231 new listings and **40 (17%)** had
@@ -968,7 +1110,11 @@ are pulled before treating 17% as typical.
 **When:** watch as pulls accumulate; it decides how much outreach is
 reachable at all, so settle it before Phase 5.
 
+**Re-measured 2026-09-30:** 3,927 of 26,093 listings (15.0%) have no `realtor_id`. The 9.6% figure above (49 of 508 listings) is what it was when filed.
+
 ## 55. Duplicate properties from RentCast address variants — one lot, two emails
+
+**Status:** open
 
 RentCast's `id` is derived from the address string, so a formatting change
 upstream mints a new id for the same building (`docs/data-sources.md`). Two
@@ -1012,7 +1158,7 @@ address_key.sql`, `905895b`). `properties.address_key` via PostGIS's
 collapsed to one slot, position made irrelevant per the finding above),
 street name, suffix, unit, zip — city deliberately excluded, exactly because
 of the "Security Widefield / Colorado Springs" case already found here.
-Backfilled: 16,237 of 16,407 properties keyed, 170 `NULL` (no house
+Backfilled: 16,237 of 16,407 properties keyed, 170 `NULL` at the time (287 of 25,219 as of 2026-09-30) (no house
 number — vacant land, `TBD` roads, and rural addresses with a road number
 after a comma that don't parse one either). Verified: every stored value
 matches a fresh call, zero mismatches across the full table; `hail_app` can
@@ -1118,7 +1264,11 @@ built; revisit only if a duplicate email is actually reported. No suffix
 merging, ever — decided, not deferred, because a same-zip suffix
 disagreement could be a genuine distinct street.
 
+**Status, 2026-09-30: open.** The key exists and is populated (`sql/024`, `025`, `027`; 25,219 properties, 50 duplicate groups covering 100 properties, 287 NULL keys), and the send-time design is decided (Part 1, decision log 2026-09-29). But nothing reads `address_key`: the repository's only references are `sql/024`, `025`, `027` and docs. The matcher, the match page and the CSV exports all treat every `properties` row as distinct, and no send path exists. **The dedup is not built**, and this remains a blocker for the first send.
+
 ## 56. Backfill progress and ETA should count reports, not ID range
+
+**Status:** open (watch)
 
 `scripts/backfill_zip_distances.py` batches by `iem_id` range and reports
 progress and ETA as a fraction of that range. `iem_id` runs 1 to 398,134 for
@@ -1132,6 +1282,8 @@ and report progress against that.
 (`scripts/verify_zip_distances.py` covers the check afterward).
 
 ## 57. A "Pulling…" work state for running pulls
+
+**Status:** resolved (residuals) 2026-09-25 54cc7f2
 
 `workstate.py` treats any pull that is not `failed` as pulled, so a pull that
 is still `running` reads "Pulled, not matched" until its match run lands. The
@@ -1179,6 +1331,8 @@ working too, 2026-09-27.
 
 ## 58. Viewer gating not yet tested with a real viewer account
 
+**Status:** resolved 2026-09-23
+
 `role_required` on `/pull/estimate`, `/pull` and `/match`, and the `can_pull`
 gating on `storms.html`, were written 2026-09-22 but have not been exercised
 by a viewer login — nothing in that day's work has been exercised by a
@@ -1203,6 +1357,8 @@ Phase 4 is closed.
 
 ## 59. The CSRF error handler returns 302, indistinguishable from success
 
+**Status:** resolved 2026-09-23 d677846
+
 `handle_csrf_error` in `create_app()` flashes "That form expired…" and
 redirects back with a 302 — the same status a successful POST returns. A
 person sees the flash; anything checking status codes (a test, a script, a
@@ -1217,6 +1373,8 @@ with a rendered page". The handler renders `csrf_error.html` with status 400.
 Verified: a tokenless POST gets 400 and the error page.
 
 ## 60. Self-action guard for admins
+
+**Status:** resolved 2026-09-23 d677846
 
 An admin can deactivate, demote, or sign out their own account from the users
 table. `reset_password` already refuses the admin's own row and points at the
@@ -1234,6 +1392,8 @@ all three refused on the acting admin's row, users unchanged.
 
 ## 61. Force a password change on next login after an admin reset
 
+**Status:** deferred 2026-09-23 — revisit at system completion
+
 An admin reset sets a password the admin now knows. Nothing makes the user
 replace it. A `must_change_password` flag, set by the reset and cleared by
 `/account/password`, with the login redirecting there while it's set, would
@@ -1241,11 +1401,13 @@ close that.
 
 **When:** Phase 4, if wanted.
 
-**Declined for now, 2026-09-23.** See `docs/decision-log.md`, "No forced
+**Deferred, 2026-09-23** (recorded at the time as "declined for now"; corrected 2026-09-30 — it was deferred, not dropped). See `docs/decision-log.md`, "No forced
 password change after an admin reset, for now". Reconsider before staff
 accounts exist (Phase 7).
 
 ## 62. `scripts/*.py` still default `--radius` to `tuning.py` constants
+
+**Status:** resolved 2026-09-24 0f628f4
 
 The web app reads radii from `settings` per request (2026-09-22), but
 `export_storm_zips.py`, `test_estimate.py`, `test_match.py` and
@@ -1262,6 +1424,8 @@ radius. `tuning.py`'s comment now says the constants are for `scripts/` only.
 
 ## 63. A reachable path to `hail-dev` for anyone but the developer
 
+**Status:** open (parked) — gated on item 110 (Cloudflare tunnel)
+
 `web` publishes to `127.0.0.1:8000` only (decision-log 2026-09-14), so nothing
 off the host reaches it without `tailscale serve` or a tunnel in front of it.
 Needed before anyone else logs in — including the viewer test in item 58 if
@@ -1269,7 +1433,11 @@ it's run from another machine.
 
 **When:** Phase 6, or sooner.
 
+**2026-09-30:** no one else is on the tailnet (developer). `tailscale serve` on `hail-dev` fronts the app at `https://hail-dev.tail74972c.ts.net`, tailnet only, proxying `127.0.0.1:8000`. Item 110 (the Cloudflare tunnel) is the next step.
+
 ## 64. Emailed password-reset link
+
+**Status:** open
 
 Today a forgotten password means an admin resets it by hand from `/admin`. A
 self-service emailed link needs a sending path.
@@ -1277,6 +1445,8 @@ self-service emailed link needs a sending path.
 **When:** Phase 5, once sending exists.
 
 ## 65. `scripts/create_user.py` — bootstrap-only, or retire?
+
+**Status:** open
 
 It predates `/admin` and never sets `created_by`, so every account it creates
 has no author. The admin page now does the same job with attribution. Either
@@ -1287,6 +1457,8 @@ docstring) or remove it.
 
 ## 66. Username convention and its security implications
 
+**Status:** open
+
 Usernames are free-form at creation (stripped and lower-cased, nothing else).
 Settle the convention — and what it gives away, e.g. whether a username is
 guessable from a name or email — before real staff accounts exist, since
@@ -1295,6 +1467,8 @@ changing it afterward means renaming live logins.
 **When:** before real accounts get created.
 
 ## 67. Header bar doesn't wrap on phones
+
+**Status:** resolved 2026-09-23 d8d91cc
 
 `.site-header-right` is `white-space: nowrap` and the nav links can't shrink,
 so at phone widths the header alone is wider than the viewport and every page
@@ -1309,6 +1483,8 @@ Checked by rendered markup only, not in a browser at phone width.
 
 ## 68. Admin users table overflows narrow screens
 
+**Status:** resolved 2026-09-23 d8d91cc
+
 Eight columns plus the fixed 15rem Actions group. Same fix as the
 matched-listings tables: wrap it in `.table-scroll` so it scrolls in its own
 box instead of pushing the page.
@@ -1319,6 +1495,8 @@ box instead of pushing the page.
 `.table-scroll`. Checked by rendered markup only, not in a browser.
 
 ## 69. `.action-disabled` has no spacing next to the badge
+
+**Status:** resolved 2026-09-23 d8d91cc
 
 The greyed Pull/Match text sits flush against the status badge. The link and
 button it replaces get `margin-left: 0.5rem`, `font-size: 0.8125rem` and
@@ -1333,6 +1511,8 @@ markup only.
 
 ## 70. Permits as a source — corroboration first, roof age later
 
+**Status:** open (parked) — gated on item 70 ("until the system is running")
+
 Open-data roofing permits exist for Aurora, unincorporated Adams and
 unincorporated Douglas, and each surges after a known hail day
 (`docs/data-sources.md` §5). First use is internal corroboration: ranking,
@@ -1345,6 +1525,8 @@ the claim rule). Items 71–84 are the prerequisites and follow-ons.
 
 ## 71. Records (CORA) request to Aurora for full roofing-permit history
 
+**Status:** open (parked) — gated on item 70 ("until the system is running")
+
 Aurora's open-data permits start 2021-09-24, which looks like a rolling five
 years. A raw snapshot was taken 2026-09-23 (`data/raw/permits/aurora/`) so
 nothing more drops off unseen, but anything older than the window needs a
@@ -1355,6 +1537,8 @@ unconfirmed: re-check the earliest `InDate` on a later day.
 
 ## 72. Commercial-use terms for permit data
 
+**Status:** open (parked) — gated on item 70 ("until the system is running")
+
 Aurora publishes a disclaimer with an indemnity clause and no licence grant.
 Adams and Douglas publish no terms at all. Whether RBI may use permit data
 commercially is a question for RBI's attorney, or for each jurisdiction.
@@ -1362,6 +1546,8 @@ commercially is a question for RBI's attorney, or for each jurisdiction.
 **When:** before permit data appears in anything agents see.
 
 ## 73. RBI's business map, to set the permit-adapter order
+
+**Status:** open (parked) — gated on item 70 ("until the system is running")
 
 The top-three ranking used in the 2026-09-23 research counted stored
 `properties`, which reflects which 5 zips had been pulled, not where RBI
@@ -1371,6 +1557,8 @@ should follow where RBI actually wins work.
 **When:** before any permit adapter is built.
 
 ## 74. Real jurisdiction count from the inventory
+
+**Status:** resolved 2026-09-24 b92841b
 
 `output/jurisdiction_inventory_2026-09-23.csv` (680 rows, 183 zips) includes
 slivers where TIGER and DOLA edges disagree. Excluding rows under 0.5% of a
@@ -1391,6 +1579,8 @@ its own. 32 issuers are still unverified (item 98).
 
 ## 75. Correction and override table for jurisdiction
 
+**Status:** open (parked) — gated on item 70 ("until the system is running")
+
 Three known cases where the polygon answer is not the whole answer:
 - The Hudson source error `03782` → `37820` (decision log 2026-09-23).
 - Municipalities that contract their building department out to the county
@@ -1405,6 +1595,8 @@ silently lost.
 
 ## 76. DOLA boundary lag and refresh cadence
 
+**Status:** open (parked) — gated on item 70 ("until the system is running")
+
 DOLA republishes nightly, but that only dates the publish. How far behind
 the real annexations it runs is measurable from the newest `cl_re_date` in
 the 1,911-row `Municipal_Boundary` layer. Settle how often
@@ -1413,6 +1605,8 @@ the 1,911-row `Municipal_Boundary` layer. Settle how often
 **When:** before address search states jurisdictions.
 
 ## 77. Near-boundary confidence flag
+
+**Status:** open (parked) — gated on item 70 and on item 23 (geocoding)
 
 Flag an address whose point sits close to a municipal boundary:
 `ST_Distance` on geography to the nearest boundary, starting at a ~30 m
@@ -1423,6 +1617,8 @@ boundaries each carry error, and an answer 10 m from a line should say so.
 
 ## 78. Jurisdiction accuracy test against the permit datasets
 
+**Status:** open (parked) — gated on item 70 and on item 23 (geocoding)
+
 The downloaded permit datasets say which department issued each permit, so
 they serve as ground truth. Run our address → point → jurisdiction path
 over their addresses and count disagreements. This is also what tunes item
@@ -1431,6 +1627,8 @@ over their addresses and count disagreements. This is also what tunes item
 **When:** with address search. **Depends on item 23** (geocoding).
 
 ## 79. County assessor parcels as a geocoding-free upgrade
+
+**Status:** open (parked) — gated on items 77 and 78
 
 A parcel polygon places an address in a jurisdiction without an
 interpolated point. Whether the counties publish parcels openly has not been
@@ -1441,6 +1639,8 @@ examined.
 
 ## 80. Adams keyword precision; Douglas missing coordinates
 
+**Status:** open (parked) — gated on item 70 ("until the system is running")
+
 **Adams:** after 2016, roofing is mostly identified by keywords in
 `Description` with a blank `TypeOfWork`. That filter (16,368 hits) has not
 been checked for false matches. **Douglas:** 51% of roofing permits have no
@@ -1449,6 +1649,8 @@ been checked for false matches. **Douglas:** 51% of roofing permits have no
 **When:** with those adapters.
 
 ## 81. Denver: RESCON vs. ROOFSIDE, and the 2017 known answer
+
+**Status:** open (parked) — gated on item 70 ("until the system is running")
 
 Not examined 2026-09-23 because Denver was not in the top three. Open
 question: are reroofs in the RESCON layer, or under a separate ROOFSIDE
@@ -1459,6 +1661,8 @@ type? The known-answer test is 18,475 roof permits in 2017, 54.6% above
 
 ## 82. The annexation layer as boundary-change history
 
+**Status:** open (parked) — gated on item 70 ("until the system is running")
+
 DOLA's 1,911-row `Municipal_Boundary` layer keeps each annexation with its
 ordinance number and `cl_re_date`. That answers "when did this land join the
 city," which matters if a permit predates an annexation and was issued by
@@ -1467,6 +1671,8 @@ the county.
 **When:** only if permit history needs that question answered.
 
 ## 83. In-house realtor and contacts database
+
+**Status:** open
 
 A searchable store of known realtors, beyond what `realtors` holds from
 RentCast pulls, with a different email template for agents RBI already
@@ -1496,6 +1702,8 @@ gets built.
 
 ## 84. Historical hail aggregation — which areas were hit hardest over n years
 
+**Status:** open (parked) — gated on Phase 6
+
 A query over existing `iem_data` and `report_zip_distances`, not a new
 ingest. Overlaps `/territory` (decision log 2026-09-16, *Territory browse is
 its own page*), which already groups a date range by city or zip with
@@ -1506,7 +1714,11 @@ view of `/territory` or a map layer rather than its own page.
 
 **When:** after Phase 4, alongside the map (item 22).
 
+**Scoped 2026-09-30, Phase 6:** wanted is a multi-year storm history (when, where, how bad), not the matched listings. It reads `iem_data` (with `report_zip_distances` for zips) only, so item 49's 400-day clamp, which exists to bound matched-listing export size, need not apply to it. As things stand the clamp applies to every explicit date range, `/territory` included, so this needs its own route or an exemption.
+
 ## 85. Pull estimate shows "last pulled" times in UTC
+
+**Status:** open
 
 `pull_estimate.html`'s "Pulled in the last 7 days" table formats
 `z.last_pulled.strftime('%Y-%m-%d %H:%M')` with no conversion. `CLAUDE.md`
@@ -1517,6 +1729,8 @@ conversion, plus `display_tz` passed from `pull_estimate()`.
 **When:** small; next pass over the pull estimate.
 
 ## 86. The storm list silently drops days past 50 rows
+
+**Status:** resolved 2026-09-24 9e5cce1
 
 `index()` passes `limit=50` to `storms.fetch_recent_days`, so a wide date range
 returns the 50 rows the query orders first, and nothing on the page says more
@@ -1531,6 +1745,8 @@ page.
 `?page=` clamps to the last page.
 
 ## 87. Confirm RentCast's billing-period timezone
+
+**Status:** open
 
 `quota.fetch_usage` rolls the period over at midnight Denver time. Whether
 RentCast rolls over on UTC or Denver time is unconfirmed. Near a boundary,
@@ -1550,7 +1766,11 @@ the 9th, so nothing yet sits on either side of a rollover. Re-check after
 
 **When:** after the 2026-10-09 rollover.
 
+**Developer note, 2026-09-30:** the recorded count is off because some pulls happened before usage tracking was set up. Tracking is correct now, and it will be checked against RentCast's own figure at the next billing cycle (rollover 2026-10-09).
+
 ## 88. Calls from a key-rejected pull don't reach `api_call_log`
+
+**Status:** resolved 2026-09-24 ddd77a0
 
 On `RentCastAuthError`, `pull.py` adds the attempts to
 `api_pulls.actual_api_calls` but writes no `api_call_log` row, so the usage
@@ -1568,6 +1788,8 @@ at `'running'`.
 
 ## 89. "Matched, none in range" on a pulled storm has never been seen
 
+**Status:** open
+
 The rule (`match_ran and pulled`) is verified only on its other half: a
 never-pulled storm with empty runs stays "Not pulled". Showing the badge
 itself needs a storm that was pulled but has no listings within the match
@@ -1577,6 +1799,8 @@ radius.
 deliberate test.
 
 ## 90. An app-wide login check instead of per-route `@login_required`
+
+**Status:** open
 
 A `before_request` that redirects any request without `g.user` to `/login`,
 except `/login`, `/logout` and static files, would make `@login_required`
@@ -1590,6 +1814,8 @@ Phase 6, before staff use the system.
 
 ## 91. `_MATCH_SQL`'s all-types branch is dead
 
+**Status:** open
+
 `match_storm` now requires `report_text`, so the
 `%(report_text)s::text IS NULL OR …` branch in `_MATCH_SQL` can't run. It's
 harmless, but it suggests an all-types path that no longer exists.
@@ -1597,6 +1823,8 @@ harmless, but it suggests an all-types path that no longer exists.
 **When:** cleanup.
 
 ## 92. CSV export missing on the matched-listings and activity pages
+
+**Status:** resolved 2026-09-24 28a0195
 
 Phase 2's outline says "CSV export on every list." The storm list and
 territory have one (`/export.csv`); `/storms/matches` and `/activity` don't.
@@ -1614,6 +1842,8 @@ can close.
 
 ## 93. The activity feed shows other users' names to viewers
 
+**Status:** resolved 2026-09-24 fbc8338
+
 `hailsys/queries/activity.py` joins `users` for first and last name, so
 `/activity` and the storm list's feed show every signed-in user, viewers
 included, who ran each pull and match run. Intended for a five-person office,
@@ -1630,6 +1860,8 @@ five with admin-created accounts. Revisit if the account model changes.
 
 ## 94. The TIGER geocoder extension is installed, and `tiger` is on the search path
 
+**Status:** open
+
 `postgis_tiger_geocoder` and `postgis_topology` came with the
 `postgis/postgis:16-3.4` image; nothing decided to add them. The `tiger`
 schema is on the default `search_path` (`"$user", public, topology, tiger`),
@@ -1639,7 +1871,7 @@ query an empty NAD83 table instead of failing, the same silent-SRID shape
 CLAUDE.md warns about. Options: drop the two unused extensions, or take
 `tiger` off the search path for `hail_app` and `hail_ingest`.
 
-**Resolved 2026-09-26.** The TIGER geocoder was already installed, as this
+**Side question resolved 2026-09-26; item reopened 2026-09-30, see below.** The TIGER geocoder was already installed, as this
 item describes — unintentional, came with the base image, and stays that
 way for now. What's changed: `address_standardizer` and
 `address_standardizer_data_us` were *not* installed and now are (`sql/024`,
@@ -1651,7 +1883,11 @@ available.
 
 **When:** before production deployment, alongside item 3 (the base image).
 
+**Reopened 2026-09-30.** The 2026-09-26 marker closed only a side question, whether address parsing was available (`address_standardizer`, `sql/024`). The risk this item describes is unchanged. Verified 2026-09-30: `search_path` is still `"$user", public, topology, tiger`, and `postgis_tiger_geocoder` and `postgis_topology` are still installed. Gated, with item 3, on "before production deployment".
+
 ## 95. No test for the `R` = RAIN / HEAVY RAIN composite key
+
+**Status:** open
 
 CLAUDE.md lists "IEM `TYPECODE` is not unique" as a known trap, and the parser
 does key on `(report_type, report_text)` tuples. But no test in `tests/`
@@ -1662,6 +1898,8 @@ other trap in that list has a test.
 **When:** next time the parser is touched.
 
 ## 96. Has RBI answered the DNS ask?
+
+**Status:** open
 
 `phases.md` runs "the domain and email-sending setup" alongside every phase
 from day one, because DNS changes at a small company can sit in an inbox for
@@ -1699,7 +1937,11 @@ what an unidentified root TXT verification token is for.
 **When:** now: Phase 5 is current, and this is the item most likely to be
 waiting on someone else.
 
+**Status, 2026-09-30:** open. The ask to RBI is in progress and this is gated on their answer. Checked the same day with `dig`: no NS, TXT or A record exists for `send.roofbrokersinc.com`, so the delegation has not been added yet.
+
 ## 97. Does the Pikes Peak Regional Building Department publish permit data?
+
+**Status:** open (parked) — gated on item 70 ("until the system is running")
 
 PPRBD issues permits for 74% of currently stored properties (item 74), so it is
 the permit source that would matter most if permits are ever built (item 70).
@@ -1711,6 +1953,8 @@ Its own permit search (pprbd.org) is the place to start.
 pursued, since it covers the most properties.
 
 ## 98. 32 permit issuers have no who-issues source
+
+**Status:** open (parked) — gated on item 70 ("until the system is running")
 
 The 2026-09-24 jurisdiction count (item 74) found official pages for 50 of 82
 issuers. The other 32 were not looked up before web search rate-limited:
@@ -1734,6 +1978,8 @@ issuer's adapter.
 
 ## 99. Logging is unconfigured anywhere in the app
 
+**Status:** resolved 2026-09-24 976ea0d
+
 Nothing calls `logging.basicConfig` or sets up a handler, so every
 `logger.info` is dropped at Python's default WARNING threshold. Only
 warnings and errors reach the container log, via Python's fallback handler.
@@ -1753,6 +1999,8 @@ the matcher now appear in `docker compose logs web`.
 
 ## 100. New-construction properties share a subdivision point
 
+**Status:** open
+
 RentCast geocodes some brand-new houses to a single subdivision point rather
 than to the lot:
 - 1843 Wildland Hts, 1876 Wildland Hts and 2115 Zipline Vw share one point.
@@ -1769,6 +2017,8 @@ relisted as Standard, before RentCast re-geocodes it to the lot.
 
 ## 101. Rebuild the `loader` image before its next use
 
+**Status:** open
+
 The `loader` image was built 2026-09-09, the same day
 `docker/loader.Dockerfile` last changed (`7a731b4`, the bullseye EOL
 placeholder). Whether that build picked up the change isn't known. Rebuild
@@ -1779,6 +2029,8 @@ load. See `docs/command-ref.md`, *Which services see your edits*; the
 **When:** before the loader is next used.
 
 ## 102. `_throttle` isn't thread-safe
+
+**Status:** open
 
 `hailsys/rentcast/client.py`'s `_throttle` keeps its last-request time in a
 module global with no lock. Pulls run in background threads, so two pulls at
@@ -1791,6 +2043,8 @@ time. Related to item 51 (concurrent pulls on one storm).
 
 ## 103. Revisit the `testview` account before Phase 6
 
+**Status:** open
+
 `testview` stays an active viewer for role testing (decision log 2026-09-24).
 That's acceptable while the app is reachable only over Tailscale. When Phase 6
 exposes it to staff, and possibly beyond the tailnet (item 63), deactivate it
@@ -1800,8 +2054,10 @@ or give it a strong password nobody reuses.
 
 ## 104. Move the ingest onto `hailsys/logconfig.py`
 
+**Status:** resolved 2026-09-24 7d05611
+
 The ingest still sets up its own logging: a `basicConfig` in
-`hailsys/iem/common.py` (line 127), shared by both ingest scripts. Moving it onto
+`hailsys/iem/common.py` (line 127 when filed; that code has since moved, see the note below), shared by both ingest scripts. Moving it onto
 the shared module keeps one place to change the format. Their journald format should stay
 a bare `%(message)s` unless that's decided otherwise, since journald already
 records the unit and the time. Needs an `ingest` rebuild (`docker compose build
@@ -1809,7 +2065,11 @@ ingest`), because that image bakes the code in.
 
 **When:** whenever the ingest is next touched.
 
+**Resolved 2026-09-24 (`7d05611`).** `hailsys/iem/common.py:122-125` now delegates to `hailsys/logconfig.py` (`include_logger=False`), and both ingest scripts call `configure_logging()`. The `ingest` image was built 2026-09-24 20:13 UTC, four minutes after the commit, so it includes the change. Not in scope and unchanged: `scripts/backfill_zip_distances.py` and `scripts/test_rentcast_pull.py` still call `logging.basicConfig` themselves.
+
 ## 105. `postgis` has no log rotation
+
+**Status:** open
 
 Checked 2026-09-24: `postgis`'s container log is `json-file` with no
 `max-size` or `max-file`, so it grows without limit. It is the only other
@@ -1821,6 +2081,8 @@ than doing it mid-use.
 **When:** before production deployment.
 
 ## 106. The match page gets long, and no row says which report it matched
+
+**Status:** open
 
 One storm's page can hold hundreds of listings. 2026-08-26 TSTM WND GST had a
 single report and matched 949 listings, every listing within 5 miles of it
@@ -1860,6 +2122,8 @@ page on screen rather than exporting it.
 
 ## 107. CSV export missing on the activity page
 
+**Status:** open
+
 Split from item 92, 2026-09-24. Phase 2's outline says "CSV export on every
 list." The storm list and territory have one (`/export.csv`), and the matched
 listings now do (`/storms/matches.csv`, `/exports`); `/activity` doesn't. The
@@ -1869,6 +2133,8 @@ would want in a spreadsheet; `/activity` is the list that is still without one.
 **When:** unphased.
 
 ## 108. Match-page column widths are positional
+
+**Status:** open (watch)
 
 `style.css` sizes the matched-listings columns with
 `.agent-group th:nth-child(n), td:nth-child(n)` rules, one per column, nine
@@ -1881,6 +2147,8 @@ column and a narrow Address.
 **When:** if those columns change.
 
 ## 109. The match page on a phone: one column at a time
+
+**Status:** open (watch)
 
 The nine fixed columns total 71rem, and `table-layout: fixed` can't shrink
 below that, so on a phone each agent group scrolls sideways inside its own
@@ -1900,6 +2168,8 @@ column, which would change the widths in item 108.
 
 ## 110. A Cloudflare tunnel for access from outside the tailnet
 
+**Status:** open
+
 Decided 2026-09-14 to revisit at Phase 6 (decision log, the Tailscale-access
 entry): today the app is reached over Tailscale only, and `web` publishes to
 `127.0.0.1:8000`. A tunnel is what puts it in front of real phones on real
@@ -1914,6 +2184,8 @@ only for the same reason.
 
 ## 111. Tap targets under 44px
 
+**Status:** open
+
 The 2026-09-25 pass raised the storm-days Status cell's actions
 (`.pull-link`, `.inline-action button`, `.action-disabled`) to about 44px
 under 40rem, and form controls to 16px so iOS doesn't zoom on focus. What is
@@ -1927,6 +2199,8 @@ not 44px).
 
 ## 112. The territory layout on tablets and landscape phones
 
+**Status:** open (watch)
+
 - **Landscape phone:** under 48rem the territory map stacks below the table at
   `height: 50vh; min-height: 14rem`. On a phone in landscape that is nearly
   the whole visible height, and a one-finger drag on a Leaflet map pans the map
@@ -1939,6 +2213,8 @@ not 44px).
 **When:** if anyone uses the territory page on a tablet or phone.
 
 ## 113. Small CSS leftovers
+
+**Status:** open (watch)
 
 - The `.table-scroll` shadow is drawn as a background, which cells with their
   own background paint over, so it doesn't show behind a table's header row.
@@ -1954,6 +2230,8 @@ not 44px).
 **When:** if any of them gets in the way.
 
 ## 114. The responsive pass has not been recorded as checked
+
+**Status:** open
 
 The 2026-09-24 and 2026-09-25 responsiveness passes (decision log, "CSS
 responsiveness pass") were written with no browser available: the agent's
@@ -1983,6 +2261,8 @@ widths and devices, and what was seen, were not reported into this record, so
 
 ## 115. Nothing writes `'cancelled'` except the sweep
 
+**Status:** open (watch)
+
 `api_pulls.api_status` allows `'cancelled'` (`sql/008`), and until 2026-09-25
 nothing wrote it. Now only `sweep_stale_pulls()` does, for a pull whose
 process was lost (item 47). There is no user-facing cancel: once a pull is
@@ -1994,6 +2274,8 @@ which kind of cancel this was.
 **When:** if a cancel affordance is ever wanted.
 
 ## 116. RentCast values that don't fit their columns abort a pull
+
+**Status:** resolved (residuals) 2026-09-25 5933ebc
 
 **Resolved 2026-09-25** (`5933ebc`). See `docs/decision-log.md`, "RentCast
 values a column can't hold are stored as NULL and logged". Two listings broke
@@ -2021,7 +2303,11 @@ matches; pull 81: 26 zips, 3,323 listings).
 
 **When:** the next time a pull aborts in the upsert.
 
+**Watch, 2026-09-30:** reopen if another listing aborts a pull in the upsert (this item's own "when it happens again"). No recurrence so far: no pull has failed since 2026-09-25, and 33 have completed. The three failed pulls this item names (41, 78, 79) are in `api_pulls` as described.
+
 ## 117. An all-types pull can't be recorded
+
+**Status:** open (watch)
 
 `api_pulls` has a `storm_link_paired` CHECK: `storm_date` and `report_text` are
 both set or both NULL. `pull_start` accepts a missing `type`
@@ -2036,6 +2322,8 @@ diagnosing item 116.
 anywhere else.
 
 ## 118. The live pull banner: limits
+
+**Status:** open (watch)
 
 The banner under the storm-list heading replaced the "Pull started" flash
 (decision log, "A live banner under the heading replaces the \"Pull started\"
@@ -2055,6 +2343,8 @@ with no refresh. What it still doesn't do:
 **When:** the rest, if it bothers anyone.
 
 ## 119. Mainstream email-sending providers all prohibit this use case
+
+**Status:** open
 
 Fetched the current AUP/ToS directly from SendGrid, Postmark, Mailgun,
 Resend, and Amazon SES, 2026-09-28: every one prohibits sending to a
@@ -2082,6 +2372,8 @@ send) are recorded there.
 
 ## 120. Email templates need CAN-SPAM's footer requirements built in
 
+**Status:** open
+
 Checked actual draft outreach copy ("...Our inspections are free...")
 against `15 U.S.C. § 7702` and `16 CFR § 316.3`, 2026-09-28: it reads as a
 "commercial electronic mail message," not an exempted "transactional or
@@ -2099,6 +2391,8 @@ designed — this is a concrete requirement for that design, not a separate
 task.
 
 ## 121. Real send volume, measured: consolidating across storms is a real lever, throttling a personal account isn't
+
+**Status:** open
 
 Measured against the real database, 2026-09-28, HAIL only, 2026-08-13
 through 2026-09-22: one storm alone (2026-08-13) touched 1,415 distinct
@@ -2133,6 +2427,8 @@ this is a concrete input to that design, not a separate task.
 
 ## 122. The current DNC list is checked in against the realtor pool and Constant Contact — the import itself still isn't done
 
+**Status:** resolved 2026-09-29 3ebb5e7
+
 Compared `rbi-dnc-list-09-28-2026.csv` (719 unique emails, the **full,
 current** DNC list — old `Created At` dates on individual entries, 2017 to
 2025, mark when each was added, not the export's freshness), RBI's client/
@@ -2161,8 +2457,8 @@ is not the same claim as "are active now." Zero overlap between the client
 list and the DNC list is real, not a bug (52 shared domains, zero exact
 matches).
 
-**Still not done:** no import into `dnc_list` — this was read-only
-comparison only. The full email-level breakdowns were saved outside the
+**At the time of writing (2026-09-28):** no import into `dnc_list` — this was read-only
+comparison only. *(Stale as of 2026-09-30, see the note at the end of this item.)* The full email-level breakdowns were saved outside the
 repo, not committed. A current Constant Contact export would meaningfully
 sharpen the 339 figure and is RBI's own vendor account, not blocked
 externally.
@@ -2183,7 +2479,11 @@ sync and never made it into Airtable. **The real import source is the union
 of all suppression files found so far** (the original DNC export, this
 Constant Contact copy, and Airtable), not any single one.
 
+**Import done, 2026-09-30.** Batch #1 (the Constant Contact export, 719 rows) was committed 2026-09-29 15:26 UTC through the admin upload (`3ebb5e7`), and batch #3 (Airtable, converted by hand to the Constant Contact shape; 735 rows, 40 of them new) at 15:27. `dnc_list` holds 759 suppressions, all `source = 'legacy_import'`, none removed, 108 linked to a realtor. See the decision log, "DNC import: admin upload, staged and previewed before commit". This item's heading and first section still describe the state on 2026-09-28 and are kept for the reasoning. **Residuals:** item 129 means the loaded union may still be incomplete (the Constant Contact export's newest unsubscribe is 2025-12-13), and the original `rbi-dnc-list-09-28-2026.csv` was judged the same data as the Constant Contact copy "by its early rows" without a recorded full comparison. `CLAUDE.md` still says the legacy lists are not yet imported; that is stale.
+
 ## 123. 11 non-Land properties have no house number and can't be deduplicated by address
+
+**Status:** open (watch)
 
 `address_key` is `NULL` for 170 properties (item 55). 159 are `property_type
 = 'Land'`, already excluded from matching by `_MATCH_SQL` — vacant land has
@@ -2196,7 +2496,11 @@ format, or a literal `Tbd` placeholder), so none of the dedup work in item
 **When:** known gap, revisit if one of the 11 is ever actually matched and
 emailed about.
 
+**Re-measured 2026-09-30:** 23 non-Land properties have a NULL `address_key` (11 when filed), out of 287 NULL keys overall.
+
 ## 124. Address search (Phase 6) must run typed input through `address_key()`
+
+**Status:** open (parked) — gated on Phase 6
 
 Whenever a "look up this address" feature gets built, the typed input has
 to go through `address_key()` too, or the comparison is against
@@ -2207,7 +2511,11 @@ not spelling.
 
 **When:** Phase 6, when the search feature is built.
 
+**Re-gated 2026-09-30:** Phase 6, as this item already said; recorded with item 23.
+
 ## 125. `address_key`'s `house_num` can hold a range, not just a number
+
+**Status:** open (watch)
 
 `3440-3450 W 55th Pl` (one of the 21 duplicate groups, item 55) standardizes
 to `house_num = '3440 3450'` — a range, not a single number. Nothing
@@ -2218,6 +2526,8 @@ isn't obvious from the column's own name.
 **When:** if it ever breaks a comparison or a parse.
 
 ## 126. Realtor deduplication rule — decided, not built; supersedes the 2026-09-01 decision
+
+**Status:** open (parked) — gated on item 83 (the RBI realtor import)
 
 **Supersedes** `docs/decision-log.md`, "No realtor deduplication beyond
 exact normalized email" (2026-09-01). The rule: dedupe on matching
@@ -2240,7 +2550,9 @@ against the pre-import data, would just need redoing.
 
 ## 127. Login skips `verify_password` for an unknown user — timing-based username enumeration
 
-`views.py:297-299`: when the username doesn't exist, `verify_password` is
+**Status:** open
+
+`views.py:295-299` (297-299 when filed; the file has since shifted): when the username doesn't exist, `verify_password` is
 never called, so an invalid username returns measurably faster than a valid
 username with a wrong password (scrypt verification has a real, deliberate
 cost; skipping it entirely is fast). An attacker can use response time
@@ -2266,6 +2578,8 @@ lost or failed pulls. Recorded so nobody spends time investigating it twice.
 
 ## 129. The Constant Contact export may be missing ~9 months of unsubscribes
 
+**Status:** open
+
 `rbi-constant-contact-dnc-list-09-28-2026.csv`'s newest recorded unsubscribe
 is 2025-12-13, but the export itself was pulled 2026-09-28 and Constant
 Contact is still RBI's active marketing vendor — so either nobody has
@@ -2277,6 +2591,8 @@ date, and if so, pull an unfiltered one before relying on this list.
 **When:** before the first send.
 
 ## 130. `dnc_list.realtor_id` isn't maintained automatically
+
+**Status:** open
 
 The DNC import's commit SQL never sets `realtor_id` — today's 108 linked
 rows came from a one-time manual backfill (`UPDATE 108`), run once against
@@ -2291,6 +2607,8 @@ every `realtors` insert.
 
 **When:** with the send path — whichever report or check first needs
 `realtor_id` to be trustworthy.
+
+**Measured 2026-09-30:** 118 `dnc_list` emails match a `realtors` row, but only 108 have `realtor_id` set. The 10-row gap is this item's undercount, already occurring.
 
 ## 131. The ~40 Airtable-only suppressions carry the wrong kind of date
 
@@ -2307,6 +2625,8 @@ that's ever asked.
 
 ## 132. `dnc_list.email_raw` can carry leading whitespace; only `email_norm` is trimmed
 
+**Status:** dropped 2026-09-30
+
 `email_norm` (the enforcement key) is always `lower(trim(email_raw))`, so
 suppression itself is never affected by stray whitespace in `email_raw` —
 but the raw value shown in any admin view or audit is whatever the source
@@ -2314,7 +2634,11 @@ file had, untouched.
 
 **When:** cosmetic.
 
+**Dropped 2026-09-30.** Latent only: no `dnc_list` row currently has whitespace in `email_raw` (checked 2026-09-30), and suppression runs on `email_norm` regardless.
+
 ## 133. The DNC upload has no `MAX_CONTENT_LENGTH`
+
+**Status:** open
 
 `dnc_upload` reads the whole file into memory (`upload.read()`) with
 nothing capping its size. Fine at hundreds of rows; worth a limit before
@@ -2324,6 +2648,8 @@ someone uploads something much larger by mistake.
 
 ## 134. No way to un-suppress through the UI
 
+**Status:** open
+
 `dnc_list.removed_at`/`removed_by` exist specifically for this and are
 already documented as the reversal path (`database-schema.md`), but
 nothing in the admin UI writes them — reversing a mistaken suppression
@@ -2332,6 +2658,8 @@ today means doing it by hand at the database.
 **When:** if someone is suppressed by mistake and needs to be un-suppressed.
 
 ## 135. The email copy is a first draft, not final
+
+**Status:** open
 
 See `docs/decision-log.md`, "Email copy and merge fields: first draft, not
 final." Images, the testimonials block, and the offer list from the old
@@ -2345,6 +2673,8 @@ the second one.
 
 ## 136. Open question: should `nearest_miles` always appear in the email?
 
+**Status:** open
+
 "Hail was reported 4.8 miles from your listing" is a much weaker hook than
 "0.3 miles," and may undercut the message rather than strengthen it for
 the far end of the match radius. Options: always show it, only show it
@@ -2354,6 +2684,8 @@ on the fact that a report happened at all. Not decided.
 **When:** with the template build.
 
 ## 137. `agent_first_name` (splitting `agent_name` on the first space) has known failure modes
+
+**Status:** open (watch)
 
 Fails on titles (`"Dr. Susan Clark"` gives `"Dr."`) and on people who go by
 two given names. Checked against the current data (item 16's decision-log
@@ -2366,6 +2698,8 @@ this is more likely to actually bite.
 **When:** if the in-house realtor import makes this worse.
 
 ## 138. Re-run the RentCast/DNC/in-house comparison once the updated in-house realtor list arrives
+
+**Status:** open
 
 The comparisons in items 55/83/122 were run against `realtors` at 7,082
 rows and `Final Realtor Database-09-25.csv`. As of 2026-09-29, `realtors`
@@ -2386,6 +2720,8 @@ re-run all three comparisons (item 122's pattern) against current data,
 not these interim numbers.
 
 ## 139. Production setup: migrations must run in strict numeric order before the first pull, and nothing enforces that
+
+**Status:** resolved (residuals) 2026-09-29 b645e31
 
 There is no automatic migration runner — `docker-compose.yml`'s own
 comment shows the real mechanism, one file at a time:
@@ -2410,6 +2746,8 @@ the full reasoning.
 caveat that Phase 0's physical/software build is still open) — add an
 explicit, ordered migration checklist to `docs/server-setup.md` rather
 than relying on numeric filenames and care alone.
+
+**Resolved for the documentation half, 2026-09-29 (`b645e31`):** `docs/server-setup.md`, "Database Migrations", states the order and the before-first-pull rule. Developer, 2026-09-30: sufficient. **Residual:** nothing enforces the order. A runner script is deferred until production hardware exists.
 
 ---
 
@@ -2474,6 +2812,8 @@ earliest.
 
 ## 140. Match page: mark, don't hide, listings past the freshness threshold
 
+**Status:** open
+
 Once a listing-freshness threshold exists (decision log, item 55 area —
 threshold work in progress as of 2026-09-29, `sql/028`), the match page
 needs to decide what to do with a listing older than it. Marking is
@@ -2484,6 +2824,8 @@ what the export contains.
 **When:** with the send path, once the freshness setting itself lands.
 
 ## 141. RentCast street names sometimes carry an embedded comma
+
+**Status:** open (watch)
 
 A meaningful share of `property_address` values put a comma inside what
 should be one continuous street name before RentCast's own city/state/zip
@@ -2502,6 +2844,8 @@ before it's cited elsewhere.
 **When:** known limitation, not currently blocking anything.
 
 ## 142. One property has house number 0
+
+**Status:** open (watch)
 
 `0 County Rd, 102 Lot 3, Elbert, CO 80106` — confirmed, a single row,
 `address_key` `0||102||LOT 3|80106`. Not investigated further; noted in
