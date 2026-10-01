@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*59 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
+*60 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
 
 ## 1. Which role sees operational views
 
@@ -189,30 +189,6 @@ about" — a different fact under the same name.
 
 **When:** Phase 5, when sending is built. *(`database-schema.md`, open
 question 9)*
-
-## 23. Address lookup — "did this address get hit?"
-
-**Status:** open (parked) — gated on Phase 6
-
-A one-off tool: paste an address, get the reports near it. Different unit of
-analysis from everything else built — the coverage-zip join drops out
-entirely, since the question is whether a report fell within X miles of one
-point, not which of our zips were in range.
-
-The blocker is geocoding. Nothing in the system converts a street address to
-coordinates, and RentCast only returns them for properties it already knows,
-which covers listings but not an arbitrary address a coworker types in. A
-standalone version needs a geocoder — a new external dependency, an API key,
-and a rate limit to respect. A manual lat/long entry form needs none of
-that and is a single `ST_DWithin`.
-
-**When:** Phase 3, when addresses have coordinates attached.
-
-**Blocks items 77 and 78**, and with them all jurisdiction and address-search
-work (items 70–84; decision log 2026-09-23): a jurisdiction can only be
-stated for an address once the address is a point.
-
-**Re-gated 2026-09-30:** address search is a Phase 6 feature (see item 124). No geocoder or address route exists yet (checked 2026-09-30).
 
 ## 26. PDF export with table and map
 
@@ -788,6 +764,13 @@ available.
 
 **Reopened 2026-09-30.** The 2026-09-26 marker closed only a side question, whether address parsing was available (`address_standardizer`, `sql/024`). The risk this item describes is unchanged. Verified 2026-09-30: `search_path` is still `"$user", public, topology, tiger`, and `postgis_tiger_geocoder` and `postgis_topology` are still installed. Gated, with item 3, on "before production deployment".
 
+**Updated 2026-10-01.** Address search chose the Census Geocoder API, so the
+`tiger` data stays empty (`tiger.edges`, `tiger.addr` and `tiger.featnames` all
+0 rows) and nothing uses `postgis_tiger_geocoder`. That makes this item
+decidable without regard to geocoding: drop the extension, or take `tiger` off
+the search path. The caveat is item 145: a future local TIGER load would need
+the extension back, so dropping it now means reinstalling it then.
+
 ## 95. No test for the `R` = RAIN / HEAVY RAIN composite key
 
 **Status:** open
@@ -1106,21 +1089,6 @@ a report, never damage" rule in `CLAUDE.md`), and it needs the frequency cap
 **When:** item 15/19, when the send queue and frequency cap are designed —
 this is a concrete input to that design, not a separate task.
 
-## 124. Address search (Phase 6) must run typed input through `address_key()`
-
-**Status:** open (parked) — gated on Phase 6
-
-Whenever a "look up this address" feature gets built, the typed input has
-to go through `address_key()` too, or the comparison is against
-differently-shaped strings — the function's own comment already says this
-(`sql/024`). `fuzzystrmatch` is installed (confirmed) and would cover
-typos a user might make; `address_key()` won't — it standardizes structure,
-not spelling.
-
-**When:** Phase 6, when the search feature is built.
-
-**Re-gated 2026-09-30:** Phase 6, as this item already said; recorded with item 23.
-
 ## 126. Realtor deduplication rule — decided, not built; supersedes the 2026-09-01 decision
 
 **Status:** open (parked) — gated on item 83 (the RBI realtor import)
@@ -1278,11 +1246,51 @@ what the export contains.
 
 **When:** with the send path, once the freshness setting itself lands.
 
+## 143. Structured address input for search
+
+**Status:** open (parked) — gated on `address_searches` showing the need
+
+`/search` takes one free-text line. Census also offers `/locations/address`
+with street, city, state and zip as separate fields. Worth building only if the
+log shows `no_match` rows that are really a missing city or state. Check:
+`SELECT outcome, count(*) FROM address_searches GROUP BY 1`, then read the
+`no_match` rows.
+
+**When:** after the search page has been used for a few weeks.
+
+## 144. Fuzzy suggestions for mistyped addresses
+
+**Status:** open (parked) — gated on `address_searches` showing typo misses
+
+`address_key()` standardizes structure, not spelling, so a typo in the street
+name is a `no_match`. `fuzzystrmatch` is installed; `pg_trgm` is **not**
+(extensions installed 2026-10-01: `address_standardizer`,
+`address_standardizer_data_us`, `fuzzystrmatch`, `postgis`,
+`postgis_tiger_geocoder`, `postgis_topology`), so trigram suggestions mean
+installing it, which needs a yes first. Candidates would come from
+`properties` and `geocode_cache`, since Census has no suggest endpoint.
+
+**When:** only if the `no_match` log is mostly typos.
+
+## 145. A local TIGER load, as a swap behind `geocode.py`
+
+**Status:** open (parked) — gated on Census limits or uptime becoming a problem
+
+The better end state, per `docs/decision-log.md` "Address search: Census
+Geocoder, keyed through `address_key()`": no external dependency or rate limit,
+and the same TIGER data. Not done because the container lacks the tools, the
+generated loader script needs rewriting and uses an older vintage (`rd22`,
+`TIGER_RD18`), and it would be repeated on the production box. If it happens,
+`geocode.geocode()`'s return shape is the interface to keep. It would also need
+`postgis_tiger_geocoder`, so it bears on item 94.
+
+**When:** if `service_error` becomes routine, or Census throttles us.
+
 ---
 
 ## Watch list — triggers only, no work attached
 
-*27 items, all `open (watch)`. Nothing to do unless the named trigger is observed.*
+*30 items, all `open (watch)`. Nothing to do unless the named trigger is observed.*
 
 ## 2. `nws_issuer` is NOT NULL and unguarded
 
@@ -1400,6 +1408,9 @@ index would serve a different access pattern — "every report near this one
 zip" — which nothing queries yet but item 23's address-lookup tool would.
 
 **When:** when item 23 is built.
+
+**Updated 2026-10-01:** item 23's tool shipped, but it queries `iem_data.geom`
+(GiST) directly, not `report_zip_distances`, so this index is still not needed.
 
 ## 42. A complete pull where every zip failed still counts as pulled
 
@@ -1682,6 +1693,37 @@ truthiness check somewhere, for instance).
 
 **When:** note only.
 
+## 146. `geocode_cache` rows never expire
+
+**Status:** open (watch)
+
+Census address data changes slowly and `hail_app` cannot update or delete cache
+rows, so a re-geocoded or renumbered address keeps its old point until someone
+with admin access removes the row. Watch for a search whose point is visibly
+wrong.
+
+**When:** note only, until a wrong cached point is reported.
+
+## 147. The Census request rate is self-imposed
+
+**Status:** open (watch)
+
+`RATE_LIMIT_PER_SECOND = 2` in `hailsys/geocode.py` is a conservative guess;
+Census publishes no limit we could verify. Only cache misses reach the network.
+Raise it only on evidence, and watch for HTTP 429 in the web log.
+
+**When:** a run of 429s, or bulk geocoding is ever wanted.
+
+## 148. `BENCHMARK = "Public_AR_Current"` is a versioned name
+
+**Status:** open (watch)
+
+Census retires benchmark names over time. A sudden rise in `service_error` or
+`no_match` in `address_searches` is the signal. Check
+`https://geocoding.geo.census.gov/geocoder/benchmarks` before changing it.
+
+**When:** that rise.
+
 ---
 
 ## Deferred workstream: permits
@@ -1764,25 +1806,28 @@ the 1,911-row `Municipal_Boundary` layer. Settle how often
 
 ## 77. Near-boundary confidence flag
 
-**Status:** open (parked) — gated on item 70 and on item 23 (geocoding)
+**Status:** open (parked) — gated on item 70
 
 Flag an address whose point sits close to a municipal boundary:
 `ST_Distance` on geography to the nearest boundary, starting at a ~30 m
 threshold and tuned against real misses (item 78). Geocoded points and
 boundaries each carry error, and an answer 10 m from a line should say so.
 
-**When:** with address search. **Depends on item 23** (geocoding).
+**When:** with address search. **Depended on item 23** (geocoding), which
+resolved 2026-10-01: `/search` geocodes through Census, so the point exists.
 
 ## 78. Jurisdiction accuracy test against the permit datasets
 
-**Status:** open (parked) — gated on item 70 and on item 23 (geocoding)
+**Status:** open (parked) — gated on item 70
 
 The downloaded permit datasets say which department issued each permit, so
 they serve as ground truth. Run our address → point → jurisdiction path
 over their addresses and count disagreements. This is also what tunes item
 77's threshold.
 
-**When:** with address search. **Depends on item 23** (geocoding).
+**When:** with address search. **Depended on item 23** (geocoding), which
+resolved 2026-10-01. The points are interpolated along the street, accurate to
+roughly a block (decision log, "Address search").
 
 ## 79. County assessor parcels as a geocoding-free upgrade
 
@@ -1930,7 +1975,7 @@ earliest.
 
 ## Closed
 
-*40 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
+*42 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
 
 <details>
 <summary>Closed items (resolved and dropped)</summary>
@@ -2870,5 +2915,54 @@ explicit, ordered migration checklist to `docs/server-setup.md` rather
 than relying on numeric filenames and care alone.
 
 **Resolved for the documentation half, 2026-09-29 (`b645e31`):** `docs/server-setup.md`, "Database Migrations", states the order and the before-first-pull rule. Developer, 2026-09-30: sufficient. **Residual:** nothing enforces the order. A runner script is deferred until production hardware exists.
+
+## 23. Address lookup — "did this address get hit?"
+
+**Status:** resolved 2026-10-01 4554b8d
+
+A one-off tool: paste an address, get the reports near it. Different unit of
+analysis from everything else built — the coverage-zip join drops out
+entirely, since the question is whether a report fell within X miles of one
+point, not which of our zips were in range.
+
+The blocker is geocoding. Nothing in the system converts a street address to
+coordinates, and RentCast only returns them for properties it already knows,
+which covers listings but not an arbitrary address a coworker types in. A
+standalone version needs a geocoder — a new external dependency, an API key,
+and a rate limit to respect. A manual lat/long entry form needs none of
+that and is a single `ST_DWithin`.
+
+**When:** Phase 3, when addresses have coordinates attached.
+
+**Blocks items 77 and 78**, and with them all jurisdiction and address-search
+work (items 70–84; decision log 2026-09-23): a jurisdiction can only be
+stated for an address once the address is a point.
+
+**Re-gated 2026-09-30:** address search is a Phase 6 feature (see item 124). No geocoder or address route exists yet (checked 2026-09-30).
+
+**Resolved 2026-10-01.** `/search` shipped, geocoding through the Census
+Geocoder API rather than a manual lat/long form or a local TIGER load. See
+`docs/decision-log.md`, "Address search: Census Geocoder, keyed through
+`address_key()`". Items 77 and 78 are no longer gated on this item, only on
+item 70.
+
+## 124. Address search (Phase 6) must run typed input through `address_key()`
+
+**Status:** resolved 2026-10-01 4554b8d
+
+Whenever a "look up this address" feature gets built, the typed input has
+to go through `address_key()` too, or the comparison is against
+differently-shaped strings — the function's own comment already says this
+(`sql/024`). `fuzzystrmatch` is installed (confirmed) and would cover
+typos a user might make; `address_key()` won't — it standardizes structure,
+not spelling.
+
+**When:** Phase 6, when the search feature is built.
+
+**Re-gated 2026-09-30:** Phase 6, as this item already said; recorded with item 23.
+
+**Resolved 2026-10-01.** The lookup and the `geocode_cache` key both call
+`address_key()` in SQL; nothing in Python reimplements it. Typo tolerance, which
+`address_key()` does not give, is item 144.
 
 </details>

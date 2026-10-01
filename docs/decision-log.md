@@ -5698,3 +5698,159 @@ application must never connect as `hail_admin`, or the revokes do nothing.
 needs to show the log is tamper-proof. Adding the trigger is a few lines: a
 `no_truncate()` function and a `BEFORE TRUNCATE ... FOR EACH STATEMENT` trigger
 on each table, plus flipping the test's expected result to `23001`.
+
+## 2026-10-01 — Address search: Census Geocoder, keyed through `address_key()` (items 23 and 124)
+
+A `/search` page: type an address, get the hail and wind reports near it.
+Informational only; it does not touch listings, realtors, matching or the send
+path. It reads `iem_data`, `settings` and `report_types`, and writes only
+`geocode_cache` and `address_searches`.
+
+New: `hailsys/geocode.py`, `hailsys/web/search.py`,
+`hailsys/web/templates/search.html`, `sql/031_address_search.sql`, a blueprint
+registration in `hailsys/web/__init__.py` and a nav entry in `base.html`.
+Commits `d9cb846`, `5c74fde`, `4554b8d` (the page), `d6f41bc` (cache insert
+fix, below), `64aa6f9` (report-type filter) and `c993a2d`. The report-type
+filter was specified after the first working version and has landed: a Type
+dropdown fed by `storms.fetch_report_types`, so it offers the same list as the
+storm-days page, and an unknown value falls back to All. `sql/031` was applied
+to `hail-dev` before this entry; not checked on the production box.
+
+**Phase.** Items 23 and 124 were gated on Phase 6 (re-gated 2026-09-30, when no
+geocoder or address route existed). This was built while the current phase is 5.
+
+### The geocoding decision (closes item 23)
+
+Item 23's blocker was that nothing converts an address to coordinates:
+RentCast returns coordinates only for properties it already knows.
+
+**Chosen: the Census Geocoder API** (`geocoding.geo.census.gov`,
+`/locations/onelineaddress`, benchmark `Public_AR_Current`). No API key, US-only,
+street-level addresses only.
+
+**Rejected for now: loading TIGER address data locally.** Evidence, checked
+2026-10-01, because this will be reconsidered:
+
+- `postgis_tiger_geocoder` is installed but its data is empty: `tiger.edges`,
+  `tiger.addr` and `tiger.featnames` all have 0 rows.
+- The Census API serves the same TIGER data, so this is not an accuracy
+  tradeoff, only a question of where the lookup runs.
+- `Loader_Generate_Script(ARRAY['CO'], 'sh')` downloads only state-level layers
+  (`place`, `cousub`, `tract`, `tabblock20`). The per-county address ranges
+  would need `Loader_Generate_Census_Script` as well (the function exists).
+- The `postgis` container has none of `wget`, `unzip`, `shp2pgsql` or `curl`,
+  and no `/gisdata`. The generated script also carries placeholder settings
+  (`PGUSER=postgres`, `PGPASSWORD=yourpasswordhere`, `PGDATABASE=geocoder`) that
+  would need rewriting.
+- The load would be repeated on the production machine, which has not arrived.
+- Disk is not the constraint: 33 GB free, database 1.35 GB.
+- The loader's configured vintage is `rd22`, fetched from `TIGER_RD18`, older
+  than the TIGER2025 boundary data already loaded. Those URLs still return
+  HTTP 200 (checked 2026-10-01).
+
+Local TIGER remains the better end state and is a swap behind `geocode.py`'s
+interface if the API's limits or uptime become a problem (item 145).
+
+### Accuracy
+
+Census interpolates the point along a street edge from the house-number range,
+so a result is accurate to roughly a block, not to the rooftop. That is well
+inside a 5-mile radius, but the page must not imply it is the exact position of
+the building; it says so under every matched result.
+
+The response carries the TIGER edge ID (TLID) and the side of the edge, **not**
+a census tract; a tract would need the separate `geographies` endpoint. The TLID
+is stored in `geocode_cache.tiger_line_id` so a later jurisdiction join to TIGER
+edge data is possible. (The first draft of the `sql/031` comment called it a
+tract; corrected in `5c74fde`.)
+
+### Normalization (closes item 124)
+
+Typed input is normalized by calling `address_key()` **in SQL**, never
+reimplemented in Python. `address_key()` reads `address_standardizer`'s
+reference tables; any approximation diverges silently into cache misses and
+duplicate rows rather than an error. `geocode_cache.address_key` is the unique
+key, so two spellings of one house resolve to one cached point.
+
+Cost: `address_key()` takes about 8 ms per call (measured 2026-10-01: 200 calls
+in 1.67 s; a single call 8 ms). A search calls it in the cache lookup and, on a
+miss, in a separate key-only query; the insert reuses the key already held. A
+couple of calls per search is irrelevant interactively and would matter in bulk.
+
+An address with no house number cannot be keyed: `address_key()` returns NULL,
+the same reason 287 of 25,219 `properties` have no key. Those are logged as
+`unparseable` and the Census call is skipped, since the geocoder needs a street
+address anyway.
+
+### Schema
+
+`sql/031_address_search.sql` adds two tables:
+
+- `geocode_cache`: one row per successfully geocoded address, keyed on
+  `address_key`. Rows do not expire. `hail_app` has `INSERT` and `SELECT` only.
+  A cache row is a record of what the geocoder returned.
+- `address_searches`: every search including misses, with an `outcome` of
+  `matched`, `no_match`, `unparseable` or `service_error`. Built so that real
+  failures decide whether structured address fields or fuzzy suggestions are
+  worth building (items 143, 144). It does not record the report-type filter.
+
+The first draft of the migration ended with
+`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO hail_app`. Removed in
+review: `sql/010` records that identity columns need no sequence grant, and the
+line would have widened `hail_app` across the whole schema.
+
+**The cache insert is `ON CONFLICT (address_key) DO NOTHING`, not `DO UPDATE`.**
+`DO UPDATE` needs `UPDATE` privilege on the table even when nothing conflicts,
+so with insert-only grants the first search of any new address failed with
+`permission denied for table geocode_cache`. When the insert returns no row (a
+concurrent search cached the address first) the id is fetched with a `SELECT`.
+This was found only by running the page: the earlier SQL checks had run as
+`hail_admin`, a superuser. Test as `hail_app` (`d6f41bc`).
+
+### Date range
+
+Search uses its own window function, not `views._window_from_args`. It defaults
+to 365 days and applies **no** 400-day clamp. That clamp (`MAX_RANGE_DAYS`,
+item 49) exists for export sizing; this is a single point against a GiST index.
+Recorded so the difference does not later look like an oversight.
+
+### Rate limiting
+
+`geocode.py` self-imposes 2 requests per second, with a lock so concurrent
+Flask threads queue rather than burst. Census does not publish a documented
+limit that we could verify, so this is a conservative guess, not their figure.
+Only cache misses reach the network.
+
+`BENCHMARK = "Public_AR_Current"` is a versioned name that Census retires over
+time; a sudden rise in `service_error` or `no_match` is the signal to check it
+(item 148).
+
+### Review corrections worth recording
+
+The same kind of error recurred: plausible code written without checking what
+already existed. Caught in review before the first run:
+
+1. A raw `SELECT default_match_radius_miles FROM settings`, where
+   `fetch_settings()` exists precisely because NUMERIC comes back as Decimal and
+   `Decimal * float` raises `TypeError`.
+2. No `report_types` join, so the `magnitude` filter received `report_text`
+   where it needs `mag_unit`.
+3. An `unparseable` branch that could not run: `match` was None only after
+   `no_match` or `service_error` had already been set. It also meant a no-house-
+   number address still went to Census.
+4. A `denver_day` Jinja filter that does not exist (only `magnitude` is
+   registered); the established pattern is converting in SQL with
+   `AT TIME ZONE 'America/Denver'`.
+5. Plain mistakes: `"format": json` (the module, not the string) in
+   `geocode.py`, a `remarkd` column name, `DO NOT UPDATE` (invalid SQL), and
+   `$(report_text)s` for `%(report_text)s`.
+6. Every non-retryable HTTP error told the user the service was busy and to
+   retry; a 400 or 403 now raises `GeocodeRequestError` with its own message.
+
+Caught only by running it: the `DO UPDATE` privilege failure above.
+
+### Parking lot
+
+Items 23 and 124 resolved. Items 77 and 78 now wait on item 70 only. Item 94 is
+decidable (note on the item). New: 143 to 145 (open, parked) and 146 to 148
+(watch).
