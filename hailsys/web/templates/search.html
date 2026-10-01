@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Address Search{% endblock %}
+{% block heading %}Address Search{% endblock %}
+
+{% block content %}
+<div class="page">
+    <form method="get" action="{{ url_for('search.search') }}" class="filters">
+        <span class="field">
+            <label for="address">Address</label>
+            <input type="text" id="address" name="address" size="40"
+                   placeholder="1677 S Rosemary St, Denver, CO"
+                   value="{{ raw or '' }}">
+        </span>
+
+        <span class="field">
+            <label for="start">From</label>
+            <input type="date" id="start" name="start" value="{{ start_day.isoformat() }}">
+        </span>
+
+        <span class="field">
+            <label for="end">To</label>
+            <input type="date" id="end" name="end" value="{{ end_day.isoformat() }}">
+        </span>
+
+        <button type="submit">Search</button>
+    </form>
+
+{% if outcome == 'matched' %}
+    <h3>{{ match.matched_address }}</h3>
+    <p>
+        {% if reports %}
+        <strong>{{ reports|length }}</strong> report{{ '' if reports|length == 1 else 's' }}
+        within {{ radius_miles }} miles, {{ start_day.isoformat() }} to {{ end_day.isoformat() }}.
+        {% else %}
+        No reports within {{ radius_miles }} miles between
+        {{ start_day.isoformat() }} and {{ end_day.isoformat() }}.
+        Try a wider date range.
+        {% endif %}
+    </p>
+
+    {% if reports %}
+    <div class="table-scroll">
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Distance</th>
+                <th>Source</th>
+                <th>Remark</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for r in reports %}
+            <tr>
+                <td>{{ r.local_time.strftime('%Y-%m-%d %H:%M')}}</td>
+                <td>{{ r.report_text }}</td>
+                <td>{{ r.magnitude | magnitude(r.mag_unit) }}</td>
+                <td>{{ '%.1f' | format(r.distance_miles) }} mi</td>
+                <td>{{ r.report_source or '' }}</td>
+                <td>{{ r.remark or '' }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    <p class="note">
+        The location comes from the Census address-range data, which places a
+        point along the street rather than on the building. It is accurate to
+        about a block, which is well inside the {{ radius_miles }}-mile radius
+        but is not the exact position of the house.
+    </p>
+
+{% elif outcome == 'no_match' %}
+    <h3>Address not found</h3>
+    <p>
+        The Census address service didn't recognize
+        <strong>{{ raw }}</strong>. It only handles full street addresses in
+        the United States, so check the street number and spelling, and
+        include the city and state.
+    </p>
+
+{% elif outcome == 'unparseable' %}
+    <h3>Not enough of an address</h3>
+    <p>
+        <strong>{{ raw }}</strong> doesn't have a house number, so it can't be
+        located. Vacant land and parcels listed as "Tbd" often look like this.
+    </p>
+
+{% elif outcome == 'service_error' %}
+    <h3>Lookup unavailable</h3>
+    <p>{{ error_message }}</p>
+    <p class="note">
+        Nothing is wrong with the address — the lookup service couldn't be
+        reached. Searching again in a minute usually works.
+    </p>
+
+{% elif not raw %}
+    <p>
+        Enter a street address to see hail and wind reports near it. This is
+        for answering questions about a specific property; it doesn't touch
+        listings or outreach.
+    </p>
+{% endif %}
+</div>
+{% endblock %}
