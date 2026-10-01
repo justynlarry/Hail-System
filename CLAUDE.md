@@ -52,8 +52,7 @@ reads "Matched, none in range" (`sql/022`), quota settings (`sql/023`), a
 re-pull link, quota warn-and-allow on the pull estimate, and CSRF on every
 POST (a failure returns a 400 page). `sql/021` (`municipal_boundaries`) is
 from the parked permits research, not Phase 4. `scripts/create_user.py`
-still exists; whether it stays for bootstrapping is `docs/parking-lot.md`
-item 65.
+stays as a bootstrap-only path (`docs/parking-lot.md` item 65, closed 2026-10-01).
 
 What exists for Phase 5 so far: `send_log`, `email_templates` and `dnc_list`
 from `sql/007`, and `workstate.py` reading `send_log` for the "Sent" state.

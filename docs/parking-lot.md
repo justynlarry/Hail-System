@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*59 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
+*58 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
 
 ## 1. Which role sees operational views
 
@@ -596,17 +596,6 @@ Today a forgotten password means an admin resets it by hand from `/admin`. A
 self-service emailed link needs a sending path.
 
 **When:** Phase 5, once sending exists.
-
-## 65. `scripts/create_user.py` — bootstrap-only, or retire?
-
-**Status:** open
-
-It predates `/admin` and never sets `created_by`, so every account it creates
-has no author. The admin page now does the same job with attribution. Either
-keep it strictly for bootstrapping the first admin (and say so in its
-docstring) or remove it.
-
-**When:** before deployment.
 
 ## 66. Username convention and its security implications
 
@@ -1942,7 +1931,7 @@ earliest.
 
 ## Closed
 
-*43 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
+*44 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
 
 <details>
 <summary>Closed items (resolved and dropped)</summary>
@@ -2966,5 +2955,21 @@ Nothing was changed. `postgis_tiger_geocoder` and `postgis_topology` are still
 installed and `tiger` is still on the search path, so the silent-empty-table
 risk above stands, accepted. Item 3 (the base image) or item 145 (a local TIGER
 load would need the extension) is where it would come back.
+
+## 65. `scripts/create_user.py` — bootstrap-only, or retire?
+
+**Status:** resolved 2026-10-01
+
+It predates `/admin` and never sets `created_by`, so every account it creates
+has no author. The admin page now does the same job with attribution. Either
+keep it strictly for bootstrapping the first admin (and say so in its
+docstring) or remove it.
+
+**When:** before deployment.
+
+**Resolved 2026-10-01.** Kept, strictly for bootstrapping. The docstring says
+so, and `--created-by` is now required unless no non-system user exists yet, so
+it can no longer create an unattributed account by accident. See
+`docs/decision-log.md`, "`create_user.py` stays, as a bootstrap path".
 
 </details>

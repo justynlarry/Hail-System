@@ -484,8 +484,9 @@ since 2026-09-11.
   inactive, unauthenticatable by design) and `justyn` (`role=admin`, active,
   `last_login_at` populated). No second real account has been created.
   **Superseded 2026-09-22:** `/admin` now creates and manages accounts, and
-  `create_user.py`'s future is parking-lot item 65. `users` holds three rows
-  as of 2026-09-24, adding `testview` (`viewer`).
+  `create_user.py` stays as a bootstrap-only path (item 65, closed 2026-10-01;
+  it needs `--created-by` once any non-system user exists). `users` holds three
+  rows as of 2026-09-24, adding `testview` (`viewer`).
 - **Routes**, all under `hailsys/web/views.py`, one blueprint (`main`):
   `/` (recent-storm-days browser — day range 30/90/365, report-type filter,
   an "actionable only" checkbox defaulting **on** unless the form was
@@ -1861,8 +1862,8 @@ scripts/
   load_reference.sh           idempotent loader: report_types CSV, report_sources CSV, ZCTA shapefile, county shapefile (2026-09-14)
   load_coverage.sh            idempotent loader: one customer's territory
   status.sh                   four read-only operator checks; exit code = nightly-health verdict (2026-09-11)
-  create_user.py              CLI to create a web-app login; run as hail_admin. Predates
-                               /admin; keep for bootstrapping or retire (parking-lot item 65)
+  create_user.py              CLI to create a web-app login; run as hail_admin. Bootstrap
+                               path only; /admin is the everyday route (item 65, closed 2026-10-01)
   fetch_municipal.py          count-checked, dated GeoJSON snapshot of an ArcGIS layer
                                (DOLA by default) (2026-09-23)
   load_municipal.sh           DELETE + INSERT load of municipal_boundaries (2026-09-23)

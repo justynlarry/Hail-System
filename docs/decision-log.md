@@ -5969,3 +5969,26 @@ closed as dropped, on the strength of this decision (Census is the better
 choice, so the TIGER geocoder is not wanted now); nothing was dropped or
 reconfigured, so the extensions, the empty `tiger` tables and the search path
 are unchanged. New: 143 to 145 (open, parked) and 146 to 148 (watch).
+
+## 2026-10-01 — `create_user.py` stays, as a bootstrap path (item 65 closed)
+
+`scripts/create_user.py` predates `/admin` and never set `created_by`, so every
+account it made had no author. Decided: keep it, for bootstrapping the first
+admin on a fresh database, and nothing else. `/admin` is the everyday path and
+records who created each account.
+
+Changes: a `--created-by` option, and a refusal when it is omitted and any
+non-system user already exists (the `system` account always exists and has no
+creator, so "fresh" means no other user). The check runs before the password
+prompts. The password floor now comes from `MIN_PASSWORD_LENGTH` in
+`hailsys/web/auth.py`, so the script and the web app cannot drift. The docstring
+says bootstrap only.
+
+Tested 2026-10-01 inside the `web` container: omitted `--created-by` is refused
+with exit 1 and no prompt; with `--created-by 2` it reaches the password prompt.
+No account was created. `users` still holds 4 rows. The `INSERT` itself with
+`created_by` set was not run from the script; `/admin` uses the same column.
+
+**Why:** the one thing this script can do that `/admin` cannot is create the
+first admin, because `/admin` needs a signed-in admin. That is worth keeping; an
+unattributed second account is not.
