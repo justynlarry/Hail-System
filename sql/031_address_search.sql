@@ -20,8 +20,8 @@ CREATE TABLE geocode_cache (
     longitude           NUMERIC(9,6)    NOT NULL,
     geom                GEOMETRY(Point, 4326) GENERATED ALWAYS AS
                             (ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)) STORED,
-    -- Census returns TIGER side/tract identifiers, keeping them makes a
-    -- later jurisdiction join possible.
+    -- Census returns the TIGER edge ID (TLID) of the matched street segment,
+    -- not a tract.  Keeping it makes a later jurisdiction join possible.
     tiger_line_id       TEXT,
     geocoded_at         TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
