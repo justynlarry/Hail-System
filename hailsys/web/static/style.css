@@ -81,6 +81,12 @@ body {
   white-space: nowrap;
 }
 .site-header-right form { margin: 0; display: inline-block; }
+/* The name links to change-password. There is no global "a" rule, so it was
+   the browser's blue, and purple once visited; every state is white. */
+.site-header-right a,
+.site-header-right a:visited,
+.site-header-right a:hover,
+.site-header-right a:active { color: #fff; }
 .site-header-right button {
   background: transparent;
   border: 1px solid rgba(255,255,255,0.4);
