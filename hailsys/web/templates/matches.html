@@ -8,6 +8,7 @@
     <strong>{{ listing_count }}</strong> listing{{ '' if listing_count == 1 else 's' }}
     across <strong>{{ agent_count }}</strong> agent{{ '' if agent_count == 1 else 's' }},
     within {{ radius_miles }} miles.
+    <a href="{{ url_for('main.storm_matches_csv') }}?{{ request.query_string.decode() }}">Download CSV</a>
 </p>
 
 {% if unpulled_zips %}
