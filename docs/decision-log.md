@@ -6205,3 +6205,44 @@ others are now filed:
   download what", matching Phase 4's done-when that a viewer can browse and
   export); only the realtor CSV is sender/admin. Filed as an open question
   because it was never revisited.
+
+## 2026-10-01 — CSV formula injection fixed (item 152), and a correction to the earlier finding
+
+`8ae4b7c`. A spreadsheet may evaluate a cell that starts with `=`, `+`, `-` or
+`@` as a formula. `csv_safe()` in `hailsys/formatting.py` prefixes an apostrophe
+to such a *string*; numbers, dates and `None` pass through, so columns keep their
+types. Excel does not display the apostrophe.
+
+**One path, not two that agree.** `_csv_response` applies it, and `/export.csv`,
+which had its own writer and its own `Response`, now goes through
+`_csv_response` too (its rows are dicts like the others, so nothing blocked it;
+its output is byte-identical to the old hand-built file). So all four web CSVs
+share one path. `scripts/export_storm_zips.py` applies it as well.
+
+**Correction.** The 2026-10-01 entry "Export filenames and report-type
+validation" and item 152 said no exported text column begins with one of those
+characters. That was true of the columns the web match exports write
+(`agent_name`, `agent_office_name`, `city`, `property_address`, `agent_phone`,
+`agent_email`, `list_mls_number`: 0 rows each) and wrong for the command-line
+pairs export, which also writes `iem_data.remark`: 31 values start with `+`, `-` or
+`@` (`+SN AT OBSERVATION.`, `@ NWS BOULDER OFFICE.`), and a spreadsheet would turn
+`+SN AT OBSERVATION.` into a formula error.
+
+**Limits, accepted:**
+
+- Tab and carriage return, which OWASP also lists as leading characters, are not
+  covered; adding them is one line in `_FORMULA_PREFIXES`.
+- A phone written `+1 303 ...` would become `'+1 303 ...` in the file. None exist
+  today (0 rows).
+- Only for files a person opens. A CSV loaded back into the database would store
+  the apostrophe. The script's own comment says its output was once `\copy`'d, so
+  that comment now warns against loading it back.
+
+**Process note.** `scripts/` is baked into the `app` and `web` images; `web`
+mounts only `./hailsys`, so its `scripts/` copy was from Sep 17 and the first
+script test ran the old code. The CLI change needs an image rebuild or a
+`scripts/` mount to take effect in a container (`docs/command-ref.md`).
+
+Tested: unit cases, all four routes (200, same content type and filenames), a
+hostile row pushed through the real `/export.csv` route, and the script on
+2019-11-22 (7 remarks prefixed, none left bare).

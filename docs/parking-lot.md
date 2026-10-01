@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*51 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
+*50 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -1035,23 +1035,6 @@ extension left in place).
 
 **When:** if `service_error` becomes routine, or Census throttles us.
 
-## 152. CSV formula injection in the exports
-
-**Status:** open
-
-`_csv_response` builds files with `csv.writer`, which quotes a cell but does not
-neutralise one that starts with `=`, `+`, `-` or `@`; a spreadsheet opening the
-file may evaluate it as a formula. None of the text columns exported today
-begins with one (checked 2026-10-01: `agent_name`, `agent_office_name`, `city`,
-`property_address`, `agent_phone`, `agent_email`, `list_mls_number`, 0 rows
-each), so there is no live hit. The text comes from RentCast and from DNC
-uploads, which is outside our control. The usual fix is to prefix such a cell
-with a single quote. Identified in review and never filed (decision log, "Export
-filenames and report-type validation").
-
-**When:** before the exports are used by anyone but the developer, or if the check
-above ever returns a row.
-
 ## 153. Agent email and phone are visible to viewers
 
 **Status:** open
@@ -1755,7 +1738,7 @@ earliest.
 
 ## Closed
 
-*56 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
+*57 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
 
 <details>
 <summary>Closed items (resolved and dropped)</summary>
@@ -3038,5 +3021,37 @@ The link was at the bottom of the matched-listings page since 2026-09-24 (`28a01
 **Status:** resolved 2026-10-01 a4376cc
 
 `report_text` came from the query string with only `/` and space replaced, so a double quote could close the quoted filename. Replaced with a whitelist (`_filename_label`) plus validation against `storms.fetch_report_types` (`_export_report_type`, 400 on an unknown type) on `/export.csv`, `/storms/matches.csv` and `/exports/matches.csv`. **Not changed:** `scripts/export_storm_zips.py:116` (command-line input) and the DNC upload's stored filename (admin only). See decision log, "Export filenames and report-type validation".
+
+## 152. CSV formula injection in the exports
+
+**Status:** resolved 2026-10-01 8ae4b7c
+
+`_csv_response` builds files with `csv.writer`, which quotes a cell but does not
+neutralise one that starts with `=`, `+`, `-` or `@`; a spreadsheet opening the
+file may evaluate it as a formula. None of the text columns exported today
+begins with one (checked 2026-10-01: `agent_name`, `agent_office_name`, `city`,
+`property_address`, `agent_phone`, `agent_email`, `list_mls_number`, 0 rows
+each), so there is no live hit. The text comes from RentCast and from DNC
+uploads, which is outside our control. The usual fix is to prefix such a cell
+with a single quote. Identified in review and never filed (decision log, "Export
+filenames and report-type validation").
+
+**When:** before the exports are used by anyone but the developer, or if the check
+above ever returns a row.
+
+**Correction 2026-10-01.** The check above covered only the columns the web match
+exports write. The command-line `export_storm_zips.py` pairs export also writes
+`iem_data.remark`, a free-text field from IEM, and 31 of its values begin with
+`+`, `-` or `@` (`+SN AT OBSERVATION.`, `@ NWS BOULDER OFFICE.`), so there *was* a
+live hit, though not in a web export.
+
+**Resolved 2026-10-01.** `csv_safe` (`hailsys/formatting.py`) prefixes an
+apostrophe to a string cell starting with `=`, `+`, `-` or `@`; numbers and
+dates keep their types. `_csv_response` applies it, `/export.csv` now goes
+through `_csv_response` instead of its own writer, and
+`scripts/export_storm_zips.py` applies it. **Limits:** a tab or carriage return
+at the start of a cell is not covered; a phone number written `+1 303 ...` would
+gain an apostrophe (none exist today); and it must not be used on a CSV that is
+loaded back into the database. See decision log, "CSV formula injection fixed".
 
 </details>
