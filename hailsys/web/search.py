@@ -13,6 +13,7 @@ from flask import Blueprint, g, render_template, request
 
 from hailsys import geocode
 from hailsys.db import get_connection
+from hailsys.queries import storms
 from hailsys.web.auth import login_required
 from hailsys.tuning import (
     DISPLAY_TZ, METRES_PER_MILE, denver_day_bounds, miles_to_metres,
@@ -105,6 +106,7 @@ SELECT  i.iem_id,
   WHERE ST_DWithin(i.geom::geography,
                     ST_SetSRID(ST_MakePoint(%(lon)s, %(lat)s), 4326)::geography,
                     %(radius_m)s)
+    AND (%(report_text)s::text IS NULL OR i.report_text = %(report_text)s)
     AND i.utc_datetime >= %(window_start)s
     AND i.utc_datetime < %(window_end)s
   ORDER BY i.utc_datetime DESC
@@ -126,9 +128,21 @@ def search():
     raw = (request.args.get("address") or "").strip()
     start_day, end_day, window_start, window_end = _search_window()
 
+    # Fetched on every render, including the empty form, so the dropdown is
+    # never blank.  Same list the storm-days page offers.
+    with get_connection() as conn:
+        types = storms.fetch_report_types(conn)
+
+    # Parameterized, so an arbitrary value is safe, but one outside the list
+    # would silently return zero reports.  Treat it as "All".
+    report_text = request.args.get("type") or None
+    if report_text not in types:
+        report_text = None
+
     if not raw:
         return render_template("search.html",
-                                start_day=start_day, end_day=end_day)
+                                start_day=start_day, end_day=end_day,
+                                types=types, selected_type=report_text)
 
     outcome = None
     reports = []
@@ -187,6 +201,7 @@ def search():
                 "lon": match["longitude"],
                 "radius_m": miles_to_metres(radius_miles),
                 "metres_per_mile": METRES_PER_MILE,
+                "report_text": report_text,
                 "window_start": window_start,
                 "window_end": window_end,
             })
@@ -215,5 +230,7 @@ def search():
         radius_miles=radius_miles,
         start_day=start_day,
         end_day=end_day,
+        types=types,
+        selected_type=report_text,
         error_message=error_message,
     )

@@ -22,6 +22,16 @@
             <input type="date" id="end" name="end" value="{{ end_day.isoformat() }}">
         </span>
 
+        <span class="field">
+            <label for="type">Type</label>
+            <select id="type" name="type">
+                <option value="">All</option>
+                {% for t in types %}
+                <option value="{{ t }}" {% if t == selected_type %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+        </span>
+
         <button type="submit">Search</button>
     </form>
 
@@ -29,10 +39,10 @@
     <h3>{{ match.matched_address }}</h3>
     <p>
         {% if reports %}
-        <strong>{{ reports|length }}</strong> report{{ '' if reports|length == 1 else 's' }}
+        <strong>{{ reports|length }}</strong> {% if selected_type %}{{ selected_type }} {% endif %}report{{ '' if reports|length == 1 else 's' }}
         within {{ radius_miles }} miles, {{ start_day.isoformat() }} to {{ end_day.isoformat() }}.
         {% else %}
-        No reports within {{ radius_miles }} miles between
+        No {% if selected_type %}{{ selected_type }} {% endif %}reports within {{ radius_miles }} miles between
         {{ start_day.isoformat() }} and {{ end_day.isoformat() }}.
         Try a wider date range.
         {% endif %}
