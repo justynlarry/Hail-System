@@ -52,7 +52,7 @@ JOIN listings l
     on l.rentcast_id = p.rentcast_id
 WHERE i.utc_datetime >= %(window_start)s
     AND i.utc_datetime < %(window_end)s
-    AND (%(report_text)s::text IS NULL OR i.report_text = %(report_text)s)
+    AND i.report_text = %(report_text)s
     -- actionable_only, storm browser applies this rule as well
     AND t.roof_relevant
     AND (t.min_magnitude IS NULL OR i.magnitude >= t.min_magnitude)
