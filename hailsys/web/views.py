@@ -14,7 +14,7 @@ from hailsys.matching.matcher import match_storm
 from hailsys.rentcast.estimate import estimate_pull
 from hailsys.web.jobs import start_pull
 from hailsys.db import get_connection
-from hailsys.formatting import magnitude
+from hailsys.formatting import csv_safe, magnitude
 from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest
 from hailsys.tuning import (
     DISPLAY_TZ,
@@ -132,7 +132,9 @@ def _csv_response(columns, rows, filename):
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(columns)
-    writer.writerows([row[col] for col in columns] for row in rows)
+    writer.writerows(
+        [csv_safe(row[col]) for col in columns] for row in rows
+    )
     return Response(
         buffer.getvalue(),
         mimetype="text/csv",
@@ -454,21 +456,10 @@ def export_csv():
             actionable_only=actionable_only,
         )
 
-    buffer = io.StringIO()
-    writer = csv.writer(buffer, lineterminator="\n")
-    writer.writerow(storms.ZIPS_COLUMNS)
-    writer.writerows(
-        [row[col] for col in storms.ZIPS_COLUMNS] for row in rows
-    )
-
     label = _filename_label(report_text)
-    filename = (f"storm_zips_{start_day.isoformat()}_to_"
-               f"{end_day.isoformat()}_{label}.csv") 
-
-    return Response(
-        buffer.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    return _csv_response(
+        storms.ZIPS_COLUMNS, rows,
+        f"storm_zips_{start_day.isoformat()}_to_{end_day.isoformat()}_{label}.csv",
     )
 
 
@@ -951,4 +942,3 @@ def storm_banner():
             since=since, now=datetime.now(timezone.utc),
         )
     return render_template("_pull_banner.html", banner=banner)
-

@@ -37,6 +37,7 @@ from datetime import datetime
 from pathlib import Path
 
 from hailsys.db import get_connection
+from hailsys.formatting import csv_safe
 from hailsys.iem.common import configure_logging, log_event
 from hailsys.queries.storms import (
     PAIRS_COLUMNS,
@@ -157,7 +158,11 @@ def main(argv=None):
     with path.open("w", newline="") as handle:
         writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(columns)
-        writer.writerows([row[col] for col in columns] for row in rows)
+        # csv_safe: this file is for a person to open in a spreadsheet, and
+        # 31 IEM remarks start with + or - ("+SN AT OBSERVATION.").  If it is
+        # ever \copy'd back into Postgres the apostrophe becomes part of the
+        # stored value, so do not load this file back.
+        writer.writerows([csv_safe(row[col]) for col in columns] for row in rows)
 
     distinct_zips = len({row["zcta5"] for row in rows})
 

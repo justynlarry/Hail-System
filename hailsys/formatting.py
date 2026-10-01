@@ -47,3 +47,20 @@ def _strip_zeros(d):
     if "." in s:
         s = s.rstrip("0").rstrip(".")
     return s
+
+# Excel and LibreOffice treat a cell starting with any of these as a formula.
+# Export data comes from RentCast and IEM, so the content is not ours to trust.
+# Prefixing an apostrophe makes the cell a literal string; Excel doesn't display
+# it.
+#
+# Only for files a PERSON opens.  Do NOT apply this to CSVs that are loaded back
+# into the database -- the apostrophe would become part of the stored value.
+_FORMULA_PREFIXES = ("=", "+", "-", "@")
+
+
+def csv_safe(value):
+    """Neutralise formula-leading values.  Non-strings pass through, so numbers
+    and dates keep their types."""
+    if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
