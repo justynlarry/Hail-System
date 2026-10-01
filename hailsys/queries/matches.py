@@ -37,7 +37,10 @@ LEFT JOIN realtors r ON r.realtor_id = l.realtor_id
 WHERE i.utc_datetime >= %(window_start)s
    AND i.utc_datetime < %(window_end)s
    AND (%(report_text)s:: text is NULL OR i.report_text = %(report_text)s)
-   AND m.radius_used = %(radius_miles)s
+   -- ::numeric: the app passes a float, and numeric = float8 makes Postgres
+   -- cast the column instead, which wrecks the row estimate and picks nested
+   -- loops (about 3x slower on the exports count).
+   AND m.radius_used = %(radius_miles)s::numeric
 GROUP BY
     l.listing_id, p.property_address, p.city, p.zip_code, p.property_type,
     p.year_built, l.list_price, l.list_date, l.list_mls_number,

@@ -26,7 +26,14 @@ LEFT JOIN dnc_list do_
 
 # Suppression is keyed on the agent's email address, office flag is reported
 # but doesn't filter.
-_DNC_FILTER = "AND (NOT %(dnc_exclude)s OR da.dnc_id IS NULL)"
+#
+# NOT EXISTS, not "da.dnc_id IS NULL".  dnc_id is a primary key, so the planner
+# estimates IS NULL on it as matching ~nothing, collapsing the join to one row
+# and choosing nested loops: the matches count took ~1.65 s against ~0.9 s.
+# Same rows (checked 2026-10-01).  da and do_ stay joined for the flag columns.
+_DNC_FILTER = """AND (NOT %(dnc_exclude)s OR NOT EXISTS (
+        SELECT 1 FROM dnc_list x
+        WHERE x.email_norm = r.email_norm AND x.removed_at IS NULL))"""
 
 MATCHES_SQL = f"""
 SELECT
@@ -63,7 +70,8 @@ LEFT JOIN realtors r ON r.realtor_id = l.realtor_id
 WHERE i.utc_datetime >= %(window_start)s
     AND i.utc_datetime < %(window_end)s
     AND (%(report_text)s::text IS NULL OR i.report_text = %(report_text)s)
-    AND m.radius_used = %(radius_miles)s
+    -- ::numeric, see the note in queries/matches.py.
+    AND m.radius_used = %(radius_miles)s::numeric
     {_DNC_FILTER}
 GROUP BY
     storm_date, i.report_text, t.mag_unit, l.listing_id,
