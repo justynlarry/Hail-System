@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*60 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
+*59 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
 
 ## 1. Which role sees operational views
 
@@ -737,40 +737,6 @@ harmless, but it suggests an all-types path that no longer exists.
 
 **When:** cleanup.
 
-## 94. The TIGER geocoder extension is installed, and `tiger` is on the search path
-
-**Status:** open
-
-`postgis_tiger_geocoder` and `postgis_topology` came with the
-`postgis/postgis:16-3.4` image; nothing decided to add them. The `tiger`
-schema is on the default `search_path` (`"$user", public, topology, tiger`),
-and it holds empty tables named `county`, `place`, `zcta5`, `edges` and
-others, all SRID 4269. A typo'd or unqualified table name could silently
-query an empty NAD83 table instead of failing, the same silent-SRID shape
-CLAUDE.md warns about. Options: drop the two unused extensions, or take
-`tiger` off the search path for `hail_app` and `hail_ingest`.
-
-**Side question resolved 2026-09-26; item reopened 2026-09-30, see below.** The TIGER geocoder was already installed, as this
-item describes — unintentional, came with the base image, and stays that
-way for now. What's changed: `address_standardizer` and
-`address_standardizer_data_us` were *not* installed and now are (`sql/024`,
-item 55), a deliberate addition, not the same extensions this item is
-about. The `tiger` schema itself is untouched; the silent-empty-table risk
-this item describes is still real and still open, just no longer confused
-with the (separate, now-resolved) question of whether address parsing was
-available.
-
-**When:** before production deployment, alongside item 3 (the base image).
-
-**Reopened 2026-09-30.** The 2026-09-26 marker closed only a side question, whether address parsing was available (`address_standardizer`, `sql/024`). The risk this item describes is unchanged. Verified 2026-09-30: `search_path` is still `"$user", public, topology, tiger`, and `postgis_tiger_geocoder` and `postgis_topology` are still installed. Gated, with item 3, on "before production deployment".
-
-**Updated 2026-10-01.** Address search chose the Census Geocoder API, so the
-`tiger` data stays empty (`tiger.edges`, `tiger.addr` and `tiger.featnames` all
-0 rows) and nothing uses `postgis_tiger_geocoder`. That makes this item
-decidable without regard to geocoding: drop the extension, or take `tiger` off
-the search path. The caveat is item 145: a future local TIGER load would need
-the extension back, so dropping it now means reinstalling it then.
-
 ## 95. No test for the `R` = RAIN / HEAVY RAIN composite key
 
 **Status:** open
@@ -1282,7 +1248,8 @@ and the same TIGER data. Not done because the container lacks the tools, the
 generated loader script needs rewriting and uses an older vintage (`rd22`,
 `TIGER_RD18`), and it would be repeated on the production box. If it happens,
 `geocode.geocode()`'s return shape is the interface to keep. It would also need
-`postgis_tiger_geocoder`, so it bears on item 94.
+`postgis_tiger_geocoder`, which is still installed (item 94, dropped with the
+extension left in place).
 
 **When:** if `service_error` becomes routine, or Census throttles us.
 
@@ -1975,7 +1942,7 @@ earliest.
 
 ## Closed
 
-*42 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
+*43 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
 
 <details>
 <summary>Closed items (resolved and dropped)</summary>
@@ -2964,5 +2931,40 @@ not spelling.
 **Resolved 2026-10-01.** The lookup and the `geocode_cache` key both call
 `address_key()` in SQL; nothing in Python reimplements it. Typo tolerance, which
 `address_key()` does not give, is item 144.
+
+## 94. The TIGER geocoder extension is installed, and `tiger` is on the search path
+
+**Status:** dropped 2026-10-01
+
+`postgis_tiger_geocoder` and `postgis_topology` came with the
+`postgis/postgis:16-3.4` image; nothing decided to add them. The `tiger`
+schema is on the default `search_path` (`"$user", public, topology, tiger`),
+and it holds empty tables named `county`, `place`, `zcta5`, `edges` and
+others, all SRID 4269. A typo'd or unqualified table name could silently
+query an empty NAD83 table instead of failing, the same silent-SRID shape
+CLAUDE.md warns about. Options: drop the two unused extensions, or take
+`tiger` off the search path for `hail_app` and `hail_ingest`.
+
+**Side question resolved 2026-09-26; item reopened 2026-09-30, see below.** The TIGER geocoder was already installed, as this
+item describes — unintentional, came with the base image, and stays that
+way for now. What's changed: `address_standardizer` and
+`address_standardizer_data_us` were *not* installed and now are (`sql/024`,
+item 55), a deliberate addition, not the same extensions this item is
+about. The `tiger` schema itself is untouched; the silent-empty-table risk
+this item describes is still real and still open, just no longer confused
+with the (separate, now-resolved) question of whether address parsing was
+available.
+
+**When:** before production deployment, alongside item 3 (the base image).
+
+**Reopened 2026-09-30.** The 2026-09-26 marker closed only a side question, whether address parsing was available (`address_standardizer`, `sql/024`). The risk this item describes is unchanged. Verified 2026-09-30: `search_path` is still `"$user", public, topology, tiger`, and `postgis_tiger_geocoder` and `postgis_topology` are still installed. Gated, with item 3, on "before production deployment".
+
+**Dropped 2026-10-01.** The developer closed this on the strength of the
+address-search decision: Census is the better geocoder, so the TIGER geocoder
+will not be used (`docs/decision-log.md`, "Address search: Census Geocoder").
+Nothing was changed. `postgis_tiger_geocoder` and `postgis_topology` are still
+installed and `tiger` is still on the search path, so the silent-empty-table
+risk above stands, accepted. Item 3 (the base image) or item 145 (a local TIGER
+load would need the extension) is where it would come back.
 
 </details>

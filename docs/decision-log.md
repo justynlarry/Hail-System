@@ -5717,7 +5717,9 @@ storm-days page, and an unknown value falls back to All. `sql/031` was applied
 to `hail-dev` before this entry; not checked on the production box.
 
 **Phase.** Items 23 and 124 were gated on Phase 6 (re-gated 2026-09-30, when no
-geocoder or address route existed). This was built while the current phase is 5.
+geocoder or address route existed). The developer pulled them forward into
+Phase 5 on purpose, so the web app has a more visible feature to show RBI's
+management. It touches no send path.
 
 ### The geocoding decision (closes item 23)
 
@@ -5851,6 +5853,8 @@ Caught only by running it: the `DO UPDATE` privilege failure above.
 
 ### Parking lot
 
-Items 23 and 124 resolved. Items 77 and 78 now wait on item 70 only. Item 94 is
-decidable (note on the item). New: 143 to 145 (open, parked) and 146 to 148
-(watch).
+Items 23 and 124 resolved. Items 77 and 78 now wait on item 70 only. Item 94
+closed as dropped, on the strength of this decision (Census is the better
+choice, so the TIGER geocoder is not wanted now); nothing was dropped or
+reconfigured, so the extensions, the empty `tiger` tables and the search path
+are unchanged. New: 143 to 145 (open, parked) and 146 to 148 (watch).
