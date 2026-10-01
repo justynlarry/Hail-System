@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*50 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
+*49 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -1035,25 +1035,11 @@ extension left in place).
 
 **When:** if `service_error` becomes routine, or Census throttles us.
 
-## 153. Agent email and phone are visible to viewers
-
-**Status:** open
-
-`/storms/matches` shows each agent's email and phone, and `/storms/matches.csv`
-and `/exports/matches.csv` include them; all are `login_required` only, so a
-`viewer` sees them. Deliberate (decision log 2026-09-24, "Who can download what",
-matching Phase 4's done-when that a viewer can browse and export); only the
-realtor CSV is `sender`/`admin`. The question is whether that still holds before
-the app is shown beyond the developer, since the contacts are the most
-sensitive data in it. Identified in review and never filed.
-
-**When:** Phase 6, before viewers beyond the developer exist.
-
 ---
 
 ## Watch list — triggers only, no work attached
 
-*30 items, all `open (watch)`. Nothing to do unless the named trigger is observed.*
+*31 items, all `open (watch)`. Nothing to do unless the named trigger is observed.*
 
 ## 2. `nws_issuer` is NOT NULL and unguarded
 
@@ -1486,6 +1472,34 @@ Census retires benchmark names over time. A sudden rise in `service_error` or
 `https://geocoding.geo.census.gov/geocoder/benchmarks` before changing it.
 
 **When:** that rise.
+
+## 153. Agent email and phone are visible to viewers
+
+**Status:** open (watch) — accepted 2026-10-01, revisit on the trigger below
+
+`MATCHES_COLUMNS` includes `agent_email` and `agent_phone`; `/storms/matches.csv`
+and `/exports/matches.csv` are `login_required`, viewers included; and
+`/storms/matches` renders both fields under each agent heading
+(`matches.html:50-51`). Only the realtor list (`/exports/realtors.csv`) is
+`sender`/`admin`. That split was deliberate on 2026-09-24 (decision log, "Who can
+download what", matching Phase 4's done-when that a viewer can browse and
+export).
+
+**Accepted 2026-10-01, not resolved.** RBI is a small office, anyone who would
+hold a viewer account already has this data by other means, and restricting it
+later is a small change: column filtering on the exports plus a role check on the
+one template block.
+
+**The realtor export's `sender`/`admin` restriction is about bulk extraction, not
+about the contacts themselves.** One file with every agent's email and phone is a
+different exposure from reading them a storm at a time. Do not "fix" the
+inconsistency by loosening the realtor export, or by tightening the rest without
+reading this.
+
+**When (revisit trigger):** a viewer account is issued to anyone outside RBI: a
+contractor, a part-time hire, a partner agency. The premise above then no longer
+holds. Identified in review and not filed at the time (decision log, "Review
+findings: decisions, and a gap in the review loop").
 
 ---
 
@@ -3053,5 +3067,13 @@ through `_csv_response` instead of its own writer, and
 at the start of a cell is not covered; a phone number written `+1 303 ...` would
 gain an apostrophe (none exist today); and it must not be used on a CSV that is
 loaded back into the database. See decision log, "CSV formula injection fixed".
+
+**Deliberately not covered:** the three writers in `scripts/build_reference_tables.py`
+(`report_types.csv`, `qualifiers.csv`, `sources.csv`) and the radar analysis writer
+`docs/analysis/radar-verification-2026-09/reduce.py:45`. They are machine-read evidence
+extracts, not files a person opens in a spreadsheet; the curated `planning/*.csv`
+seeds they inform are what `load_reference.sh` loads with `\copy`. An apostrophe on
+a machine-read file would become part of the data, so adding `csv_safe` there would
+be a bug, not caution.
 
 </details>

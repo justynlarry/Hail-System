@@ -6246,3 +6246,91 @@ script test ran the old code. The CLI change needs an image rebuild or a
 Tested: unit cases, all four routes (200, same content type and filenames), a
 hostile row pushed through the real `/export.csv` route, and the script on
 2019-11-22 (7 remarks prefixed, none left bare).
+
+## 2026-10-01 — Review findings: decisions, and a gap in the review loop (items 151 to 153)
+
+Three problems came out of one review. They were reported in chat and **never
+written into `docs/parking-lot.md`**; they survived only as a line in a
+hand-written handoff. The two fixes are recorded in their own entries ("Export
+filenames and report-type validation", "CSV formula injection fixed"); this entry
+records the reasoning behind the choices, and the third decision.
+
+**The gap in the review loop.** The pass-1 audit checked whether *filed* items
+were still open. It could not check whether *identified problems* had ever been
+filed, because nothing records that. A finding that is not written into the
+parking lot in the same session is lost when the chat ends. These three were
+caught by a search for them, not by any check. (Items 151 to 153 were filed
+2026-10-01; none had a number before.)
+
+### Export filenames (item 151)
+
+`report_text` reached `Content-Disposition` from the query string with only `/`
+and space replaced. Werkzeug rejects CR and LF in header values (checked
+2026-10-01), so response splitting was not available, but a double quote is
+accepted and closes the quoted filename early.
+
+**A whitelist, not a longer blacklist.** The old code was a blacklist, and a
+blacklist fails on the character nobody thought of, which is what happened.
+`_filename_label()` keeps `[A-Za-z0-9_-]` and turns everything else into `_`.
+
+**Validation is against the roof-relevant subset, not all of `report_types`.**
+`_export_report_type()` checks `?type=` against `storms.fetch_report_types`
+(12 of the 37 types, `WHERE roof_relevant`), because those are the types the
+dropdowns offer. An unknown type is a 400 on the three export routes, not a quiet
+empty file. Types the app does not offer (`FLOOD`, `RAIN`) are refused there too.
+The other readers of `type` (pages, the map) are unchanged.
+
+`scripts/export_storm_zips.py` keeps its old replace-only label; its input is a
+command-line argument, not the web.
+
+### CSV formula injection (item 152)
+
+Exports carry `agent_name`, `agent_office_name`, `property_address` and, from the
+command-line export, `remark`, from RentCast and IEM. RBI staff open these in
+Excel.
+
+- **`csv_safe()` lives in `hailsys/formatting.py`**, not `views.py`, because a
+  command-line script needs it too and `magnitude` already made that module the
+  shared formatting layer used by both the templates and `map_points()`.
+- **Machine-read writers are deliberately excluded:** the three in
+  `scripts/build_reference_tables.py` and `docs/analysis/radar-verification-2026-09/reduce.py:45`.
+  This is a display-layer defence, and applying it to a file a program reads would
+  put the apostrophe into the data. Correction to the working-session summary: the
+  `reference/*.csv` files this script writes are *not* themselves loaded into
+  Postgres. `load_reference.sh` loads the curated `planning/*.csv` seeds, and says
+  the `reference/` ones are statistical extracts ("loading the wrong one loads
+  statistics"). The exclusion stands for the reason above, and so that nobody
+  "fixes" it by adding `csv_safe` to a writer whose output feeds a `\copy`.
+- **Tab and carriage return are excluded** from the prefix set. Some guidance lists
+  them, but they would mangle legitimate data, and the four characters
+  `=`, `+`, `-`, `@` cover the realistic case.
+
+**The near-miss.** The first version went into `_csv_response` and was described as
+covering all five exports at once. It did not: `/export.csv` (`views.py:459`) and
+`scripts/export_storm_zips.py:158` built their own writers.
+`grep -rn 'csv.writer\|csv.DictWriter'` finds seven writers in total (two in
+`views.py`, one in the export script, three in `build_reference_tables.py`, one in
+the radar analysis). **"Put it in one place" and "every path goes through that
+place" are two separate claims**, and only the first had been checked. The fix
+routed `/export.csv` through `_csv_response`, so the web has one writer.
+
+### Agent contacts visible to viewers (item 153): accepted
+
+`MATCHES_COLUMNS` includes `agent_email` and `agent_phone`, the matched exports are
+`login_required` (viewers included), and the matched-listings page renders both
+under each agent heading. Only the realtor list is `sender`/`admin`.
+
+**Decision: accepted.** RBI is a small office, anyone who would hold a viewer
+account already has this data by other means, and restricting it later is a small
+change: column filtering on the exports plus a role check on one template block.
+This was not verified; it is the developer's judgement of RBI's staffing.
+
+- **Revisit trigger:** a viewer account issued to anyone outside RBI, such as a
+  contractor, a part-time hire or a partner agency.
+- **The realtor export's `sender`/`admin` restriction is therefore about bulk
+  extraction, not about the contacts themselves.** Stated here so the apparent
+  inconsistency is not "fixed" in the wrong direction.
+
+Filed as item 153, `open (watch)`, with the trigger as its *When*. The parking-lot
+status vocabulary has no "accepted", and a trigger with no work attached is what
+`open (watch)` means.
