@@ -36,38 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*58 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
-
-## 1. Which role sees operational views
-
-**Status:** open
-
-Open question 11. The three application roles are defined as **cost stages** —
-`viewer` browses free data, `sender` spends money and reputation, `admin`
-manages users and nothing else. Ingest health is not a cost stage: it costs
-nothing to look at, but "did last night's ingest run" is an operator question,
-not a browsing one.
-
-So the role model has no seat for the person who checks whether the system is
-working. Today that person is Justyn at a psql prompt, which is fine while the
-operator and the entire user base are the same person and stops being fine at
-Phase 6.
-
-`hail_app` currently holds `SELECT` on `ingest_runs` and `iem_ingest_rejects`,
-which is a provisional answer rather than a decided one. Note this is not new
-with those tables — `api_pulls` and `api_call_log` have the same unanswered
-question and have simply never been read by anyone else.
-
-**When:** Phase 2, when a UI exists.
-
-**Checked against the 2026-09-14 decision-log entries** (schema-review
-mapping): still open. The Tailscale-access entry touches the same territory —
-device/network auth versus application identity — but its "unchanged by this"
-paragraph explicitly declines to say which role sees `ingest_runs`; it only
-confirms the application still needs its own login. Not resolved by that
-entry or any other from that day.
-
-**Decision, 2026-09-30:** everyone should see ingest health, not one role. No web route reads `ingest_runs` or `iem_ingest_rejects` today (checked 2026-09-30), so the work is to build one. `hail_app`'s provisional `SELECT` on those two tables (`sql/010`) stays. `api_pulls` and `api_call_log` have the same unanswered question and are not covered by this decision.
+*51 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -286,90 +255,6 @@ todo to make a build-and-recreate step a checklist item — or a script —
 rather than something that has to be remembered fresh each audit.
 
 **When:** process improvement, no deadline.
-
-## 49. No cap on export date-range width
-
-**Status:** open (reopened)
-
-*(Resolved 2026-09-25: capped at 400 days, and the cost measured and accepted.
-Reopen conditions are at the end.)*
-
-`/export.csv` and the underlying `storms.py` queries accepted any start/end
-range with no upper bound. Fine at the time; the 2019 wide-range timing finding
-("Performance: the spatial join was the cost, not the hardware") shows what
-an unbounded range can cost, and `report_zip_distances` fixes the specific
-cause found, not the general absence of a limit.
-
-**Larger since 2026-09-24.** The bulk match export (`/exports/matches.csv`,
-decision log "CSV exports: three projections, suppression optional,
-snapshot") took the same unbounded range, and it is the heaviest query the
-web app runs: `storm_listing_matches` joined to `iem_data`, `report_types`,
-`listings`, `properties`, `realtors` and two `dnc_list` joins, grouped per
-listing, storm day and type. Three things make it worse than the storm-list
-case:
-
-- **Pressing Apply on `/exports` runs it.** `count_matches` wraps the whole
-  projection in `count(*)`, so the count beside the download costs the same
-  as the download, before anyone downloads anything.
-- **Any signed-in account can ask for it.** The match exports are
-  `login_required`, viewers included. Only the realtor list is
-  sender/admin.
-- **The file is built whole in memory.** `_csv_response` writes to a
-  `StringIO` and returns it, so one wide request holds the entire file in a
-  worker's memory.
-
-A single one-report storm already matched 949 listings (item 106), so a
-season could be many thousands of rows.
-
-**Resolved 2026-09-25.** `_window_from_args` now clamps an explicit
-`start`/`end` to `MAX_RANGE_DAYS` (400, which covers the 365-day claim window
-with room to spare), after the `days` fallback and the reversed-pair swap so it
-sees two valid, ordered dates. It clamps rather than returning a 400, so a
-bookmarked URL keeps working, and the storm list, territory and `/exports`
-flash "Range limited to 400 days." (the map, CSV and fragment routes share the
-helper but don't flash, so a message can't surface on some later page). See
-`docs/decision-log.md`, "Explicit date ranges are capped at 400 days".
-Before that, only the `days` shortcut was checked against `DAY_RANGES`, and the
-date pickers could ask for any span.
-
-**Measured 2026-09-25, on `hail-dev`, read-only**, through `count_matches` and
-`fetch_matches` themselves:
-
-| Range | Rows | Count | Fetch | CSV | Python memory peak |
-|---|---|---|---|---|---|
-| 30 days | 4,765 | 0.29s | 0.35s | 1.2 MB | 11 MB |
-| 90 days | 5,671 | 0.20s | 0.44s | 1.4 MB | 12 MB |
-| 400 days | 5,671 | 0.19s | 0.40s | 1.4 MB | 12 MB |
-
-The realtor count took 0.01s. **This is not a stress test:** `storm_listing_matches`
-held only 11,575 rows, all from recent storms, so 400 days returned the same
-rows as 90. Single user, warm cache, the dev VM (the OptiPlex was not
-measured). It shows the cost today is trivial, and says nothing about a year of
-real matches, which could be ten to a hundred times larger. Memory came to
-roughly 2 KB of Python per row.
-
-**Closed on that basis, deliberately, with no further code.** The three
-concerns above stand as a description of how it *could* go wrong: the count
-runs the whole projection, any signed-in account can trigger it, and the file
-is built in memory. At today's size none is worth building against. Options
-considered and not built: a hard row ceiling that refuses with a message
-(the likeliest first step, about 50,000 rows), and streaming the response from
-a server-side cursor (only worthwhile far above that).
-
-**Reopen if** a count or fetch on `/exports` takes more than about 2 seconds,
-or a range returns more than about 10,000 rows (twice today's largest). Rate
-limiting for an internet-facing app belongs to the Cloudflare tunnel work
-(item 110), not the application.
-
-**Reopened 2026-09-30.** The cap shipped (`54cc7f2`, `MAX_RANGE_DAYS = 400` at `views.py:28`, clamp at `views.py:79-98`), but this item's own reopen conditions ("more than about 2 seconds", "more than about 10,000 rows") are now met. Measured 2026-09-30 on `hail-dev`, read-only, through `exports.count_matches` and `fetch_matches` as `hail_app` (all report types, 5.0 mi radius, DNC excluded, one run each, warm cache):
-
-| Range | Rows | Count | Fetch |
-|---|---|---|---|
-| 30 days | 1,126 | 0.08s | 0.06s |
-| 90 days | 11,868 | 0.57s | 0.62s |
-| 400 days | 29,870 | 2.51s | 2.89s |
-
-`storm_listing_matches` held 97,370 rows, against 11,575 when this item was closed. The options already considered (a hard row ceiling, about 50,000 rows; streaming from a server-side cursor) are the next step. Not built; documentation only.
 
 ## 51. Concurrent pulls by two users on one storm — duplicate spend
 
@@ -597,17 +482,6 @@ self-service emailed link needs a sending path.
 
 **When:** Phase 5, once sending exists.
 
-## 66. Username convention and its security implications
-
-**Status:** open
-
-Usernames are free-form at creation (stripped and lower-cased, nothing else).
-Settle the convention — and what it gives away, e.g. whether a username is
-guessable from a name or email — before real staff accounts exist, since
-changing it afterward means renaming live logins.
-
-**When:** before real accounts get created.
-
 ## 83. In-house realtor and contacts database
 
 **Status:** open
@@ -689,42 +563,6 @@ the 9th, so nothing yet sits on either side of a rollover. Re-check after
 **When:** after the 2026-10-09 rollover.
 
 **Developer note, 2026-09-30:** the recorded count is off because some pulls happened before usage tracking was set up. Tracking is correct now, and it will be checked against RentCast's own figure at the next billing cycle (rollover 2026-10-09).
-
-## 89. "Matched, none in range" on a pulled storm has never been seen
-
-**Status:** open
-
-The rule (`match_ran and pulled`) is verified only on its other half: a
-never-pulled storm with empty runs stays "Not pulled". Showing the badge
-itself needs a storm that was pulled but has no listings within the match
-radius.
-
-**When:** the first time a pull comes back with nothing in range, or with a
-deliberate test.
-
-## 90. An app-wide login check instead of per-route `@login_required`
-
-**Status:** open
-
-A `before_request` that redirects any request without `g.user` to `/login`,
-except `/login`, `/logout` and static files, would make `@login_required`
-redundant everywhere and close the forgotten-decorator gap, as the admin
-blueprint's hook already does for `/admin`. Considered and deferred
-2026-09-23 (decision log, "`role_required` alone where a route needs a
-role").
-
-**When:** the next time a route is added outside the admin blueprint, or
-Phase 6, before staff use the system.
-
-## 91. `_MATCH_SQL`'s all-types branch is dead
-
-**Status:** open
-
-`match_storm` now requires `report_text`, so the
-`%(report_text)s::text IS NULL OR …` branch in `_MATCH_SQL` can't run. It's
-harmless, but it suggests an all-types path that no longer exists.
-
-**When:** cleanup.
 
 ## 95. No test for the `R` = RAIN / HEAVY RAIN composite key
 
@@ -824,17 +662,6 @@ time. Related to item 51 (concurrent pulls on one storm).
 
 **When:** with item 51.
 
-## 103. Revisit the `testview` account before Phase 6
-
-**Status:** open
-
-`testview` stays an active viewer for role testing (decision log 2026-09-24).
-That's acceptable while the app is reachable only over Tailscale. When Phase 6
-exposes it to staff, and possibly beyond the tailnet (item 63), deactivate it
-or give it a strong password nobody reuses.
-
-**When:** Phase 6, before the app is exposed.
-
 ## 105. `postgis` has no log rotation
 
 **Status:** open
@@ -899,22 +726,6 @@ matched listings were the list Phase 5 acts on and the likeliest one someone
 would want in a spreadsheet; `/activity` is the list that is still without one.
 
 **When:** unphased.
-
-## 110. A Cloudflare tunnel for access from outside the tailnet
-
-**Status:** open
-
-Decided 2026-09-14 to revisit at Phase 6 (decision log, the Tailscale-access
-entry): today the app is reached over Tailscale only, and `web` publishes to
-`127.0.0.1:8000`. A tunnel is what puts it in front of real phones on real
-networks, which is what the responsive pass (decision log, "CSS
-responsiveness pass") was written for. It comes with its own checklist, none of
-it done: who can log in (item 63), what to do with the `testview` account
-(item 103), and how much a signed-in viewer can ask of the database (item 49).
-The realtor CSV, every agent's email and phone in one file, is sender/admin
-only for the same reason.
-
-**When:** Phase 6, with items 63 and 103.
 
 ## 111. Tap targets under 44px
 
@@ -1066,24 +877,6 @@ no-dedup basis.
 
 **When:** after the RBI realtor import (item 83) lands — merging now,
 against the pre-import data, would just need redoing.
-
-## 127. Login skips `verify_password` for an unknown user — timing-based username enumeration
-
-**Status:** open
-
-`views.py:295-299` (297-299 when filed; the file has since shifted): when the username doesn't exist, `verify_password` is
-never called, so an invalid username returns measurably faster than a valid
-username with a wrong password (scrypt verification has a real, deliberate
-cost; skipping it entirely is fast). An attacker can use response time
-alone to enumerate valid usernames without ever seeing a different error
-message. The "one message for every failure" comment is true of what's
-*shown*, not of how long the response takes to arrive. Fix is a dummy hash
-comparison on the no-user path, so both branches cost about the same.
-
-**When:** before the app is reachable beyond Tailscale — group with items
-110 (Cloudflare tunnel) and 103 (`testview`'s account), not the general
-code-review backlog, since exposure is exactly what turns this from a
-theoretical gap into a real one.
 
 ## 129. The Constant Contact export may be missing ~9 months of unsubscribes
 
@@ -1241,6 +1034,37 @@ generated loader script needs rewriting and uses an older vintage (`rd22`,
 extension left in place).
 
 **When:** if `service_error` becomes routine, or Census throttles us.
+
+## 152. CSV formula injection in the exports
+
+**Status:** open
+
+`_csv_response` builds files with `csv.writer`, which quotes a cell but does not
+neutralise one that starts with `=`, `+`, `-` or `@`; a spreadsheet opening the
+file may evaluate it as a formula. None of the text columns exported today
+begins with one (checked 2026-10-01: `agent_name`, `agent_office_name`, `city`,
+`property_address`, `agent_phone`, `agent_email`, `list_mls_number`, 0 rows
+each), so there is no live hit. The text comes from RentCast and from DNC
+uploads, which is outside our control. The usual fix is to prefix such a cell
+with a single quote. Identified in review and never filed (decision log, "Export
+filenames and report-type validation").
+
+**When:** before the exports are used by anyone but the developer, or if the check
+above ever returns a row.
+
+## 153. Agent email and phone are visible to viewers
+
+**Status:** open
+
+`/storms/matches` shows each agent's email and phone, and `/storms/matches.csv`
+and `/exports/matches.csv` include them; all are `login_required` only, so a
+`viewer` sees them. Deliberate (decision log 2026-09-24, "Who can download what",
+matching Phase 4's done-when that a viewer can browse and export); only the
+realtor CSV is `sender`/`admin`. The question is whether that still holds before
+the app is shown beyond the developer, since the contacts are the most
+sensitive data in it. Identified in review and never filed.
+
+**When:** Phase 6, before viewers beyond the developer exist.
 
 ---
 
@@ -1931,7 +1755,7 @@ earliest.
 
 ## Closed
 
-*44 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
+*56 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
 
 <details>
 <summary>Closed items (resolved and dropped)</summary>
@@ -2971,5 +2795,248 @@ docstring) or remove it.
 so, and `--created-by` is now required unless no non-system user exists yet, so
 it can no longer create an unattributed account by accident. See
 `docs/decision-log.md`, "`create_user.py` stays, as a bootstrap path".
+
+## 1. Which role sees operational views
+
+**Status:** resolved (residuals) 2026-10-01 0a2052d
+
+Open question 11. The three application roles are defined as **cost stages** —
+`viewer` browses free data, `sender` spends money and reputation, `admin`
+manages users and nothing else. Ingest health is not a cost stage: it costs
+nothing to look at, but "did last night's ingest run" is an operator question,
+not a browsing one.
+
+So the role model has no seat for the person who checks whether the system is
+working. Today that person is Justyn at a psql prompt, which is fine while the
+operator and the entire user base are the same person and stops being fine at
+Phase 6.
+
+`hail_app` currently holds `SELECT` on `ingest_runs` and `iem_ingest_rejects`,
+which is a provisional answer rather than a decided one. Note this is not new
+with those tables — `api_pulls` and `api_call_log` have the same unanswered
+question and have simply never been read by anyone else.
+
+**When:** Phase 2, when a UI exists.
+
+**Checked against the 2026-09-14 decision-log entries** (schema-review
+mapping): still open. The Tailscale-access entry touches the same territory —
+device/network auth versus application identity — but its "unchanged by this"
+paragraph explicitly declines to say which role sees `ingest_runs`; it only
+confirms the application still needs its own login. Not resolved by that
+entry or any other from that day.
+
+**Decision, 2026-09-30:** everyone should see ingest health, not one role. No web route reads `ingest_runs` or `iem_ingest_rejects` today (checked 2026-09-30), so the work is to build one. `hail_app`'s provisional `SELECT` on those two tables (`sql/010`) stays. `api_pulls` and `api_call_log` have the same unanswered question and are not covered by this decision.
+
+**Resolved 2026-10-01.** The Storm Days page shows ingest health to every signed-in role (decision log, "Ingest health on the Storm Days page"). **Residual:** `api_pulls` and `api_call_log` have the same unanswered who-sees-it question.
+
+## 49. No cap on export date-range width
+
+**Status:** resolved (residuals) 2026-10-01 a2afa9c
+
+*(Resolved 2026-09-25: capped at 400 days, and the cost measured and accepted.
+Reopen conditions are at the end.)*
+
+`/export.csv` and the underlying `storms.py` queries accepted any start/end
+range with no upper bound. Fine at the time; the 2019 wide-range timing finding
+("Performance: the spatial join was the cost, not the hardware") shows what
+an unbounded range can cost, and `report_zip_distances` fixes the specific
+cause found, not the general absence of a limit.
+
+**Larger since 2026-09-24.** The bulk match export (`/exports/matches.csv`,
+decision log "CSV exports: three projections, suppression optional,
+snapshot") took the same unbounded range, and it is the heaviest query the
+web app runs: `storm_listing_matches` joined to `iem_data`, `report_types`,
+`listings`, `properties`, `realtors` and two `dnc_list` joins, grouped per
+listing, storm day and type. Three things make it worse than the storm-list
+case:
+
+- **Pressing Apply on `/exports` runs it.** `count_matches` wraps the whole
+  projection in `count(*)`, so the count beside the download costs the same
+  as the download, before anyone downloads anything.
+- **Any signed-in account can ask for it.** The match exports are
+  `login_required`, viewers included. Only the realtor list is
+  sender/admin.
+- **The file is built whole in memory.** `_csv_response` writes to a
+  `StringIO` and returns it, so one wide request holds the entire file in a
+  worker's memory.
+
+A single one-report storm already matched 949 listings (item 106), so a
+season could be many thousands of rows.
+
+**Resolved 2026-09-25.** `_window_from_args` now clamps an explicit
+`start`/`end` to `MAX_RANGE_DAYS` (400, which covers the 365-day claim window
+with room to spare), after the `days` fallback and the reversed-pair swap so it
+sees two valid, ordered dates. It clamps rather than returning a 400, so a
+bookmarked URL keeps working, and the storm list, territory and `/exports`
+flash "Range limited to 400 days." (the map, CSV and fragment routes share the
+helper but don't flash, so a message can't surface on some later page). See
+`docs/decision-log.md`, "Explicit date ranges are capped at 400 days".
+Before that, only the `days` shortcut was checked against `DAY_RANGES`, and the
+date pickers could ask for any span.
+
+**Measured 2026-09-25, on `hail-dev`, read-only**, through `count_matches` and
+`fetch_matches` themselves:
+
+| Range | Rows | Count | Fetch | CSV | Python memory peak |
+|---|---|---|---|---|---|
+| 30 days | 4,765 | 0.29s | 0.35s | 1.2 MB | 11 MB |
+| 90 days | 5,671 | 0.20s | 0.44s | 1.4 MB | 12 MB |
+| 400 days | 5,671 | 0.19s | 0.40s | 1.4 MB | 12 MB |
+
+The realtor count took 0.01s. **This is not a stress test:** `storm_listing_matches`
+held only 11,575 rows, all from recent storms, so 400 days returned the same
+rows as 90. Single user, warm cache, the dev VM (the OptiPlex was not
+measured). It shows the cost today is trivial, and says nothing about a year of
+real matches, which could be ten to a hundred times larger. Memory came to
+roughly 2 KB of Python per row.
+
+**Closed on that basis, deliberately, with no further code.** The three
+concerns above stand as a description of how it *could* go wrong: the count
+runs the whole projection, any signed-in account can trigger it, and the file
+is built in memory. At today's size none is worth building against. Options
+considered and not built: a hard row ceiling that refuses with a message
+(the likeliest first step, about 50,000 rows), and streaming the response from
+a server-side cursor (only worthwhile far above that).
+
+**Reopen if** a count or fetch on `/exports` takes more than about 2 seconds,
+or a range returns more than about 10,000 rows (twice today's largest). Rate
+limiting for an internet-facing app belongs to the Cloudflare tunnel work
+(item 110), not the application.
+
+**Reopened 2026-09-30.** The cap shipped (`54cc7f2`, `MAX_RANGE_DAYS = 400` at `views.py:28`, clamp at `views.py:79-98`), but this item's own reopen conditions ("more than about 2 seconds", "more than about 10,000 rows") are now met. Measured 2026-09-30 on `hail-dev`, read-only, through `exports.count_matches` and `fetch_matches` as `hail_app` (all report types, 5.0 mi radius, DNC excluded, one run each, warm cache):
+
+| Range | Rows | Count | Fetch |
+|---|---|---|---|
+| 30 days | 1,126 | 0.08s | 0.06s |
+| 90 days | 11,868 | 0.57s | 0.62s |
+| 400 days | 29,870 | 2.51s | 2.89s |
+
+`storm_listing_matches` held 97,370 rows, against 11,575 when this item was closed. The options already considered (a hard row ceiling, about 50,000 rows; streaming from a server-side cursor) are the next step. Not built; documentation only.
+
+**Resolved 2026-10-01.** Two query fixes (`NOT EXISTS` for the DNC filter, `::numeric` on the radius comparison): the 400-day count went from 2.51 s to about 0.72 s and the fetch from 2.89 s to about 1.4 s (decision log, "Matched-export latency"). The 2-second trigger is cleared. **Residual:** the row trigger is not (11,868 rows at 90 days, 29,870 at 400), so the row ceiling (about 50,000) and streaming remain the next options. Reopen if a count or fetch passes 2 s again.
+
+## 66. Username convention and its security implications
+
+**Status:** resolved (residuals) 2026-09-30
+
+Usernames are free-form at creation (stripped and lower-cased, nothing else).
+Settle the convention — and what it gives away, e.g. whether a username is
+guessable from a name or email — before real staff accounts exist, since
+changing it afterward means renaming live logins.
+
+**When:** before real accounts get created.
+
+**Resolved 2026-09-30** as residual risk accepted, not solved (`first.MILI`; decision log, "hail-dev reachable through a Cloudflare Tunnel; items 66, 103, 110 and 127 closed"). Usernames are identifiers, not secrets; the convention reduces guessability and does not remove it. Mitigated by Access, rate limiting and the item 127 fix.
+
+## 89. "Matched, none in range" on a pulled storm has never been seen
+
+**Status:** resolved 2026-10-01
+
+The rule (`match_ran and pulled`) is verified only on its other half: a
+never-pulled storm with empty runs stays "Not pulled". Showing the badge
+itself needs a storm that was pulled but has no listings within the match
+radius.
+
+**When:** the first time a pull comes back with nothing in range, or with a
+deliberate test.
+
+**Closed 2026-10-01 on a reading, not a sighting.** `_label()` checks `matched` (rows in `storm_listing_matches`) before `match_ran and pulled`, and 5 zero-created re-runs in `match_runs` all belong to matched storms. The badge itself has still never been seen (decision log, "Matched, none in range": verified by reading).
+
+## 90. An app-wide login check instead of per-route `@login_required`
+
+**Status:** resolved 2026-10-01 605f0b5
+
+A `before_request` that redirects any request without `g.user` to `/login`,
+except `/login`, `/logout` and static files, would make `@login_required`
+redundant everywhere and close the forgotten-decorator gap, as the admin
+blueprint's hook already does for `/admin`. Considered and deferred
+2026-09-23 (decision log, "`role_required` alone where a route needs a
+role").
+
+**When:** the next time a route is added outside the admin blueprint, or
+Phase 6, before staff use the system.
+
+**Resolved 2026-10-01.** `require_login` is registered after `load_current_user`, whitelists endpoint names (`main.login`, `static`), and the decorators stay (decision log, "App-wide login hook").
+
+## 91. `_MATCH_SQL`'s all-types branch is dead
+
+**Status:** resolved 2026-10-01 eacefc1
+
+`match_storm` now requires `report_text`, so the
+`%(report_text)s::text IS NULL OR …` branch in `_MATCH_SQL` can't run. It's
+harmless, but it suggests an all-types path that no longer exists.
+
+**When:** cleanup.
+
+**Resolved 2026-10-01.** Branch removed; the same construct is kept where the filter is genuinely optional (decision log, "A dead branch removed from `_MATCH_SQL`").
+
+## 103. Revisit the `testview` account before Phase 6
+
+**Status:** resolved 2026-09-30
+
+`testview` stays an active viewer for role testing (decision log 2026-09-24).
+That's acceptable while the app is reachable only over Tailscale. When Phase 6
+exposes it to staff, and possibly beyond the tailnet (item 63), deactivate it
+or give it a strong password nobody reuses.
+
+**When:** Phase 6, before the app is exposed.
+
+**Resolved 2026-09-30.** `testview` is deactivated, not deleted, since it may own rows in `api_pulls`, `storm_listing_matches` and `match_runs` (decision log, "hail-dev reachable through a Cloudflare Tunnel; items 66, 103, 110 and 127 closed").
+
+## 110. A Cloudflare tunnel for access from outside the tailnet
+
+**Status:** resolved (residuals) 2026-09-30
+
+Decided 2026-09-14 to revisit at Phase 6 (decision log, the Tailscale-access
+entry): today the app is reached over Tailscale only, and `web` publishes to
+`127.0.0.1:8000`. A tunnel is what puts it in front of real phones on real
+networks, which is what the responsive pass (decision log, "CSS
+responsiveness pass") was written for. It comes with its own checklist, none of
+it done: who can log in (item 63), what to do with the `testview` account
+(item 103), and how much a signed-in viewer can ask of the database (item 49).
+The realtor CSV, every agent's email and phone in one file, is sender/admin
+only for the same reason.
+
+**When:** Phase 6, with items 63 and 103.
+
+**Resolved 2026-09-30.** `dev.roofbrokersinc-weather.com` through a locally managed Cloudflare Tunnel with Access (one-time PIN) in front (decision log, "hail-dev reachable through a Cloudflare Tunnel; items 66, 103, 110 and 127 closed"). **Residual:** rate limiting is 5 requests per 10 s on `/login` with a 10 s block, which is burst protection only, since the free plan caps the period at 10 s; a paced attacker is unaffected. A second tunnel and hostname are planned for the production machine.
+
+## 127. Login skips `verify_password` for an unknown user — timing-based username enumeration
+
+**Status:** resolved 2026-09-30
+
+`views.py:295-299` (297-299 when filed; the file has since shifted): when the username doesn't exist, `verify_password` is
+never called, so an invalid username returns measurably faster than a valid
+username with a wrong password (scrypt verification has a real, deliberate
+cost; skipping it entirely is fast). An attacker can use response time
+alone to enumerate valid usernames without ever seeing a different error
+message. The "one message for every failure" comment is true of what's
+*shown*, not of how long the response takes to arrive. Fix is a dummy hash
+comparison on the no-user path, so both branches cost about the same.
+
+**When:** before the app is reachable beyond Tailscale — group with items
+110 (Cloudflare tunnel) and 103 (`testview`'s account), not the general
+code-review backlog, since exposure is exactly what turns this from a
+theoretical gap into a real one.
+
+**Resolved 2026-09-30.** Every login path now costs one scrypt against `DUMMY_PASSWORD_HASH` (decision log, "hail-dev reachable through a Cloudflare Tunnel; items 66, 103, 110 and 127 closed"). **Do not cite the first timing run** (18.2 / 2.1 / 2.2 ms): those were CSRF rejections, not logins. Valid, all 401: 106.6 / 107.1 / 105.8 ms.
+
+## 149. Match page: CSV download link at the top as well as the bottom
+
+**Status:** resolved 2026-10-01 958cd67
+
+The link was at the bottom of the matched-listings page since 2026-09-24 (`28a0195`); it is now also beside the counts at the top. Both carry the page's query string, so the download matches the filters on screen (decision log, "Match page: the CSV download link also at the top").
+
+## 150. Header greeting by first name
+
+**Status:** dropped 2026-10-01
+
+**Declined, not deferred.** It would need `emp_fname` in the session, and widening the session for a display string was judged not worth it. The header keeps `session.user_name` (decision log, "Header greeting by first name: declined").
+
+## 151. Export filenames: `report_text` reached `Content-Disposition` unsanitised
+
+**Status:** resolved 2026-10-01 a4376cc
+
+`report_text` came from the query string with only `/` and space replaced, so a double quote could close the quoted filename. Replaced with a whitelist (`_filename_label`) plus validation against `storms.fetch_report_types` (`_export_report_type`, 400 on an unknown type) on `/export.csv`, `/storms/matches.csv` and `/exports/matches.csv`. **Not changed:** `scripts/export_storm_zips.py:116` (command-line input) and the DNC upload's stored filename (admin only). See decision log, "Export filenames and report-type validation".
 
 </details>

@@ -5992,3 +5992,216 @@ No account was created. `users` still holds 4 rows. The `INSERT` itself with
 **Why:** the one thing this script can do that `/admin` cannot is create the
 first admin, because `/admin` needs a signed-in admin. That is worth keeping; an
 unattributed second account is not.
+
+## 2026-10-01 — Ingest health on the Storm Days page (item 1)
+
+A one-line verdict under the RentCast quota block on Storm Days, with the detail
+behind a `<details>` element. `hailsys/queries/ingest.py`,
+`templates/_ingest_health.html`, `INGEST_STALE_AFTER` in `tuning.py`. Commits
+`0a2052d`, `a3d5f98` (alignment). Visible to every signed-in role: the route is
+`login_required` only, which is item 1's 2026-09-30 decision ("everyone should
+see ingest health").
+
+**Health is an absence question.** A crashed run leaves its `ingest_runs` row at
+`running` forever, and a missed run leaves no row at all, so "did a run fail"
+cannot be answered from rows. "When did a nightly last complete" can: it covers
+failed, crashed and never-started alike. So the verdict leads, and the run table
+(last 5 runs), report count, newest report and recent reject reasons are
+secondary.
+
+**Quiet when healthy:** one green line ("Ingest OK, last nightly completed N
+hours ago"); a red STALE line, or "no nightly run has ever completed", otherwise.
+Colour reinforces the words OK and STALE and does not carry the meaning alone.
+Finished times are shown in Denver (the first draft showed UTC).
+
+**It mirrors `scripts/status.sh`; it does not reuse it.** `ingest.py` holds its
+own copies of the four queries (runs, data, rejects, nightly). The verdict is
+computed in Python (`age < stale_after`), where `status.sh` does it in SQL, and
+`status.sh`'s data query also returns `newest_utc`, which the page leaves out.
+If one changes, the other must, or the page and the operator script disagree.
+
+**The 30-hour figure lives in three places, and nothing makes them agree:**
+`INGEST_STALE_AFTER` (`tuning.py`), `STALE_HOURS` (`scripts/status.sh`) and
+`DEFAULT_HOURS` in `scripts/iem_ingest.py` (a lookback: 30 hours, so each night
+overlaps the previous run by 6).
+
+Item 1's role question is answered for ingest health only. `api_pulls` and
+`api_call_log` have the same unanswered question and are not covered.
+
+## 2026-10-01 — Matched-export latency: two fixes, and two theories that were wrong (item 49)
+
+`a2afa9c`. Item 49's reopen conditions were more than about 2 seconds, or more
+than about 10,000 rows. Measured through `exports.count_matches` and
+`fetch_matches` as `hail_app` (all types, 5.0 miles, DNC excluded, warm):
+
+| Range | Rows | Count before | Count after | Fetch before | Fetch after |
+|---|---|---|---|---|---|
+| 30 days | 1,126 | 0.08 s | 0.045 s | 0.06 s | 0.05 s |
+| 90 days | 11,868 | 0.57 s | 0.29 s | 0.62 s | 0.39–0.45 s |
+| 400 days | 29,870 | 2.51 s | 0.72 s | 2.89 s | 1.37–1.43 s |
+
+The "before" column is item 49's own 2026-09-30 table. One 400-day count run
+read 1.88 s against 0.72 s for the others; not explained. The match page query
+at 400 days went from 1.67 s to 0.69 s.
+
+**The two changes:**
+
+- `_DNC_FILTER` is now `NOT EXISTS (SELECT 1 FROM dnc_list ...)` instead of
+  `da.dnc_id IS NULL`. `dnc_id` is a primary key, so the planner estimates
+  `IS NULL` on it as matching almost nothing, which collapses the join estimate
+  to one row. (That is an inference; the plan agrees with it, I did not prove
+  the mechanism.) `da` and `do_` stay joined for the flag columns.
+- `m.radius_used = %(radius_miles)s::numeric` in `exports.py` and `matches.py`.
+  The app passes the radius as a Python float (`fetch_settings` casts it, to
+  avoid `Decimal * float`), and `numeric = float8` makes Postgres cast the
+  *column*, which discards its statistics: estimated 487 rows against 97,370
+  actual, so nested loops.
+
+**Neither is enough alone through the app.** New filter with a float radius
+2.41–2.49 s (no gain); cast alone about 1.49 s; both 0.72–0.76 s. A float
+round-trips exactly for every `NUMERIC(4,1)` radius from 0.1 to 10.0. In psql,
+with a literal `5.0` (which is numeric), `NOT EXISTS` alone looked like the fix
+(1.65 s to 0.84–0.94 s), because a literal hid the float problem. Test through
+the app's own bound parameters.
+
+**Two false starts, recorded because both were plausible:**
+
+1. The `OR`-against-a-parameter theory (`NOT dnc_exclude OR ...`). Removing the
+   OR changed nothing; 1,872 ms to 1,680 ms was cache warming.
+2. Stale statistics. `pg_stat_user_tables` showed `dnc_list`, `realtors`,
+   `listings` and `storm_listing_matches` all analyzed 2026-10-01 20:28 with
+   `n_mod_since_analyze = 0`. `ANALYZE` was a no-op (1,629–1,652 ms against a
+   1,680 ms baseline) and the estimate stayed at one row.
+
+**Declined:**
+
+- `work_mem`. With both fixes: 4 MB 710–790 ms (spills 6.7 MB), 32 MB 615–670 ms,
+  64 MB 615–650 ms, 128 MB 630 ms then 1,776 and 1,836 ms on repeat runs,
+  unexplained and reason enough not to go higher. About 70–100 ms (10%) for a
+  per-sort, per-connection setting. `SET LOCAL work_mem = '32MB'` inside the
+  export transaction remains available if that ever matters.
+- A count-only variant (distinct on `storm_date`, `report_text`, `listing_id`):
+  about 375 ms, same 29,870. `MATCHES_COUNT_SQL` derives the count from the
+  projection precisely so the number beside Apply cannot disagree with the file,
+  and the shortcut relies on every other column being determined by the listing.
+
+**Equivalence checked:** old and new SQL returned identical rows for the 400-day
+and 30-day windows, all types and HAIL, DNC excluded and included, plus the
+count, the match page query and the realtors list.
+
+Item 49: the time trigger is cleared. The row trigger is not (11,868 rows at 90
+days, 29,870 at 400), so it resolves with residuals: the row ceiling (about
+50,000) and server-side-cursor streaming remain the next options.
+
+## 2026-10-01 — A dead branch removed from `_MATCH_SQL` (item 91)
+
+`eacefc1`. `%(report_text)s::text IS NULL OR i.report_text = ...` is now
+`i.report_text = %(report_text)s`. The NULL arm could not run:
+`match_storm` requires `report_text`, it inserts a `match_runs` row first, and
+`match_runs.report_text` is `NOT NULL` (`sql/022`), so a NULL would fail there
+before `_MATCH_SQL` executed. All three callers pass a non-empty type (`/match`
+returns 400 on a blank one, the pull thread, `scripts/test_match.py`). An
+all-types pull dies earlier still, at the `api_pulls` `storm_link_paired` CHECK
+(item 117).
+
+The same construct is **correct and retained** where the filter is genuinely
+optional: the storm browser, the exports and the match page, where "All" is a
+real choice.
+
+## 2026-10-01 — App-wide login hook, default-deny (item 90)
+
+Deferred 2026-09-23 in favour of per-route decorators. Its trigger, a new route
+outside the admin blueprint, fired on 2026-10-01 with `search.py`. `605f0b5`.
+
+- `require_login` is registered after `load_current_user`, in `create_app`.
+  **The order is load-bearing.** Reversed (tested), every protected route
+  raises `AttributeError: user` (500) because `g.user` does not exist yet.
+  `/login` and `/static` still work, since public endpoints return before
+  reading `g.user`.
+- The whitelist is **endpoint names**, `main.login` and `static`, not URL
+  prefixes: a prefix silently exempts anything later added under it. The first
+  version also listed `main.logout`; removed, because an anonymous logout is
+  redirected to `/login` either way.
+- `request.endpoint is None` passes through, so Flask's own 404 handles an
+  unmatched URL.
+- No live gap existed: every route already had a decorator. This closes a
+  fragility (a forgotten decorator on a future route), not a hole.
+- The decorators stay, as defence in depth.
+
+**Verified** by requesting every rule in the URL map anonymously: all 16 GET
+routes redirect to `/login` except `/login` and static; all 16 POST routes
+redirect (with CSRF disabled for the test; with it on they return 400 first,
+because `CSRFProtect` is registered earlier, so CSRF is the outer layer). A
+signed-in admin gets 200 on `/`, `/search/` and `/admin/`. That sweep covers
+every existing route, not a hypothetical new undecorated one.
+
+## 2026-10-01 — "Matched, none in range": verified by reading, not by test (item 89)
+
+`workstate._label()` checks in this order: pulling, sent, **matched**, then
+`match_ran and pulled` ("Matched, none in range"), pulled, not pulled. `matched`
+reflects rows in `storm_listing_matches`, not `matches_created`. So a re-run
+that creates 0 new rows still reads "Matched, not sent".
+
+Checked 2026-10-01: 5 of the 37 `match_runs` completed with
+`matches_created = 0` (runs 1, 2, 3, 6 and 14), and every one is on a storm that
+has rows in `storm_listing_matches`. None produced a wrong badge.
+
+The "none in range" badge itself has never been seen on a live storm: it needs a
+storm that was pulled and has no listings within the radius, which costs a
+RentCast pull for a cosmetic check. Item 89 closes on the reading, not on a
+sighting.
+
+## 2026-10-01 — Match page: the CSV download link also at the top (item 149)
+
+The "Download CSV" link was at the bottom of the matched-listings page
+(`28a0195`, 2026-09-24); `958cd67` adds it beside the listing and agent counts at
+the top. Both are `/storms/matches.csv?{{ request.query_string.decode() }}`: the
+query string has to travel with the link wherever it appears, so the download
+matches the filters on screen.
+
+## 2026-10-01 — Header greeting by first name: declined (item 150)
+
+A greeting like "Signed in as Justyn" would need `emp_fname` in the session.
+Widening the session for a display string was judged not worth it. The header
+keeps `session.user_name`. **Declined, not deferred.**
+
+## 2026-10-01 — Export filenames and report-type validation; a gap in how review findings were filed (items 151 to 153)
+
+**The problem.** `report_text` reached `Content-Disposition` from the query
+string with only `/` and space replaced, so a double quote would close the
+quoted filename early. Three routes built a label this way (`/export.csv`,
+`/storms/matches.csv`, `/exports/matches.csv`).
+
+**The fix, `a4376cc`.** `_filename_label()` keeps only `[A-Za-z0-9_-]`; and
+`_export_report_type()` validates `?type=` against `storms.fetch_report_types`
+and returns 400 for anything else, so an unknown type is refused instead of
+producing an empty file that looks like "no storms". Effects: `SNOW/ICE DMG`
+labels as `SNOW_ICE_DMG` (was `SNOW-ICE_DMG`); types the dropdowns do not offer
+(`FLOOD`, `RAIN`) are refused on these three routes; `search.py` falls back to
+"All" instead, being a form, not a download. Tested with valid, empty, unknown
+and quote-injection values on all three routes.
+
+**Not changed.** `scripts/export_storm_zips.py:116` still uses the old
+replace-only label; its input is a command-line argument, not the web. The DNC
+upload's filename is stored as given (`dnc_import_batches.filename`, the
+`dnc_list` reason string, and a flash message); admin-only, and Jinja escapes
+the flash.
+
+**The process finding.** This and two other review findings (CSV formula
+injection, and agent contacts visible to viewers) were identified in review and
+never filed as parking-lot items. The pass-1 audit checked whether *filed* items
+were still open, not whether *identified* problems had ever been filed. The two
+others are now filed:
+
+- **Item 152, CSV formula injection.** `_csv_response` uses `csv.writer`, which
+  quotes but does not neutralise a cell starting with `=`, `+`, `-` or `@`. None
+  of the text columns exported today begins with one (checked 2026-10-01:
+  `agent_name`, `agent_office_name`, `city`, `property_address`, `agent_phone`,
+  `agent_email`, `list_mls_number`, 0 rows each), so there is no live hit; the gap
+  is in the code.
+- **Item 153, agent contacts visible to viewers.** `/storms/matches` shows each
+  agent's email and phone, and the two match CSVs include them; all are
+  `login_required` only. That was deliberate (decision log 2026-09-24, "Who can
+  download what", matching Phase 4's done-when that a viewer can browse and
+  export); only the realtor CSV is sender/admin. Filed as an open question
+  because it was never revisited.
