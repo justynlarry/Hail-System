@@ -216,6 +216,10 @@ button.expand:hover { border-color: var(--accent); color: var(--accent); }
    directly under the h1 (territory) had no side margin. */
 .note { font-size: 0.8125rem; color: var(--muted); margin-top: 0.75rem; margin-bottom: 0.75rem; }
 .error { color: #b00020; }
+/* The "h1 ~ p" gutter only reaches paragraphs that are direct siblings of the
+   h1, like .usage-summary. These sit inside a div, so the div takes the same
+   side margin to line up with the RentCast count above it. */
+.ingest-health { margin: 0 1.5rem; }
 .health-ok    { color: #1a7f37; font-weight: 600; }
 .health-stale { color: #b42318; font-weight: 600; }
 
