@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 
 from datetime import datetime, timedelta, timezone
 from itertools import groupby
@@ -137,6 +138,34 @@ def _csv_response(columns, rows, filename):
         mimetype="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+def _filename_label(report_text):
+    """Filename-safe label for content-Disposition.
+
+    report_text reaches here from the URL.  A double quote would
+    close the quoted filename in the header early.  It's 
+    whitelisted to enumerate what's allowed
+    """
+    raw = report_text or "ALL"
+    return re.sub(r"[^A-Za-z0-9_-]", "_", raw) or "ALL"
+
+def _export_report_type():
+    """The ?type= filter for a file download, or None for all types.
+
+    An unknown type is a 400, not an empty file: a download that quietly
+    contains nothing looks like "no storms".  Valid means one of the types the
+    dropdowns offer (storms.fetch_report_types), so a hand-built URL for a type
+    the app does not offer is refused too.  Only opens a connection when a type
+    was actually given.
+    """
+    report_text = request.args.get("type") or None
+    if report_text is None:
+        return None
+    with get_connection() as conn:
+        valid = set(storms.fetch_report_types(conn))
+    if report_text not in valid:
+        abort(400)
+    return report_text
 
 def _stamp():
     # In the filename because a .csv is a snapshot.
@@ -412,7 +441,7 @@ def territory_days():
 @login_required
 def export_csv():
     start_day, end_day, window_start, window_end = _window_from_args()
-    report_text = request.args.get("type") or None
+    report_text = _export_report_type()
     actionable_only = _actionable_from_args()
 
     with get_connection() as conn:
@@ -432,7 +461,7 @@ def export_csv():
         [row[col] for col in storms.ZIPS_COLUMNS] for row in rows
     )
 
-    label = (report_text or "ALL").replace("/", "-").replace(" ", "_")
+    label = _filename_label(report_text)
     filename = (f"storm_zips_{start_day.isoformat()}_to_"
                f"{end_day.isoformat()}_{label}.csv") 
 
@@ -771,7 +800,7 @@ def storm_matches_csv():
     except (KeyError, ValueError):
         abort(400)
 
-    report_text = request.args.get("type") or None
+    report_text = _export_report_type()
     window_start, window_end = denver_day_bounds(day)
     dnc_exclude = _dnc_from_args()
 
@@ -785,7 +814,7 @@ def storm_matches_csv():
             dnc_exclude=dnc_exclude,
         )
 
-    label = (report_text or "ALL").replace("/", "-").replace(" ", "_")
+    label = _filename_label(report_text)
     return _csv_response(
         exports.MATCHES_COLUMNS, rows,
         f"matches_{day.isoformat()}_{label}_{_stamp()}.csv",
@@ -833,7 +862,7 @@ def exports_page():
 @login_required
 def exports_matches_csv():
     start_day, end_day, window_start, window_end = _window_from_args()
-    report_text = request.args.get("type") or None
+    report_text = _export_report_type()
 
     with get_connection() as conn:
         rows = exports.fetch_matches(
@@ -845,7 +874,7 @@ def exports_matches_csv():
             dnc_exclude=_dnc_from_args(),
         )
 
-    label = (report_text or "ALL").replace("/", "-").replace(" ", "_")
+    label = _filename_label(report_text)
     return _csv_response(
         exports.MATCHES_COLUMNS, rows,
         f"matches_{start_day.isoformat()}_to_{end_day.isoformat()}"
@@ -922,3 +951,4 @@ def storm_banner():
             since=since, now=datetime.now(timezone.utc),
         )
     return render_template("_pull_banner.html", banner=banner)
+
