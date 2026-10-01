@@ -8,7 +8,7 @@ from functools import wraps
 from hailsys.db import get_connection
 from hailsys.settings import fetch_settings
 
-from flask import g, redirect, session, url_for, abort
+from flask import g, redirect, session, url_for, abort, request
 
 # Cost parameters:  n is the work factor, r and p tune, block size and
 # parallelism.  These are stored 'with' each hash, so raising them later
@@ -143,3 +143,24 @@ def login_required(view):
             return redirect(url_for("main.login"))
         return view(*args, **kwargs)
     return wrapped
+
+PUBLIC_ENDPOINTS = frozenset({
+    "main.login",
+    "static",
+})
+
+def require_login():
+    """App-wide default-deny.  Registered after load_current_user, so g.user
+    is already populated.
+
+    Per-route @login_required decorators stay: this is defence in depth.
+    If this hook is ever misregistered or an endpoint is wrongly
+    whitelisted, the decorators still hold.
+    """
+    # request.endpoint is None for an unmatched URL -- Flask's own 404
+    # handles it, and redirecting to login would be confusing.
+    if request.endpoint is None or request.endpoint in PUBLIC_ENDPOINTS:
+        return None
+    if g.user is None:
+        return redirect(url_for("main.login"))
+    return None

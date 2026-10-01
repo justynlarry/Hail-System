@@ -46,8 +46,9 @@ def create_app():
     # Populates g.user on every request; login_required and role_required
     # both read it. Without this registration g.user is never set, and both
     # decorators raise AttributeError instead of redirecting to login.
-    from .auth import load_current_user
+    from .auth import load_current_user, require_login
     app.before_request(load_current_user)
+    app.before_request(require_login)
 
     # One magnitude formatter for templates; map_points() calls the same
     # function for the GeoJSON, so the table and the map popup agree.
