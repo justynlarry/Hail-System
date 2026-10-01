@@ -80,6 +80,12 @@ RECENT_PULL_WINDOW_DAYS = 7
 
 # Starting Number, needs to be revisited based on actual needs.
 
+# Nightly ingest looks back 30 hours (6 hours of overlap on the previous
+# run), so 30 hours with no completed run means one was missed entirely.
+# scripts/status.sh and the ingest script each hold this number separately;
+# they have to agree.
+INGEST_STALE_AFTER = timedelta(hours=30)
+
 DISPLAY_TZ = ZoneInfo("America/Denver")
 
 def miles_to_metres(miles):

@@ -14,12 +14,13 @@ from hailsys.rentcast.estimate import estimate_pull
 from hailsys.web.jobs import start_pull
 from hailsys.db import get_connection
 from hailsys.formatting import magnitude
-from hailsys.queries import activity, matches,storms, workstate, quota, exports
+from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest
 from hailsys.tuning import (
     DISPLAY_TZ,
     RECENT_PULL_WINDOW_DAYS,
     denver_day_bounds,
     miles_to_metres,
+    INGEST_STALE_AFTER,
 )
 
 bp = Blueprint("main", __name__)
@@ -219,6 +220,11 @@ def index():
                 since=datetime.fromisoformat(watch["since"]),
                 now=datetime.now(timezone.utc),
                 )
+        health = ingest.fetch_health(
+            conn,
+            now=datetime.now(timezone.utc),
+            stale_after=INGEST_STALE_AFTER,
+        )
 
     for row in rows:
         row["work_state"] = workstate.state_for(
@@ -243,6 +249,7 @@ def index():
         total_pages=total_pages,
         total_days=total_days,
         filter_args={k: v for k, v in request.args.items() if k != "page"},
+        health=health,
     )
 
 @bp.route("/storms/zips")

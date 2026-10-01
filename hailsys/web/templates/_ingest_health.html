@@ -1,0 +1,53 @@
+<div class="ingest-health">
+{% if health.healthy %}
+    <p class="health-ok">
+        Ingest OK — last nightly completed
+        {{ (health.age.total_seconds() // 3600) | int }} hours ago.
+    </p>
+{% else %}
+    <p class="health-stale">
+        {% if health.last_ok %}
+        Ingest STALE — no nightly has completed in
+        {{ (health.age.total_seconds() // 3600) | int }} hours.
+        {% else %}
+        Ingest STALE — no nightly run has ever completed.
+        {% endif %}
+    </p>
+{% endif %}
+
+    <details>
+        <summary>Ingest detail</summary>
+        <p>{{ '{:,}'.format(health.report_rows) }} reports stored,
+           newest {{ health.newest_denver.strftime('%Y-%m-%d %H:%M')
+                     if health.newest_denver else 'none' }}.</p>
+
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>Run</th><th>Mode</th><th>Status</th>
+                    <th>Seen</th><th>Inserted</th><th>Skipped</th>
+                    <th>Finished</th></tr>
+            </thead>
+            <tbody>
+            {% for r in health.runs %}
+                <tr>
+                    <td>{{ r.run_id }}</td>
+                    <td>{{ r.run_mode }}</td>
+                    <td>{{ r.run_status }}</td>
+                    <td>{{ r.rows_seen if r.rows_seen is not none else '' }}</td>
+                    <td>{{ r.rows_inserted if r.rows_inserted is not none else '' }}</td>
+                    <td>{{ r.rows_skipped if r.rows_skipped is not none else '' }}</td>
+                    <td>{{ r.finished_at.astimezone(display_tz).strftime('%Y-%m-%d %H:%M') if r.finished_at else '—' }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+
+        {% if health.rejects %}
+        <p>Rejects over the last ten runs:
+           {% for j in health.rejects %}{{ j.reason }} ({{ j.n }}){% if not loop.last %}, {% endif %}{% endfor %}
+        </p>
+        {% endif %}
+    </details>
+</div>

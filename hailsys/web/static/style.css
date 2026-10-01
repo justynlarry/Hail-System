@@ -216,6 +216,8 @@ button.expand:hover { border-color: var(--accent); color: var(--accent); }
    directly under the h1 (territory) had no side margin. */
 .note { font-size: 0.8125rem; color: var(--muted); margin-top: 0.75rem; margin-bottom: 0.75rem; }
 .error { color: #b00020; }
+.health-ok    { color: #1a7f37; font-weight: 600; }
+.health-stale { color: #b42318; font-weight: 600; }
 
 /* Pages without .split still need the page margin */
 h1 ~ table, h1 ~ p, h1 ~ .table-scroll { margin-left: 1.5rem; margin-right: 1.5rem; }
