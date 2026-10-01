@@ -78,10 +78,14 @@ INSERT INTO geocode_cache
         latitude, longitude, tiger_line_id)
 VALUES (%(address_key)s, %(raw)s, %(matched_address)s,
         %(latitude)s, %(longitude)s, %(tiger_line_id)s)
-ON CONFLICT (address_key) DO UPDATE
-        SET query_raw = geocode_cache.query_raw
+ON CONFLICT (address_key) DO NOTHING
     RETURNING geocode_id
 """
+
+# hail_app has INSERT but not UPDATE on geocode_cache, and DO UPDATE needs
+# UPDATE privilege even when nothing conflicts.  DO NOTHING returns no row on
+# a conflict, so the id is fetched separately.
+_CACHE_ID_SQL = "SELECT geocode_id FROM geocode_cache WHERE address_key = %(address_key)s"
 
 _REPORTS_SQL = """
 SELECT  i.iem_id,
@@ -169,7 +173,12 @@ def search():
                         "longitude": match["longitude"],
                         "tiger_line_id": match["tiger_line_id"],
                     })
-                    geocode_id = cur.fetchone()["geocode_id"]
+                    inserted = cur.fetchone()
+                    if inserted is None:
+                        # Another request cached this address first.
+                        cur.execute(_CACHE_ID_SQL, {"address_key": address_key})
+                        inserted = cur.fetchone()
+                    geocode_id = inserted["geocode_id"]
         if match is not None:
             radius_miles = fetch_settings(conn)["match_radius_miles"]
 
