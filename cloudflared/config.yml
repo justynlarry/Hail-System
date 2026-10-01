@@ -1,0 +1,8 @@
+tunnel: 8b102ad8-7fb0-420c-8ff7-0393f826e7cc
+credentials-file: /etc/cloudflared/8b102ad8-7fb0-420c-8ff7-0393f826e7cc.json
+
+ingress:
+  - hostname: dev.roofbrokersinc-weather.com
+    service: http://web:8000
+  - service: http_status:404
+

@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 from flask import flash, g, redirect, Blueprint, render_template, abort, request, session, url_for, Response
 
-from hailsys.web.auth import hash_password, login_required, verify_password, MIN_PASSWORD_LENGTH, role_required
+from hailsys.web.auth import hash_password, login_required, verify_password, DUMMY_PASSWORD_HASH, MIN_PASSWORD_LENGTH, role_required
 
 from hailsys.matching.matcher import match_storm
 from hailsys.rentcast.estimate import estimate_pull
@@ -294,10 +294,13 @@ def login():
 
     # One message for each failure: no user, incorrect password, deactivated account.
 
-    if (row is None
-            or not row["is_active"]
-            or not verify_password(password, row["password_hash"])):
-        flash("Invalid User Name or Password.")
+    stored = row["password_hash"] if row is not None else None
+    if not stored or stored == "!":
+        stored = DUMMY_PASSWORD_HASH
+    password_ok = verify_password(password, stored)
+
+    if row is None or not row["is_active"] or not password_ok:
+        flash("Invalid User Name or Password")
         return render_template("login.html"), 401
 
     # Clear before setting.

@@ -5699,6 +5699,117 @@ needs to show the log is tamper-proof. Adding the trigger is a few lines: a
 `no_truncate()` function and a `BEFORE TRUNCATE ... FOR EACH STATEMENT` trigger
 on each table, plus flipping the test's expected result to `23001`.
 
+## 2026-09-30 — hail-dev reachable through a Cloudflare Tunnel; items 66, 103, 110 and 127 closed
+
+hail-dev is now reachable at `dev.roofbrokersinc-weather.com` through a
+Cloudflare Tunnel with Access in front. It was Tailscale-only before. The
+domain was bought for this and is separate from RBI's own zone, so none of it
+waits on item 96 (the DNS ask, still open).
+
+### Username convention (item 66)
+
+`first.MILI`, lowercase: first name, a dot, then middle and last initials, so
+John Fitzgerald Kennedy is `john.fk`. No middle name means last initial only
+(`angela.l`). A collision appends a digit (`john.fk2`); `users_user_name_key`
+rejects duplicates loudly, so a collision surfaces rather than corrupts. The
+admin account was renamed from `justyn` (now `justyn.ml`). Nothing references
+`user_name`: it is a column only on `users`, and the 14 foreign keys that point
+at `users` (across 11 tables) all use `emp_id`, so the rename was one `UPDATE`.
+
+**Reasoning:** usernames are identifiers, not secrets. The convention reduces
+guessability; it does not remove it. **Item 66 closes as residual risk
+accepted**, mitigated by Access, rate limiting and the item 127 fix. It is not
+"guessability solved". Emails as usernames were considered and rejected:
+`users.emp_email` already exists as its own unique column, so login identity and
+contact address are deliberately distinct.
+
+### Accounts (item 103)
+
+`testview` is deactivated (`is_active = false`), not deleted: it may own rows in
+`api_pulls`, `storm_listing_matches` and `match_runs`, and those foreign keys
+have no `ON DELETE` behaviour. Angela was created as `sender` through `/admin`,
+not `scripts/create_user.py`, so `created_by` is set; login was verified end to
+end. `sender` rather than `admin` because she does not need user management.
+`/admin` can promote her later and sets `sessions_invalidated_at`, so the change
+applies at her next sign-in.
+
+### Login timing enumeration (item 127)
+
+**Do not cite the first timing run.** It read 18.2 ms for a real user, 2.1 ms
+for an unknown one and 2.2 ms for a deactivated one, and it measured CSRF
+rejections, not logins. Those requests returned 400 and never reached
+`login()`, so the apparent 8x gap was not evidence of a timing leak.
+
+The valid run used a CSRF token and its session cookie; all three returned 401:
+
+| Account | Time |
+|---|---|
+| real user, wrong password | 106.6 ms |
+| unknown user | 107.1 ms |
+| deactivated user | 105.8 ms |
+
+The spread is about 1%, consistent with scheduling noise.
+
+The fix is wider than the item as written. The old `or` chain short-circuited,
+so `verify_password` was skipped for unknown users **and** for deactivated ones,
+and the `system` account's `'!'` hash returned without hashing. All three now
+cost one real scrypt, against `DUMMY_PASSWORD_HASH` in `hailsys/web/auth.py`,
+generated per process from random bytes. The rejection check runs after the
+verify.
+
+**Consequence:** every failed login now costs about 106 ms of CPU. That is
+intended, and it is why rate limiting matters.
+
+### Tunnel topology (item 110)
+
+- **Two tunnels, two hostnames:** `dev` now, `app.roofbrokersinc-weather.com`
+  when the production machine arrives, each with its own credential. Sharing
+  one tunnel was rejected: multiple connectors on one tunnel are treated as HA
+  replicas, so traffic would load-balance between dev and production.
+- **Locally managed, not dashboard managed.** `cloudflared/config.yml` is in
+  git; `cloudflared/*.json` is gitignored. Routing stays in git.
+- `~/.cloudflared/cert.pem` is deliberately **not** mounted, so the container
+  can serve traffic but cannot create or delete tunnels in the account.
+- Compose service on `hailnet`, reaching the app at `http://web:8000`, with a
+  `404` catch-all. No `ports:` block: the connector dials out, so nothing is
+  exposed inbound.
+- `user: "1000:1000"` is required. The credential is mode 600 owned by
+  `hail-user`, bind mounts pass UIDs numerically, and the image's default user
+  could not read it.
+- The image is distroless: no shell, no `ls`. Debug from outside the container.
+- `web` keeps `127.0.0.1:8000:8000` on purpose, for local testing. The item 127
+  measurement depended on it.
+
+### Access policy
+
+Application `dev.roofbrokersinc-weather.com`, policy "Roof Brokers Access":
+Action **Allow**, include rule **Emails** (two addresses), "Accept all available
+identity providers" **off**, One-time PIN explicitly selected, session duration
+raised off the default. Recorded as a shape, not a click path: the dashboard's
+navigation moved during this session, and the docs describe two different
+locations for the OTP identity provider.
+
+The One-time PIN identity provider must exist at the account level before any
+policy can send codes. Without it the policy looks correct and silently sends
+nothing.
+
+### Rate limiting: a thin second layer, not "done"
+
+One rule: `/login`, 5 requests per 10 seconds per IP, 10-second block. The free
+plan caps the counting period at 10 seconds and allows one rule, so this is
+burst protection only. An attacker pacing at one request per second is
+unaffected. Access remains the primary control. Revisit if the plan changes.
+
+### Known gaps, noted and not fixed
+
+- Per-IP counting means a shared office egress could rate-limit Angela and the
+  developer together.
+- The QUIC UDP receive buffer is below what quic-go prefers; cosmetic at this
+  volume.
+- **Open, unexplained:** during the invalid measurement a real handle took 8x
+  longer than an unknown one on a 400 CSRF rejection, which should not touch the
+  database at all. No explanation found. Not guessed at here.
+
 ## 2026-10-01 — Address search: Census Geocoder, keyed through `address_key()` (items 23 and 124)
 
 A `/search` page: type an address, get the hail and wind reports near it.

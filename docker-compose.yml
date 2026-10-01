@@ -29,6 +29,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     restart: unless-stopped
 
   # Nightly ingest and backfill.  Connects as hail_ingest, whose grants in
@@ -126,6 +131,23 @@ services:
         max-file: "5"
     restart: unless-stopped
 
+
+  cloudflared:
+    image: cloudflare/cloudflared:2025.8.1
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared:/etc/cloudflared:ro
+    user: "1000:1000"
+    networks:
+      - hailnet
+    depends_on:
+      - web
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    restart: unless-stopped
 
 
 networks:

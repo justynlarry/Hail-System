@@ -130,6 +130,12 @@ def verify_password(password, stored):
     # compare_digest - not ==
     return hmac.compare_digest(candidate, expected)
 
+# A real hash, used only so the failure paths cost the same as a 
+# successful verification.  Generated per process from random bytes.
+# Cannot be authenticated against.
+DUMMY_PASSWORD_HASH = hash_password(b64encode(os.urandom(_SALT_BYTES)).decode("ascii"))
+
+
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
