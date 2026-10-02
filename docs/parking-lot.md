@@ -1776,8 +1776,11 @@ then read the storm as pulled. No money is spent.
 **Resolved 2026-10-02**, the same session it was found. `pull_estimate.html`
 shows "No zips in coverage for this storm, so there is nothing to pull" instead
 of the button when `zip_count` is 0, and `pull_start()` refuses a zero-zip POST
-with a flash, so a hand-built request is covered too. Checked by compile only;
-the page was not reloaded after the change. Committed with the item 51 work.
+with a flash, so a hand-built request is covered too. Committed in `0b3d7a3`
+with the item 51 work. **Verified:** the page shows the note and no button
+(developer, reloaded on `hail-dev`); a zero-zip POST through Flask's test client
+as an admin returned a 302 to `/` with the "no zips to pull" flash, left
+`pull_watch` unset, and `api_pulls` stayed at 40 rows.
 
 ## 70. Permits as a source — corroboration first, roof age later
 
