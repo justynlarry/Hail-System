@@ -73,7 +73,7 @@ arriving, not a new one.
 
 ## 9. The absence query has no schedule and nowhere to alert
 
-**Status:** open
+**Status:** resolved (residuals) 2026-10-02
 
 Ingest health is an **absence** query, not a status query:
 
@@ -98,6 +98,16 @@ sudden rise.
 
 **When:** when there is a notifier. Irin is the intended destination; nothing
 is wired up and no alert fires today.
+
+**Resolved (residuals) 2026-10-02.** The absence query is built and shown.
+`ingest.fetch_health()` takes the age of the last completed nightly
+(`max(finished_at)` where `run_mode = 'nightly'` and `run_status = 'complete'`)
+against `INGEST_STALE_AFTER` (30 hours, `tuning.py`), and `_ingest_health.html`
+on the Recent Storm Days page reads "Ingest OK", "Ingest STALE: no nightly has
+completed in N hours", or "no nightly run has ever completed". **Residual:**
+nothing pushes it. Someone has to open the page, and a dead box shows no banner
+at all. **When:** revisit once there is a notifier (Irin was the intended
+destination). The note above about the inverted skip condition still stands.
 
 ## 11. Hail size names for email templates
 
@@ -128,6 +138,12 @@ live.
 **When:** Phase 5, when sending is built. *(`database-schema.md`, open
 question 5)*
 
+**Input from item 121, 2026-10-02.** Measured against the real data, sending per
+storm over six weeks of HAIL sums to 5,628 agent-sends against 3,259 distinct
+agents if consolidated: about 42% fewer. The cap should be designed around
+windows of agents, not per-storm counts, and a consolidated email still has to
+name the storm day(s) it refers to (the un-addressed half of item 106).
+
 ## 16. Merge field vocabulary — where is it stored?
 
 **Status:** open
@@ -142,7 +158,7 @@ question 6)*
 
 ## 19. Does outreach ever fall back to the office email when an agent has none?
 
-**Status:** open
+**Status:** resolved 2026-10-02 (decided: no)
 
 `listingAgent.email` is frequently missing; `office_email_norm` and
 `list_office_email_norm` exist so a batch can be pre-flighted against
@@ -165,6 +181,17 @@ about" — a different fact under the same name.
 
 **When:** Phase 5, when sending is built. *(`database-schema.md`, open
 question 9)*
+
+**Resolved 2026-10-02: decided, no.** Outreach never falls back to an office
+address. A realtor with no email of their own gets no email. The only address
+used is the agent's own listed email, even if that is a shared inbox the agent
+chose to list. So the per-address frequency window and the person-or-office
+column in `send_log` that this item described are not needed. Checked
+2026-10-02: no email is shared by more than one `realtors` row (9,163 rows, all
+with an email), so the shared-inbox cap problem is absent from the data today.
+**Not enforced anywhere yet:** the Phase 5 send path must use the agent address
+only and never an office one. `office_email_norm` stays in use for the
+suppression flag only. Revisit if the decision changes.
 
 ## 26. PDF export with table and map
 
@@ -533,7 +560,7 @@ overstated it.)
 
 ## 63. A reachable path to `hail-dev` for anyone but the developer
 
-**Status:** open (parked) — gated on item 110 (Cloudflare tunnel)
+**Status:** resolved 2026-10-02
 
 `web` publishes to `127.0.0.1:8000` only (decision-log 2026-09-14), so nothing
 off the host reaches it without `tailscale serve` or a tunnel in front of it.
@@ -543,6 +570,12 @@ it's run from another machine.
 **When:** Phase 6, or sooner.
 
 **2026-09-30:** no one else is on the tailnet (developer). `tailscale serve` on `hail-dev` fronts the app at `https://hail-dev.tail74972c.ts.net`, tailnet only, proxying `127.0.0.1:8000`. Item 110 (the Cloudflare tunnel) is the next step.
+
+**Resolved 2026-10-02.** The path exists: item 110 (resolved 2026-09-30) put
+`dev.roofbrokersinc-weather.com` behind a Cloudflare Tunnel with Access
+(one-time PIN), `cloudflared` is up (45 hours at last check), and the developer
+confirms outside users can now reach the app. This item sat parked as "gated on
+110" for two days after 110 closed; found by the 2026-10-02 sweep (item 154).
 
 ## 64. Emailed password-reset link
 
@@ -707,7 +740,7 @@ waiting on someone else.
 
 ## 100. New-construction properties share a subdivision point
 
-**Status:** open
+**Status:** dropped 2026-10-02
 
 RentCast geocodes some brand-new houses to a single subdivision point rather
 than to the lot:
@@ -722,6 +755,27 @@ excludes (decision log 2026-09-18). It would matter if one is resold, or
 relisted as Standard, before RentCast re-geocodes it to the lot.
 
 **When:** Phase 5, alongside item 55's address work.
+
+**Dropped 2026-10-02.** The developer closed this: no email goes to new
+construction, and nothing showed that a resale would keep the wrong point. Asked
+whether the data supports the concern, so it was measured the same day against
+the 25,219 `properties` rows. **Findings:**
+- 190 points are shared by different street addresses (761 properties; unit
+  suffixes stripped by a rough regex, so approximate).
+- 221 of those properties are New Construction, and none has a match, so the
+  matcher exclusion holds.
+- The pattern is **not limited to new construction**, which the item assumed.
+  Standard single-family homes share points too (73 properties, 36 matched
+  listings; one group is 31 properties on one point, built 1969). Condos,
+  townhouses and manufactured-home parks share points as well, about 300
+  matched listings, probably because they are complexes. A resale therefore does
+  not by itself bring a correct coordinate.
+- **Why it is still dropped:** the error is about the size of the subdivision,
+  against a 5-mile radius, so a match changes only for a storm report near the
+  radius edge.
+
+**When:** revisit if emails quote `nearest_miles` (item 136), or if any feature
+starts depending on distances to the house.
 
 ## 101. Rebuild the `loader` image before its next use
 
@@ -782,7 +836,7 @@ the production box.
 
 ## 106. The match page gets long, and no row says which report it matched
 
-**Status:** open
+**Status:** dropped 2026-10-02
 
 One storm's page can hold hundreds of listings. 2026-08-26 TSTM WND GST had a
 single report and matched 949 listings, every listing within 5 miles of it
@@ -820,6 +874,15 @@ it).
 **When (the declined items specifically):** if someone actually works this
 page on screen rather than exporting it.
 
+**Dropped 2026-10-02.** The developer closed this: how the page will actually be
+used is unknown until people work it, and that is better learned than guessed.
+Nothing was changed. The un-addressed half stays as stated above: nothing says
+which report a listing matched, only the nearest distance and the worst
+magnitude across the storm day and type. **When:** after the first real batch is
+worked from the match page, or if someone asks which report a listing matched;
+and when item 121's consolidated sends are designed, since an email that names
+the storm day(s) it refers to needs that attribution.
+
 ## 107. CSV export missing on the activity page
 
 **Status:** resolved 2026-10-02
@@ -845,7 +908,7 @@ the page's "no activity yet". The file includes staff names, as the page does.
 
 ## 111. Tap targets under 44px
 
-**Status:** open
+**Status:** dropped 2026-10-02
 
 The 2026-09-25 pass raised the storm-days Status cell's actions
 (`.pull-link`, `.inline-action button`, `.action-disabled`) to about 44px
@@ -858,9 +921,15 @@ not 44px).
 
 **When:** if anyone works from a phone; before Phase 6 exposes the app.
 
+**Dropped 2026-10-02.** The developer checked the app on a phone and judged it
+fine for what it is used for. The sizes listed here are CSS estimates and were
+never measured, so some may still be under 44px; nothing was changed.
+**When:** if a user reports difficulty tapping on a phone, or before the Phase 6
+pilot users start.
+
 ## 114. The responsive pass has not been recorded as checked
 
-**Status:** open
+**Status:** resolved 2026-10-02 (limited)
 
 The 2026-09-24 and 2026-09-25 responsiveness passes (decision log, "CSS
 responsiveness pass") were written with no browser available: the agent's
@@ -887,6 +956,11 @@ widths and devices, and what was seen, were not reported into this record, so
   (`100dvh`, which only shows on a real phone).
 
 **When:** before Phase 6 exposes the app.
+
+**Resolved 2026-10-02, limited.** The developer checked the app on a phone and
+it looks right. Which pages, widths and browser were not recorded, so the
+checklist above was not walked and no specific point on it is recorded as
+passed. Accepted on that basis. **When:** same trigger as item 111.
 
 ## 119. Mainstream email-sending providers all prohibit this use case
 
@@ -938,7 +1012,7 @@ task.
 
 ## 121. Real send volume, measured: consolidating across storms is a real lever, throttling a personal account isn't
 
-**Status:** open
+**Status:** resolved 2026-10-02
 
 Measured against the real database, 2026-09-28, HAIL only, 2026-08-13
 through 2026-09-22: one storm alone (2026-08-13) touched 1,415 distinct
@@ -970,6 +1044,12 @@ a report, never damage" rule in `CLAUDE.md`), and it needs the frequency cap
 
 **When:** item 15/19, when the send queue and frequency cap are designed —
 this is a concrete input to that design, not a separate task.
+
+**Resolved 2026-10-02.** The developer decided: nothing is sent from a personal
+account, a provider is used. That settles the throttling question. What this
+item found that is still live (consolidating an agent's sends across storms, and
+building the frequency cap around windows of agents) is carried into item 15
+and not lost. Which provider is still open (item 119).
 
 ## 126. Realtor deduplication rule — decided, not built; supersedes the 2026-09-01 decision
 
@@ -1007,6 +1087,18 @@ window. Ask RBI's marketing contact whether the export was filtered by
 date, and if so, pull an unfiltered one before relying on this list.
 
 **When:** before the first send.
+
+**Checked 2026-10-02.** `do not contact file constant contact.csv` (received
+that day) holds the same 719 addresses as the 2026-09-28 export: 719 of 719 in
+common, none new to `dnc_list`, newest recorded unsubscribe 2025-09-16. The
+2025-12-13 date in this item is from the Airtable list, not Constant Contact.
+This does not show the export was filtered: the file has no unsubscribes in
+2021 or 2024 and one in 2025, so a quiet nine months is plausible. It does not
+show completeness either, since two pulls returning the same set only shows the
+tool is consistent. Not known: whether Constant Contact tracks other
+suppression statuses this export omits. **Next:** ask RBI to read the total
+count, newest date and any other suppression statuses from the Constant Contact
+UI. Close when that matches 719 / 2025-09-16, or import what differs.
 
 ## 130. `dnc_list.realtor_id` isn't maintained automatically
 
