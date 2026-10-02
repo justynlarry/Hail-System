@@ -172,7 +172,7 @@ print, a server-side static map render, or a `@media print` stylesheet.
 
 ## 27. CSV header labels
 
-**Status:** open
+**Status:** dropped 2026-10-02
 
 `"Closest Report (mi)"` / `"Farthest Report (mi)"` (0 = inside the zip),
 `mag_unit` folded into the magnitude values, timestamps as
@@ -188,6 +188,13 @@ sharing the same raw-column-name convention (`report_text`,
 than when it was filed against one export.
 
 **When:** before the PDF.
+
+**Dropped 2026-10-02.** The developer reviewed the CSV headers and decided they
+are fine as they are. Nothing was changed: the raw column names
+(`report_text`, `max_magnitude`, `agent_dnc` and so on) stay across all the
+exports. Revisit only if someone outside the developer starts reading the files
+and the names get in the way, or when the PDF (item 26) is built and needs
+display labels.
 
 ## 29. Extract the repeated filter parsing
 
@@ -220,11 +227,22 @@ which has produced two silently-wrong pages.
 setting on and none raised `UndefinedError`; a March storm was pulled
 end to end. Which two pages were silently wrong before is not recorded.
 
-**Regression found and fixed the same day.** That walk-through was signed in,
-so it missed the signed-out pages: `base.html` tested `session.emp_id`, which
-is undefined for a visitor with no session, so `/login` returned a 500. Fixed
-with `session.get('emp_id')`. Signed-out pages need their own pass whenever
-the template environment gets stricter.
+**Regressions found after resolving, fixed the same day.** The first
+walk-through loaded every page, but only in one state each, and `StrictUndefined`
+fails on a path, not a page. Three misses followed:
+- `base.html` tested `session.emp_id`, undefined for a visitor with no session,
+  so `/login` returned a 500 when signed out. Fixed with `session.get('emp_id')`.
+- `/admin/` returned a 500 on every plain GET: `_render_admin()` passed
+  `form={}` and the add-user form reads five keys from it. Fixed with
+  `EMPTY_USER_FORM` in `admin.py`.
+- `/search` with no address returned a 500: the blank-form render in
+  `search.py` omitted `raw` and `outcome`. Fixed by passing `raw=""` and
+  `outcome=None`.
+
+The common shape is a variable that one code path never passes. A page-by-page
+click-through does not find it; each form needs its GET, its error-POST and its
+empty state, and signed-out pages need their own pass. Whenever the template
+environment gets stricter, check those states, not just the pages.
 
 ## 34. A favicon
 

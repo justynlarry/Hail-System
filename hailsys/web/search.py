@@ -141,6 +141,7 @@ def search():
 
     if not raw:
         return render_template("search.html",
+                                raw="", outcome=None,
                                 start_day=start_day, end_day=end_day,
                                 types=types, selected_type=report_text)
 

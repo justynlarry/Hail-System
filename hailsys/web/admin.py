@@ -41,6 +41,10 @@ SELF_ACTION_MESSAGE = (
     "Ask another admin, or use the change-password page."
 )
 
+EMPTY_USER_FORM = {"user_name": "", "first_name": "", "last_name": "",
+                   "email": "", "role": ""}
+
+
 @admin_bp.before_request
 def _admin_only():
     # before_request hook that returns a response ends request
@@ -106,7 +110,7 @@ def _render_admin(form=None, status=200):
         ceiling_miles=settings["ceiling_m"] / METRES_PER_MILE,
         history=history,
         display_tz=DISPLAY_TZ,
-        form=form or {},
+        form=form or EMPTY_USER_FORM,
         roles=ROLES,
         min_password_length=MIN_PASSWORD_LENGTH,
         usage=usage,
