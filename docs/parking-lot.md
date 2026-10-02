@@ -246,11 +246,17 @@ environment gets stricter, check those states, not just the pages.
 
 ## 34. A favicon
 
-**Status:** open
+**Status:** resolved 2026-10-02
 
 To stop the 404 on every page load.
 
 **When:** whenever.
+
+**Resolved 2026-10-02.** `base.html` links the existing RBi logo
+(`static/images/RBi Logo - Black with Blue Highlights.png`, 1243x599) as the
+icon, so every page that extends it stops requesting `/favicon.ico`. The logo is
+about 2:1 and a favicon is square, so it scales down small; a square export
+would read better in the tab, but no such asset exists. Not filed as an item.
 
 ## 43. Test scripts attribute to `emp_id 1` (system) by accident
 

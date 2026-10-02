@@ -7,6 +7,7 @@
         <link rel="stylesheet" href="{{ url_for('static', filename='leaflet.css') }}">
         <script src="{{ url_for('static', filename='leaflet.js') }}" defer></script>
         <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/RBi Logo - Black with Blue Highlights.png') }}">
     </head>
     <body class="{% block body_class %}{% endblock %}">
     {% if session.get('emp_id') %}
