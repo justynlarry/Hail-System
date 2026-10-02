@@ -198,11 +198,19 @@ display labels.
 
 ## 29. Extract the repeated filter parsing
 
-**Status:** open
+**Status:** resolved 2026-09-18
 
 Five routes now duplicate the `days`/`type`/`actionable` parsing block.
 
 **When:** next time a route needs it.
+
+**Found resolved 2026-10-02.** The description was stale. `854f5bc`
+(2026-09-18) added `_window_from_args()` and `_actionable_from_args()`, each now
+called from 8 places in `views.py`. What is left is the one-line
+`request.args.get("type") or None` read (11 sites), accepted: extracting a
+single `.get()` saves nothing. `storm_matches()` (`views.py:299`) reads
+`actionable` itself because its default differs (on until the form is
+submitted), so it is not a duplicate. Found by the 2026-10-02 sweep (item 154).
 
 ## 30. Bind-mount `hailsys/` into the `app` service
 
@@ -299,6 +307,10 @@ rather than something that has to be remembered fresh each audit.
 
 **When:** process improvement, no deadline.
 
+**Update 2026-10-02.** The documentation half exists: `docs/command-ref.md`,
+*Which services see your edits*, and the conventions line in `CLAUDE.md`. No
+script or checklist step does the rebuild yet, which is what this item asks for.
+
 ## 51. Concurrent pulls by two users on one storm — duplicate spend
 
 **Status:** open
@@ -329,6 +341,15 @@ registration in `create_app()`. Two of an earlier phase's own bugs
 have caught before a live check did.
 
 **When:** open since Phase 2; no deadline set.
+
+**Update 2026-10-02.** The suite is now 128 tests: `test_iem_parse` 48,
+`test_iem_common` 23, `test_workstate` 19, `test_iem_backfill` 14,
+`test_formatting` 12, `test_iem_ingest` 7, `test_activity_csv` 5. Two new files
+touch code the web app calls (`queries/workstate.py`, `queries/activity.py`),
+still none under `hailsys/web/`: views, auth and admin are unexercised. The gap
+has now cost more than the two bugs above: switching Jinja to `StrictUndefined`
+(item 32) surfaced three 500s no test could see (`/login` signed out, `/admin/`
+on a plain GET, `/search` with no address), found by hand after the change.
 
 ## 55. Duplicate properties from RentCast address variants — one lot, two emails
 
@@ -701,7 +722,7 @@ relisted as Standard, before RentCast re-geocodes it to the lot.
 
 The `loader` image was built 2026-09-09, the same day
 `docker/loader.Dockerfile` last changed (`7a731b4`, the bullseye EOL
-placeholder). Whether that build picked up the change isn't known. Rebuild
+placeholder). Whether that build picked up the change isn't known. *(Answered 2026-10-02: it did not. The image was created 2026-09-09 20:16 UTC and `7a731b4` is timestamped 22:01 UTC the same day, so the build predates the change.)* Rebuild
 with `docker compose build loader` before the next migration or reference
 load. See `docs/command-ref.md`, *Which services see your edits*; the
 `iem_weekly_replay` timer's staleness is covered there too.
@@ -1577,6 +1598,20 @@ findings: decisions, and a gap in the review loop").
 ## Deferred workstream: permits
 
 *Items 70–82, 97 and 98, all gated on item 70 ("until the system is running"); item 74 is resolved and sits in the Closed section. 14 items here. A future workstream, not a backlog.*
+
+## 154. Fixes land in commits that don't close their parking-lot item
+
+**Status:** open
+
+Item 105 (`postgis` log rotation) was fixed in `4e51bdd` on 2026-10-01 inside an
+unrelated commit, and stayed open until a sweep on 2026-10-02. Item 29 (filter
+parsing) was mostly fixed by `854f5bc` on 2026-09-18 and was still open two
+weeks later. "Findings get filed" covers problems found; nothing covers a fix
+that lands without updating its item.
+
+**When:** at each phase close, and before Phase 6. Run the sweep: for each open
+item, check its named files, functions and symptoms against the repo and git
+history.
 
 ## 70. Permits as a source — corroboration first, roof age later
 
