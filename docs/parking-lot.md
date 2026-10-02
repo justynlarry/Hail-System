@@ -359,7 +359,7 @@ and a required flag was the item's own bar. Past rows are not rewritten:
 
 ## 45. Rebuild step belongs in the verification loop
 
-**Status:** open
+**Status:** resolved 2026-10-02
 
 Companion to the already-filed "Nothing rebuilds automatically" entry
 (2026-09-18): that entry names the failure mode, this item is the standing
@@ -388,6 +388,24 @@ a rebuild only when `requirements.txt` or a Dockerfile changes. Proposed, not ye
 built: have `scripts/status.sh` print, per image, whether anything its code or
 build depends on has changed since it was built, so staleness is visible without
 anyone remembering to look.
+
+**Resolved 2026-10-02.** `scripts/status.sh images` (also part of `all`, and it
+never affects the exit status) prints, per image, when it was built and whether
+commits made since, or uncommitted edits, touch anything it depends on, naming
+the files. `ingest` depends on its import closure (`hailsys/iem/`,
+`hailsys/logconfig.py`, `scripts/iem_*.py`, `requirements.txt`, its Dockerfile),
+`web` and `app` on `requirements.txt` and `docker/app.Dockerfile` only (item 30
+made their code live), `loader` on its Dockerfile. First run: `ingest` STALE for
+`hailsys/logconfig.py` (a comment, so harmless), `app` and `web` OK, `loader`
+STALE for its Dockerfile, which is a false positive: that edit was built at
+20:16Z and committed at 22:01Z (item 101), and the check compares commit times.
+`docs/command-ref.md` and `CLAUDE.md` now say only `ingest` runs baked code.
+**A doc error found on the way:** `command-ref.md` said `ingest` imports
+`db.py` and `tuning.py` and so goes stale on any change in the package; loading
+both scripts shows it imports only `hailsys.iem.common`, `hailsys.iem.parse` and
+`hailsys.logconfig`. Corrected. **Residual:** the ingest path list is a copy of
+that closure and goes stale if ingest gains an import; the script's comment
+carries the command to re-derive it.
 
 ## 51. Concurrent pulls by two users on one storm — duplicate spend
 

@@ -10,20 +10,27 @@ docker exec -it <database_name> psql -U <postgres_user_name>
 
 ## Which services see your edits
 
-`web` bind-mounts `./hailsys`, so editing a file there IS deploying it --
-the change is live at the next `docker compose restart web`.
+`web` and `app` bind-mount `./hailsys` read-only (`app` also `./scripts`), so
+editing a file there IS deploying it. `web` is live at the next
+`docker compose restart web`; `app` is a fresh container on every `run`, so it
+sees the change at once. `app` also keeps a read-write mount of
+`hailsys/web/static`, because the GeoJSON builders write there.
 
 `loader` bind-mounts the whole repo read-only at `/repo`, so it always reads
 the SQL and scripts as they are on disk. Its image carries only the postgis
 client tools; rebuild it only when `docker/loader.Dockerfile` changes.
 
-`app` and `ingest` do NOT. Their Python is baked into the image at build
-time. Running them without rebuilding executes whatever code was current at
-the last build, against the live database, with no warning.
+`ingest` does NOT. Its Python is baked into the image at build time. Running
+it without rebuilding executes whatever code was current at the last build,
+against the live database, with no warning.
 
-    docker compose build app      # before any `docker compose run --rm app`
-    docker compose build ingest   # after ANY change under hailsys/ or
-                                  # scripts/
+    docker compose build ingest   # after a change to anything it imports
+                                  # (hailsys/iem/, hailsys/logconfig.py,
+                                  # scripts/iem_*.py) or to requirements.txt
+
+`scripts/status.sh images` says which images are behind the files they depend
+on, and names the files. `web` and `app` need a rebuild only when
+`requirements.txt` or `docker/app.Dockerfile` changes.
 
 The scheduled ingest jobs -- nightly `iem_ingest.timer` and weekly
 `iem_weekly_replay.timer` -- deliberately do NOT build first: an unattended
@@ -31,18 +38,21 @@ job should run a known artifact, not whatever is half-finished in the
 working tree. The cost is that ingest code changes require a manual rebuild
 to take effect. This is a choice, not an oversight.
 
-Note that `ingest` imports from `hailsys/` broadly -- db.py and tuning.py
-included -- so a change anywhere in the package can leave the ingest image
-stale even when scripts/iem_ingest.py hasn't moved.
+`ingest` imports only `hailsys/iem/common.py`, `hailsys/iem/parse.py` and
+`hailsys/logconfig.py` (checked 2026-10-02 by importing both scripts and listing
+`sys.modules`; it does NOT import `db.py` or `tuning.py`, which this paragraph
+used to say). A change elsewhere in the package therefore does not make the
+ingest image stale. `scripts/status.sh images` holds that list; re-derive it
+if ingest gains an import.
 
 Cost us a false test result on 2026-09-24: the same workstate check
 returned a pre-migration answer through `app` and the correct one through
 `web`.
 
-This had been half-found before: `scripts/verify_zip_distances.py`'s
-docstring already runs it with `-v "$PWD/scripts:/app/scripts:ro"`, because
-the `app` image bakes `scripts/` in. That mount covers `scripts/` only, so a
-change under `hailsys/` still needs a rebuild.
+Before 2026-10-02 `app` baked both `hailsys/` and `scripts/`, and
+`scripts/verify_zip_distances.py`'s docstring worked around it with
+`-v "$PWD/scripts:/app/scripts:ro"`. Item 30 made `app` read the working tree,
+so that workaround is no longer needed.
 
 The `loader` image was built 2026-09-09 and already includes the
 `docker/loader.Dockerfile` change from that day (checked 2026-10-02 with
@@ -57,7 +67,7 @@ tree:
     docker compose run --rm ingest python -c \
       "import inspect, hailsys.iem.common as c; print(inspect.getsource(c.configure_logging))"
 
-Swap in the module and function you care about, and `app` for `ingest`. If it
+Swap in the module and function you care about. If it
 prints the old code, rebuild before testing anything. That turns a would-be
 false result ("my change didn't work") into a clear one ("the image is
 stale") in two commands.

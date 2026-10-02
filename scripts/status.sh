@@ -3,12 +3,15 @@
 # Operator status checks for the Hail-System ingest pipeline.
 # Intended location: scripts/status.sh
 #
-#   status.sh [runs|data|rejects|nightly|all]      (default: all)
+#   status.sh [runs|data|rejects|nightly|images|all]      (default: all)
 #
 # Exit status:
 #   0  a nightly run completed within STALE_HOURS
 #   1  none has -- this is the alert condition
 #   2  usage error, or the database is not reachable
+#
+# `images` is informational and never changes the exit status: a stale image is
+# something to look at, not the ingest-health alert condition.
 #
 # Why the verdict lives in the exit status rather than only in the output:
 # ingest health is an *absence* query (decision-log 2026-09-08). A crashed run
@@ -123,14 +126,71 @@ cmd_nightly() {
     return 1
 }
 
+# Which paths make each image out of date.  Only `ingest` bakes code that
+# unattended jobs run; web, app and loader read the working tree through bind
+# mounts (command-ref.md, "Which services see your edits"), so for them only
+# the build inputs count.  The ingest list is the import closure of
+# scripts/iem_ingest.py and iem_backfill.py plus hailsys/logconfig.py, which
+# configure_logging() imports lazily.  Derive it again if ingest gains an
+# import, or this goes quietly out of date:
+#   docker compose run --rm ingest python -c "import sys; \
+#     sys.path.insert(0,'scripts'); import iem_ingest, iem_backfill, \
+#     hailsys.logconfig; print(sorted(m for m in sys.modules \
+#     if m.startswith('hailsys')))"
+image_paths() {
+    case $1 in
+        ingest)  echo "hailsys/__init__.py hailsys/iem hailsys/logconfig.py scripts/iem_ingest.py scripts/iem_backfill.py requirements.txt docker/ingest.Dockerfile" ;;
+        app|web) echo "requirements.txt docker/app.Dockerfile" ;;
+        loader)  echo "docker/loader.Dockerfile" ;;
+    esac
+}
+
+# Reports, per image, whether anything it depends on changed since it was built:
+# commits made after the build, and uncommitted edits.  It answers "is my test
+# running old code", the question that cost a false result on 2026-09-24, and
+# it answers "which files", so a comment-only change can be told from a real one.
+# It compares commit times with the build time, so it can over-report: loader
+# shows STALE for a Dockerfile edit that was built before it was committed
+# (parking-lot item 101).  A listed file is a prompt to look, not a verdict.
+cmd_images() {
+    echo "== Image freshness =="
+    git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1 \
+        || { echo "not a git checkout: cannot tell what changed since each build"; return 0; }
+
+    local project=${COMPOSE_PROJECT_NAME:-$(basename "$REPO_ROOT")}
+    local svc image created since files paths
+    for svc in ingest app web loader; do
+        image="$project-$svc"
+        if ! created=$(docker image inspect -f '{{.Created}}' "$image" 2>/dev/null); then
+            printf '%-7s not built (no image named %s)\n' "$svc" "$image"
+            continue
+        fi
+        since=$(date -u -d "$created" '+%Y-%m-%d %H:%M:%S +0000')
+        paths=$(image_paths "$svc")
+        # Word-splitting $paths is the point: it is a list of paths.
+        # shellcheck disable=SC2086
+        files=$({ git log --since="$since" --name-only --format= -- $paths
+                  git status --porcelain -- $paths | cut -c4-
+                } | sort -u)
+        printf '%-7s built %s  ' "$svc" "$(date -u -d "$created" '+%Y-%m-%d %H:%MZ')"
+        if [[ -z $files ]]; then
+            echo "OK"
+        else
+            echo "STALE: $(wc -l <<<"$files") file(s) it depends on changed since:"
+            sed 's/^/          /' <<<"$files"
+        fi
+    done
+}
+
 usage() {
     cat <<EOF
-usage: status.sh [runs|data|rejects|nightly|all]
+usage: status.sh [runs|data|rejects|nightly|images|all]
 
   runs     the last five ingest runs and their counts
   data     how many reports are stored, and how recent
   rejects  reject reasons across the last ten runs
   nightly  when a nightly run last succeeded; exits 1 if that is stale
+  images   whether each Docker image is behind the code or files it depends on
   all      all of the above (default), exiting 1 if nightly is stale
 
 environment: DB_SERVICE=$DB_SERVICE DB_USER=$DB_USER DB_NAME=$DB_NAME STALE_HOURS=$STALE_HOURS
@@ -141,22 +201,25 @@ main() {
     local cmd=${1:-all}
     case $cmd in
         -h|--help|help) usage; exit 0 ;;
-        runs|data|rejects|nightly|all) ;;
+        runs|data|rejects|nightly|images|all) ;;
         *) usage >&2; die "unknown command '$cmd'" ;;
     esac
 
-    require_db
+    # `images` only looks at Docker and git, so it works with the database down.
+    [[ $cmd == images ]] || require_db
 
     case $cmd in
         runs)    cmd_runs ;;
         data)    cmd_data ;;
         rejects) cmd_rejects ;;
         nightly) cmd_nightly ;;
+        images)  cmd_images ;;
         all)
             local rc=0
             cmd_runs;    echo
             cmd_data;    echo
             cmd_rejects; echo
+            cmd_images;  echo
             # Nightly runs last so its verdict is the last thing on screen, and
             # its status becomes the script's. `|| rc=$?` is what keeps set -e
             # from exiting here before the message is useful.
