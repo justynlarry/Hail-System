@@ -723,7 +723,7 @@ time. Related to item 51 (concurrent pulls on one storm).
 
 ## 105. `postgis` has no log rotation
 
-**Status:** open
+**Status:** resolved 2026-10-01
 
 Checked 2026-09-24: `postgis`'s container log is `json-file` with no
 `max-size` or `max-file`, so it grows without limit. It is the only other
@@ -733,6 +733,14 @@ the same `logging:` block as `web` means recreating the database container
 than doing it mid-use.
 
 **When:** before production deployment.
+
+**Resolved 2026-10-01, found closed 2026-10-02.** `4e51bdd` added the same
+`logging:` block `web` has (`json-file`, `max-size: 20m`, `max-file: 5`) to the
+`postgis` service. Verified 2026-10-02: `docker-compose.yml:32-36` has it, and
+`docker inspect` on the running container reports the same `LogConfig`, so it
+is live, not just in the file. The item stayed open because the fix went in
+with an unrelated commit and nothing updated the parking lot. Not checked on
+the production box.
 
 ## 106. The match page gets long, and no row says which report it matched
 
