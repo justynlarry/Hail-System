@@ -5,6 +5,7 @@
 {% block content %}
 <div class="page">
 {% include "_activity.html" %}
+{% if feed %}<p><a href="{{ url_for('main.activity_csv') }}">Download CSV</a></p>{% endif %}
 <p><a href="{{ url_for('main.index') }}">Back to storm days</a></p>
 </div>
 {% endblock %}

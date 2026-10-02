@@ -731,6 +731,24 @@ def activity_page():
         display_tz=DISPLAY_TZ,
     )
 
+@bp.route("/activity.csv")
+@login_required
+def activity_csv():
+    since = _previous_login()
+    rows = []
+    if since:
+        with get_connection() as conn:
+            feed = activity.build_feed(
+                conn,
+                since=since,
+                today=datetime.now(DISPLAY_TZ).date(),
+                radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
+            )
+        rows = activity.feed_rows(feed, DISPLAY_TZ)
+    return _csv_response(
+        activity.ACTIVITY_COLUMNS, rows, f"activity_{_stamp()}.csv")
+
+
 @bp.route("/account/password", methods=["GET", "POST"])
 @login_required
 def change_password():

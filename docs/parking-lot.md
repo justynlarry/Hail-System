@@ -220,6 +220,12 @@ which has produced two silently-wrong pages.
 setting on and none raised `UndefinedError`; a March storm was pulled
 end to end. Which two pages were silently wrong before is not recorded.
 
+**Regression found and fixed the same day.** That walk-through was signed in,
+so it missed the signed-out pages: `base.html` tested `session.emp_id`, which
+is undefined for a visitor with no session, so `/login` returned a 500. Fixed
+with `session.get('emp_id')`. Signed-out pages need their own pass whenever
+the template environment gets stricter.
+
 ## 34. A favicon
 
 **Status:** open
@@ -726,7 +732,7 @@ page on screen rather than exporting it.
 
 ## 107. CSV export missing on the activity page
 
-**Status:** open
+**Status:** resolved 2026-10-02
 
 Split from item 92, 2026-09-24. Phase 2's outline says "CSV export on every
 list." The storm list and territory have one (`/export.csv`), and the matched
@@ -735,6 +741,17 @@ matched listings were the list Phase 5 acts on and the likeliest one someone
 would want in a spreadsheet; `/activity` is the list that is still without one.
 
 **When:** unphased.
+
+**Resolved 2026-10-02.** `/activity.csv` (`activity_csv()` in `views.py`),
+linked from `/activity` only, not the dashboard, whose feed is truncated. One
+flat file with a `kind` column (`new_storm`, `pull`, `match_run`); a column that
+does not apply to a kind is blank. `activity.feed_rows()` does the flattening
+and the Denver conversion, and the route goes through `_csv_response`, so
+`csv_safe` applies and the web still has one CSV writer. A first login (no
+earlier login to measure from) returns a header-only file, accepted: it matches
+the page's "no activity yet". The file includes staff names, as the page does.
+`tests/test_activity_csv.py` (5 tests, stdlib, no Flask or database) covers
+`feed_rows()`.
 
 ## 111. Tap targets under 44px
 

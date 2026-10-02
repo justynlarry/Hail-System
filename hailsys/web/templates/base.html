@@ -9,7 +9,7 @@
         <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     </head>
     <body class="{% block body_class %}{% endblock %}">
-    {% if session.emp_id %}
+    {% if session.get('emp_id') %}
     <header class="site-header">
         <div class="site-header-left">
             <a class="brand" href="{{ url_for('main.index') }}">

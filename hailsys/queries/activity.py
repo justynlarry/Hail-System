@@ -91,3 +91,47 @@ def build_feed(conn, *, since, today, radius_m):
                 row["new_reports"] = new_keys[key]
                 new_storms.append(row)
     return {"new_storms": new_storms, "pulls": pulls, "match_runs": match_runs}
+
+
+ACTIVITY_COLUMNS = [
+    "kind", "when", "storm_date", "report_text", "user",
+    "zips", "new_reports", "listings", "status",
+]
+
+
+def _name(row):
+    return " ".join(p for p in (row["emp_fname"], row["emp_lname"])if p)
+
+def feed_rows(feed, tz):
+    """Flatten build_feed() into CSV rows, one per event.
+
+    One file for 3 differently-shaped lists, so a column that doesn't
+    apply to a kind is left blank.
+    """
+    rows = []
+    for s in feed["new_storms"]:
+        rows.append({
+            "kind": "new_storm", "when": "", "storm_date": s["storm_date"],
+            "report_text": s["report_text"], "user":"",
+            "zips": s["zip_count"], "new_reports": s["new_reports"],
+            "listings": "", "status": "",
+        })
+    for p in feed["pulls"]:
+        rows.append({
+            "kind": "pull",
+            "when": p["started_at"].astimezone(tz).strftime("%Y-%m-%d %H:%M"),
+            "storm_date": p["storm_date"] or "",
+            "report_text": p["report_text"] or "",
+            "user": _name(p), "zips": p["zip_count"], "new_reports": "",
+            "listings": p["listings_returned"] or 0,
+            "status": p["api_status"],
+        })
+    for m in feed["match_runs"]:
+        rows.append({
+            "kind": "match_run",
+            "when": m["matched_at"].astimezone(tz).strftime("%Y-%m-%d %H:%M"),
+            "storm_date": m["storm_date"], "report_text": m["report_texts"],
+            "user": _name(m) or "Unattributed", "zips": "",
+            "new_reports": "", "listings": m["listings"], "status": "",
+        })
+    return rows
