@@ -2,6 +2,7 @@ import os
 
 from flask import Flask, g, render_template
 from flask_wtf.csrf import CSRFError, CSRFProtect
+from jinja2 import StrictUndefined
 
 def create_app():
     from hailsys.logconfig import configure_logging
@@ -12,6 +13,14 @@ def create_app():
 
     app = Flask(__name__)
     app.secret_key = os.environ["FLASK_SECRET_KEY"]
+
+    app = Flask(__name__)
+    app.secret_key = os.environ["FLASK_SECRET_KEY"]
+
+    # A missing template variable renders blank by default, which has
+    # created incorrect pages.  StrictUndefined now raises instead, optional
+    # values must be tested with 'is defined'.
+    app.jinja_env.undefined = StrictUndefined
 
     # CSRF fails closed, any POST without a valid token is rejected with a
     # 400.  None ties token life to the session, 3600s default will

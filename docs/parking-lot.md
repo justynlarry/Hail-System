@@ -208,12 +208,17 @@ us time twice.
 
 ## 32. `StrictUndefined` in the Jinja environment
 
-**Status:** open
+**Status:** resolved 2026-10-02
 
 Missing template variables currently render blank rather than raising,
 which has produced two silently-wrong pages.
 
 **When:** soon.
+
+**Resolved 2026-10-02.** `create_app()` sets
+`app.jinja_env.undefined = StrictUndefined`. Every page was loaded with the
+setting on and none raised `UndefinedError`; a March storm was pulled
+end to end. Which two pages were silently wrong before is not recorded.
 
 ## 34. A favicon
 
@@ -530,7 +535,7 @@ view of `/territory` or a map layer rather than its own page.
 
 ## 85. Pull estimate shows "last pulled" times in UTC
 
-**Status:** open
+**Status:** resolved 2026-10-02
 
 `pull_estimate.html`'s "Pulled in the last 7 days" table formats
 `z.last_pulled.strftime('%Y-%m-%d %H:%M')` with no conversion. `CLAUDE.md`
@@ -539,6 +544,10 @@ says to convert to `America/Denver` at display, and the storm list's
 conversion, plus `display_tz` passed from `pull_estimate()`.
 
 **When:** small; next pass over the pull estimate.
+
+**Resolved 2026-10-02.** `pull_estimate()` passes `display_tz=DISPLAY_TZ`
+and `pull_estimate.html` converts with `.astimezone(display_tz)`. Checked on
+`/pull/estimate`: times show in local time.
 
 ## 87. Confirm RentCast's billing-period timezone
 

@@ -37,8 +37,7 @@
         {% for z in result.pulled_recently %}
         <tr>
             <td>{{ z.zip_code }}</td>
-            <td>{{ z.last_pulled.strftime('%Y-%m-%d %H:%M') }}</td>
-        </tr>
+            <td>{{ z.last_pulled.astimezone(display_tz).strftime('%Y-%m-%d %H:%M') }}</td>        </tr>
         {% endfor %}
     </tbody>
 </table>

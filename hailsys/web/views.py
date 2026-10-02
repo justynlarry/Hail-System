@@ -547,6 +547,7 @@ def pull_estimate():
         recent_window_days=RECENT_PULL_WINDOW_DAYS,
         usage=usage,
         back=back,
+        display_tz=DISPLAY_TZ,
     )
 
 @bp.route("/pull", methods=["POST"])
