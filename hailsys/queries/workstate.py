@@ -16,7 +16,6 @@ from datetime import timedelta
 # history.
 
 CLAIM_WINDOW_DAYS = 365
-PULLING = "Pulling..."
 
 # How long a pull can sit at 'running' and still read "Pulling...".  Past
 # this it is treated as dead: the row falls back to "Pulled, not matched",
@@ -110,11 +109,52 @@ GROUP BY storm_date, report_text
 """
 
 
-NOT_PULLED = "Not pulled"
-PULLED = "Pulled, not matched"
-MATCHED = "Matched, not sent"
-SENT = "Sent"
-MATCHED_NONE = "Matched, none in range"
+# A work state has three separate things, on purpose:
+#   KEY       what code and templates branch on.  Stable; never shown.
+#   LABEL     what a person reads.  Free to reword.
+#   CSS class what style.css targets.  Must exist as a rule there.
+# The class used to be computed from the label text, and so were the template's
+# branches (which link to offer), so rewording a label silently dropped the
+# styling and changed the actions; "Pulling..." shipped unstyled that way
+# (parking-lot item 48).  tests/test_workstate.py checks that every key has a
+# label and a class, that every class is in style.css, and that the status cell
+# holds no label text.
+NOT_PULLED = "not_pulled"
+PULLING = "pulling"
+PULLED = "pulled"
+MATCHED = "matched"
+MATCHED_NONE = "matched_none"
+SENT = "sent"
+
+LABELS = {
+    NOT_PULLED:   "Not pulled",
+    PULLING:      "Pulling...",
+    PULLED:       "Pulled, not matched",
+    MATCHED:      "Matched, not sent",
+    MATCHED_NONE: "Matched, none in range",
+    SENT:         "Sent",
+}
+
+CSS_CLASSES = {
+    NOT_PULLED:   "badge-not-pulled",
+    PULLING:      "badge-pulling",
+    PULLED:       "badge-pulled-not-matched",
+    MATCHED:      "badge-matched-not-sent",
+    MATCHED_NONE: "badge-matched-none-in-range",
+    SENT:         "badge-sent",
+}
+
+
+def _entry(key, *, is_stale, last_pulled_at):
+    """The one place a work-state dict is built, so its fields cannot drift
+    between a storm day with activity and one without."""
+    return {
+        "key": key,
+        "label": LABELS[key],
+        "css_class": CSS_CLASSES[key],
+        "is_stale": is_stale,
+        "last_pulled_at": last_pulled_at,
+    }
 
 
 def _is_running(row, now):
@@ -126,7 +166,7 @@ def _is_running(row, now):
         and now - since < PULL_STALE_AFTER
 
 
-def _label(row, now):
+def _key(row, now):
     if _is_running(row, now):
         return PULLING
     if row["sent"]:
@@ -142,7 +182,8 @@ def _label(row, now):
 def fetch_work_state(conn, *, window_start, window_end, today, now):
     """Work state for each storm day in a window that has activity
     
-    Returns {(storm_date, report_text): {"state": str, "is_stale": bool}}
+    Returns {(storm_date, report_text): {"key", "label", "css_class", "is_stale",
+    "last_pulled_at"}}
 
     A Storm Day with NO activity is ABSENT from the result.  Caller holds
     authoritative list of storm days (from storms.fetch_recent_days) and
@@ -166,11 +207,11 @@ def fetch_work_state(conn, *, window_start, window_end, today, now):
         rows = cur.fetchall()
 
     return {
-        (row["storm_date"], row["report_text"]): {
-            "state": _label(row, now),
-            "is_stale": row["storm_date"] < stale_before,
-            "last_pulled_at": row["last_pulled_at"],
-        }
+        (row["storm_date"], row["report_text"]): _entry(
+            _key(row, now),
+            is_stale=row["storm_date"] < stale_before,
+            last_pulled_at=row["last_pulled_at"],
+        )
         for row in rows
     }
 
@@ -181,11 +222,11 @@ def state_for(work_state, storm_date, report_text, today):
     found = work_state.get((storm_date, report_text))
     if found is not None:
         return found
-    return {
-        "state": NOT_PULLED,
-        "is_stale": storm_date < today - timedelta(days=CLAIM_WINDOW_DAYS),
-        "last_pulled_at": None,
-    }
+    return _entry(
+        NOT_PULLED,
+        is_stale=storm_date < today - timedelta(days=CLAIM_WINDOW_DAYS),
+        last_pulled_at=None,
+    )
 
 # ------ ------ Banner Under Storm Page Heading ------ ------
 

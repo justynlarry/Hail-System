@@ -7,7 +7,7 @@
    poll needs. The fragment the server sends back is this same template, so
    once the pull finishes the new cell has no data-poll and polling stops
    without the browser deciding what "finished" means. #}
-{% set pulling = row.work_state.state == 'Pulling...' %}
+{% set pulling = row.work_state.key == 'pulling' %}
 <td class="status-cell"
     {% if pulling %}
     data-poll="1"
@@ -15,15 +15,16 @@
     data-type="{{ row.report_text }}"
     data-actionable="{{ '1' if actionable_only else '' }}"
     {% endif %}>
-    {# replace('.', '') so "Pulling..." gives the class badge-pulling, not one with dots in it #}
-    <span class="badge badge-{{ row.work_state.state | lower | replace(' ', '-') | replace(',', '') | replace('.', '') }}{% if row.work_state.is_stale %} badge-stale{% endif %}">
-        {% if row.work_state.is_stale and row.work_state.state == 'Not pulled' %}
+    {# The class and the branches below come from the state's stable key, never
+       from the label text; see workstate.py. #}
+    <span class="badge {{ row.work_state.css_class }}{% if row.work_state.is_stale %} badge-stale{% endif %}">
+        {% if row.work_state.is_stale and row.work_state.key == 'not_pulled' %}
             No action taken
         {% else %}
-            {{ row.work_state.state }}
+            {{ row.work_state.label }}
         {% endif %}
     </span>
-    {% if row.work_state.state == 'Not pulled' %}
+    {% if row.work_state.key == 'not_pulled' %}
       {% if can_pull %}
     <a class="pull-link"
        href="{{ url_for('main.pull_estimate') }}?date={{ row.storm_date }}&type={{ row.report_text | urlencode }}&submitted=1{% if actionable_only %}&actionable=1{% endif %}">Pull</a>
@@ -31,7 +32,7 @@
     <span class="action-disabled"
           title="Pulling requires sender access">Pull</span>
       {% endif %}
-    {% elif row.work_state.state in ('Pulled, not matched', 'Matched, none in range') %}
+    {% elif row.work_state.key in ('pulled', 'matched_none') %}
       {% if can_pull %}
     <form method="post" action="{{ url_for('main.match_start') }}" class="inline-action">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -43,14 +44,14 @@
     <span class="action-disabled"
           title="Matching requires sender access">Match</span>
       {% endif %}
-    {% elif row.work_state.state in ('Matched, not sent', 'Sent') %}
+    {% elif row.work_state.key in ('matched', 'sent') %}
     <a class="pull-link"
        href="{{ url_for('main.storm_matches') }}?date={{ row.storm_date }}&type={{ row.report_text | urlencode }}">View matches</a>
     {% endif %}
     {# No re-pull offered while one is running: a second click would start a
        second paid pull of the same zips. (The server doesn't refuse it; see
        parking-lot item 51.) #}
-    {% if row.work_state.state not in ('Not pulled', 'Pulling...') %}
+    {% if row.work_state.key not in ('not_pulled', 'pulling') %}
       {% set repull_label = "Pull again" if row.work_state.last_pulled_at else "Pull" %}
       {% if row.work_state.is_stale %}
     <span class="action-disabled"
