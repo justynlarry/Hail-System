@@ -4,6 +4,7 @@
         <meta charset="utf8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>{% block title %}Hail System{% endblock %}</title>
+        <script src="{{ url_for('static', filename='theme.js') }}"></script>
         <link rel="stylesheet" href="{{ url_for('static', filename='leaflet.css') }}">
         <script src="{{ url_for('static', filename='leaflet.js') }}" defer></script>
         <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -36,6 +37,10 @@
             </nav>
         </div>
         <div class="site-header-right">
+            <span class="theme-label" id="theme-label">Dark</span>
+            <button type="button" id="theme-toggle" class="theme-switch" role="switch"
+                    aria-checked="false" aria-labelledby="theme-label"
+                    title="Switch between light and dark"></button>
             <span>Signed in as
               <a href="{{ url_for('main.change_password') }}">{{ session.user_name }}</a></span>
             <form method="post" action="{{ url_for('main.logout') }}">

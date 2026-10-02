@@ -1,11 +1,90 @@
 :root {
+  color-scheme: light;
   --navy: #1e3a5f;
   --navy-dark: #162d4a;
+  /* --accent is link and accent TEXT; --accent-fill is a filled button's
+     background (white text on it).  One value in light mode, two in dark,
+     where a colour light enough to read as text is too light to carry white. */
   --accent: #2b7cd3;
+  --accent-fill: #2b7cd3;
+  --accent-fill-hover: #2268b4;
   --border: #d8dee6;
   --panel: #f4f6f9;
   --text: #22272e;
   --muted: #5b6673;
+
+  --bg: #fff;               /* page */
+  --surface: #fff;          /* inputs, buttons, cards sitting on --bg or --panel */
+  --row-hover: #f8fafc;
+  --panel-2: #f8fafc;       /* activity panel */
+  --border-2: #e2e8f0;
+  --subtle: #475569;        /* agent contact line */
+  --error: #b00020;
+  --ok: #1a7f37;
+  --bad: #b42318;
+  --warn-bg: #fef3c7;
+  --warn-border: #d97706;
+  --flash-bg: #e0f2fe;
+  --flash-border: #0284c7;
+  --scroll-shadow: rgba(30, 58, 95, 0.18);
+
+  /* Work-state badges: background / text.  Colour is emphasis only. */
+  --b-not-pulled-bg: #fde8e8;   --b-not-pulled-fg: #9b1c1c;
+  --b-pulled-bg: #fef3c7;       --b-pulled-fg: #92400e;
+  --b-matched-bg: #e0f2fe;      --b-matched-fg: #075985;
+  --b-none-bg: #e0e7ff;         --b-none-fg: #3730a3;
+  --b-sent-bg: #dcfce7;         --b-sent-fg: #166534;
+  --b-pulling-bg: #f3e8ff;      --b-pulling-fg: #6b21a8;
+  --b-stale-bg: #f1f5f9;        --b-stale-fg: #64748b;
+
+  /* Map: there is no basemap, so these are most of what the map looks like. */
+  --map-bg: #ddd;
+  --map-coverage-fill: #eee;
+  --map-coverage-stroke: #888;
+  --map-county-fill: #999;
+}
+
+/* Dark theme.  Selected by theme.js setting data-theme on <html>: the
+   visitor's saved choice, else the OS setting. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --navy: #14263f;
+  --navy-dark: #0d1a2b;
+  --accent: #6cb0f5;
+  --accent-fill: #2f6fbd;
+  --accent-fill-hover: #255a9c;
+  --border: #2d3642;
+  --panel: #1a212b;
+  --text: #e4e8ee;
+  --muted: #9aa7b5;
+
+  --bg: #11161d;
+  --surface: #1c232d;
+  --row-hover: #19212b;
+  --panel-2: #161d26;
+  --border-2: #2a323d;
+  --subtle: #aab5c2;
+  --error: #ff6b81;
+  --ok: #4ade80;
+  --bad: #f87171;
+  --warn-bg: #3a2d0c;
+  --warn-border: #d97706;
+  --flash-bg: #0d3550;
+  --flash-border: #0284c7;
+  --scroll-shadow: rgba(0, 0, 0, 0.55);
+
+  --b-not-pulled-bg: #4a1d1d;   --b-not-pulled-fg: #fca5a5;
+  --b-pulled-bg: #4a3410;       --b-pulled-fg: #fcd34d;
+  --b-matched-bg: #0c3a52;      --b-matched-fg: #7dd3fc;
+  --b-none-bg: #26285a;         --b-none-fg: #a5b4fc;
+  --b-sent-bg: #123d24;         --b-sent-fg: #86efac;
+  --b-pulling-bg: #3b1d5c;      --b-pulling-fg: #d8b4fe;
+  --b-stale-bg: #232a33;        --b-stale-fg: #94a3b8;
+
+  --map-bg: #1b222c;
+  --map-coverage-fill: #5b6b7d;
+  --map-coverage-stroke: #6b7a8c;
+  --map-county-fill: #3a4552;
 }
 
 * { box-sizing: border-box; }
@@ -14,7 +93,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--text);
   margin: 0;
-  background: #fff;
+  background: var(--bg);
   font-size: 15px;
   line-height: 1.5;
 }
@@ -143,10 +222,11 @@ h1 {
   border-radius: 3px;
   padding: 0.35rem 0.5rem;
   font-size: 0.875rem;
-  background: #fff;
+  background: var(--surface);
+  color: var(--text);
 }
 .filters button {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #fff;
   border: none;
   border-radius: 3px;
@@ -154,7 +234,7 @@ h1 {
   cursor: pointer;
   font-size: 0.875rem;
 }
-.filters button:hover { background: #2268b4; }
+.filters button:hover { background: var(--accent-fill-hover); }
 .filters a { color: var(--accent); text-decoration: none; }
 .filters a:hover { text-decoration: underline; }
 
@@ -177,7 +257,7 @@ tbody td {
   border-bottom: 1px solid var(--border);
   padding: 0.5rem 0.75rem;
 }
-tbody tr:hover { background: #f8fafc; }
+tbody tr:hover { background: var(--row-hover); }
 th.num, td.num { text-align: right; }
 
 /* Nested detail tables sit inside a row -- tone them down so the
@@ -187,7 +267,7 @@ tbody td table thead th { background: transparent; border-bottom: 1px solid var(
 
 button.expand {
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--surface);
   border-radius: 3px;
   width: 1.5rem;
   height: 1.5rem;
@@ -221,13 +301,13 @@ button.expand:hover { border-color: var(--accent); color: var(--accent); }
    sides, and outranked the "h1 ~ p" gutter below, so a note sitting
    directly under the h1 (territory) had no side margin. */
 .note { font-size: 0.8125rem; color: var(--muted); margin-top: 0.75rem; margin-bottom: 0.75rem; }
-.error { color: #b00020; }
+.error { color: var(--error); }
 /* The "h1 ~ p" gutter only reaches paragraphs that are direct siblings of the
    h1, like .usage-summary. These sit inside a div, so the div takes the same
    side margin to line up with the RentCast count above it. */
 .ingest-health { margin: 0 1.5rem; }
-.health-ok    { color: #1a7f37; font-weight: 600; }
-.health-stale { color: #b42318; font-weight: 600; }
+.health-ok    { color: var(--ok); font-weight: 600; }
+.health-stale { color: var(--bad); font-weight: 600; }
 
 /* Pages without .split still need the page margin */
 h1 ~ table, h1 ~ p, h1 ~ .table-scroll { margin-left: 1.5rem; margin-right: 1.5rem; }
@@ -247,24 +327,24 @@ h1 ~ table { width: calc(100% - 3rem); }
     font-size: 0.85em;
     white-space: nowrap;
 }
-.badge-not-pulled       { background: #fde8e8; color: #9b1c1c; }
-.badge-pulled-not-matched { background: #fef3c7; color: #92400e; }
-.badge-matched-not-sent { background: #e0f2fe; color: #075985; }
+.badge-not-pulled       { background: var(--b-not-pulled-bg); color: var(--b-not-pulled-fg); }
+.badge-pulled-not-matched { background: var(--b-pulled-bg); color: var(--b-pulled-fg); }
+.badge-matched-not-sent { background: var(--b-matched-bg); color: var(--b-matched-fg); }
 /* Work happened but there's nothing to act on -- its own hue, and not
    the grey of .badge-stale, so "matched, empty" can't be mistaken for
    "too old to chase". Must stay above .badge-stale, which overrides by
    coming later. */
-.badge-matched-none-in-range { background: #e0e7ff; color: #3730a3; }
-.badge-sent             { background: #dcfce7; color: #166534; }
+.badge-matched-none-in-range { background: var(--b-none-bg); color: var(--b-none-fg); }
+.badge-sent             { background: var(--b-sent-bg); color: var(--b-sent-fg); }
 /* A pull in flight -- purple, a hue none of the states above uses, so a row
    that is still working doesn't look like one of the finished ones. */
-.badge-pulling          { background: #f3e8ff; color: #6b21a8; }
+.badge-pulling          { background: var(--b-pulling-bg); color: var(--b-pulling-fg); }
 
 /* Past the claim window: drained of urgency rather than recoloured, so
    an old storm reads as history instead of as a task. */
 .badge-stale {
-    background: #f1f5f9;
-    color: #64748b;
+    background: var(--b-stale-bg);
+    color: var(--b-stale-fg);
 }
 
 /* Storm-list pagination, below the table. A 1fr/auto/1fr grid rather
@@ -289,7 +369,7 @@ h1 ~ table { width: calc(100% - 3rem); }
 /* Outlined like .row-actions button, not accent-filled: paging is
    navigation, not the page's call to action. */
 .pagination a {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 3px;
   color: var(--accent);
@@ -338,8 +418,8 @@ h1 ~ table { width: calc(100% - 3rem); }
    amber "visibly a warning, not an error" treatment as .coverage-warning
    on the match page. .note sets the size; this adds the box. */
 .note.warning {
-  background: #fef3c7;
-  border-left: 4px solid #d97706;
+  background: var(--warn-bg);
+  border-left: 4px solid var(--warn-border);
   padding: 0.5rem 0.75rem;
   color: var(--text);
 }
@@ -358,7 +438,7 @@ h1 ~ table { width: calc(100% - 3rem); }
    rather than a second button competing with it. */
 .confirm { margin: 1rem 0 1.5rem; }
 .confirm button {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #fff;
   border: none;
   border-radius: 3px;
@@ -366,7 +446,7 @@ h1 ~ table { width: calc(100% - 3rem); }
   font-size: 1rem;
   cursor: pointer;
 }
-.confirm button:hover { background: #2268b4; }
+.confirm button:hover { background: var(--accent-fill-hover); }
 .confirm a {
   margin-left: 1rem;
   color: var(--muted);
@@ -458,7 +538,7 @@ h1 ~ table { width: calc(100% - 3rem); }
    name itself. */
 .agent-contact {
     margin: 0 0 0.75rem;
-    color: #475569;
+    color: var(--subtle);
     font-size: 0.9em;
 }
 
@@ -517,8 +597,8 @@ h1 ~ table { width: calc(100% - 3rem); }
 /* Incomplete-coverage notice on the match page. Visibly a warning, but
    not an error -- the page is correct, just not the whole picture. */
 .coverage-warning {
-    background: #fef3c7;
-    border-left: 4px solid #d97706;
+    background: var(--warn-bg);
+    border-left: 4px solid var(--warn-border);
     padding: 0.75rem 1rem;
     margin: 0 0 1.5rem;
 }
@@ -543,8 +623,8 @@ h1 ~ table { width: calc(100% - 3rem); }
        never seen. Cells with their own background (the header row) paint
        over it, so it shows beside the body rows. */
     background:
-        linear-gradient(to left, #fff 30%, transparent) right center / 2rem 100% no-repeat local,
-        linear-gradient(to left, rgba(30, 58, 95, 0.18), transparent) right center / 1rem 100% no-repeat scroll;
+        linear-gradient(to left, var(--bg) 30%, transparent) right center / 2rem 100% no-repeat local,
+        linear-gradient(to left, var(--scroll-shadow), transparent) right center / 1rem 100% no-repeat scroll;
 }
 /* Numbers read wrong split across lines; addresses are fine wrapped, but
    need a floor so they don't collapse to one word per line. */
@@ -559,8 +639,8 @@ h1 ~ table { width: calc(100% - 3rem); }
    a separate "while you were away" summary rather than part of the
    filter form below it. */
 .activity-panel {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--panel-2);
+    border: 1px solid var(--border-2);
     border-radius: 0.5rem;
     padding: 0.75rem 1rem;
     /* Side margin matches the page gutter; it sits directly under <body>,
@@ -607,8 +687,8 @@ h1 ~ table { width: calc(100% - 3rem); }
 }
 
 .flashes {
-    background: #e0f2fe;
-    border-left: 4px solid #0284c7;
+    background: var(--flash-bg);
+    border-left: 4px solid var(--flash-border);
     padding: 0.75rem 1rem;
     /* Side margin matches the page gutter (base.html renders this directly
        under <body>). The login page overrides it. */
@@ -709,13 +789,13 @@ h1 ~ table { width: calc(100% - 3rem); }
     border-radius: 3px;
     padding: 0.35rem 0.5rem;
     font-size: 0.875rem;
-    background: #fff;
+    background: var(--surface);
     color: var(--text);
     font-family: inherit;
 }
 .admin-form button {
     align-self: flex-start;
-    background: var(--accent);
+    background: var(--accent-fill);
     color: #fff;
     border: none;
     border-radius: 3px;
@@ -723,7 +803,7 @@ h1 ~ table { width: calc(100% - 3rem); }
     cursor: pointer;
     font-size: 0.875rem;
 }
-.admin-form button:hover { background: #2268b4; }
+.admin-form button:hover { background: var(--accent-fill-hover); }
 
 /* Per-row controls in the Users table. Each is its own <form> (they post
    to different routes), so the grid lays out the forms, not their
@@ -749,7 +829,7 @@ h1 ~ table { width: calc(100% - 3rem); }
     padding: 0.25rem 0.4rem;
     font-size: 0.8125rem;
     font-family: inherit;
-    background: #fff;
+    background: var(--surface);
     color: var(--text);
     min-width: 0;
 }
@@ -759,7 +839,7 @@ h1 ~ table { width: calc(100% - 3rem); }
    treatment as button.expand. */
 .row-actions button {
     width: 100%;
-    background: #fff;
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 3px;
     color: var(--text);
@@ -811,7 +891,7 @@ body.login-page {
 .login-form {
     width: 100%;
     max-width: 22rem;
-    background: #fff;
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 1.5rem;
@@ -850,4 +930,68 @@ body.login-page {
     display: inline-block;
     padding: 0.75rem 0.5rem;
   }
+}
+
+/* ---- Map, dark-mode aware ---- */
+
+/* These classes are set from map.js (Leaflet's className option).  CSS beats
+   the stroke/fill attributes Leaflet writes, so the colours follow the theme
+   live, without redrawing the layers when the switch is flipped. */
+.leaflet-container { background: var(--map-bg); }
+path.map-coverage { fill: var(--map-coverage-fill); stroke: var(--map-coverage-stroke); }
+path.map-county { fill: var(--map-county-fill); }
+
+/* Leaflet ships white popups, tooltips and controls. */
+:root[data-theme="dark"] .leaflet-popup-content-wrapper,
+:root[data-theme="dark"] .leaflet-popup-tip,
+:root[data-theme="dark"] .leaflet-tooltip,
+:root[data-theme="dark"] .leaflet-bar a {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+:root[data-theme="dark"] .leaflet-tooltip-top:before { border-top-color: var(--surface); }
+:root[data-theme="dark"] .leaflet-tooltip-bottom:before { border-bottom-color: var(--surface); }
+:root[data-theme="dark"] .leaflet-tooltip-left:before { border-left-color: var(--surface); }
+:root[data-theme="dark"] .leaflet-tooltip-right:before { border-right-color: var(--surface); }
+:root[data-theme="dark"] .leaflet-bar a:hover { background: var(--panel); }
+:root[data-theme="dark"] .leaflet-control-attribution {
+  background: rgba(17, 22, 29, 0.8);
+  color: var(--muted);
+}
+:root[data-theme="dark"] .leaflet-control-attribution a { color: var(--accent); }
+
+/* ---- Light/dark switch (header, base.html) ---- */
+
+/* A real <button role="switch">, so it is keyboard- and screen-reader-
+   operable.  The header's generic "button" rule gives it a border and padding;
+   this overrides them to draw a pill with a sliding knob. */
+.site-header-right .theme-switch {
+  position: relative;
+  width: 2.5rem;
+  height: 1.375rem;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.12);
+  cursor: pointer;
+  flex: none;
+}
+.site-header-right .theme-switch:hover { background: rgba(255,255,255,0.2); }
+.theme-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(1.375rem - 6px);
+  height: calc(1.375rem - 6px);
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+.theme-switch[aria-checked="true"]::after { transform: translateX(1.125rem); }
+.theme-switch:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.theme-label { font-size: 0.8125rem; }
+@media (prefers-reduced-motion: reduce) {
+  .theme-switch::after { transition: none; }
 }

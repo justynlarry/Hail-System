@@ -22,8 +22,9 @@ document.addEventListener('DOMContentLoaded', function () {
       return{
         color: COUNTY_COLORS[feature.properties.county_fips.charCodeAt(2) % COUNTY_COLORS.length],
         weight: .25,
-        fillColor: '#999',
+        fillColor: '#999',      // overridden by .map-county in style.css, per theme
         fillOpacity: 0.35,
+        className: 'map-county',
       };
     },
   }).addTo(map);
@@ -37,7 +38,9 @@ document.addEventListener('DOMContentLoaded', function () {
   // No tile layer: a basemap means a third-party tile service on every pan,
   // with its own terms of use. The coverage polygons are the basemap here.
   const coverage = L.geoJSON(null, {
-    style: { color: '#888', weight: 1, fillColor: '#eee', fillOpacity: 0.4 },
+    // colour and fill come from .map-coverage in style.css, per theme
+    style: { color: '#888', weight: 1, fillColor: '#eee', fillOpacity: 0.4,
+             className: 'map-coverage' },
     onEachFeature: function (feature, layer) {
       const p = feature.properties;
       layer.bindTooltip(p.zcta5 + ' — ' + p.area_name, { sticky: true });
