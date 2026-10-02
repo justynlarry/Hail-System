@@ -1039,7 +1039,7 @@ extension left in place).
 
 ## Watch list — triggers only, no work attached
 
-*31 items, all `open (watch)`. Nothing to do unless the named trigger is observed.*
+*30 items, all `open (watch)`. Nothing to do unless the named trigger is observed.*
 
 ## 2. `nws_issuer` is NOT NULL and unguarded
 
@@ -1183,23 +1183,6 @@ line in the activity feed. Accurate — both things happened — but reads as
 more activity than one decision produced.
 
 **When:** acceptable for now; revisit if the feed gets noisy.
-
-## 48. Badge CSS classes derive from `workstate.py` label strings
-
-**Status:** open (watch)
-
-`storms.html` builds `badge-{{ row.work_state.state | lower | replace(' ',
-'-') | replace(',', '') }}` — the CSS class is computed from the label text
-itself, not a stable key. Renaming a label in `workstate.py` (`NOT_PULLED`,
-`PULLED`, etc.) silently breaks styling with no error anywhere.
-
-**When:** if a label ever needs to change wording.
-
-**Added 2026-09-25:** `PULLING` ("Pulling...") gives the class `badge-pulling`
-(`_status_cell.html` strips the dots). It first shipped with no rule in
-`style.css`, so it showed as an unstyled badge, the failure this item
-describes; `.badge-pulling` (purple) was added in the follow-up commit
-(item 57).
 
 ## 52. Re-check for NULL property coordinates as more zips are pulled
 
@@ -1752,7 +1735,7 @@ earliest.
 
 ## Closed
 
-*57 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
+*58 items: `resolved`, `resolved (residuals)`, `dropped`. Kept, not deleted, because the reasoning is the point. Collapsed; expand to read.*
 
 <details>
 <summary>Closed items (resolved and dropped)</summary>
@@ -3075,5 +3058,32 @@ extracts, not files a person opens in a spreadsheet; the curated `planning/*.csv
 seeds they inform are what `load_reference.sh` loads with `\copy`. An apostrophe on
 a machine-read file would become part of the data, so adding `csv_safe` there would
 be a bug, not caution.
+
+## 48. Badge CSS classes derive from `workstate.py` label strings
+
+**Status:** resolved 2026-10-02 11dda0e
+
+`storms.html` builds `badge-{{ row.work_state.state | lower | replace(' ',
+'-') | replace(',', '') }}` — the CSS class is computed from the label text
+itself, not a stable key. Renaming a label in `workstate.py` (`NOT_PULLED`,
+`PULLED`, etc.) silently breaks styling with no error anywhere.
+
+**When:** if a label ever needs to change wording.
+
+**Added 2026-09-25:** `PULLING` ("Pulling...") gives the class `badge-pulling`
+(`_status_cell.html` strips the dots). It first shipped with no rule in
+`style.css`, so it showed as an unstyled badge, the failure this item
+describes; `.badge-pulling` (purple) was added in the follow-up commit
+(item 57).
+
+**Resolved 2026-10-02.** Wider than this item described: the status cell did not
+only derive the class from the label, it also branched on label text in six places
+to decide which links to show, so a rewording would have changed the *actions*,
+not just the colour. Each work state now has a stable key, a label and a CSS
+class (`workstate.LABELS`, `CSS_CLASSES`); the template branches on the key and
+the label is only displayed. The class names are unchanged, so `style.css` is
+untouched. `tests/test_workstate.py` fails if a key lacks a label or class, a
+class lacks a rule, or the template contains label text. See decision log, "Work
+states have a key, a label and a CSS class".
 
 </details>

@@ -6334,3 +6334,53 @@ This was not verified; it is the developer's judgement of RBI's staffing.
 Filed as item 153, `open (watch)`, with the trigger as its *When*. The parking-lot
 status vocabulary has no "accepted", and a trigger with no work attached is what
 `open (watch)` means.
+
+## 2026-10-02 — Work states have a key, a label and a CSS class (item 48)
+
+`11dda0e`. Item 48 said the badge's CSS class was computed from the label text, so
+rewording a label would silently drop the styling; `Pulling...` had shipped
+unstyled that way (2026-09-25, fixed in `3750803`). Looking at the template showed
+the problem was wider.
+
+**The status cell used the label text as an identifier in six places**, not one:
+the class (`badge-{{ state | lower | replace(...) }}`), whether a pull is running
+(`== 'Pulling...'`), the "No action taken" wording, and the three branches that
+choose Pull, Match, View matches and re-pull (`== 'Not pulled'`,
+`in ('Pulled, not matched', ...)`, and so on). Rewording a label would not only
+have lost a colour; it would have changed which links a row offers.
+
+**The change.** Every state has three separate things in `workstate.py`:
+
+| | What it is | Where |
+|---|---|---|
+| key | what code and templates branch on; never shown | the constants (`not_pulled`, `pulling`, `pulled`, `matched`, `matched_none`, `sent`) |
+| label | what a person reads; free to reword | `LABELS` |
+| CSS class | what `style.css` targets | `CSS_CLASSES` |
+
+`_entry()` is the one place a work-state dict is built (for a day with activity and
+for one without), carrying `key`, `label`, `css_class`, `is_stale` and
+`last_pulled_at`; the old `state` field is gone, and nothing else read it. The
+template shows `label`, uses `css_class`, and branches on `key`. The class names
+are the ones the old template derived, so `style.css` did not change.
+
+**A dict keyed on the label constants was proposed and rejected.** It would have
+fixed the class only, leaving the six branches keyed on display text, which is the
+worse half. (It also claimed a label rename would need the dict key updated; with
+constants as keys it would not. Separate identifiers were the necessary version,
+not the larger one.)
+
+**Verified:** the new class mapping equals what the old template derived for all
+six states; the old (from `HEAD`) and new templates render identically for all 96
+combinations of state, stale, `can_pull`, `actionable` and `last_pulled_at`; `/`
+and `/storms/state` return 200 with the expected badges. `tests/test_workstate.py`
+(19 tests, stdlib `unittest`, no Flask or database) fails if a key lacks a label or
+class, a class has no rule in `style.css`, the template contains label text or reads
+the label to decide anything, a key named in the template is not real, or the
+precedence in `_key()` changes (running, sent, matched, ran-and-pulled, pulled).
+
+**Adding a state:** a constant, an entry in `LABELS` and `CSS_CLASSES`, a rule in
+`style.css`, and the template branches that should apply to it. The tests catch the
+first three.
+
+**Not changed:** `storms.js` was checked and does not depend on label text; it polls
+on `data-poll`.
