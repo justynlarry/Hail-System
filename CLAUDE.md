@@ -149,6 +149,48 @@ These have already bitten us. Do not re-discover them.
   run image-baked code -- rebuild before running, or you are testing an old
   version. See `docs/command-ref.md`.
 
+## Findings get filed
+
+**A problem found in review, audit or debugging is not recorded until it is in
+`docs/parking-lot.md`.** A line in chat, a handoff note or a commit message is
+not a record: it is gone when the session ends. A review that reports problems
+and files none of them has not finished.
+
+- **Propose the item in the same message that reports the finding**: a number,
+  a `**Status:**` line, the evidence, and a `**When:**` trigger. Filing is still a
+  docs edit, so wait for the yes as usual.
+- **Check first that it is not already filed.** Grep the parking lot and the
+  decision log for the file, function or symptom before proposing a duplicate.
+- **If it is fixed in the same session, file it anyway**, as `resolved` with the
+  date and commit. The parking lot is the list of problems that were found, not
+  only the ones still open.
+- **If a finding is accepted rather than fixed, file it with its revisit
+  trigger.** A decision to live with something is a decision, and needs a
+  *When*.
+- **If the session may end before anyone answers, end the final message with a
+  list of the findings not yet filed.** An unanswered proposal is not a filed
+  item.
+
+**Why:** the pass-1 audit checked whether *filed* items were still open. It could
+not check whether *identified* problems had ever been filed, because nothing
+records that. Three review findings (export filename sanitising, CSV formula
+injection, agent contacts visible to viewers) were reported in chat and
+survived only as a line in a handoff.
+
+## Briefs and handoffs are claims, not evidence
+
+A brief, handoff or summary pasted into a session describes what someone
+remembers. Verify each factual claim in it (a file, a line number, a row count,
+what a function does) against the repo and the database before writing it into
+a doc or acting on it, and report where the evidence differs. Where the two
+disagree, the evidence wins, and the entry says so.
+
+**Why:** the brief for the filename and CSV findings said validation was against
+all of `report_types` (it is the 12 roof-relevant types), that the
+reference-table CSVs are loaded into Postgres (the curated `planning/` seeds are),
+that there were six CSV writers (seven), and pointed at a line that was already
+gone.
+
 ## Ask before editing
 
 Verification questions are not work requests. "What's the status of X",
