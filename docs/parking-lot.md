@@ -984,13 +984,23 @@ every `realtors` insert.
 
 ## 133. The DNC upload has no `MAX_CONTENT_LENGTH`
 
-**Status:** open
+**Status:** resolved 2026-10-02
 
 `dnc_upload` reads the whole file into memory (`upload.read()`) with
 nothing capping its size. Fine at hundreds of rows; worth a limit before
 someone uploads something much larger by mistake.
 
 **When:** if a large file ever actually arrives.
+
+**Resolved 2026-10-02.** `create_app()` sets `MAX_CONTENT_LENGTH` to 10 MB
+(about 70,000 rows against today's ~760). It is app-wide, not in the view:
+`CSRFProtect` parses `request.form` before the view runs, so a per-view limit
+would come too late. Every POST is capped; the others are tiny. Over the limit,
+Werkzeug raises 413 before the view and a handler shows the `csrf_error.html`
+page with an upload-too-large message. Tested: a normal file previews, a file
+over 10 MB gets the 413 page. A first version had the key misspelled
+(`MAX_CONTENT_LENTGTH`); Flask accepts any config key, so it ran with no limit
+and no error. Caught in review, not by a test.
 
 ## 134. No way to un-suppress through the UI
 

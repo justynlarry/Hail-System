@@ -17,6 +17,9 @@ def create_app():
     app = Flask(__name__)
     app.secret_key = os.environ["FLASK_SECRET_KEY"]
 
+    # Caps every request body.  Set app-wide, not in the view.
+    app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 *1024
+
     # A missing template variable renders blank by default, which has
     # created incorrect pages.  StrictUndefined now raises instead, optional
     # values must be tested with 'is defined'.
@@ -32,6 +35,11 @@ def create_app():
     @app.errorhandler(CSRFError)
     def handle_csrf_error(e):
         return render_template("csrf_error.html", reason=e.description), 400
+
+    @app.errorhandler(413)
+    def handle_too_large(e):
+        return render_template("csrf_error.html",
+                               reason="That upload is too large (limit 10 MB)."), 413
 
     # Injected into every template render
     @app.context_processor
