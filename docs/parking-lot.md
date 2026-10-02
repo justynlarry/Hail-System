@@ -64,6 +64,13 @@ network and forget.
 
 **Gate, 2026-09-30:** recheck when the production machine is set up; its hardware is still pending receipt. Not a Phase 5 fix. Verified 2026-09-30 that the running `postgis` container still reports Debian 11 (bullseye) and that `docker/loader.Dockerfile` still carries the workaround. The `web`, `app` and `ingest` images are `python:3.12-slim` and are not affected; the registry was not checked for a newer upstream tag.
 
+**Update 2026-10-02.** A from-scratch `loader` build (`--no-cache`) has not been
+run since the base's EOL date. The 2026-10-02 `docker compose build loader` hit
+the layer cache throughout, so whether the `Check-Valid-Until=false` workaround
+still builds against the current bullseye repos is untested. Expect to find out
+when the production box builds the image; a failure there is this item's risk
+arriving, not a new one.
+
 ## 9. The absence query has no schedule and nowhere to alert
 
 **Status:** open
@@ -718,16 +725,26 @@ relisted as Standard, before RentCast re-geocodes it to the lot.
 
 ## 101. Rebuild the `loader` image before its next use
 
-**Status:** open
+**Status:** resolved 2026-10-02
 
 The `loader` image was built 2026-09-09, the same day
 `docker/loader.Dockerfile` last changed (`7a731b4`, the bullseye EOL
-placeholder). Whether that build picked up the change isn't known. *(Answered 2026-10-02: it did not. The image was created 2026-09-09 20:16 UTC and `7a731b4` is timestamped 22:01 UTC the same day, so the build predates the change.)* Rebuild
+placeholder). Whether that build picked up the change isn't known. *(Answered 2026-10-02: it did. `docker history` shows the image's `apt-get`
+layer, created 2026-09-09 20:16:21Z, already carries the
+`-o Acquire::Check-Valid-Until=false` flag. The commit is stamped 22:01 UTC, so
+the file was edited and built before it was committed. An earlier note here that
+the build predated the change was wrong: a commit time is not an edit time.)* Rebuild
 with `docker compose build loader` before the next migration or reference
 load. See `docs/command-ref.md`, *Which services see your edits*; the
 `iem_weekly_replay` timer's staleness is covered there too.
 
 **When:** before the loader is next used.
+
+**Resolved 2026-10-02.** Nothing to rebuild. `docker compose build loader` on
+2026-10-02 reused every cached layer, and the image has `shp2pgsql` 3.5.2 and
+`postgis 3.5.2+dfsg-1.pgdg110+1`, the pinned version. Not tested: a build from
+scratch (`--no-cache`), so whether the EOL workaround still builds against the
+current bullseye repos is unknown. That risk belongs to item 3, the base image.
 
 ## 102. `_throttle` isn't thread-safe
 

@@ -44,9 +44,11 @@ docstring already runs it with `-v "$PWD/scripts:/app/scripts:ro"`, because
 the `app` image bakes `scripts/` in. That mount covers `scripts/` only, so a
 change under `hailsys/` still needs a rebuild.
 
-The `loader` image was last built 2026-09-09, the same day
-`docker/loader.Dockerfile` last changed. Rebuild it before its next use
-rather than trust that the build picked up that change (parking-lot item 101).
+The `loader` image was built 2026-09-09 and already includes the
+`docker/loader.Dockerfile` change from that day (checked 2026-10-02 with
+`docker history`; parking-lot item 101). Rebuild it only when the Dockerfile
+changes. A from-scratch build has not been tried since the base's EOL date
+(item 3).
 
 **To check what an image actually runs**, print the source of the function
 you changed from inside it. This reads the baked-in copy, not your working
