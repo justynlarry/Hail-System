@@ -1,7 +1,10 @@
 """ One-off manual test for the RentCast pull orchestrator
 
 usage:
-    python3 scripts/test_rentcast_pull.py 80014 --emp-id 1
+    python3 scripts/test_rentcast_pull.py 80014 --emp-id 2
+
+--emp-id should be a real operator, not 1 (the system account): the pull is
+logged to api_pulls against it.
 """
 
 import argparse
