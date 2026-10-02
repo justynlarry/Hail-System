@@ -236,7 +236,7 @@ To stop the 404 on every page load.
 
 ## 43. Test scripts attribute to `emp_id 1` (system) by accident
 
-**Status:** open
+**Status:** resolved 2026-10-02
 
 `scripts/test_match.py`, `scripts/test_rentcast_pull.py` default `--emp-id
 1` in their own usage examples — the bootstrap system account, not a real
@@ -255,6 +255,14 @@ flag with no default there. `scripts/test_rentcast_pull.py` was not checked.
 example still shows `--emp-id 1`. The flag itself is required with no
 default, so this is the example text only. `test_match.py`'s example was
 fixed 2026-09-23.
+
+**Resolved 2026-10-02.** `scripts/test_rentcast_pull.py`'s usage example now
+uses `--emp-id 2` and carries the same note as `test_match.py`. Both scripts
+require the flag with no default, and both examples name a real operator. No
+guard refuses `--emp-id 1`: nothing has been attributed to it since 2026-09-18,
+and a required flag was the item's own bar. Past rows are not rewritten:
+`emp_id 1` holds 4 `api_pulls` (all 2026-09-18) and 3,353
+`storm_listing_matches`. Where those matches came from is not recorded.
 
 ## 45. Rebuild step belongs in the verification loop
 
