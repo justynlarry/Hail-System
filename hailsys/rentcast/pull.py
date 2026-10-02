@@ -36,19 +36,36 @@ SET finished_at = now(), actual_api_calls = %(actual_api_calls)s,
 WHERE pull_id = %(pull_id)s
 """
 
-def run_pull(conn, *, emp_id, storm_date, report_text, zip_codes,
-            estimated_api_calls, status="Active", days_old=None):
+def create_pull(conn, *, emp_id, storm_date, report_text, zip_count,
+                estimated_api_calls):
+    """Insert the 'running' api_pulls row and commit it; returns pull_id.
+
+    Split out of run_pull so the web request can create the row before the
+    background thread starts: sql/033 allows one running pull per storm, and a
+    second request has to find that out while it can still tell the user.
+    Raises psycopg.errors.UniqueViolation if one is already running.
+    """
     with conn.cursor() as cur:
         cur.execute(_INSERT_PULL_SQL, {
             "emp_id": emp_id,
             "storm_date": storm_date,
             "report_text": report_text,
-            "zip_count": len(zip_codes),
+            "zip_count": zip_count,
             "estimated_api_calls": estimated_api_calls,
         })
         pull_id = cur.fetchone()["pull_id"]
     conn.commit()
+    return pull_id
 
+def run_pull(conn, *, emp_id, storm_date, report_text, zip_codes,
+             estimated_api_calls, status="Active", days_old=None, pull_id=None):
+    # The web path passes the pull_id it already created (create_pull); the
+    # test script passes none and gets its row here.
+    if pull_id is None:
+        pull_id = create_pull(
+            conn, emp_id=emp_id, storm_date=storm_date,
+            report_text=report_text, zip_count=len(zip_codes),
+            estimated_api_calls=estimated_api_calls)
     total_calls = 0
     total_listings = 0
 

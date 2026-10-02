@@ -6407,3 +6407,48 @@ remains for sessions that use them. Role settings apply to new sessions only.
 Applied to `hail-dev` 2026-10-02 and confirmed in `pg_db_role_setting`.
 
 **Related:** item 94; item 145; *Address search: Census Geocoder*.
+
+## 2026-10-02 — One running pull per storm, enforced by a unique index (item 51)
+
+Two people clicking Pull on the same storm day within seconds of each other each
+started a full pull, so the same zips were bought twice. RentCast calls cost
+real money, and CLAUDE.md says a rule that must hold holds in the database.
+
+**Decision.** `sql/033` adds a unique partial index on `api_pulls (storm_date,
+report_text)` where `api_status = 'running'` and `storm_date IS NOT NULL`. The
+second insert fails whichever request gets there first, so nothing in Python can
+lose the race.
+
+**The row is created in the request, not in the thread.** `run_pull` used to
+insert the `api_pulls` row inside the background thread, where a unique
+violation would have been a log line nobody sees. `create_pull()` was split out
+and `start_pull()` calls it before starting the thread; a violation of that index
+becomes `PullInProgress`, and the view tells the user who started the pull and
+when. `run_pull(..., pull_id=None)` still creates its own row when none is
+passed, so `scripts/test_rentcast_pull.py` is unchanged.
+
+**Stale rows would block the storm without an extra step.** The startup sweep
+only cancels `running` rows older than `PULL_STALE_AFTER` (10 minutes) and only
+at startup, so a restart three minutes into a pull would leave a dead `running`
+row that the index then treats as live. `start_pull()` cancels stale rows for
+that storm in the same transaction as the insert. If a pull thread dies before
+`run_pull` sets a final status, the thread's failure handler marks the row
+`failed`.
+
+**Considered and not chosen.** A check in the view before inserting: it is
+check-then-insert and loses the race it exists to prevent. A Postgres advisory
+lock per storm: also correct, but adds a second mechanism where the index
+already gives the guarantee. Throttling clicks in the browser: not a guarantee.
+
+**Scope.** Manual-zip pulls (`storm_date NULL`) are excluded by the index; the UI
+does not offer them. `pull_start()` now returns 400 for a missing type, because
+the row is created in the request and `storm_link_paired` rejects a storm date
+without a type; before, that case died silently in the thread.
+
+**Mistakes made while building it, caught in review before anything ran:** a
+missing `psycopg` import, `thread.start` without parentheses, `started_at =`
+where `<` was meant, a missing `pull_id=` on the `run_pull` call, and a
+non-tuple query parameter. None fails at compile time. They are the case for
+parking-lot item 53.
+
+**Related:** items 51, 102, 155, 53.

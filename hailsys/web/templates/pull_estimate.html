@@ -58,7 +58,11 @@
          refuses if this number no longer matches. -->
     <input type="hidden" name="zip_count" value="{{ result.zip_count }}">
     {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
+    {% if result.zip_count %}
     <button type="submit">Pull {{ result.zip_count }} zip{{ '' if result.zip_count == 1 else 's' }}</button>
+    {% else %}
+    <p class="note">No zips in coverage for this storm, so there is nothing to pull.</p>
+    {% endif %}
     <a href="{{ back or url_for('main.index') }}">Cancel</a>
 </form>
 

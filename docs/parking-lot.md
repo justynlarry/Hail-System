@@ -347,7 +347,7 @@ script or checklist step does the rebuild yet, which is what this item asks for.
 
 ## 51. Concurrent pulls by two users on one storm — duplicate spend
 
-**Status:** open
+**Status:** resolved (residuals) 2026-10-02
 
 Nothing stops two people clicking Pull on the same storm day within
 seconds of each other; both would spend real RentCast calls for the same
@@ -359,6 +359,36 @@ page. The server still doesn't refuse a second pull, and two people can still
 click Pull within seconds of each other.
 
 **When:** low priority at current headcount.
+
+**Resolved (residuals) 2026-10-02.** `sql/033` adds a unique partial index,
+`api_pulls_one_running_per_storm` on `(storm_date, report_text)` where
+`api_status = 'running'`, so the database refuses a second running pull for a
+storm however the race falls. The pull's `api_pulls` row is now created in the
+request (`create_pull()` in `rentcast/pull.py`, called from `start_pull()` in
+`web/jobs.py`) before the thread starts, so a second click gets an immediate
+message ("already running, started by NAME at HH:MM. Nothing was pulled.") and
+spends nothing. Stale `running` rows for the storm (older than
+`PULL_STALE_AFTER`) are cancelled in the same transaction first, so a pull whose
+thread died cannot block its storm. If a pull thread crashes before `run_pull`
+sets a final status, the row is marked `failed`. See `docs/decision-log.md`,
+"One running pull per storm, enforced by a unique index".
+
+**Verified:** `sql/guard_test.sql` passes 24 of 24 (the 18 existing checks plus
+6 for the index: a second running row for the same storm is refused, another
+type or a finished row is fine, cancelling frees the storm). With a fake
+`running` row for 2026-10-02 HAIL on `hail-dev`, the confirm page was submitted;
+afterwards no second `api_pulls` row and no `api_call_log` rows existed for the
+storm and the web log had no errors.
+
+**Residuals:** (1) the happy path through the new code, a real pull's thread
+starting and `pull_id` handed to `run_pull`, has not been run end to end; the
+next real pull is its test, watch `docker compose logs -f web` and expect
+exactly one `api_pulls` row reaching `complete`. (2) The "already running" flash
+was not observed by the person who ran the check. (3) Manual-zip pulls
+(`storm_date NULL`) are outside the rule; only `scripts/test_rentcast_pull.py`
+makes them. (4) A pull running longer than `PULL_STALE_AFTER` (10 minutes) could
+be cancelled by a second click; a normal pull is far shorter. (5) Not applied to
+the production box. Related: item 102.
 
 ## 53. Zero test coverage under `hailsys/web/`
 
@@ -812,6 +842,16 @@ possibly extra calls counted, not data. Low risk while one person pulls at a
 time. Related to item 51 (concurrent pulls on one storm).
 
 **When:** with item 51.
+
+**Update 2026-10-02.** Two things to know before fixing this. `web` runs
+`gunicorn --workers 2`, which is two processes, each with its own copy of
+`_last_request_time`; a `threading.Lock` would fix two pulls inside one worker
+and nothing across the two workers, so the full fix needs shared state (for
+example a Postgres advisory lock, at a database round trip per request). And
+item 51's fix (one running pull per storm) removes the most likely trigger, two
+people on one storm; two different storms pulled at the same time can still
+overlap, at up to about 40 requests a second, and RentCast would answer with
+429s that the client retries.
 
 ## 105. `postgis` has no log rotation
 
@@ -1721,6 +1761,23 @@ that lands without updating its item.
 **When:** at each phase close, and before Phase 6. Run the sweep: for each open
 item, check its named files, functions and symptoms against the repo and git
 history.
+
+## 155. The pull estimate offers "Pull 0 zips"
+
+**Status:** resolved 2026-10-02
+
+Seen 2026-10-02 on `/pull/estimate` for 2026-10-02 HAIL, a storm with no zips in
+coverage: "0 zips, about 0 RentCast requests" with an enabled "Pull 0 zips"
+button. A click would record an `api_pulls` row for nothing, and workstate would
+then read the storm as pulled. No money is spent.
+
+**When:** with the next pass over the pull estimate.
+
+**Resolved 2026-10-02**, the same session it was found. `pull_estimate.html`
+shows "No zips in coverage for this storm, so there is nothing to pull" instead
+of the button when `zip_count` is 0, and `pull_start()` refuses a zero-zip POST
+with a flash, so a hand-built request is covered too. Checked by compile only;
+the page was not reloaded after the change. Committed with the item 51 work.
 
 ## 70. Permits as a source — corroboration first, roof age later
 

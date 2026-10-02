@@ -12,7 +12,7 @@ from hailsys.web.auth import hash_password, login_required, verify_password, DUM
 
 from hailsys.matching.matcher import match_storm
 from hailsys.rentcast.estimate import estimate_pull
-from hailsys.web.jobs import start_pull
+from hailsys.web.jobs import start_pull, PullInProgress
 from hailsys.db import get_connection
 from hailsys.formatting import csv_safe, magnitude
 from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest
@@ -560,6 +560,9 @@ def pull_start():
         abort(400)
 
     report_text = request.form.get("type") or None
+    if report_text is None:
+        abort(400)
+
     back = _list_url(request.form.get("back"))
     if "submitted" in request.form:
         actionable_only = "actionable" in request.form
@@ -576,6 +579,12 @@ def pull_start():
             report_text=report_text,
             actionable_only=actionable_only,
         )
+    if result["zip_count"] == 0:
+        # Nothing to fetch.  A pull row for nothing would still read as
+        # "Pulled" in workstate (parking-lot item 155).
+        flash(f"There are no zips to pull for {day.isoformat()} "
+              f"{report_text}. Nothing was pulled.")
+        return redirect(back or url_for("main.index"))
     if result["zip_count"] != expected_zip_count:
         flash(f"The zip list changed since this estimate was shown "
               f"({expected_zip_count} to {result['zip_count']}). "
@@ -585,16 +594,23 @@ def pull_start():
                                 submitted="1",
                                 actionable="1" if actionable_only else None,
                                 back=back))
-    start_pull(
-        emp_id=session["emp_id"],
-        storm_date=day,
-        report_text=report_text,
-        zip_codes=result["zips"],
-        estimated_api_calls=result["estimated_api_calls"],
-        window_start=window_start,
-        window_end=window_end,
-    )
-
+    try:
+        start_pull(
+            emp_id=session["emp_id"],
+            storm_date=day,
+            report_text=report_text,
+            zip_codes=result["zips"],
+            estimated_api_calls=result["estimated_api_calls"],
+            window_start=window_start,
+            window_end=window_end,
+        )
+    except PullInProgress as e:
+        when = (e.started_at.astimezone(DISPLAY_TZ).strftime("%H:%M")
+              if e.started_at else "a moment ago")
+        flash(f"A pull for {day.isoformat()} {report_text} is already running, "
+              f"started by {e.started_by or 'someone'} at {when}. "
+              f"Nothing was pulled.")
+        return redirect(back or url_for("main.index"))
     session["pull_watch"] = {
         "date": day.isoformat(),
         "type": report_text,

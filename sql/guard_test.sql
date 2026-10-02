@@ -104,6 +104,39 @@ SELECT pg_temp.expect('template DELETE blocked',
 SELECT pg_temp.expect('KNOWN GAP: owner TRUNCATE send_log',
   $q$TRUNCATE send_log$q$, 'ok');
 
+-- api_pulls: one running pull per storm (sql/033).  23505 = unique_violation.
+-- 1999-01-01 cannot collide with a real storm; the whole file rolls back.
+SELECT pg_temp.expect('first running pull for a storm',
+  $q$INSERT INTO api_pulls (emp_id, storm_date, report_text, zip_count,
+                            estimated_api_calls, api_status)
+     VALUES ((SELECT emp_id FROM users ORDER BY emp_id LIMIT 1),
+             '1999-01-01', 'GUARD-TEST', 1, 1, 'running')$q$, 'ok');
+SELECT pg_temp.expect('second running pull, same storm, blocked',
+  $q$INSERT INTO api_pulls (emp_id, storm_date, report_text, zip_count,
+                            estimated_api_calls, api_status)
+     VALUES ((SELECT emp_id FROM users ORDER BY emp_id LIMIT 1),
+             '1999-01-01', 'GUARD-TEST', 1, 1, 'running')$q$, '23505');
+SELECT pg_temp.expect('running pull for another type is fine',
+  $q$INSERT INTO api_pulls (emp_id, storm_date, report_text, zip_count,
+                            estimated_api_calls, api_status)
+     VALUES ((SELECT emp_id FROM users ORDER BY emp_id LIMIT 1),
+             '1999-01-01', 'GUARD-TEST-2', 1, 1, 'running')$q$, 'ok');
+SELECT pg_temp.expect('a finished pull never blocks a new one',
+  $q$INSERT INTO api_pulls (emp_id, storm_date, report_text, zip_count,
+                            estimated_api_calls, api_status)
+     VALUES ((SELECT emp_id FROM users ORDER BY emp_id LIMIT 1),
+             '1999-01-01', 'GUARD-TEST', 1, 1, 'complete')$q$, 'ok');
+SELECT pg_temp.expect('cancelling the running pull frees the storm',
+  $q$UPDATE api_pulls SET api_status = 'cancelled', finished_at = now()
+     WHERE storm_date = '1999-01-01' AND report_text = 'GUARD-TEST'
+       AND api_status = 'running'$q$, 'ok');
+SELECT pg_temp.expect('a new running pull after that is allowed',
+  $q$INSERT INTO api_pulls (emp_id, storm_date, report_text, zip_count,
+                            estimated_api_calls, api_status)
+     VALUES ((SELECT emp_id FROM users ORDER BY emp_id LIMIT 1),
+             '1999-01-01', 'GUARD-TEST', 1, 1, 'running')$q$, 'ok');
+
+
 ROLLBACK;
 
 -- Nothing should have survived.
