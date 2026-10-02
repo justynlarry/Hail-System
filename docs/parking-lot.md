@@ -255,6 +255,22 @@ us time twice.
 
 **When:** soon; dev-only.
 
+**Findings, 2026-10-02.** Checked before changing anything. (1) Nothing runs
+`app` unattended: both systemd units run `ingest`, and the only references to
+`app` are `docs/command-ref.md` and `scripts/verify_zip_distances.py`'s
+docstring, so it is safe to make `app` read the working tree; `ingest` must stay
+baked (its timers should run a known artifact, `command-ref.md`). (2) **The
+existing `./hailsys/web/static:/app/hailsys/web/static` mount (`9c566a0`,
+2026-09-16) is read-write on purpose:** `scripts/build_coverage_geojson.py` and
+`scripts/build_colorado_counties_geojson.py` write their GeoJSON into
+`hailsys/web/static/` through `app`. A new `./hailsys:/app/hailsys:ro` mount
+would make those writes fail unless that more specific read-write mount stays in
+place, so it has to be kept, not replaced. (3) `scripts/` is baked into `app` too
+and `verify_zip_distances.py` already works around it with `-v`; mounting
+`./scripts:/app/scripts:ro` as well makes that workaround unnecessary. Proposed
+and not yet applied: add the two read-only mounts to `app` and keep the static
+one.
+
 ## 32. `StrictUndefined` in the Jinja environment
 
 **Status:** resolved 2026-10-02
@@ -344,6 +360,23 @@ rather than something that has to be remembered fresh each audit.
 **Update 2026-10-02.** The documentation half exists: `docs/command-ref.md`,
 *Which services see your edits*, and the conventions line in `CLAUDE.md`. No
 script or checklist step does the rebuild yet, which is what this item asks for.
+
+**Findings, 2026-10-02.** Measured how stale the baked images are. Built:
+`ingest` 2026-09-24 20:13Z, `app` 2026-09-29, `web` 2026-09-30, `loader`
+2026-09-09. About 40 files under `hailsys/` and `scripts/` have changed since the
+`ingest` build, almost all web files `ingest` never imports. Of the ones it does
+import (`hailsys/iem/*`, `hailsys/logconfig.py`, `scripts/iem_*.py`), the only
+change is a comment in `logconfig.py` (`b99749e`); `tuning.py` gained a constant
+`ingest` does not use (`0a2052d`). **So the nightly timer is behind the tree but
+running functionally current code**, which is the case `command-ref.md` calls
+deliberate and is why this was never a bug until it was checked. The check that
+produced that answer was done by hand, with `git log --since=<image build time>`
+over `ingest`'s import paths. Once item 30 is done, `app` stops needing rebuilds
+and `ingest` is the only service whose baked code can drift; `web` and `app` need
+a rebuild only when `requirements.txt` or a Dockerfile changes. Proposed, not yet
+built: have `scripts/status.sh` print, per image, whether anything its code or
+build depends on has changed since it was built, so staleness is visible without
+anyone remembering to look.
 
 ## 51. Concurrent pulls by two users on one storm — duplicate spend
 
