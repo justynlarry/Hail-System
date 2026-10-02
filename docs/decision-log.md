@@ -6384,3 +6384,26 @@ first three.
 
 **Not changed:** `storms.js` was checked and does not depend on label text; it polls
 on `data-poll`.
+
+## 2026-10-02 — `tiger` off the search path for application roles (item 94)
+
+Reverses the 2026-10-01 "accepted" call on item 94. The risk was a typo'd or
+unqualified table name resolving to an empty SRID 4269 table in `tiger`
+instead of failing. Two options: drop `postgis_tiger_geocoder` and
+`postgis_topology`, or remove `topology` and `tiger` from the role search path.
+
+**Chose the search-path change.** One reversible statement per role
+(`ALTER ROLE ... RESET search_path`), and it keeps the extensions for item 145
+(a local TIGER load as a swap behind `geocode.py`). Dropping would need
+re-creating them if the geocoding decision is ever reversed.
+
+**Checked before choosing, not assumed:** no code or SQL references the
+`topology` or `tiger` schemas; `ST_SimplifyPreserveTopology` and
+`standardize_address()` are both in `public`; `topology.topology` is empty.
+
+**Scope.** `hail_app` and `hail_ingest` only (`sql/032`). `hail_admin`, the
+database-level default and `template_postgis` are unchanged, so the risk
+remains for sessions that use them. Role settings apply to new sessions only.
+Applied to `hail-dev` 2026-10-02 and confirmed in `pg_db_role_setting`.
+
+**Related:** item 94; item 145; *Address search: Census Geocoder*.

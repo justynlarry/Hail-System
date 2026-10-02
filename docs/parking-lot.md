@@ -2727,7 +2727,7 @@ not spelling.
 
 ## 94. The TIGER geocoder extension is installed, and `tiger` is on the search path
 
-**Status:** dropped 2026-10-01
+**Status:** resolved 2026-10-02
 
 `postgis_tiger_geocoder` and `postgis_topology` came with the
 `postgis/postgis:16-3.4` image; nothing decided to add them. The `tiger`
@@ -2759,6 +2759,21 @@ Nothing was changed. `postgis_tiger_geocoder` and `postgis_topology` are still
 installed and `tiger` is still on the search path, so the silent-empty-table
 risk above stands, accepted. Item 3 (the base image) or item 145 (a local TIGER
 load would need the extension) is where it would come back.
+
+**Reopened and resolved 2026-10-02.** Dropped on 2026-10-01 with the risk
+accepted; reconsidered the next day because the fix is one reversible
+statement per role. `sql/032` sets `search_path = "$user", public` for
+`hail_app` and `hail_ingest`. The extensions stay installed (item 145).
+Checked first that nothing depends on `topology` or `tiger` being on the path:
+no `.py` or `.sql` file references either schema; `ST_SimplifyPreserveTopology`
+is a `public` PostGIS function; `standardize_address()` is in `public`;
+`topology.topology` has 0 rows; the `tiger` tables are empty. Not covered:
+`hail_admin`, the database-level default on `weather-property`, and
+`template_postgis` (inherited by new databases) all keep the old path.
+Applied to `hail-dev` 2026-10-02 (`pg_db_role_setting` shows the new path for
+both roles); not checked on the production box.
+
+**When:** apply `sql/032` on the production box at deployment, with item 3.
 
 ## 65. `scripts/create_user.py` — bootstrap-only, or retire?
 
