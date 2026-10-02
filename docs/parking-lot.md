@@ -1867,6 +1867,31 @@ with the item 51 work. **Verified:** the page shows the note and no button
 as an admin returned a 302 to `/` with the "no zips to pull" flash, left
 `pull_watch` unset, and `api_pulls` stayed at 40 rows.
 
+## 156. Four light-mode colour pairs are below WCAG AA contrast
+
+**Status:** open
+
+Found 2026-10-02 while adding dark mode, by computing contrast ratios for the
+text and background pairs in `style.css`. These four were already below 4.5:1
+(the AA minimum for body text) in the original light colours; dark mode did not
+cause them and meets 4.5 for every pair.
+
+| Pair | Ratio |
+|---|---|
+| link / accent text (`--accent` `#2b7cd3`) on the page background | 4.26 |
+| the same on `--panel` (filter bars, admin panels) | 3.94 |
+| the "stale" badge (`#64748b` on `#f1f5f9`) | 4.34 |
+| white text on the blue filled buttons (`--accent-fill` `#2b7cd3`) | 4.26 |
+
+Candidate fix, checked numerically and not applied: light-mode `--accent` and
+`--accent-fill` `#1f6fc4` (5.09 on white, 4.70 on panel, 5.09 as a button
+background under white text) and the stale badge text `#566376` (5.57). That
+darkens the blues slightly in light mode, so it is a visible change. The
+`--accent-fill-hover` value would need the same check.
+
+**When:** whenever, or before Phase 6 if anyone outside the developer reads the
+app in light mode.
+
 ## 70. Permits as a source — corroboration first, roof age later
 
 **Status:** open (parked) — gated on item 70 ("until the system is running")
