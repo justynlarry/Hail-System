@@ -581,7 +581,7 @@ the 9th, so nothing yet sits on either side of a rollover. Re-check after
 
 ## 95. No test for the `R` = RAIN / HEAVY RAIN composite key
 
-**Status:** open
+**Status:** resolved 2026-10-02
 
 CLAUDE.md lists "IEM `TYPECODE` is not unique" as a known trap, and the parser
 does key on `(report_type, report_text)` tuples. But no test in `tests/`
@@ -590,6 +590,18 @@ regression back to keying on `TYPECODE` alone would pass the suite. Every
 other trap in that list has a test.
 
 **When:** next time the parser is touched.
+
+**Resolved 2026-10-02.** The item's premise was partly wrong: a pair test
+already existed (`TestReportTypePair`, with `S`/`SNOW` and `S`/`HEAVY SNOW` in
+its fixture). What was missing: the accepted pair was never checked in the
+returned record, no test mixed members of different codes, and the fixture was
+hand-written rather than tied to the real table. `TestSharedTypecodes` in
+`tests/test_iem_parse.py` builds its valid set from `planning/report_types.csv`
+and covers all nine shared codes (`2`, `5`, `6`, `7`, `I`, `J`, `R`, `s`, `S`).
+It asserts each pair is accepted with both halves kept, `(R, SNOW)` rejects, and
+`s` and `S` are different codes. A guard test fails if the seed stops
+containing the `R` pair, so the others cannot pass vacuously. Not covered: the
+seed CSV drifting from the live `report_types` table.
 
 ## 96. Has RBI answered the DNS ask?
 

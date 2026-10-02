@@ -452,6 +452,56 @@ class TestContract(unittest.TestCase):
         self.assertIsNone(record)
         self.assertIsNotNone(reject)
 
+class TestSharedTypecodes(unittest.TestCase):
+    """TYPECODE is not unique (CLAUDE.md data trap).  Built from the curated
+    seed, not a hand-written set, so it covers every shared code the real
+    report_types has (R is RAIN and HEAVY RAIN; so are S, J, I, 2, 5, 6, 7).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        path = Path(__file__).resolve().parent.parent / "planning" / "report_types.csv"
+        with open(path, newline="") as fh:
+            pairs = [(r["REPORT_TYPE"], r["REPORT_TEXT"]) for r in csv.DictReader(fh)]
+        cls.valid = set(pairs)
+        by_code = {}
+        for code, text in pairs:
+            by_code.setdefault(code, []).append(text)
+        cls.shared = {c: t for c, t in by_code.items() if len(t) > 1}
+
+    def _line(self, code, text):
+        return with_field(with_field(CLEAN_HAIL, TYPECODE, code), TYPETEXT, text)
+
+    def test_the_trap_is_present_in_the_seed(self):
+        # If this fails the other tests would pass vacuously.
+        self.assertIn("R", self.shared)
+        self.assertEqual(set(self.shared["R"]), {"RAIN", "HEAVY RAIN"})
+
+    def test_every_pair_of_a_shared_code_is_accepted_and_kept_distinct(self):
+        for code, texts in self.shared.items():
+            for text in texts:
+                with self.subTest(code=code, text=text):
+                    record, reject = parse_row(
+                        row_from(self._line(code, text)), self.valid)
+                    self.assertIsNone(reject)
+                    self.assertEqual(record["report_type"], code)
+                    self.assertEqual(record["report_text"], text)
+
+    def test_text_from_another_code_rejects(self):
+        # R is known, SNOW is known, but (R, SNOW) is not a pair.
+        record, reject = parse_row(
+            row_from(self._line("R", "SNOW")), self.valid)
+        self.assertIsNone(record)
+        self.assertEqual(reject["reason"], REASON_UNKNOWN_TYPE)
+
+    def test_codes_are_case_sensitive(self):
+        # s (SLEET) and S (SNOW) are different codes.
+        record, reject = parse_row(
+            row_from(self._line("s", "SNOW")), self.valid)
+        self.assertIsNone(record)
+        self.assertEqual(reject["reason"], REASON_UNKNOWN_TYPE)
+
+
 
 if __name__ == "__main__":
     unittest.main()
