@@ -95,6 +95,8 @@ services:
       RENTCAST_KEY: ${RENTCAST_KEY:?RENTCAST_KEY is not set -- see .env.example}
     volumes:
       - ./output:/app/output
+      - ./hailsys:/app/hailsys:ro
+      - ./scripts:/app/scripts:ro
       - ./hailsys/web/static:/app/hailsys/web/static
     networks:
       - hailnet

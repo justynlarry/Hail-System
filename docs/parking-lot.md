@@ -248,7 +248,7 @@ submitted), so it is not a duplicate. Found by the 2026-10-02 sweep (item 154).
 
 ## 30. Bind-mount `hailsys/` into the `app` service
 
-**Status:** open
+**Status:** resolved 2026-10-02
 
 So one-off checks reflect the working tree rather than the last build. Cost
 us time twice.
@@ -270,6 +270,17 @@ and `verify_zip_distances.py` already works around it with `-v`; mounting
 `./scripts:/app/scripts:ro` as well makes that workaround unnecessary. Proposed
 and not yet applied: add the two read-only mounts to `app` and keep the static
 one.
+
+**Resolved 2026-10-02.** `app` now mounts `./hailsys:/app/hailsys:ro` and
+`./scripts:/app/scripts:ro`, and keeps its read-write
+`./hailsys/web/static` mount on top (the GeoJSON builders write there).
+**Verified** with code written after the `app` image was built (2026-09-29):
+`hailsys.web.jobs.PullInProgress` and `hailsys.rentcast.pull.create_pull` are
+both visible through `app`, and a `touch` and `rm` in `hailsys/web/static`
+succeeds. A first check ("does `jobs.py` exist") would have passed on the baked
+image too, and a first edit left out the `hailsys` line; both were caught by
+testing for a symbol that only the working tree has. `ingest` is unchanged and
+still baked, on purpose. Not applied to the production box.
 
 ## 32. `StrictUndefined` in the Jinja environment
 
