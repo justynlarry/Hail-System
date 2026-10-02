@@ -894,7 +894,7 @@ current bullseye repos is unknown. That risk belongs to item 3, the base image.
 
 ## 102. `_throttle` isn't thread-safe
 
-**Status:** open
+**Status:** open (watch) — accepted 2026-10-02, revisit on the trigger below
 
 `hailsys/rentcast/client.py`'s `_throttle` keeps its last-request time in a
 module global with no lock. Pulls run in background threads, so two pulls at
@@ -914,6 +914,29 @@ item 51's fix (one running pull per storm) removes the most likely trigger, two
 people on one storm; two different storms pulled at the same time can still
 overlap, at up to about 40 requests a second, and RentCast would answer with
 429s that the client retries.
+
+**Accepted 2026-10-02.** Measured against the 38 completed pulls in `api_pulls`:
+the fastest ran at 2.5 requests/second, the average is 1.18, and the largest
+was 94 calls. RentCast's limit is 20/second, and the throttle's 50 ms floor
+never binds because each request takes about half a second. Reaching the limit
+would need about eight pulls in flight at the fastest rate seen, which five users
+and item 51's one-running-pull-per-storm rule rule out. All 525 logged zips ended
+in 200. **No retry of any kind is recorded:** the 9 zips with more than one call
+are all zip 80134 with 531 to 533 listings, two pages of up to 500, so pagination
+accounts for every extra call (`calls_made` counts retries too, so a retried zip
+would show a count its listings do not explain). The web log, which only reaches
+back to 2026-09-30 15:24 UTC and holds 3 pulls, has no `rentcast_retry` line.
+Not known: whether RentCast bills a 429. Not fixed: a `threading.Lock` would
+cover one gunicorn worker of the two (`web` runs `--workers 2`), and an advisory
+lock adds a database round trip to every RentCast call to guard a case that has
+not occurred.
+
+**When:** revisit if (a) the number of people who can pull grows enough that
+several pulls could overlap, (b) anything starts fetching zips concurrently
+within a pull, which would multiply the per-pull rate, or (c) a
+`rentcast_retry status=429` line appears in the web log (`docker compose logs web
+| grep "status=429"`), or `calls_made` exceeds what a zip's listing count
+explains.
 
 ## 105. `postgis` has no log rotation
 
