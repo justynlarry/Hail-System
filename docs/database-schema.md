@@ -133,7 +133,12 @@ setting it correctly.
 ---
 # Tables
 
-Twenty-one tables. Grouped by which half of the system they belong to.
+Twenty-seven tables (`sql/` has 27 `CREATE TABLE`s, counted 2026-10-05). Grouped by which half of the system they belong to.
+
+**Role search_path.** `sql/032` sets `search_path = "$user", public` for
+`hail_app` and `hail_ingest`, taking `tiger` and `topology` off it: `tiger`
+holds empty SRID 4269 tables, so an unqualified name could query an empty NAD83
+table instead of failing. The extensions stay installed.
 
 ---
 
@@ -789,11 +794,16 @@ Hard bounces and complaints write to `dnc_list` automatically.
 **Append-only because it is the audit trail.** If anyone asks whether a
 suppressed agent was emailed, the answer must come from an immutable record.
 
-**Append-only is enforced in application code only.** There is no trigger, no
-rule, and no `REVOKE` on this table or on `email_templates` — nothing in the DDL
-prevents an `UPDATE` or `DELETE`. The convention is documented and followed, not
-enforced where the data is, which is a departure from the principle stated at the
-top of this file. Whether to enforce it in the database is open question 10.
+**Append-only is enforced in the database** by `sql/029_send_log_immutable.sql`
+(applied to `hail-dev` 2026-09-30, not checked on the production box;
+`sql/guard_test.sql` tests it). `send_log_guard()` runs on `BEFORE UPDATE` and
+`BEFORE DELETE`: `DELETE` is refused; an `UPDATE` may change only
+`send_status`, `status_updated_at`, `provider_message_id`, `error_detail` and
+`sent_at`; `sent_at` is write-once (NULL → value); and status only moves
+forward (`queued` → `sent`/`failed`, `sent` → `bounced`/`complained`,
+`bounced` → `complained`; a same-status update is allowed). `DELETE` and
+`TRUNCATE` are revoked from `hail_app`. The table owner can still `TRUNCATE`,
+accepted (decision log 2026-09-30). This settled open question 10.
 
 ---
 
@@ -810,6 +820,12 @@ Message text, versioned. Never edited in place.
 | `is_active` | Available for sending |
 | `created_at`, `created_by` | FK → `users` |
 | `supersedes_id` | Self-FK to the prior version |
+
+**Editing in place is refused by the database**, `sql/030_email_templates_immutable.sql`
+(same status as `sql/029` above). `email_templates_guard()` refuses `DELETE`,
+refuses any change to every column except `is_active`, and refuses
+reactivating a retired template (`false` → `true`). `DELETE` and `TRUNCATE` are
+revoked from `hail_app`.
 
 **Editing in place is forbidden.** Changing a body would make every historical
 send claim to have used text that did not exist at the time — the audit trail
@@ -836,6 +852,43 @@ Rules:
 3. The substitution vocabulary is reference data, not a hardcoded list.
 4. Templates are validated against the vocabulary **when saved**, so an unknown
    placeholder is caught by the person writing copy, not at 6am in a batch.
+
+---
+
+## Address search
+
+Added by `sql/031_address_search.sql` (decision log 2026-10-01).
+
+### `geocode_cache`
+
+One row per successfully geocoded address, from the Census Geocoder.
+
+| Field | Purpose |
+|---|---|
+| `geocode_id` | Surrogate PK |
+| `address_key` | `UNIQUE`. **Always computed in SQL as `address_key(<typed input>)`, never reimplemented in Python**: the function reads `address_standardizer`'s reference tables, and an approximation diverges silently into cache misses and duplicate rows |
+| `query_raw`, `matched_address` | What was typed, and what Census matched |
+| `latitude`, `longitude` | `NUMERIC(9,6)` WGS84 |
+| `geom` | Generated `Point` 4326, GiST-indexed |
+| `tiger_line_id` | Census returns the TIGER edge ID (TLID) of the street segment, not a tract; kept so a later jurisdiction join is possible |
+| `geocoded_at` | Rows are not expired automatically; Census data changes slowly |
+
+### `address_searches`
+
+Every search, including misses, so failed searches show whether fuzzy
+suggestions are needed.
+
+| Field | Purpose |
+|---|---|
+| `search_id` | Surrogate PK |
+| `query_raw` | What was typed |
+| `address_key` | NULL when no key could be built (unparseable, or no house number) |
+| `geocode_id` | FK → `geocode_cache`, nullable |
+| `outcome` | `matched` / `no_match` / `unparseable` / `service_error` |
+| `reports_found`, `range_start`, `range_end` | What the search returned and over which dates |
+| `searched_at`, `searched_by` | `searched_by` FK → `users` |
+
+`hail_app` has `SELECT, INSERT` only on both tables.
 
 ---
 
@@ -1020,6 +1073,13 @@ when call volume blew up with no record explaining where it went.
 **Estimated versus actual side by side is the feedback loop.** The pre-click
 estimate is a number shown to someone before they spend money; it should get
 better over time rather than staying a guess.
+
+**One running pull per storm is enforced by a partial unique index**,
+`api_pulls_one_running_per_storm` on `(storm_date, report_text) WHERE
+api_status = 'running' AND storm_date IS NOT NULL` (`sql/033`). Manual-zip pulls
+(`storm_date` NULL) are not covered. The app also cancels stale `running` rows
+for the storm just before inserting (`jobs.py`), so a restart does not leave a
+dead row blocking it.
 
 **A pull is one human decision covering many zips**, so cost attributes to the
 decision rather than smearing across zip rows.
@@ -1374,8 +1434,12 @@ is one statement but also blocks the legitimate provider-status update on
 columns to change; or splitting the status updates into a separate table so the
 log itself is genuinely insert-only.
 
-**Deferred to Phase 5**, when sending is actually built and the real update
-pattern is known. Deciding it now would be designing against a guess.
+**Resolved 2026-09-30 in Phase 5: enforced by a trigger.** `sql/029` and
+`sql/030` implement the second option above (a trigger allowing only the status
+columns to change on `send_log`, only `is_active` true → false on
+`email_templates`), plus `REVOKE DELETE, TRUNCATE` from `hail_app`. The original
+text, kept for the record: *deferred to Phase 5, when the real update pattern is
+known.*
 
 ---
 

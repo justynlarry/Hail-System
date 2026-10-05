@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Project context for Claude Code. Read `database-schema.md` before touching the database.
+Project context for Claude Code. Read `docs/database-schema.md` before touching the database.
 
 ## What this is
 

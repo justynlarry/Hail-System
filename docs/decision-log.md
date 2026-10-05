@@ -6452,3 +6452,25 @@ non-tuple query parameter. None fails at compile time. They are the case for
 parking-lot item 53.
 
 **Related:** items 51, 102, 155, 53.
+
+## 2026-10-02 — Dark mode: per-browser, follows the OS by default
+
+Commit `2a86732`. A switch in the signed-in header sets `data-theme` on `<html>`;
+`style.css` defines its colours as variables per theme, and `map.js` reads the
+theme so the map follows it. `static/theme.js` is loaded in `<head>`, not
+deferred, so the theme is set before first paint and a dark-mode user does not
+see a light flash.
+
+**Where the choice lives.** In the browser's `localStorage` under `hail-theme`,
+not in the database. It is a display preference, so it is per browser rather than
+per user, and no schema change or server round trip is needed. With no saved
+choice the OS `prefers-color-scheme` decides and the page follows it live.
+Storage can be blocked (private windows, site data off), so every access is
+wrapped in try/catch; the switch still works for the page view, it just is not
+remembered.
+
+**Signed-out pages** have no header and so no switch; they follow the OS.
+
+**Found while building it:** four light-mode colour pairs were already below WCAG
+AA (4.5:1). Dark mode meets 4.5 for every pair. Filed as parking-lot item 156,
+open.

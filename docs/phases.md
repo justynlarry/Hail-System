@@ -169,7 +169,7 @@ relied on.
 ## Phase 5 — Email
 **~25–40 hrs · 3–4 weeks · the long pole**
 
-**Current phase** (Phase 4 closed 2026-09-23). **Begun 2026-09-23.**
+**Current phase** (Phase 4 closed 2026-09-24). **Begun 2026-09-23.**
 
 Starting point: `send_log`, `email_templates` and `dnc_list` exist from
 `sql/007` and are all empty. The legacy DNC lists are not yet imported, and
