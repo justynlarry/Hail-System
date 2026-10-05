@@ -1977,6 +1977,21 @@ and `sql/033`.
 list and the DNC checklist line are corrected, and the missing work is added.
 The commit is the one that carries this entry; see `git log -- docs/phases.md`.
 
+## 162. `docs/schema-review.md` covers `sql/001`–`023`, not `024`–`033`
+
+**Status:** open
+
+Found 2026-10-05 while re-syncing the diagram and the consolidated brief. The
+review prompt says "001 through 023" (line 14), lists what each of those files
+does (through `023`), and says `018`–`023` are all wrapped in a transaction.
+Ten migrations have landed since: `024`/`025`/`027` (`address_key`), `026` (DNC
+import staging), `028` (listing freshness), `029`/`030` (append-only triggers,
+which carry the project's most load-bearing rule), `031` (address search), `032`
+(role `search_path`) and `033` (one running pull per storm). A re-run of the
+prompt as written would skip all of them, including the two guard functions.
+
+**When:** before Phase 5 send work, and before the first migration after `033`.
+
 ## 70. Permits as a source — corroboration first, roof age later
 
 **Status:** open (parked) — gated on item 70 ("until the system is running")
