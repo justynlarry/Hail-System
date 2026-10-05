@@ -1979,7 +1979,7 @@ The commit is the one that carries this entry; see `git log -- docs/phases.md`.
 
 ## 162. `docs/schema-review.md` covers `sql/001`–`023`, not `024`–`033`
 
-**Status:** open
+**Status:** resolved 2026-10-05
 
 Found 2026-10-05 while re-syncing the diagram and the consolidated brief. The
 review prompt says "001 through 023" (line 14), lists what each of those files
@@ -1991,6 +1991,13 @@ which carry the project's most load-bearing rule), `031` (address search), `032`
 prompt as written would skip all of them, including the two guard functions.
 
 **When:** before Phase 5 send work, and before the first migration after `033`.
+
+**Resolved 2026-10-05.** The prompt now covers `sql/001`–`033`, describes each
+new migration, expects 27 tables, runs `guard_test.sql` separately (the build
+loop is `sql/[0-9]*.sql`), and checks the append-only triggers, the five-column
+settings history, `address_key`, the DNC staging tables, the `033` index and the
+role search path. **Not run:** the review itself was not executed against a
+database; the 024–033 observations came from reading the files.
 
 ## 70. Permits as a source — corroboration first, roof age later
 

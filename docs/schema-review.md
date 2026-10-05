@@ -11,7 +11,7 @@ Read `CLAUDE.md` and `docs/database-schema.md` first. Do not skim them; the
 non-obvious reasoning behind several tables is documented there and the DDL is
 supposed to match it.
 
-Review every file in `sql/` (001 through 023) plus `scripts/load_reference.sh`
+Review every migration in `sql/` (001 through 033) plus `scripts/load_reference.sh`
 and `scripts/load_municipal.sh`.
 This is a **review, not a rewrite** — report findings and wait for my go-ahead
 before changing anything. Do not refactor working code, and do not add anything
@@ -29,9 +29,21 @@ table; 019 the deferred last-admin constraint trigger; 020 the radius columns
 in `settings`, `settings_history` and its trigger; 021 `municipal_boundaries`
 (for the parked permits work); 022 `match_runs`; 023 the RentCast billing-day
 and quota columns, which also replaces 020's history function and trigger.
+024 `address_standardizer` and the `address_key()` function plus a first
+`properties.address_key` column; 025 rebuilds that column as generated; 026
+`dnc_import_batches` and `dnc_import_rows`; 027 rebuilds `address_key()` and
+the column so a NULL part cannot shift the other fields; 028
+`settings.listing_freshness_days` and `settings_history.listing_freshness_days`,
+which replaces 023's history function and trigger again; 029 and 030 the
+append-only guard functions and triggers on `send_log` and `email_templates`;
+031 `geocode_cache` and `address_searches`; 032 `ALTER ROLE ... SET
+search_path` for `hail_app` and `hail_ingest`; 033 a partial unique index on
+`api_pulls`. `sql/guard_test.sql` is **not a migration**: it tests 029 and 030
+inside a transaction it rolls back, so build with `sql/[0-9]*.sql` and run it
+separately (§1).
 `010_roles.sql` holds the roles and the grants for tables that existed when it
 was written; every later file that creates a table (012, 017, 018, 020, 021,
-022) carries its own grants.
+022, 026, 031) carries its own grants.
 
 **A reconciliation pass has already run.** Documentation and DDL now agree on
 table count, `api_pulls` naming, `send_log` naming, the `system` role, email
@@ -41,21 +53,31 @@ it do what the docs say it does.
 
 ## 1. Does it build?
 
-Build from empty against a scratch database and report exactly where it fails:
+Build from empty against a scratch database and report exactly where it fails.
+
+**Roles are cluster-wide, not per-database.** `010` ends with `ALTER ROLE ...
+PASSWORD` and `032` with `ALTER ROLE ... SET search_path`, so building in a
+scratch *database* inside the real cluster would overwrite the real roles'
+passwords and search paths. Build in a throwaway cluster or container (for
+example a fresh `postgis/postgis` container with `address_standardizer` and
+its data package available), never against the running `hail-dev` or
+production cluster. `024` also needs `CREATE EXTENSION` rights.
 
 ```bash
 createdb hail_scratch
 # 010_roles.sql reads both passwords from the environment and aborts with a
 # nonzero status if either is missing or empty, so export them for the loop.
 export HAIL_INGEST_PASSWORD=scratch HAIL_APP_PASSWORD=scratch
-for f in sql/*.sql; do
+for f in sql/[0-9]*.sql; do   # not guard_test.sql, which is a test
     echo "--- $f"
     psql -v ON_ERROR_STOP=1 -d hail_scratch -f "$f" || { echo "FAILED: $f"; break; }
 done
 ```
 
-Then confirm with `\dt` (expect 23 tables, plus PostGIS's own `spatial_ref_sys`)
-and `\d <table>` on each. Drop the scratch database when done.
+Then confirm with `\dt` (expect 27 tables, plus PostGIS's own `spatial_ref_sys`)
+and `\d <table>` on each. Then run `psql -d hail_scratch -f sql/guard_test.sql`
+and expect every line `PASS` (it reported 18 of 18 on `hail-dev`, 2026-09-30; it
+ends in `ROLLBACK`). Drop the scratch database when done.
 
 If PostgreSQL is not reachable on this host, say so rather than guessing — the
 database runs in Docker (`postgis/postgis`) and `psql` may not be installed
@@ -99,7 +121,20 @@ do not fix without my go-ahead, and remember 001–009 are frozen:
   redundant for an identity column (decision log 2026-09-22, correction).
   Harmless, and left in place.
 
-018–023 are all wrapped in `BEGIN;` / `COMMIT;`.
+018–023 are all wrapped in `BEGIN;` / `COMMIT;`, and so are 024–033 (`024` and
+`026` in two blocks each). Written 2026-10-05 from reading the files; the build
+itself was not run.
+
+**Things to check in 024–033, from reading them 2026-10-05, not yet triaged:**
+
+- `sql/031`'s GiST index is `geocode_cache_geom_gix`, which matches the existing
+  `_gix` GiST naming (`003`, `004`, `014`) and not the `{table}_{column}_idx`
+  convention. Probably deliberate; confirm and say so.
+- `sql/024`'s `properties_address_key` index is dropped with its column in `025`,
+  which creates `properties_address_key_idx`; `027` drops and recreates the same
+  name. Confirm exactly one such index exists after a full build.
+- `sql/032` is cluster-level (see §1) and has a verification comment with a typo
+  (`stanadardize_address`); it is a comment, so it does not affect the build.
 
 ## 3. Error classes I have made in these files
 
@@ -152,6 +187,11 @@ Confirm these exist and flag any that are redundant:
   `iem_data (ingested_at DESC)` (`sql/016`), both for the activity feed
 - GiST on `municipal_boundaries.geom` (`sql/021`), and
   `match_runs (storm_date, report_text)` (`sql/022`), for the work-state query
+- `properties (address_key)`, partial `WHERE address_key IS NOT NULL`
+  (`properties_address_key_idx`, `sql/027`); GiST on `geocode_cache.geom` and
+  `address_searches (searched_at DESC)` (`sql/031`); and the partial unique index
+  `api_pulls_one_running_per_storm` on `(storm_date, report_text) WHERE
+  api_status = 'running' AND storm_date IS NOT NULL` (`sql/033`)
 - `report_zip_distances` is keyed `(iem_id, zcta5)`, so lookups by `iem_id`
   are covered. There is deliberately **no** index on `zcta5` — parking-lot item
   41 defers it until an address lookup needs it; do not flag it as missing
@@ -173,6 +213,17 @@ application-layer only:
   whether `UNIQUE NULLS NOT DISTINCT` is warranted, and flag it as a decision
   rather than deciding it.
 - `storm_listing_matches` unique on `(iem_id, listing_id, radius_used)`.
+- **`send_log` and `email_templates` are append-only in the database**
+  (`sql/029`, `030`), the project's most load-bearing rule. Confirm:
+  `send_log_guard()` and `email_templates_guard()` exist; each table has a
+  `BEFORE DELETE` and a `BEFORE UPDATE` row trigger; `send_log` allows an update
+  only to `send_status`, `status_updated_at`, `provider_message_id`,
+  `error_detail` and `sent_at` (write-once), and status only moves forward
+  (`queued` to `sent`/`failed`, `sent` to `bounced`/`complained`, `bounced` to
+  `complained`); `email_templates` allows only `is_active` true to false and
+  never false to true; `DELETE` and `TRUNCATE` are revoked from `hail_app` on
+  both. **The table owner can still `TRUNCATE`; that is accepted** (decision log
+  2026-09-30), so do not flag it as new. `sql/guard_test.sql` is the check.
 - `email_templates` and `send_log` append-only; nothing deleted anywhere. Two
   derived tables are the exception and are rebuildable: `report_zip_distances`
   (truncate and rerun the backfill) and `storm_listing_matches` rows no send
@@ -203,6 +254,29 @@ application-layer only:
   it). Its `WHEN` skips a save that changes nothing, and the function reads
   `current_setting('app.current_emp_id')` with no `missing_ok`, so an
   unattributed change raises.
+- **Settings history now watches five columns** (`sql/028`): the trigger fires
+  `AFTER UPDATE OF` both radii, billing day, quota and `listing_freshness_days`,
+  its `WHEN` compares all five, and `settings_history.listing_freshness_days` is
+  NULL on rows written before `028`. `listing_freshness_days` is `SMALLINT NOT
+  NULL DEFAULT 7 CHECK (BETWEEN 1 AND 90)`.
+- **`address_key` is generated and always six fields:** `properties.address_key`
+  is `GENERATED ALWAYS AS (address_key(property_address)) STORED`, NULL only when
+  the address has no house number, and the function coalesces every part
+  (`sql/027`). `geocode_cache.address_key` is `UNIQUE`. `hail_app` has `SELECT`
+  on the `us_lex`, `us_gaz` and `us_rules` tables (`sql/024`), or `address_key()`
+  fails for it.
+- **`address_searches.outcome`** is limited to `matched`, `no_match`,
+  `unparseable` and `service_error`; `hail_app` holds `SELECT, INSERT` only on
+  `geocode_cache` and `address_searches`.
+- **DNC import staging** (`sql/026`): `dnc_import_rows` cascades from
+  `dnc_import_batches` (`ON DELETE CASCADE`), which is deliberate and does not
+  touch `dnc_list`; `dnc_import_batches.token` is `UNIQUE`; and nothing
+  references `dnc_list` from either staging table.
+- **One running pull per storm** (`sql/033`): the index is unique, partial, and
+  does not cover a manual-zip pull (`storm_date IS NULL`).
+- **Role search path** (`sql/032`): `hail_app` and `hail_ingest` have
+  `search_path = "$user", public`, with no `tiger` or `topology`. Check with
+  `SHOW search_path` as each role.
 - **Settings ranges:** both radii `> 0 AND <= 10.0`, match radius `<=` zip
   radius, billing day `BETWEEN 1 AND 28`, quota `> 0`.
 - **`match_runs`:** `finished_has_timestamp` (a finished run has
