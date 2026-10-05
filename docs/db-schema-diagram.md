@@ -174,7 +174,7 @@
  │ Settings             │  018/020/023    │ Settings_History         │  020/023
  │──────────────────────│                 │──────────────────────────│
  │ PK ID  (CK id = 1)   │   AFTER UPDATE  │ PK HISTORY_ID            │
- │    GLOBAL_SESSIONS_  │   OF 4 columns  │ FK CHANGED_BY ──► Users  │
+ │    GLOBAL_SESSIONS_  │   OF 5 columns  │ FK CHANGED_BY ──► Users  │
  │      INVALIDATED_AT  │ ───trigger────► │    both radii            │
  │    ZIP / MATCH RADIUS│                 │    BILLING_DAY, QUOTA    │
  │    BILLING_DAY, QUOTA│                 │      (NULL before 023)   │
@@ -203,3 +203,57 @@
                            permits work only            IEM_DATA.REPORT_SOURCE_NORM,
                                                         never an FK (free text
                                                         would break ingest)
+
+
+ ADDED SINCE sql/023  (sql/024 – sql/033, drawn 2026-10-05)
+ ═══════════════════
+
+ New columns on tables drawn above, not repeated as boxes:
+   Properties.ADDRESS_KEY (024/025/027)  generated from PROPERTY_ADDRESS by the
+                                         address_key() function; partial index,
+                                         NULL when there is no house number
+   Settings.LISTING_FRESHNESS_DAYS (028) and the same column on Settings_History;
+                                         the history trigger now watches 5 columns
+
+ ┌──────────────────────────┐          ┌──────────────────────────┐
+ │ DNC_Import_Batches       │   1      │ DNC_Import_Rows          │  026
+ │──────────────────────────│─────────►│──────────────────────────│
+ │ PK BATCH_ID              │       N  │ PK (BATCH_ID, LINE_NO)   │
+ │ UQ TOKEN                 │          │ FK BATCH_ID  ON DELETE   │
+ │ FK UPLOADED_BY ► Users   │          │    CASCADE               │
+ │    FILENAME, ROW_COUNT   │          │    EMAIL_RAW, REJECTED   │
+ │    UPLOADED_AT           │          │    NAME_AT_ADD, ADDED_AT │
+ │    COMMITTED_AT (null)   │          └──────────────────────────┘
+ └──────────────────────────┘
+   Staging for the /admin DNC upload. Committing a batch inserts into DNC_LIST;
+   these two tables hold the upload until then. No FK to DNC_LIST.
+
+ ┌──────────────────────────┐          ┌──────────────────────────┐
+ │ Geocode_Cache            │   1      │ Address_Searches         │  031
+ │──────────────────────────│─────────►│──────────────────────────│
+ │ PK GEOCODE_ID            │       N  │ PK SEARCH_ID             │
+ │ UQ ADDRESS_KEY           │ (null)   │ FK GEOCODE_ID (null)     │
+ │    LAT/LON, GEOM (gen.)  │          │ FK SEARCHED_BY ► Users   │
+ │    MATCHED_ADDRESS       │          │    QUERY_RAW, ADDRESS_KEY│
+ │    TIGER_LINE_ID         │          │    OUTCOME (CK enum)     │
+ │    GEOCODED_AT           │          │    REPORTS_FOUND         │
+ └──────────────────────────┘          │    RANGE_START/_END      │
+   Cache of Census Geocoder results,   └──────────────────────────┘
+   keyed on address_key(). Searches    Every search is logged, misses included.
+   joined to storms spatially, no FK.
+
+ Triggers that enforce append-only (029, 030), not drawn as boxes:
+
+   Send_Log ◄──────── send_log_guard(): refuses DELETE; an UPDATE may change
+                      only SEND_STATUS, STATUS_UPDATED_AT, PROVIDER_MESSAGE_ID,
+                      ERROR_DETAIL, SENT_AT (write-once); status moves forward
+                      only.
+   Email_Templates ◄─ email_templates_guard(): refuses DELETE; the only UPDATE
+                      allowed is IS_ACTIVE true -> false.
+
+   DELETE and TRUNCATE are revoked from hail_app on both. The table owner can
+   still TRUNCATE (accepted, decision log 2026-09-30).
+
+ Indexes and roles, not tables:
+   API_Pulls: partial unique index (STORM_DATE, REPORT_TEXT) WHERE running (033)
+   hail_app, hail_ingest: search_path is "$user", public (032)

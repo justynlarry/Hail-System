@@ -19,6 +19,11 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
+**Corrected 2026-10-05, not re-synced:** §2's Phase 5 line, §5's table count and
+four missing tables, §10's `sql/` layout and §11 question 10 were fixed after
+the 2026-09-24 sync because they had become wrong. The rest of the file is
+still as of 2026-09-24.
+
 Last synced against the repo: **2026-09-24**, commit `0f628f4`. The previous
 sync was **2026-09-17** (commit `e22c02f`), at the start of Phase 3. In the
 week between, **Phase 3 closed (2026-09-21) and Phase 4 closed (2026-09-24)**,
@@ -107,8 +112,11 @@ across 15 zips, 11 of them in El Paso County.
 2026-09-17; Phase 3 — RentCast listings — closed 2026-09-21; Phase 4 —
 Accounts — closed 2026-09-24. Phase 5 — Email — is the current phase**, begun
 2026-09-23 with nothing built yet: `send_log`, `email_templates` and
-`dnc_list` exist from `sql/007` and are empty, and the legacy DNC import comes
-before any send. See "Phase 4 — Accounts" below. Phase 3 delivered the sale-listings client,
+`dnc_list` exist from `sql/007`. *(Updated 2026-10-05: `send_log` and
+`email_templates` are still empty and now enforced append-only by triggers,
+`sql/029`/`030`; `dnc_list` holds 759 suppressions imported 2026-09-29 through
+the `/admin` upload. The import may still be incomplete, parking-lot item 129,
+and that is settled before the first send. No sending code and no provider.)* See "Phase 4 — Accounts" below. Phase 3 delivered the sale-listings client,
 the pre-pull estimate, a background-thread pull path, upserts into
 `properties`/`listings`/`realtors`, storm-to-listing matching (automatic when a
 pull finishes), the match page and the activity feed, all through the web UI,
@@ -889,7 +897,7 @@ privilege list can be read against this diagram.
 
 ## 5. The data model
 
-**Twenty-three tables** as of 2026-09-24, counted against `hail-dev`. That's
+**Twenty-three tables** as of 2026-09-24, counted against `hail-dev` (**27 on 2026-10-05**, counted from `sql/`: the four added since are in the tables below, marked 2026-10-05). That's
 seventeen from `sql/001`–`009`, plus `county_boundaries` (`sql/012`,
 2026-09-14), `report_zip_distances` (`sql/017`, 2026-09-21), `settings`
 (`sql/018`) and `settings_history` (`sql/020`, both 2026-09-22),
@@ -926,6 +934,14 @@ is in `docs/db-schema-diagram.md`.
 | `listings` | One row per *time a house was for sale*. Surrogate `listing_id`, natural key `(rentcast_id, list_date)`. Carries an agent **snapshot** plus `raw_payload` JSONB. Its `list_agent_email_norm` and `list_office_email_norm` are snapshots and neither is unique — many listings sharing one agent is the normal case. |
 | `realtors` | Resolved agent identities, keyed on `email_norm` (UNIQUE, partial: `WHERE email_norm IS NOT NULL`). Also carries `office_email_norm`, **not** unique — a brokerage address is shared by every agent in the office. Exists for frequency capping and send history. |
 | `dnc_list` | Suppression list, keyed on `email_norm`. Answers one question: may we send to this address? |
+| `dnc_import_batches` / `dnc_import_rows` | *(2026-10-05)* Staging for the `/admin` DNC upload (`sql/026`): a file is parsed once into rows, previewed, and committed into `dnc_list`. |
+| `geocode_cache` / `address_searches` | *(2026-10-05)* `sql/031`. One row per geocoded address keyed on `address_key()`, and a log of every search. Added for address search (decision log 2026-10-01). |
+
+**Added after the 2026-09-24 sync (2026-10-05):** `dnc_import_batches` and
+`dnc_import_rows` (`sql/026`), the staging tables behind the `/admin` DNC upload;
+`geocode_cache` and `address_searches` (`sql/031`), a cache of Census Geocoder
+results keyed on `address_key()` and a log of every address search including
+misses. Field detail is in `docs/database-schema.md`.
 
 ### The hinge
 | Table | What it holds |
@@ -936,8 +952,8 @@ is in `docs/db-schema-diagram.md`.
 ### Sending
 | Table | What it holds |
 |---|---|
-| `send_log` | One row per email to one agent. Snapshots `recipient_email`. `send_status` runs `queued → sent → (bounced\|complained)` or `queued → failed`; `queued_at` is set before the attempt, `sent_at` stays null until the provider accepts. Append-only except provider status. |
-| `email_templates` | Versioned message text. Self-FK `supersedes_id`. Never edited in place. |
+| `send_log` | One row per email to one agent. Snapshots `recipient_email`. `send_status` runs `queued → sent → (bounced\|complained)` or `queued → failed`; `queued_at` is set before the attempt, `sent_at` stays null until the provider accepts. Append-only except provider status, **enforced by trigger since `sql/029`** (2026-10-05). |
+| `email_templates` | Versioned message text. Self-FK `supersedes_id`. Never edited in place, **enforced by trigger since `sql/030`**: only `is_active` true → false is allowed (2026-10-05). |
 
 ### Operations
 | Table | What it holds |
@@ -1687,7 +1703,7 @@ docker-compose.yml            postgis + ingest + loader + app + web on hailnet
 requirements.txt              psycopg[binary]==3.2.3, flask==3.1.3, gunicorn, Flask-WTF==1.3.0 (CSRF, 2026-09-22)
 docs/
   hail-consolidated.md        this file
-  database-schema.md          field-level data model, 23 tables, open questions
+  database-schema.md          field-level data model, 27 tables, open questions
   db-schema-diagram.md        ASCII ER diagram
   decision-log.md             dated, append-only; supersede, never rewrite
   data-sources.md             IEM / TIGER / RentCast endpoints and traps
@@ -1695,8 +1711,8 @@ docs/
   server-setup.md             bare-metal Rocky build, step by step
   command-ref.md              Justyn's own Docker/Postgres notes, including which services
                                see your edits (2026-09-24)
-  schema-review.md            re-runnable review prompt for sql/ + the loader, 001-023
-  parking-lot.md              103 numbered items, many resolved and resolution-tracked
+  schema-review.md            re-runnable review prompt for sql/ + the loader, written against 001-023
+  parking-lot.md              numbered items (160 on 2026-10-05), many resolved and resolution-tracked
   analysis/
     radar-verification-2026-09.md   NEXRAD corroboration study behind the
                                confidence_tier / map-color decisions (§2, §6)
@@ -1737,6 +1753,22 @@ sql/                          apply in order; 010 after 001-009 (it grants on th
   022_matched_runs.sql        match_runs: every match attempt recorded (2026-09-23)
   023_rentcast_quota.sql      RentCast billing day and monthly quota in settings; history
                                trigger widened to four columns (2026-09-23)
+  024_address_key.sql         address_standardizer extensions, address_key() function and a
+                               properties.address_key column (replaced by 025 and 027)
+  025_address_key_generated.sql  properties.address_key becomes a generated column
+  026_dnc_import_batches.sql  dnc_import_batches, dnc_import_rows: staging for the
+                               /admin DNC upload (committed 2026-09-28)
+  027_address_key_coalesce_fix.sql  address_key() always yields six fields; column rebuilt
+  028_listing_freshness.sql   settings.listing_freshness_days (default 7); history trigger
+                               widened to five columns
+  029_send_log_immutable.sql  send_log_guard(): append-only, status moves forward only
+                               (applied to hail-dev 2026-09-30)
+  030_email_templates_immutable.sql  email_templates_guard(): only is_active true -> false
+  031_address_search.sql      geocode_cache, address_searches (2026-10-01)
+  032_search_path_no_tiger.sql  tiger and topology off hail_app's and hail_ingest's search_path
+  033_one_running_pull_per_storm.sql  partial unique index on api_pulls: one running pull
+                               per (storm_date, report_text)
+  guard_test.sql              tests the 029/030 triggers; not a migration
 hailsys/                      importable package, moved out of scripts/ (2026-09-14)
   __init__.py                 empty
   tuning.py                   tuning constants and denver_day_bounds; the radius constants
@@ -2034,11 +2066,14 @@ this file summarizes a source.
    to record whether the recipient was a person or an office — otherwise
    `realtor_id` stops meaning "who we emailed" and starts meaning "who this was
    about."
-10. **Should append-only be enforced by the database?** `send_log` and
-    `email_templates` are append-only by convention and in code. `sql/010` now
-    withholds `DELETE` from every role, which closes part of this — but `UPDATE`
-    is still granted on both tables, so nothing stops a body being rewritten in
-    place. **Deferred to Phase 5**, when the real update pattern is known.
+10. **Should append-only be enforced by the database?** **Resolved 2026-09-30.**
+    `sql/029` and `sql/030` add `BEFORE UPDATE`/`BEFORE DELETE` triggers on
+    `send_log` and `email_templates` and revoke `DELETE` and `TRUNCATE` from
+    `hail_app`. `send_log` allows only provider-status columns to change;
+    `email_templates` allows only `is_active` true → false. The table owner can
+    still `TRUNCATE`, accepted (decision log 2026-09-30). *Original text, kept:
+    append-only by convention and in code; `UPDATE` was still granted, so nothing
+    stopped a body being rewritten in place; deferred to Phase 5.*
 11. **Which role sees the operational views?** The three application roles are
     defined as cost stages, and ingest health is not one — it costs nothing to
     look at, but "did last night's ingest run" is an operator question, not a
