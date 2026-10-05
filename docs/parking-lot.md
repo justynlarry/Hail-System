@@ -1999,6 +1999,25 @@ settings history, `address_key`, the DNC staging tables, the `033` index and the
 role search path. **Not run:** the review itself was not executed against a
 database; the 024–033 observations came from reading the files.
 
+## 163. The schema-review build instructions would have overwritten the real roles
+
+**Status:** resolved 2026-10-05
+
+Found 2026-10-05 while rewriting `docs/schema-review.md`. Its build step created a
+scratch *database* and ran every `sql/*.sql` file into it. Roles are cluster-wide,
+not per-database: `sql/010` ends with `ALTER ROLE ... PASSWORD`, and `sql/032` runs
+`ALTER ROLE ... SET search_path`. Run inside the real cluster, with the prompt's
+`HAIL_INGEST_PASSWORD=scratch HAIL_APP_PASSWORD=scratch`, it would have reset the
+real `hail_ingest` and `hail_app` passwords to `scratch` and broken the web app
+and the nightly ingest. Nothing was run that way; it was found by reading.
+
+**When:** before anyone next runs the review prompt.
+
+**Resolved 2026-10-05**, commit `5bcae52`: §1 now says to build in a throwaway
+cluster or container, never against the running `hail-dev` or production cluster,
+and the build loop skips `guard_test.sql`. Not tested: the throwaway-container
+route was written from reading, not run.
+
 ## 70. Permits as a source — corroboration first, roof age later
 
 **Status:** open (parked) — gated on item 70 ("until the system is running")
