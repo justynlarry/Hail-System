@@ -972,6 +972,7 @@ invalidation to get wrong across Gunicorn workers.
 | `default_zip_radius_miles` | `NUMERIC(4,1) NOT NULL DEFAULT 5.0`, `CHECK` `> 0 AND <= 10.0`. What we *look at*, and so what a pull costs. Capped at 10 because `report_zip_distances` is precomputed to `hail_pair_ceiling_m()`, 10 miles — raising past it is a migration and a recompute, not a settings change |
 | `default_match_radius_miles` | `NUMERIC(4,1) NOT NULL DEFAULT 5.0`, same range CHECK. What we *claim* in an email. Changing it hides existing matches until storms are re-matched |
 | `rentcast_billing_day` | `SMALLINT NOT NULL DEFAULT 9`, `CHECK` `BETWEEN 1 AND 28` — added `sql/023_rentcast_quota.sql`, 2026-09-23. Day of month the RentCast plan resets. Capped at 28 because a 29th–31st has no February equivalent and no fallback rule has been chosen. The period rolls over at **Denver** midnight in `hailsys/queries/quota.py`; RentCast's own rollover timezone is unconfirmed |
+| `listing_freshness_days` | `SMALLINT NOT NULL DEFAULT 7`, `CHECK` `BETWEEN 1 AND 90` — added `sql/028_listing_freshness.sql`. A listing RentCast has not seen within this many days is not emailed about, since it may have been sold or withdrawn. 7 assumes a storm is pulled and sent the same or next day, with a week of slack |
 | `rentcast_monthly_quota` | `INTEGER NOT NULL DEFAULT 1000`, `CHECK` `> 0` — added `023`. Requests included per billing period. **Warn and allow**: the pull estimate warns when a pull would exceed it, and nothing blocks (decision-log 2026-09-23, "RentCast quota…") |
 
 Plus a table-level `CHECK` `match_within_zip_radius`:
@@ -1003,8 +1004,8 @@ admins.
 ### `settings_history`
 
 Added `sql/020_settings_radii.sql`, 2026-09-22; extended by
-`sql/023_rentcast_quota.sql`, 2026-09-23. One row per change to the radius or
-quota settings, snapshotting all four values that resulted.
+`sql/023_rentcast_quota.sql`, 2026-09-23. One row per change to the radius, quota or
+freshness settings, snapshotting all five values that resulted (four before `028`).
 
 | Field | Purpose |
 |---|---|
@@ -1013,22 +1014,26 @@ quota settings, snapshotting all four values that resulted.
 | `changed_by` | FK → `users`, `NOT NULL` |
 | `default_zip_radius_miles`, `default_match_radius_miles` | `NUMERIC(4,1) NOT NULL` — the values after the change |
 | `rentcast_billing_day`, `rentcast_monthly_quota` | Nullable — added `023`. **NULL on rows written before `023`**, not backfilled: a default would assert a value nobody recorded. The admin page shows them as "—" |
+| `listing_freshness_days` | `SMALLINT`, nullable — added `sql/028`. **NULL on rows written before `028`**, not backfilled, for the same reason |
 
 **Written only by `trg_log_settings_change`**, calling `log_settings_change()`:
 
 ```sql
 AFTER UPDATE OF default_zip_radius_miles, default_match_radius_miles,
-                rentcast_billing_day, rentcast_monthly_quota
+                rentcast_billing_day, rentcast_monthly_quota,
+                listing_freshness_days
 ON settings
 FOR EACH ROW
 WHEN (OLD.default_zip_radius_miles    IS DISTINCT FROM NEW.default_zip_radius_miles
    OR OLD.default_match_radius_miles  IS DISTINCT FROM NEW.default_match_radius_miles
    OR OLD.rentcast_billing_day        IS DISTINCT FROM NEW.rentcast_billing_day
-   OR OLD.rentcast_monthly_quota      IS DISTINCT FROM NEW.rentcast_monthly_quota)
+   OR OLD.rentcast_monthly_quota      IS DISTINCT FROM NEW.rentcast_monthly_quota
+   OR OLD.listing_freshness_days      IS DISTINCT FROM NEW.listing_freshness_days)
 ```
 
-That is the definition as of `023`, which replaced `020`'s two-column version
-with `CREATE OR REPLACE FUNCTION` plus a drop and recreate of the trigger.
+That is the definition as of `028`. `023` replaced `020`'s two-column version
+with `CREATE OR REPLACE FUNCTION` plus a drop and recreate of the trigger, and
+`028` did the same to add the fifth column.
 Scoped to the settings columns, and still **not** `global_sessions_invalidated_at`,
 because the boot-everyone route updates that column on the same row; unscoped, that update fired
 the trigger and demanded attribution it has no reason to set. The `WHEN`

@@ -74,10 +74,36 @@ for f in sql/[0-9]*.sql; do   # not guard_test.sql, which is a test
 done
 ```
 
-Then confirm with `\dt` (expect 27 tables, plus PostGIS's own `spatial_ref_sys`)
-and `\d <table>` on each. Then run `psql -d hail_scratch -f sql/guard_test.sql`
-and expect every line `PASS` (it reported 18 of 18 on `hail-dev`, 2026-09-30; it
-ends in `ROLLBACK`). Drop the scratch database when done.
+Then confirm with `\dt` and `\d <table>` on each. Expect **30 tables in
+`public` plus PostGIS's `spatial_ref_sys`**: the project's 27, and `us_gaz`,
+`us_lex` and `us_rules`, which `address_standardizer_data_us` creates (`sql/024`).
+
+**`guard_test.sql` needs data and fails on an empty build.** It takes its test
+rows from the first `users`, `realtors` and `storm_listing_matches` rows, so on
+a fresh build it stops at its first insert with a not-null error (which is its
+design: "If a subselect finds no row, the NOT NULL fails loudly"). Seed the
+scratch database first, then run it:
+
+```sql
+INSERT INTO report_types (report_type, report_text, unit_confidence)
+    VALUES ('H', 'HAIL', 'certain');
+INSERT INTO iem_data (latitude, longitude, ingested_at, utc_datetime,
+                      nws_issuer, report_type, report_text)
+    VALUES (39.7, -104.9, now(), now(), 'BOU', 'H', 'HAIL');
+INSERT INTO properties (rentcast_id, property_address)
+    VALUES ('seed-1', '1 Main St, Denver, CO 80202');
+INSERT INTO listings (list_date, rentcast_id, list_status)
+    VALUES (now(), 'seed-1', 'Active');
+INSERT INTO realtors DEFAULT VALUES;
+INSERT INTO storm_listing_matches (iem_id, listing_id, distance_miles, radius_used)
+    SELECT i.iem_id, l.listing_id, 1.0, 5.0 FROM iem_data i, listings l;
+```
+
+`psql -d hail_scratch -f sql/guard_test.sql` should then print a `PASS` notice for
+every check and no `FAIL`: 24 on 2026-10-05, run against a throwaway
+`postgis/postgis:16-3.4` container (it was 18 when it covered only `029` and
+`030`). The test ends in `ROLLBACK`. Drop the scratch database, or the
+container, when done.
 
 If PostgreSQL is not reachable on this host, say so rather than guessing — the
 database runs in Docker (`postgis/postgis`) and `psql` may not be installed
@@ -125,6 +151,11 @@ do not fix without my go-ahead, and remember 001–009 are frozen:
 `026` in two blocks each). Written 2026-10-05 from reading the files; the build
 itself was not run.
 
+**Run 2026-10-05 in a throwaway container:** the build succeeded through `033`
+and `guard_test.sql` passed 24 of 24 once seeded. Findings are filed as
+parking-lot items 164–167; the four foreign keys with default names (`020`, `022`,
+`026`) are item 167.
+
 **Things to check in 024–033, from reading them 2026-10-05, not yet triaged:**
 
 - `sql/031`'s GiST index is `geocode_cache_geom_gix`, which matches the existing
@@ -148,7 +179,10 @@ Check for each specifically. Every one appeared at least once:
 - Missing unique constraints on documented natural keys
 - **Unique constraints that should not be there** — a snapshot column is not a
   natural key
-- Duplicate constraint names across tables (database-wide in Postgres)
+- Duplicate **index** names across tables (index names are schema-wide in
+  Postgres). Duplicate `CHECK` constraint names on different tables are legal
+  and are not a finding: `finished_has_timestamp` is on both `match_runs` and
+  `ingest_runs`, and `removal_is_complete` is on three tables
 - Duplicate column declarations within one table
 - Index names written as `table.column` instead of a plain identifier
 - `NOT NULL` on columns the doc says are nullable, and on columns meaning "this

@@ -1996,8 +1996,8 @@ prompt as written would skip all of them, including the two guard functions.
 new migration, expects 27 tables, runs `guard_test.sql` separately (the build
 loop is `sql/[0-9]*.sql`), and checks the append-only triggers, the five-column
 settings history, `address_key`, the DNC staging tables, the `033` index and the
-role search path. **Not run:** the review itself was not executed against a
-database; the 024–033 observations came from reading the files.
+role search path. **Not run at that time.** The review was run on 2026-10-05 in a
+throwaway container the same day; its findings are items 164–167.
 
 ## 163. The schema-review build instructions would have overwritten the real roles
 
@@ -2017,6 +2017,76 @@ and the nightly ingest. Nothing was run that way; it was found by reading.
 cluster or container, never against the running `hail-dev` or production cluster,
 and the build loop skips `guard_test.sql`. Not tested: the throwaway-container
 route was written from reading, not run.
+
+## 164. `sql/guard_test.sql` fails on an empty build
+
+**Status:** resolved (residuals) 2026-10-05
+
+Found 2026-10-05 running the schema review in a throwaway `postgis/postgis:16-3.4`
+container. The test takes its rows from the first `users`, `realtors` and
+`storm_listing_matches` rows, so on a fresh build it stops at its first insert
+(`realtor_id` not null). That is its stated design, but nothing told the
+reviewer, and `schema-review.md` said to run it right after the build. Seeded
+with one row each (plus a report type, an `iem_data` row, a property and a
+listing), it passed 24 of 24.
+
+**When:** if the schema is ever built in CI, or by anyone else, make the test seed
+its own rows.
+
+**Resolved 2026-10-05**, commit "Docs: schema review run; ..." (`git log --
+docs/schema-review.md`): `schema-review.md` §1 now carries the seed statements
+and says the test fails on an empty database. **Residual:** the test itself is
+unchanged and still not self-seeding.
+
+## 165. `schema-review.md` had three wrong statements
+
+**Status:** resolved 2026-10-05
+
+Found 2026-10-05 by running it. It said to expect 27 tables (a build has 30 in
+`public` plus `spatial_ref_sys`: the 27 and `us_gaz`, `us_lex`, `us_rules` from
+`address_standardizer_data_us`); that the guard test reported 18 of 18 (24 now,
+with `033`); and, in §3, that duplicate constraint names across tables are a
+database-wide problem, which is true of index names but not `CHECK` constraints
+(`finished_has_timestamp` is on `match_runs` and `ingest_runs`,
+`removal_is_complete` on three tables).
+
+**When:** with the next docs pass.
+
+**Resolved 2026-10-05**, the same commit as item 164.
+
+## 166. `settings.listing_freshness_days` was undocumented in `database-schema.md`
+
+**Status:** resolved 2026-10-05
+
+Found 2026-10-05 by comparing every column in the built schema to the doc. `sql/028`
+added the column to `settings` and `settings_history` and widened the history
+trigger to five columns; `database-schema.md` described four. It was missed when
+the doc was updated for `029`–`033` earlier the same day, because the check was a
+grep for those migration numbers. It was the only undocumented column in the
+built schema; the reverse direction (documented columns the DDL lacks) was only
+checked at table level.
+
+**When:** with the next docs pass.
+
+**Resolved 2026-10-05**, the same commit as item 164: both tables' sections and
+the trigger definition describe the fifth column.
+
+## 167. Four foreign keys carry Postgres's default names
+
+**Status:** open
+
+Found 2026-10-05. The convention is `fk_{table}_{target}`; these were declared
+inline and got generated names: `settings_history_changed_by_fkey` (`sql/020`),
+`match_runs_emp_id_fkey` (`sql/022`), `dnc_import_batches_uploaded_by_fkey` and
+`dnc_import_rows_batch_id_fkey` (`sql/026`). Harmless to behaviour. The admin
+route maps some CHECK names to messages, but nothing was found that maps these
+FK names.
+
+**Decision:** leave as applied. A rename is a new migration for a cosmetic gain,
+the same call already made for `match_runs_storm_idx` (`schema-review.md` §2).
+
+**When:** with the next migration that touches one of these four tables, or the
+next time the FK naming convention is enforced across the schema.
 
 ## 70. Permits as a source — corroboration first, roof age later
 
