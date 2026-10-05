@@ -19,13 +19,18 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-**Corrected 2026-10-05, not re-synced:** §2's Phase 5 line, §5's table count and
-four missing tables, §10's `sql/` layout and §11 question 10 were fixed after
-the 2026-09-24 sync because they had become wrong. The rest of the file is
-still as of 2026-09-24.
+Last synced against the repo: **2026-10-05**, commit `191a7e0`. The previous
+sync was **2026-09-24** (commit `0f628f4`), at the end of Phase 4. What this
+sync adds: §2 gains a Phase 5 groundwork section (2026-09-25 to 2026-10-02:
+the pull-flow fixes, address identity, the DNS and provider research, the DNC
+import, database-enforced append-only, address search, the Cloudflare Tunnel,
+ingest health, the review findings and dark mode); §5 counts 27 tables; §6
+gains the matching decisions; §7 two traps; §8 the Census Geocoder and the
+provider research; §9 the tunnel; §10 the file layout through `sql/033`;
+§11's statuses. Parts of §2 older than 2026-09-24 are untouched.
 
-Last synced against the repo: **2026-09-24**, commit `0f628f4`. The previous
-sync was **2026-09-17** (commit `e22c02f`), at the start of Phase 3. In the
+The sync before that was **2026-09-17** (commit `e22c02f`), at the start of
+Phase 3. In the
 week between, **Phase 3 closed (2026-09-21) and Phase 4 closed (2026-09-24)**,
 and this file was not touched once. The same drift the 2026-09-17 sync
 recorded happened again, a full phase and a half this time: `decision-log.md`,
@@ -111,12 +116,13 @@ across 15 zips, 11 of them in El Paso County.
 **Phases 0 through 4 are closed. Phase 2 — the storm-browser web app — closed
 2026-09-17; Phase 3 — RentCast listings — closed 2026-09-21; Phase 4 —
 Accounts — closed 2026-09-24. Phase 5 — Email — is the current phase**, begun
-2026-09-23 with nothing built yet: `send_log`, `email_templates` and
-`dnc_list` exist from `sql/007`. *(Updated 2026-10-05: `send_log` and
-`email_templates` are still empty and now enforced append-only by triggers,
-`sql/029`/`030`; `dnc_list` holds 759 suppressions imported 2026-09-29 through
-the `/admin` upload. The import may still be incomplete, parking-lot item 129,
-and that is settled before the first send. No sending code and no provider.)* See "Phase 4 — Accounts" below. Phase 3 delivered the sale-listings client,
+2026-09-23. **As of 2026-10-05 only groundwork exists and nothing sends:**
+`send_log` and `email_templates` (`sql/007`) are empty and enforced
+append-only by triggers (`sql/029`/`030`); `dnc_list` holds 759 suppressions,
+imported 2026-09-29 through the `/admin` upload, and may still be incomplete
+(parking-lot item 129, settled before the first send). There is no sending
+code, no provider and no sending identity. See "Phase 5 groundwork" below and
+"Phase 4 — Accounts". Phase 3 delivered the sale-listings client,
 the pre-pull estimate, a background-thread pull path, upserts into
 `properties`/`listings`/`realtors`, storm-to-listing matching (automatic when a
 pull finishes), the match page and the activity feed, all through the web UI,
@@ -780,6 +786,70 @@ under the same dates.
   - **Not seen in a browser:** the banner's polling. The Status cell's
     "Pulling..." display was reported working.
 
+### Phase 5 groundwork — 2026-09-25 through 2026-10-02
+
+Nothing here sends. Decisions are in the decision log under the same dates, and
+the problems found are in `docs/parking-lot.md`.
+
+- **Address identity** (`sql/024`, `025`, `027`; item 55). RentCast's id is a
+  slug of the address as typed, so `4518 Wordsworth Cir N` and `4518 N
+  Wordsworth Cir` were two properties. `properties.address_key` is generated
+  from a PostGIS `address_standardizer` parse, `house|dir|street|suffix|unit|zip`.
+  `027` fixed `concat_ws` dropping a NULL field and shifting the rest; verified
+  on `hail-dev` 2026-09-29 (25,219 properties, every non-NULL key six fields).
+  Send-time dedup is scoped to exact `address_key` only (50 duplicate groups,
+  about 0.2%); the unit-mismatch groups are mostly new construction with no
+  agent. Nothing dedupes yet, because nothing sends.
+- **Address search** (`sql/031`, `/search`; items 23, 124). Type an address, get
+  the reports near it, geocoded by the free Census Geocoder and cached by
+  `address_key()`. Informational only; reads storms, writes `geocode_cache` and
+  `address_searches`.
+- **DNC import** (`sql/026`, `dncimport.py`, `/admin`). An admin uploads a
+  Constant Contact export; it is staged, previewed and then committed or
+  discarded. **759 suppressions imported 2026-09-29** (719 Constant Contact,
+  about 40 Airtable-only; the Airtable rows carry the creation date, not the
+  unsubscribe date). 108 of the 7,082 hail-system realtors are suppressed at that
+  point. **Still open:** the Constant Contact export may be missing about nine
+  months of unsubscribes (item 129).
+- **Append-only in the database** (`sql/029`, `030`, `guard_test.sql`).
+  Triggers on `send_log` and `email_templates`, with `DELETE` and `TRUNCATE`
+  revoked from `hail_app`. Applied to `hail-dev` 2026-09-30, 18 of 18 checks
+  passed; **not checked on the production box**. The table owner can still
+  `TRUNCATE`, accepted.
+- **Sending research, no decision.** RBI's domain (GoDaddy DNS, Microsoft 365
+  mail, a live Mailchimp DKIM record at the root) and a plan to delegate only a
+  `send.` subdomain to Cloudflare; every mainstream API provider's acceptable-use
+  policy forbids this use; the CAN-SPAM test (this is commercial email, so the
+  footer and opt-out are required regardless of how the recipient is classed);
+  personal-account throttled sending rejected; self-hosting reassessed against a
+  smaller pool of about 1,014 warmer contacts. **No provider and no identity
+  chosen** (items 96, 119, 122).
+- **Email copy** is a first draft with a merge-field vocabulary and a
+  visible-failure rule, still missing the testimonials, offer and images (items
+  16, 135).
+- **Access.** `hail-dev` is reachable at `dev.roofbrokersinc-weather.com`
+  through a Cloudflare Tunnel with Access in front (2026-09-30; a domain separate
+  from RBI's zone, so it did not wait on item 96). Usernames are `first.MILI`.
+  Login timing was made constant for an unknown user (item 127), and an
+  app-wide login hook now denies by default (item 90, `605f0b5`).
+- **Storm Days page:** an ingest-health line (item 1), with the verdict as "when
+  did a nightly last complete", because a missed run leaves no row.
+- **Review findings fixed:** export filenames and report types validated (item
+  151), CSV formula injection neutralised by `csv_safe` on all four web CSVs
+  (item 152), a match-query DNC exclusion rewritten as `NOT EXISTS`, a 10 MB
+  request cap, `/activity.csv`, work states keyed apart from their labels (item
+  48), Jinja `StrictUndefined` (item 32), one running pull per storm by a unique
+  index (`sql/033`, item 51), a zero-zip pull refused (item 155), and `tiger` and
+  `topology` off the application roles' `search_path` (`sql/032`, item 94).
+- **A gap in how findings were recorded** was found 2026-10-01 and closed: a
+  problem found in review is not recorded until it is in `docs/parking-lot.md`.
+  `CLAUDE.md` now says so.
+- **Dark mode** (2026-10-02): a header switch, per-browser, following the OS by
+  default. Four light-mode colour pairs were already below WCAG AA (item 156).
+- **Which containers run what:** `web`, `app` and `loader` bind-mount the repo;
+  only `ingest` runs image-baked code, on purpose. `scripts/status.sh images`
+  shows whether it is behind (items 30, 45).
+
 ### Permits and jurisdiction research — parked, 2026-09-23 / 2026-09-24
 
 Groundwork for building-permit data as a future source, allowed as a
@@ -796,8 +866,8 @@ which is gitignored: 3 A, 7 B, 59 C, 13 D.
 
 ### Still open against closed phases, as of this sync
 
-- **Phase 2:** nobody other than the developer has logged in (item 63).
-- **Nothing under `hailsys/web/` has tests** (item 53).
+- **Phase 2:** item 63 (a reachable path to `hail-dev`) was resolved 2026-10-02 by the Cloudflare Tunnel; this file does not record whether anyone else has logged in.
+- **Almost nothing under `hailsys/web/` has tests** (item 53, still open). `tests/test_workstate.py` and `tests/test_activity_csv.py` are the exceptions.
 - **Stale pulls:** a pull left `running` by a restart is swept at startup
   after 10 minutes, and stops reading "Pulling..." after 10 minutes without
   waiting for the sweep (item 47, 2026-09-25); stale match runs are swept the
@@ -958,10 +1028,10 @@ misses. Field detail is in `docs/database-schema.md`.
 ### Operations
 | Table | What it holds |
 |---|---|
-| `users` | Logins. Roles `admin` / `sender` / `viewer`, plus `system` — a non-login account, bootstrapped in `sql/002`, that owns machine-initiated rows (automatic bounce and complaint suppressions, the legacy DNC import). Constrained in the database so it cannot be activated or given a real password. Unlike the other three it is **not a cost stage**. **Live on `hail-dev`: 3 rows** as of 2026-09-24 — `system`, `justyn` (`admin`) and `testview` (`viewer`, kept for role testing). `sessions_invalidated_at` (`sql/018`) forces one user out; last-admin protection (`sql/019`) refuses leaving zero active admins. Accounts are managed on `/admin`. |
-| `settings` | Single row (`sql/018`): the system-wide sign-out timestamp, both radii (`sql/020`), and the RentCast billing day and monthly quota (`sql/023`). Read per request, never cached. |
+| `users` | Logins. Roles `admin` / `sender` / `viewer`, plus `system` — a non-login account, bootstrapped in `sql/002`, that owns machine-initiated rows (automatic bounce and complaint suppressions, the legacy DNC import). Constrained in the database so it cannot be activated or given a real password. Unlike the other three it is **not a cost stage**. **Live on `hail-dev`: 3 rows** as of 2026-09-24 — `system`, an admin and `testview` (`viewer`, kept for role testing); the admin was renamed `justyn.ml` on 2026-09-30 under the `first.MILI` convention. `sessions_invalidated_at` (`sql/018`) forces one user out; last-admin protection (`sql/019`) refuses leaving zero active admins. Accounts are managed on `/admin`. |
+| `settings` | Single row (`sql/018`): the system-wide sign-out timestamp, both radii (`sql/020`), the RentCast billing day and monthly quota (`sql/023`), and `listing_freshness_days` (`sql/028`, default 7: a listing RentCast has not seen in that many days is not emailed about). Read per request, never cached. |
 | `settings_history` | One row per change to the radii or quota columns, written only by trigger, attributed through a transaction-local `app.current_emp_id`. Added `sql/020`; the quota columns `sql/023`. |
-| `api_pulls` | One row per user-initiated RentCast pull. Records `estimated_api_calls` vs. `actual_api_calls` side by side; `api_status` tracks the run. `iem_id` is nullable — a pull need not be tied to one storm. |
+| `api_pulls` | One row per user-initiated RentCast pull. Records `estimated_api_calls` vs. `actual_api_calls` side by side; `api_status` tracks the run. `iem_id` is nullable — a pull need not be tied to one storm. A partial unique index allows one `running` pull per `(storm_date, report_text)` (`sql/033`). |
 | `api_call_log` | One row per zip within a pull. Powers the "this zip was pulled recently" warning, and since 2026-09-23 **the RentCast usage figure**: every zip that makes a request gets a row, including one that ends the pull. A NULL `http_status` means no usable status was ever received. |
 | `ingest_runs` | One row per execution of an IEM ingest script (`nightly` / `backfill` / `replay`). Records the UTC window actually requested plus `rows_seen` / `rows_inserted` / `rows_skipped`. No `emp_id` — system-initiated. Written before the work starts, like `api_pulls`. **The alert that matters is the absence of a row**, which is why it is a table and not log output. |
 | `iem_ingest_rejects` | One row per input line the parser refused. FK → `ingest_runs`. `raw_row` holds the line verbatim (TEXT, not JSONB — it is here because it did not parse), so rejecting is not lossy. `reason` is a closed **five**-value CHECK; anything outside it must terminate the run rather than be skipped. |
@@ -1083,7 +1153,8 @@ web app"), not just the three (`hailsys/` layout, TIGER county, `db.py`/
   `CLAUDE.md` updated to match, 2026-09-14** — the former's Firewall section
   now explains the loopback bind and `tailscale serve` rather than the old
   Cloudflare-tunnel reasoning, and the latter's Stack bullet says Tailscale
-  instead of Cloudflare tunnel. **Revisit at Phase 6**: Cloudflare Access is
+  instead of Cloudflare tunnel. **Superseded 2026-09-30:** `hail-dev` is also
+  reached through a Cloudflare Tunnel (§9); Tailscale remains. **Revisit at Phase 6**: Cloudflare Access is
   *less* client-side work for staff (a browser and an email code) and does
   not need RBI's DNS, reversing the assumption that the tunnel is the heavier
   option.
@@ -1287,13 +1358,55 @@ each):
   reset was declined for now.
 - **The activity feed shows who did what, to everyone**, deliberately, for an
   office of five with admin-created accounts.
-- **Scheduled ingest runs a built image, not the working tree.** `app` and
-  `ingest` bake their code in; `web` and `loader` see edits live.
+- **Scheduled ingest runs a built image, not the working tree.** Only `ingest`
+  bakes its code in; `web`, `app` and `loader` bind-mount the repo (the `app`
+  change is 2026-10-02, item 30; this line used to say `app` baked too).
 - **Unreadable RentCast responses fail loudly with an attempt count**, and
   every aborted zip's calls reach `api_call_log`.
 - **The storm list pages at 50 storm days.**
 - **Parked, with the claim rule:** permits and jurisdiction work.
   Jurisdiction is always point-in-polygon, never a mailing city.
+
+**Phase 5 groundwork, 2026-09-25 to 2026-10-02** (condensed; the log has the
+reasoning):
+- **Address identity is parsed components, not string cleaning.** A directional
+  that moves position in the string cannot be fixed by trimming and
+  case-folding. The key is generated, so it always matches the address, and
+  `address_key()` is the only place the normalisation lives: Python never
+  reimplements it, or the cache silently misses.
+- **Send-time dedup is exact `address_key` only.** Measured at about 0.2% of
+  properties; proximity matching measured closeness, not identity.
+- **DNC import is staged and previewed before commit**, from an admin upload.
+  Wrong in either direction is expensive: suppress someone who never asked and
+  RBI loses a contact silently; miss someone who did and they get mail they
+  refused. The Airtable list was populated from Constant Contact (691 of 735 rows
+  share one timestamp), so the union is the right import.
+- **Append-only is enforced by trigger**, not by convention, and supersedes the
+  2026-09-03 deferral. Status moves forward only; `sent_at` is write-once;
+  templates can be retired but not edited or revived. Owner `TRUNCATE` is left
+  open, deliberately.
+- **Address search uses the Census Geocoder, not a local TIGER load.** Same
+  data, no 64-county load; a swap behind `geocode.py` stays possible (item 145).
+- **No provider is chosen, and the research changed the question.** The
+  mainstream API providers are ruled out on policy; the cold-outreach platforms
+  on architecture; SES's gate is outcome-based and under-weighted at first; the
+  exit that removes the conflict is a real opt-in over time. The sending
+  identity is a delegated `send.` subdomain, never the root's MX or SPF.
+- **CAN-SPAM:** this is commercial email. The footer and opt-out are always
+  included, whatever the relationship.
+- **`hail-dev` is reached through a Cloudflare Tunnel with Access**, on a domain
+  separate from RBI's. This revisits the 2026-09-14 "Tailscale for Phase 2" call
+  earlier than Phase 6.
+- **Login hook is default-deny, by endpoint name**, registered after the user
+  loader; the order is load-bearing.
+- **Work states have a key, a label and a CSS class**, so rewording a label
+  cannot change which links a row offers.
+- **One running pull per storm is a unique index**, not a check in Python, which
+  would lose the race.
+- **The application roles do not search `tiger`**, so a typo'd table name fails
+  instead of querying an empty NAD83 table.
+- **Dark mode is a browser preference** in `localStorage`, not a database column.
+- **Review findings are filed in the parking lot in the same session.**
 
 ---
 
@@ -1460,9 +1573,10 @@ These are newer and cost real time on 2026-09-08.
 
 - **Which containers see your edits** (2026-09-24). `web` bind-mounts
   `./hailsys` and `loader` bind-mounts the whole repo, so both see edits
-  immediately; for `web`, editing is deploying at the next restart. `app` and
-  `ingest` bake their code in at build time, so running them without
-  `docker compose build` tests the code from the last build. This returned a
+  immediately; for `web`, editing is deploying at the next restart. **Updated
+  2026-10-02:** `app` now bind-mounts `hailsys/` and `scripts/` read-only too
+  (item 30); only `ingest` bakes its code in at build time, so running it
+  without `docker compose build` tests the code from the last build. This returned a
   pre-migration answer through `app` on 2026-09-24. The nightly timers
   deliberately don't build first. See `docs/command-ref.md`.
 - **A Jinja template can go live before the Python that feeds it.** Workers
@@ -1564,6 +1678,26 @@ These are newer and cost real time on 2026-09-08.
   because a malformed expression installs cleanly and produces a timer that
   simply never fires, with nothing in the journal to say so.
 
+### Addresses and Postgres (2026-09-26 to 2026-10-02)
+- **`concat_ws` skips a NULL argument instead of leaving an empty slot**, so a
+  NULL street name, suffix, unit or zip drops a field and shifts every field after
+  it one position left. A key meant to be `house|dir|street|suffix|unit|zip`
+  came out four fields long. Wrap every argument in `coalesce`; `sql/027` did.
+- **`address_key()` must be called in SQL on typed input**, never reimplemented
+  in Python. `address_standardizer` reads reference tables, and an approximation
+  diverges silently into cache misses and duplicate rows.
+- **The database default `search_path` includes `tiger`**, which holds empty SRID
+  4269 tables, so an unqualified name can query an empty table instead of
+  failing. The application roles no longer search it (`sql/032`).
+- **A CSV cell that starts with `=`, `+`, `-` or `@` is a formula in a
+  spreadsheet.** Every web CSV goes through `csv_safe` (item 152).
+- **A Jinja template can reference a name that does not exist and render
+  blank.** `StrictUndefined` makes it an error (item 32), which surfaced two
+  routes that had been quietly wrong.
+- **A restart mid-pull leaves a `running` row** that the new one-per-storm index
+  then treats as live. `start_pull()` cancels stale rows in the same
+  transaction as the insert.
+
 ---
 
 ## 8. External sources
@@ -1573,7 +1707,8 @@ These are newer and cost real time on 2026-09-08.
 | **IEM Local Storm Reports** | Free, no key, no documented rate limit | **One** endpoint, `cgi-bin/request/gis/lsr.py`, serves both jobs: nightly passes `recent=108000` (SECONDS), backfill passes `sts`/`ets`, back to 2003. Formats csv/shp/kml/xlsx — **`fmt=geojson` returns 422**. The `lsrs.phtml` schema page documents the shapefile DBF, not the CSV. |
 | **Census TIGER/Line 2025** | Free | National ZCTA (`tl_2025_us_zcta520.zip`, 33,791 rows) and county (`tl_2025_us_county.zip`, ~3.2k rows) files. No state split exists for ZCTA. |
 | **RentCast** | **Paid**, monthly lookup allowance | `GET /listings/sale`, paginated to 500, sorted by `lastSeenDate` desc. Docs: `https://developers.rentcast.io/reference/property-listings-schema` (append `.md` for markdown). |
-| **Email provider** | TBD | Must *explicitly permit* outreach to non-opt-in recipients — several providers terminate for it. Needs bounce/complaint webhooks returning a matchable message id, plus throttling for warmup, on a separate sending subdomain. **Checked 2026-09-28:** SendGrid, Postmark, Mailgun, Resend and Amazon SES all prohibit this in their current AUPs, no B2B exception (item 119). Cold-outreach platforms (Instantly and similar) don't require opt-in, but whether any offers a plain single-email API rather than their own campaign UI is unconfirmed. |
+| **Census Geocoder** | Free, no key | One-line address lookup behind `/search`, US street addresses only, cannot match by city and state alone. Results cached in `geocode_cache`. Client: `hailsys/geocode.py`. |
+| **Email provider** | TBD | Must *explicitly permit* outreach to non-opt-in recipients — several providers terminate for it. Needs bounce/complaint webhooks returning a matchable message id, plus throttling for warmup, on a separate sending subdomain. **Checked 2026-09-28:** SendGrid, Postmark, Mailgun, Resend and Amazon SES all prohibit this in their current AUPs, no B2B exception (item 119). Cold-outreach platforms (Instantly and similar) don't require opt-in, but they want to own the campaign, which is an architecture mismatch (confirmed). Amazon SES's gate is a production-access request judged on outcomes, and is worth a direct conversation; self-hosting on the `send.` subdomain is real but moves the reputation-building onto us. Constant Contact's "implied consent" standard fits RBI's clients. **Still no decision as of 2026-10-05** (items 96, 119, 122). |
 
 **Prior history worth knowing:** a contractor-built predecessor used Mailchimp
 and led to blacklisting. Whether RBI's main domain took reputation damage is an
@@ -1625,6 +1760,11 @@ earlier Cloudflare-tunnel reasoning, which no longer applies in Phase 2 (§6).
   reverted — see §2.
 - **Tailscale** for host-to-host file movement, and (Phase 2) for reaching the
   web UI itself, including Funnel for the one-off demo above
+- **Cloudflare Tunnel** (2026-09-30): a `cloudflared` service in
+  `docker-compose.yml` (`cloudflared/config.yml`) publishes `web:8000` at
+  `dev.roofbrokersinc-weather.com`, with Cloudflare Access in front. The domain
+  is separate from RBI's own zone. Production is not set up this way, and this is
+  `hail-dev`.
 - Deployed with **Ansible** where practical
 - Monitoring through an existing instance called **Irin**
 
@@ -1712,6 +1852,7 @@ docs/
   command-ref.md              Justyn's own Docker/Postgres notes, including which services
                                see your edits (2026-09-24)
   schema-review.md            re-runnable review prompt for sql/ + the loader, written against 001-023
+                               (2026-09-24; not re-run against 024-033)
   parking-lot.md              numbered items (160 on 2026-10-05), many resolved and resolution-tracked
   analysis/
     radar-verification-2026-09.md   NEXRAD corroboration study behind the
@@ -1778,6 +1919,10 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                the one implementation behind the `magnitude` Jinja filter and
                                map_points()'s magnitude_display (2026-09-21)
   db.py                       connection seam: one context manager, dict_row rows, no pool (2026-09-14)
+  geocode.py                  Census Geocoder client: throttled one-line lookup, errors
+                               classified (2026-10-01)
+  logconfig.py                logging setup for the web app: stdout only, logfmt, one event
+                               per line (gunicorn workers and the pull thread)
   iem/
     __init__.py                empty
     common.py                  shared network/DB machinery both ingest scripts import
@@ -1798,6 +1943,11 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                just started (2026-09-25)
     activity.py                 "since your last login" feed: new storm days (by ingested_at),
                                pulls, match runs (2026-09-21)
+    ingest.py                   ingest-health verdict for the Storm Days page; the same
+                               queries as scripts/status.sh, which must change with it
+                               (2026-10-01)
+    dncimport.py                staging and promotion of admin-uploaded DNC lists: parsed once
+                               into dnc_import_rows, previewed, then committed (2026-09-28)
     quota.py                    RentCast usage for the billing period, summed from
                                api_call_log (2026-09-23)
     exports.py                  CSV projections: matched listings (one row per listing per
@@ -1815,8 +1965,11 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                without a configured app; registers the `magnitude` Jinja filter
     auth.py                    scrypt hash/verify, login_required and role_required, and the
                                per-request load_current_user check (2026-09-14; roles 2026-09-22)
-    admin.py                   the /admin blueprint: users, settings, usage, sign out everyone;
-                               one before_request admin check (2026-09-22)
+    admin.py                   the /admin blueprint: users, settings, usage, sign out everyone,
+                               and the DNC upload, preview, commit and discard; one
+                               before_request admin check (2026-09-22; DNC 2026-09-28)
+    search.py                  the /search blueprint: address to nearby reports, geocoded and
+                               cached; informational only (2026-10-01)
     jobs.py                     background thread for a RentCast pull + its automatic match
                                run; daemon=True, so a thread dies with its process.
                                sweep_stale_pulls(), called from create_app(), cancels pulls
@@ -1827,7 +1980,7 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                /logout, /pull/estimate, /pull, /match, /storms/matches,
                                /storms/matches.csv, /exports, /exports/matches.csv,
                                /exports/realtors.csv (sender/admin), /storms/state, /storms/banner,
-                               /activity,
+                               /activity, /activity.csv,
                                /account/password (2026-09-14 through 2026-09-24; the
                                storm list pages at 50 days)
     templates/
@@ -1849,6 +2002,9 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
       admin.html                  users table and settings form (2026-09-22)
       change_password.html        self-service password change (2026-09-22)
       csrf_error.html             the 400 page for a failed CSRF check (2026-09-23)
+      search.html                address search: input, Type filter, results (2026-10-01)
+      dnc_preview.html            what a DNC upload would add, before commit (2026-09-28)
+      _ingest_health.html         the one-line ingest verdict and its collapsible detail
       _status_cell.html          fragment: one storm row's Status cell; used by storms.html and
                                by /storms/state for the polling (2026-09-25)
       _pull_banner.html          fragment: the line under the storm-list heading for the pull
@@ -1863,6 +2019,9 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
       storms.js                  generic expand/collapse + lazy-fetch-once handler; polls
                                "Pulling..." Status cells every 3 s, up to 40 times, and the pull
                                banner up to 200 times (2026-09-25)
+      theme.js                   light/dark switch; loaded in <head> to avoid a flash; saved
+                               per browser in localStorage (2026-10-02)
+      colorado_counties.geojson  generated fixture (scripts/build_colorado_counties_geojson.py)
       map.js                     Leaflet map: coverage polygons, report points, 5-mi rings;
                                tooltip shows the server-formatted magnitude_display
       coverage.geojson           generated fixture (scripts/build_coverage_geojson.py)
@@ -1893,12 +2052,15 @@ scripts/
   export_storm_zips.py        CSV export, one storm day, --format pairs|zips (2026-09-14); no SQL of its own — imports hailsys.db, hailsys.queries.storms, hailsys.iem.common, hailsys.tuning
   load_reference.sh           idempotent loader: report_types CSV, report_sources CSV, ZCTA shapefile, county shapefile (2026-09-14)
   load_coverage.sh            idempotent loader: one customer's territory
-  status.sh                   four read-only operator checks; exit code = nightly-health verdict (2026-09-11)
+  status.sh                   read-only operator checks; exit code = nightly-health verdict
+                               (2026-09-11); `status.sh images` shows whether the baked
+                               ingest image is behind the repo (2026-10-02)
   create_user.py              CLI to create a web-app login; run as hail_admin. Bootstrap
                                path only; /admin is the everyday route (item 65, closed 2026-10-01)
   fetch_municipal.py          count-checked, dated GeoJSON snapshot of an ArcGIS layer
                                (DOLA by default) (2026-09-23)
   load_municipal.sh           DELETE + INSERT load of municipal_boundaries (2026-09-23)
+  build_colorado_counties_geojson.py  static Colorado county GeoJSON for the map; a fixture
   build_coverage_geojson.py   writes static/coverage.geojson from a one-time simplified
                                query; a fixture, not a per-request render (2026-09-16)
   backfill_zip_distances.py   fills report_zip_distances for reports that predate the
@@ -1922,10 +2084,12 @@ tests/
   test_iem_common.py          against hailsys/iem/common.py
   test_iem_backfill.py        against scripts/iem_backfill.py (sys.path.insert, not a package)
   test_iem_ingest.py          against scripts/iem_ingest.py (same)
-  test_formatting.py          against hailsys/formatting.py (2026-09-21)
-                               (100 cases total: 88 unchanged since 2026-09-11 plus 12 in
-                               test_formatting.py — nothing under hailsys/web/ has any test
-                               coverage, §2)
+  test_formatting.py          against hailsys/formatting.py (2026-09-21), incl. csv_safe
+  test_workstate.py           work-state keys, labels and CSS classes agree (item 48)
+  test_activity_csv.py        feed_rows() flattening, no Flask or DB
+                               (128 cases total, run 2026-10-05 with
+                               `python3 -m unittest discover -s tests`; almost nothing
+                               under hailsys/web/ is covered, §2)
 docker/
   ingest.Dockerfile           python:3.12-slim + psycopg; COPY hailsys + scripts, PYTHONPATH=/app (2026-09-14); runs as non-root
   loader.Dockerfile           postgis image + pinned client pkg; bullseye-EOL apt workaround; bind-mounts the repo, no PYTHONPATH needed
@@ -1941,6 +2105,7 @@ planning/                     GENERIC national seed data + working notes
 config/                       PER-CUSTOMER configuration; see its README
   coverage_zips.txt           RBI's 193 zips (was planning/rbi-zip-code-...)
   README.md                   the generic/specific split, stated
+cloudflared/                  config.yml for the Cloudflare Tunnel service (2026-09-30)
 systemd/                      unit files; installed by copy, not symlink (2026-09-11)
   iem_ingest.service           oneshot, docker compose run ingest, TimeoutStartSec=900
   iem_ingest.timer             OnCalendar=*-*-* 10:00:00 UTC, Persistent=true
@@ -1948,9 +2113,10 @@ systemd/                      unit files; installed by copy, not symlink (2026-0
   iem_weekly_replay.timer      OnCalendar=Sun *-*-* 11:00:00, an hour after the nightly
 ```
 
-**`tests/` holds five files** — stdlib `unittest`, no runner dependency, 100
-cases total across `test_iem_parse.py`, `test_iem_common.py`,
-`test_iem_backfill.py`, `test_iem_ingest.py`, and `test_formatting.py`
+**`tests/` holds seven files** — stdlib `unittest`, no runner dependency, 128
+cases total (2026-10-05) across `test_iem_parse.py`, `test_iem_common.py`,
+`test_iem_backfill.py`, `test_iem_ingest.py`, `test_formatting.py`,
+`test_workstate.py` and `test_activity_csv.py`
 (pure functions: no `psycopg` stub, only the repo root on `sys.path`). Of the
 first four, the last three import
 `iem_backfill`/`iem_ingest` from `scripts/` directly (not a package, so via a
@@ -2048,10 +2214,14 @@ this file summarizes a source.
    window nobody can click past, plus a soft warning above it. The numbers are
    unset and the floor must live in the database.
 6. **Where is the merge-field vocabulary stored?** Agreed it is reference data,
-   not a hardcoded list. Not yet designed.
-7. **What happens to a listing that goes inactive after a match?** Probably
-   surface `list_status` at send time and let the sender decide, but the rule is
-   unstated.
+   not a hardcoded list. **Provisionally settled 2026-09-28** as a first draft:
+   required, optional and unused fields, and a visible failure when a required
+   field is missing. Still blocked on final copy (items 16, 135); where the
+   vocabulary is stored is still not designed.
+7. **What happens to a listing that goes inactive after a match?** **Partly
+   answered 2026-09-30** (`sql/028`): a listing RentCast has not seen within
+   `settings.listing_freshness_days` (default 7) is not emailed about. What the
+   sender sees for an inactive one is still unstated.
 8. **Retention of `listings.raw_payload`.** Cheap now, grows without bound. No
    policy set.
 9. **Does outreach ever fall back to the office email when an agent has none?**
@@ -2136,9 +2306,12 @@ this file summarizes a source.
 Also open and blocked on RBI rather than on us: **DNS access and existing
 subscription status**, needed for the Phase 5 sending identity. The ask starts
 early because DNS changes at a small company can sit in an inbox for weeks.
-**Still unrecorded as of 2026-09-24**: nothing in the repo says whether RBI has
-answered (parking-lot item 96). Phase 5 is now current, so this is the item
-most likely to be waiting on someone else.
+**Still unrecorded as of 2026-10-05**: item 96 is open, and nothing in the repo
+says whether RBI has answered. The 2026-09-28 research narrowed the ask to two
+NS records delegating `send.roofbrokersinc.com` to a Cloudflare zone. Phase 5
+is current, so this is the item most likely to be waiting on someone else. Also
+open before the first send: whether the Constant Contact export is missing
+unsubscribes (item 129), final email copy (item 135) and a provider (item 119).
 
 ---
 
