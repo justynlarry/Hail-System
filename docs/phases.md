@@ -172,10 +172,11 @@ relied on.
 **Current phase** (Phase 4 closed 2026-09-24). **Begun 2026-09-23.**
 
 Starting point: `send_log`, `email_templates` and `dnc_list` exist from
-`sql/007` and are all empty. The legacy DNC lists are not yet imported, and
-that import comes before any send. No sending code and no provider yet.
+`sql/007`. `send_log` and `email_templates` are still empty. `dnc_list` was
+empty at the start and holds 759 suppressions since 2026-09-29. No sending code,
+no provider and no sending identity yet.
 
-**Progress, as of 2026-09-25 — groundwork only, nothing sends:**
+**Progress, as of 2026-10-05 — groundwork only, nothing sends** (bullets are in the order they landed; later ones follow the 09-28 items):
 - **CSV exports built** (parking-lot item 92): the matched listings for one
   storm, a bulk range export, and the realtor list (sender/admin only). They
   exclude suppressed agents by default and say a CSV is a snapshot; that is a
@@ -225,15 +226,29 @@ that import comes before any send. No sending code and no provider yet.
   required field. **Blocked on final copy** — the draft is short on
   purpose but still missing the testimonials, offer list, and images
   expected before any real send (item 135).
+- **Append-only enforced in the database, 2026-09-30** (`sql/029`, `030`,
+  `sql/guard_test.sql`): triggers on `send_log` and `email_templates`, with
+  `DELETE` and `TRUNCATE` revoked from `hail_app`. Applied to `hail-dev`, 18 of
+  18 checks passed; **not checked on the production box**. The table owner can
+  still `TRUNCATE`, accepted (decision log 2026-09-30).
+- **Address search, 2026-10-01** (`sql/031`, `/search`): informational only,
+  geocoded through the Census Geocoder. It does not touch the send path.
+- **Access and hardening, 2026-09-30 to 2026-10-02:** `hail-dev` is reachable
+  through a Cloudflare Tunnel with Access in front; the login hook denies by
+  default; CSV formula injection and export filenames fixed; one running pull
+  per storm (`sql/033`); `tiger` off the application roles' `search_path`
+  (`sql/032`); dark mode.
 - **Not started, and still the work of this phase:** the sending identity and
-  provider, template CRUD, the legacy DNC import, the suppression check in the
-  send transaction, the frequency cap, the send queue, bounce handling and
-  warmup.
+  provider, template CRUD, the suppression check in the send transaction, the
+  frequency cap, the send queue, bounce handling and warmup. Before the first
+  send: settle whether the Constant Contact export is missing about nine months
+  of unsubscribes (item 129), final email copy (item 135) and a provider (item
+  119).
 
 - Sending identity: subdomain, SPF/DKIM/DMARC
 - Provider selected and verified as permitting this kind of outreach
 - Template CRUD, versioning, merge-field validation on save
-- DNC import (legacy lists) — **before any send**
+- DNC import (legacy lists) — **done 2026-09-29, 759 suppressions**; completeness is item 129, **settle it before any send**
 - Suppression check in the send transaction
 - Frequency cap with a hard floor in the database
 - Send queue with throttling

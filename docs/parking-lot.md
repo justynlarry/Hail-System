@@ -1960,18 +1960,22 @@ re-synced through 2026-10-05 (§2 Phase 5 groundwork, §5, §6, §7, §8, §9, �
 `001`–`023`, and `docs/phases.md`'s Phase 5 checklist still says the legacy DNC
 import is not done (see item 161).
 
-## 161. `docs/phases.md` Phase 5 section still says the legacy DNC import is not done
+## 161. `docs/phases.md` Phase 5 section still said the legacy DNC import was not done
 
-**Status:** open
+**Status:** resolved 2026-10-05
 
 Found 2026-10-05 while re-syncing the consolidated brief. The Phase 5 starting
-point says "The legacy DNC lists are not yet imported", and its "Not started"
-list and checklist still carry the DNC import, but the same section's progress
-notes record it done on 2026-09-28/29. Its progress also stops at 2026-09-25 plus
-the later bullets: it does not mention `sql/029`/`030` (append-only triggers),
-address search, the Cloudflare Tunnel or `sql/033`.
+point said "The legacy DNC lists are not yet imported", and its "Not started"
+list and checklist still carried the DNC import, while the same section's
+progress notes recorded it done on 2026-09-28/29. Its progress also omitted
+`sql/029`/`030` (append-only triggers), address search, the Cloudflare Tunnel
+and `sql/033`.
 
 **When:** with the next docs pass, before Phase 5 send work.
+
+**Resolved 2026-10-05.** The starting point, the progress list, the "Not started"
+list and the DNC checklist line are corrected, and the missing work is added.
+The commit is the one that carries this entry; see `git log -- docs/phases.md`.
 
 ## 70. Permits as a source — corroboration first, roof age later
 
