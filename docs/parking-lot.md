@@ -1937,17 +1937,41 @@ switch; no doc mentioned it.
 per-browser, follows the OS by default". `command-ref.md`, the README and
 `hail-consolidated.md` were not changed.
 
-## 160. `db-schema-diagram.md`, `schema-review.md` and `hail-consolidated.md` lag the migrations
+## 160. `db-schema-diagram.md` and `hail-consolidated.md` lag the migrations
+
+**Status:** resolved 2026-10-05
+
+Found 2026-10-05. `db-schema-diagram.md` stopped at `sql/023`; a grep found
+nothing for `029`–`033` in it and nothing for `029`, `030`, `031` or `033` in
+`hail-consolidated.md`. Read against the SQL the same day: everything the
+diagram drew was correct, but it lacked `dnc_import_batches`, `dnc_import_rows`,
+`geocode_cache`, `address_searches`, `properties.address_key`,
+`listing_freshness_days`, the guard triggers and the `sql/033` index, and said a
+trigger fired on 4 columns that now fires on 5. The consolidated brief counted 23
+tables (27 in `sql/`), said append-only was still open (question 10), said the
+DNC import had not happened, and its `sql/` layout stopped at `023`.
+
+**When:** before Phase 5 send work, together with item 129.
+
+**Resolved 2026-10-05.** `191a7e0`: the diagram draws `sql/024`–`033`, and the
+consolidated brief's wrong statements were corrected. `a4071a9`: the brief was
+re-synced through 2026-10-05 (§2 Phase 5 groundwork, §5, §6, §7, §8, §9, §10,
+§11). **Not re-checked:** `schema-review.md` is still written against
+`001`–`023`, and `docs/phases.md`'s Phase 5 checklist still says the legacy DNC
+import is not done (see item 161).
+
+## 161. `docs/phases.md` Phase 5 section still says the legacy DNC import is not done
 
 **Status:** open
 
-Found 2026-10-05. `db-schema-diagram.md` and `schema-review.md` were last
-touched 2026-09-24. A grep for `029`–`033` finds nothing in the diagram, and
-nothing for `029`, `030`, `031` or `033` in `hail-consolidated.md` (`032` appears
-once). `geocode_cache` and `address_searches` are likely missing from the
-diagram. Only the grep was done; the three files were not read against the SQL.
+Found 2026-10-05 while re-syncing the consolidated brief. The Phase 5 starting
+point says "The legacy DNC lists are not yet imported", and its "Not started"
+list and checklist still carry the DNC import, but the same section's progress
+notes record it done on 2026-09-28/29. Its progress also stops at 2026-09-25 plus
+the later bullets: it does not mention `sql/029`/`030` (append-only triggers),
+address search, the Cloudflare Tunnel or `sql/033`.
 
-**When:** before Phase 5 send work, together with item 129.
+**When:** with the next docs pass, before Phase 5 send work.
 
 ## 70. Permits as a source — corroboration first, roof age later
 
