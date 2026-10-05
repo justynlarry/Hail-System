@@ -1892,6 +1892,63 @@ darkens the blues slightly in light mode, so it is a visible change. The
 **When:** whenever, or before Phase 6 if anyone outside the developer reads the
 app in light mode.
 
+## 157. `database-schema.md` was behind `sql/029`–`033`
+
+**Status:** resolved 2026-10-05
+
+Found 2026-10-05 in a docs review. The schema doc, last touched 2026-09-29, did
+not mention `sql/029`/`030` (append-only triggers on `send_log` and
+`email_templates`), `031` (`geocode_cache`, `address_searches`), `032` (role
+search_path) or `033` (one running pull per storm). It still said append-only was
+"application code only" and open question 10 was deferred, and its table count
+("Twenty-one") was already wrong: `sql/` has 27 `CREATE TABLE`s.
+
+**When:** before Phase 5 send work, so the doc matches the database that work
+will rely on.
+
+**Resolved 2026-10-05**, commit `3a595aa`: both guard triggers, the address
+search section, the search_path note and the `033` index are written up, question
+10 is marked resolved, and the count is 27 (counted from `sql/`, not a live
+database). Not checked against the running schema.
+
+## 158. Docs drift: `CLAUDE.md` schema path, `phases.md` Phase 4 date
+
+**Status:** resolved 2026-10-05
+
+Found 2026-10-05. `CLAUDE.md` said to read `database-schema.md`, which is
+`docs/database-schema.md` (no copy at the root). `phases.md` said Phase 4 closed
+2026-09-23; it closed 2026-09-24 (first marked closed 09-23, then held open a
+day).
+
+**When:** with the next docs pass.
+
+**Resolved 2026-10-05**, commit `3a595aa`.
+
+## 159. Dark mode (`2a86732`) had no documentation
+
+**Status:** resolved 2026-10-05
+
+Found 2026-10-05. The commit added `theme.js`, theme variables and a header
+switch; no doc mentioned it.
+
+**When:** with the next docs pass.
+
+**Resolved 2026-10-05**, commit `3a595aa`: decision-log entry "Dark mode:
+per-browser, follows the OS by default". `command-ref.md`, the README and
+`hail-consolidated.md` were not changed.
+
+## 160. `db-schema-diagram.md`, `schema-review.md` and `hail-consolidated.md` lag the migrations
+
+**Status:** open
+
+Found 2026-10-05. `db-schema-diagram.md` and `schema-review.md` were last
+touched 2026-09-24. A grep for `029`–`033` finds nothing in the diagram, and
+nothing for `029`, `030`, `031` or `033` in `hail-consolidated.md` (`032` appears
+once). `geocode_cache` and `address_searches` are likely missing from the
+diagram. Only the grep was done; the three files were not read against the SQL.
+
+**When:** before Phase 5 send work, together with item 129.
+
 ## 70. Permits as a source — corroboration first, roof age later
 
 **Status:** open (parked) — gated on item 70 ("until the system is running")
