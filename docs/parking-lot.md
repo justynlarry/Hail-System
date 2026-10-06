@@ -840,6 +840,14 @@ From address and headers of one recent RBI send. Also: only one domain can be
 self-authenticated per Constant Contact account. If RBI's existing account is
 used instead of our own, that choice is hard to reverse.
 
+**Evidence from the dev domain, 2026-10-06 (item 170).** A trial account
+self-authenticated `roofbrokersinc-weather.com`, a root domain whose zone we
+control, with the two `ctct1`/`ctct2` CNAMEs, and sent as that domain with the
+From unchanged and DMARC passing on DKIM. So the mechanism works end to end for a
+root domain. Still unconfirmed: whether Constant Contact accepts a **subdomain**
+such as `send.roofbrokersinc.com` for self-authentication. The ask to Constant
+Contact support stands.
+
 ## 100. New-construction properties share a subdivision point
 
 **Status:** dropped 2026-10-02
@@ -2164,7 +2172,7 @@ same moment. **When:** before the first send, or when a second process can refre
 
 ## 170. Does Constant Contact set Reply-To on a rewritten From?
 
-**Status:** partly answered 2026-10-06; the original email's headers are still needed
+**Status:** resolved 2026-10-06, scoped to a self-authenticated domain on a trial account
 
 Without self-authentication Constant Contact rewrites the visible From to
 `@shared1.ccsend.com` (paid) or `@shared2.ccsend.com` (trial). Unknown whether
@@ -2195,6 +2203,28 @@ nothing yet about RBI's sending identity (item 96).
 **When:** read the raw headers of the original message in the receiving inbox
 (`From`, `Reply-To`, `DKIM-Signature` `d=`, `Authentication-Results`); that closes
 this item.
+
+**Resolved 2026-10-06, from the original message's raw headers.**
+`From: "Roof Brokers, Inc." <justyn@roofbrokersinc-weather.com>` and
+`Reply-To: justyn@roofbrokersinc-weather.com`: the From was not rewritten and
+Reply-To was set explicitly to the same address, so a reply reaches the sender
+(it went to that address and was forwarded to the Gmail inbox). Two DKIM signatures
+passed: `d=roofbrokersinc-weather.com` selector `ctct1` (aligned with the From, so
+DMARC passed) and `d=auth7.ccsend.com`. SPF passed for `in.constantcontact.com`,
+which is not the From domain, so DMARC passed on DKIM alone, consistent with
+Constant Contact not supporting SPF alignment. The DNS agrees: `ctct1` and `ctct2`
+`_domainkey` CNAMEs on `roofbrokersinc-weather.com` point at
+`100._domainkey.dkim1.ccsend.com` and `200._domainkey.dkim2.ccsend.com`, the two
+self-authentication records.
+
+**Scope, so this is not over-read.** The account is a free trial; production will
+be paid, and paid behaviour is not tested. The domain was self-authenticated, so
+this does not show what a rewrite looks like. The earlier claim that an
+unauthenticated sender is rewritten to `@shared2.ccsend.com` (trial) or
+`@shared1.ccsend.com` (paid) was conditional and is not contradicted; it is just
+untested. It was a campaign sent from the UI (`X-Campaign-Activity-ID`), so it
+says nothing about per-recipient API sends. A trial account can self-authenticate
+a domain.
 
 ## 171. `tests/test_cc_tokens.py` fails under the host Python
 
@@ -2317,6 +2347,23 @@ not mention it, nor its trigger and its grant shape (SELECT, INSERT, DELETE for
 
 **When:** as one pass over the three docs, with the next migration or before the
 next schema review.
+
+## 178. The test email had an unsubscribe link in the body but no `List-Unsubscribe` header
+
+**Status:** open
+
+Found 2026-10-06 reading the raw headers of a Constant Contact test message
+(item 170). The body carries an unsubscribe link (reported by the sender); the
+headers carry no `List-Unsubscribe` or `List-Unsubscribe-Post`, and the DKIM
+`h=` list does not sign them either. The body link meets CAN-SPAM's opt-out
+requirement (item 120). The header is a separate thing: it is what lets Gmail and
+Yahoo show their own unsubscribe button, and their bulk-sender rules ask for the
+one-click form at high volume. A test message to one recipient may simply not get
+it; real campaign sends were not checked, and per-recipient API sends were not
+tried at all.
+
+**When:** before the first real send. Send a campaign to a Gmail inbox with a
+second recipient and read the headers again, and check how an API send behaves.
 
 ## 70. Permits as a source — corroboration first, roof age later
 
