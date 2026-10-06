@@ -173,8 +173,9 @@ relied on.
 
 Starting point: `send_log`, `email_templates` and `dnc_list` exist from
 `sql/007`. `send_log` and `email_templates` are still empty. `dnc_list` was
-empty at the start and holds 759 suppressions since 2026-09-29. No sending code,
-no provider and no sending identity yet.
+empty at the start and holds 759 suppressions since 2026-09-29. No sending code
+and no sending identity yet. Provider chosen 2026-10-06: Constant Contact (decision
+log; item 119 closed by decision, not yet confirmed in writing).
 
 **Progress, as of 2026-10-05 — groundwork only, nothing sends** (bullets are in the order they landed; later ones follow the 09-28 items):
 - **CSV exports built** (parking-lot item 92): the matched listings for one
@@ -242,11 +243,12 @@ no provider and no sending identity yet.
   provider, template CRUD, the suppression check in the send transaction, the
   frequency cap, the send queue, bounce handling and warmup. Before the first
   send: settle whether the Constant Contact export is missing about nine months
-  of unsubscribes (item 129), final email copy (item 135) and a provider (item
-  119).
+  of unsubscribes (item 129) and final email copy (item 135). The provider is
+  chosen (Constant Contact, 2026-10-06); its token table and OAuth flow are the
+  next build (items 168, 169, 170).
 
 - Sending identity: subdomain, SPF/DKIM/DMARC
-- Provider selected and verified as permitting this kind of outreach
+- Provider selected (Constant Contact, 2026-10-06) and verified as permitting this kind of outreach (still unconfirmed in writing; item 119)
 - Template CRUD, versioning, merge-field validation on save
 - DNC import (legacy lists) — **done 2026-09-29, 759 suppressions**; completeness is item 129, **settle it before any send**
 - Suppression check in the send transaction

@@ -65,8 +65,8 @@ imported 2026-09-29 through the admin upload (`/admin`, `sql/026`,
 `hailsys/queries/dncimport.py`) from the Constant Contact export plus the
 Airtable-only entries. That union may still be incomplete (`docs/parking-lot.md`
 item 129: the Constant Contact export may be missing ~9 months of
-unsubscribes) — settle it before the first send. No sending code and no
-provider chosen.
+unsubscribes) — settle it before the first send. No sending code. Provider chosen 2026-10-06:
+Constant Contact (decision log, item 119).
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
 with CSV export → 3 RentCast listings → 4 accounts → 5 email → 6 pilot →
@@ -89,9 +89,12 @@ Do not build ahead of the current phase.
 ingest to an outbound message. A human clicks send. Do not add scheduled sends,
 auto-followups, or "helpful" automation around sending.
 
-**The suppression check runs against `dnc_list` at send time, in the same
-transaction as the send.** Not in the UI, not from a cached list, not from a
-flag on the realtor row. If a rule must hold, it holds in the database.
+**The suppression check runs against `dnc_list` at send time.** Not in the UI,
+not from a cached list, not from a flag on the realtor row. If a rule must hold,
+it holds in the database. With an external provider (Constant Contact) the HTTP
+call cannot share a transaction with the check, so: the send list excludes
+`dnc_list`, the check runs again immediately before each call, and the `send_log`
+row is committed first. See decision log 2026-10-06.
 
 **Storm reports are never deleted and never collapsed to zip codes at write
 time.** Full lat/lon fidelity in, zips derived on read. The buffer radius is a
@@ -219,3 +222,12 @@ Explain reasoning briefly when making a non-obvious choice. Do not silently
 refactor working code. Do not add features that were not asked for.
 
 Plan first, build second.
+
+**Code is keyed in by the user, not written by Claude.** For anything that is code
+(`.py`, `.sql`, `.yml`, shell scripts, templates, config), do not edit or create
+the file and do not run a build or install. Print the exact text and where it
+goes, as numbered instructions, wait for the user to say it is done, then read the
+file back and check it against what was given. This is how the user is learning.
+Documentation (`.md`) is different: once the user approves a proposed change,
+Claude makes the edit. Reading, diagnosing and running read-only checks are
+unaffected.

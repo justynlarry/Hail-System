@@ -830,6 +830,16 @@ waiting on someone else.
 
 **Status, 2026-09-30:** open. The ask to RBI is in progress and this is gated on their answer. Checked the same day with `dig`: no NS, TXT or A record exists for `send.roofbrokersinc.com`, so the delegation has not been added yet.
 
+**Constant Contact, 2026-10-06.** Open questions that decide the wording of the
+ask: (1) whether Constant Contact accepts `send.roofbrokersinc.com` for
+self-authentication (its docs say "domain" throughout; ask support before
+building on it); (2) whether RBI's own Constant Contact account is
+self-authenticated at all. No `ctct1`/`ctct2`/`100`/`200`/`300` CNAMEs exist on
+the root, so its mail may be going out as `@shared1.ccsend.com`; check the
+From address and headers of one recent RBI send. Also: only one domain can be
+self-authenticated per Constant Contact account. If RBI's existing account is
+used instead of our own, that choice is hard to reverse.
+
 ## 100. New-construction properties share a subdivision point
 
 **Status:** dropped 2026-10-02
@@ -1089,7 +1099,7 @@ passed. Accepted on that basis. **When:** same trigger as item 111.
 
 ## 119. Mainstream email-sending providers all prohibit this use case
 
-**Status:** open
+**Status:** resolved by decision 2026-10-06 (caveat: not confirmed in writing)
 
 Fetched the current AUP/ToS directly from SendGrid, Postmark, Mailgun,
 Resend, and Amazon SES, 2026-09-28: every one prohibits sending to a
@@ -1114,6 +1124,13 @@ made)." A concrete build estimate (VPS, Postfix, DKIM/SPF/DMARC on
 `send.roofbrokersinc.com`, `smtplib`) and its genuine advantage over
 Constant Contact (the DNC check can run in the same transaction as the
 send) are recorded there.
+
+**Closed 2026-10-06 by decision, not by evidence.** Constant Contact is the Phase 5
+provider; see `docs/decision-log.md`, "Constant Contact chosen as the Phase 5
+provider". The item's own trigger (the use case in writing from the provider) has
+not happened. Constant Contact's terms for this use case are unconfirmed, and the
+dev trial is the test. If the trial or RBI's account hits a policy wall, this item
+reopens.
 
 ## 120. Email templates need CAN-SPAM's footer requirements built in
 
@@ -1224,6 +1241,14 @@ tool is consistent. Not known: whether Constant Contact tracks other
 suppression statuses this export omits. **Next:** ask RBI to read the total
 count, newest date and any other suppression statuses from the Constant Contact
 UI. Close when that matches 719 / 2025-09-16, or import what differs.
+
+**Related, 2026-10-06.** Someone who unsubscribes through Constant Contact's own
+footer lands in Constant Contact's suppression list, not in `dnc_list`. With
+Constant Contact as the provider (decision log 2026-10-06) nothing copies those
+back. Needs a pull of Constant Contact's suppressions into `dnc_list` (a sync,
+user-initiated or scheduled, never a send path). Settle the design with this
+item's export question: both are about whether `dnc_list` matches Constant
+Contact's.
 
 ## 130. `dnc_list.realtor_id` isn't maintained automatically
 
@@ -2087,6 +2112,170 @@ the same call already made for `match_runs_storm_idx` (`schema-review.md` §2).
 
 **When:** with the next migration that touches one of these four tables, or the
 next time the FK naming convention is enforced across the schema.
+
+## 168. Constant Contact tokens: encryption at rest, and tokens never in logs
+
+**Status:** open
+
+The Constant Contact OAuth2 grant (decision log 2026-10-06) is the first live
+credential stored in the database; every secret so far lives in `.env`. A dump,
+backup or stray SELECT would otherwise hold something that acts on RBI's account
+(access token about 24 hours, refresh token 180 days unused). Decided: encrypt in
+Python before insert, key from `.env`; pgcrypto rejected because the key would sit
+in query text and item 99 means logging is unconfigured. Needs the `cryptography`
+package (approved 2026-10-06, not yet installed). Rule that goes with it: a token
+never appears in a log line or an exception message, including a failed refresh.
+Needs a test.
+
+**When:** before `sql/034` and the Constant Contact module are written.
+
+## 169. Rotating refresh tokens need serializing
+
+**Status:** open
+
+Each refresh invalidates the previous token, so two concurrent refreshes (two web
+requests) lose the grant, and recovery is re-running the authorization by hand.
+Plan: `pg_advisory_xact_lock`, re-read the latest token row, refresh only if still
+expired, insert, commit, and only then use the new token. Persist-then-use is the
+whole discipline; the lock is the part it does not cover. Note that item 51 chose
+an index over an advisory lock for pulls because the index gave the guarantee;
+here no index can, since the failure is on Constant Contact's side.
+
+**When:** with the refresh path in the Constant Contact module.
+
+## 170. Does Constant Contact set Reply-To on a rewritten From?
+
+**Status:** open
+
+Without self-authentication Constant Contact rewrites the visible From to
+`@shared1.ccsend.com` (paid) or `@shared2.ccsend.com` (trial). Unknown whether
+replies still reach the verified address. A campaign that expects replies needs
+this answered. Trial limit: about 100 sends total, length stated as 14 or 30 days
+(confirm at signup).
+
+**When:** the trial header test: one send to yourself, read the raw headers.
+
+## 171. `tests/test_cc_tokens.py` fails under the host Python
+
+**Status:** open
+
+Found 2026-10-06. The file imports `cryptography` at the top, and the host Python
+does not have it (the package is in the `web` and `app` images only), so
+`python3 -m unittest discover -s tests`, the run `README.md` documents, now ends
+with an error instead of passing. `tests/test_cc_tokens_db.py` avoids this with a
+try/except around its imports and skips when the package or the database is
+missing. The pure test should do the same. Until then the container run
+(`docker compose run --rm --no-deps -v ./tests:/app/tests:ro web python -m
+unittest tests.test_cc_tokens`) is the one that works, and README's test
+instructions and its "100 cases" count are stale for both new files.
+
+**When:** with the next edit to `tests/test_cc_tokens.py`, and before anyone
+relies on the host run as the whole suite.
+
+## 172. `scripts/status.sh images` reports an image stale when the file changed before the build
+
+**Status:** open
+
+Found 2026-10-06. After `requirements.txt` was edited (17:29:08Z) and `web` and
+`app` rebuilt from it (image created 17:29:22Z), `status.sh images` still printed
+`STALE: requirements.txt` for both, and the installed package matched the file.
+The cause is in `cmd_images`: it lists every uncommitted file plus every commit
+newer than the image, and cannot tell an edit made before the build from one made
+after it. A file changed and then built from stays "stale" until committed, and
+committing it after the build keeps it listed, because the commit is newer than
+the image. The output is a false positive, not a missed change, so it errs safe,
+but it trains the reader to ignore the line it exists to show.
+
+**Considered:** comparing each file's mtime to the image's creation time for
+uncommitted files, and the commit time for committed ones, instead of listing
+them all.
+
+**When:** the next time `status.sh images` is read and the answer matters, for
+instance before trusting `ingest` for a nightly run after a change.
+
+## 173. Constant Contact's auth server rejects Python's default User-Agent
+
+**Status:** resolved 2026-10-06 (`5e4983b`)
+
+Found 2026-10-06 on the first Connect click: the token exchange failed with
+`Constant Contact refused the request (403, unknown)` and no `error` field. Tested
+with dummy credentials: `Python-urllib/3.x`, urllib's default agent, got a 403 HTML
+page from Cloudflare, which sits in front of `authz.constantcontact.com`; the same
+request with a custom `User-Agent` reached the OAuth server and got a 401 JSON
+`invalid_client`. The real credentials were never checked, so the failure looked
+like a credentials problem and was not one. Fixed with `USER_AGENT` in
+`hailsys/constantcontact/oauth.py`, sent on the token and account requests, and a
+test that fails if either request goes without it. The agent states who we are; it
+does not imitate a browser.
+
+**Related finding in the same response:** the error JSON is Okta-shaped
+(`errorCode`, `errorSummary`), not `error`. `_error_code` reads both now (item 174).
+
+**When:** the next outside API integration. A bare 403 from a provider behind
+Cloudflare is worth a User-Agent check before the credentials.
+
+## 174. `_error_code` accepts only lowercase letters and underscores
+
+**Status:** open
+
+Found 2026-10-06. `hailsys/constantcontact/oauth.py` line 84 matches
+`r"[a-z_]{1,40}"`, so an error code with a capital or a digit (Okta's own
+`E0000011` style) is logged as `unknown`. The match is deliberately narrow so
+nothing but a short code can reach the log; the fix is to widen it to
+`r"[A-Za-z0-9_]{1,40}"`, which still excludes spaces and punctuation. Not yet
+made; the current tests use lowercase codes and pass either way.
+
+**When:** the next edit to `oauth.py`, or the first time a real error shows up
+as `unknown`.
+
+## 175. The connection bar cannot see a revoked or lapsed grant
+
+**Status:** accepted 2026-10-06
+
+The green/red bar on the Admin and Storm Days pages (`hailsys/queries/ccstate.py`)
+reads the database only, by design: a page load must cost nothing and must not
+fail because Constant Contact is down. So it shows "connected" whenever a token
+row exists, and keeps showing it after a grant is revoked on Constant Contact's
+side or its refresh token lapses, until a refresh fails. How long an unused
+refresh token lives is not in the documentation read (`server_flow.html`); the
+180 days used earlier in this project is unverified.
+
+**Accepted** because nothing sends yet, and a failed refresh is not silent: it
+logs an error (critical if the provider answered but the new token could not be
+saved) and an admin gets the message on `/cc/`.
+
+**When:** before the first real send. Find out what a dead grant looks like, check
+the refresh-token lifetime with Constant Contact, and decide whether the bar
+should warn on the age of the last issue.
+
+## 176. `.env` was world-readable, and one empty `HAIL_TOKEN_KEY=` line was written
+
+**Status:** resolved 2026-10-06 (no commit: `.env` is untracked)
+
+Found 2026-10-06 while adding the Constant Contact settings. `.env` had mode `644`
+and holds the database passwords, the Flask secret, the RentCast key and now the
+Constant Contact secret and the token encryption key. Set to `600`. Separately,
+`echo "HAIL_TOKEN_KEY=$(docker compose run ...)" >> .env` ran with the inner
+command failing, which expands to nothing, so `echo` appended an empty
+`HAIL_TOKEN_KEY=` line anyway. Removed with `sed`. The generator now runs through
+`docker run` on the built image (compose refuses to start while a required
+variable is missing, which the new variable was) and writes only if the key came
+back non-empty; the command is in `.env.example`.
+
+**When:** the production OptiPlex needs the same: `.env` at `600`, and the key
+backed up outside the box (losing it means re-authorizing by hand).
+
+## 177. The schema docs do not know about `oauth_tokens`
+
+**Status:** open
+
+`sql/034` (2026-10-06) made 32 tables. `docs/database-schema.md`,
+`docs/schema-review.md` (covers `sql/001`-`033`) and `docs/db-schema-diagram.md` do
+not mention it, nor its trigger and its grant shape (SELECT, INSERT, DELETE for
+`hail_app`; nothing for `hail_ingest`). The same lag as items 160 and 162.
+
+**When:** as one pass over the three docs, with the next migration or before the
+next schema review.
 
 ## 70. Permits as a source — corroboration first, roof age later
 

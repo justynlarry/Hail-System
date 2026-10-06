@@ -6474,3 +6474,35 @@ remembered.
 **Found while building it:** four light-mode colour pairs were already below WCAG
 AA (4.5:1). Dark mode meets 4.5 for every pair. Filed as parking-lot item 156,
 open.
+
+## 2026-10-06 — Constant Contact chosen as the Phase 5 provider
+
+Closes item 119 by decision (caveat there). Built against a dev trial first, then
+RBI's own account or ours when the production path is decided (item 96).
+
+**Suppression rule, relaxed for an external provider.** CLAUDE.md required the
+`dnc_list` check in the same transaction as the send. An HTTP call to Constant
+Contact cannot sit inside a Postgres transaction. What holds instead: the send list
+is built excluding `dnc_list`; `dnc_list` is checked again immediately before each
+API call; and the `send_log` row is committed before the call. This narrows the
+window; it does not close it, and the first send must not happen until it is
+accepted knowingly. Open: Constant Contact's own unsubscribes do not flow into
+`dnc_list` (item 129, "Related").
+
+**Tokens.** Rotating refresh tokens, a new row per refresh, the latest by id wins.
+Not append-only forever: `hail_app` may INSERT and DELETE but never UPDATE, and a
+trigger permits deleting only a row that is older than 30 days and not the latest
+for its provider and account. Rotation makes every older row a dead credential by
+construction, so keeping them has no audit value, unlike `send_log`; the 30 days is
+a debugging window for the grant timeline, and is longer than strictly needed.
+Each refresh purges what has aged out, so no timer is needed. Encrypted in
+Python, key in `.env` (item 168). Refreshes serialized by an advisory lock, new
+token committed before it is used (item 169). `account_id` is a column from the
+start. A dedicated role is deferred until refresh moves to its own container,
+because the web app process would hold the second connection string anyway.
+
+**Considered and not chosen.** Long-lived tokens: lower operations cost, but an
+append-only log would accumulate copies of a still-valid secret. pgcrypto: key in
+query text.
+
+**Related:** items 96, 119, 129, 168, 169, 170.
