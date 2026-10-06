@@ -3,6 +3,7 @@
 {% block heading %}Recent storm days{% endblock %}
 
 {% block content %}
+{% include "_cc_status.html" %}
 <script src="{{ url_for('static', filename='storms.js') }}" defer></script>
 {% include "_pull_banner.html" %}
 <section class="activity-panel">

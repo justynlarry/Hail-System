@@ -119,6 +119,10 @@ services:
       PGPASSWORD: ${HAIL_APP_PASSWORD:?HAIL_APP_PASSWORD is not set --see .env.example}
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY is not set -- see .env.example}
       RENTCAST_KEY: ${RENTCAST_KEY:?}
+      CC_API_KEY: ${CC_API_KEY:?CC_API_KEY is not set --see .env.example}
+      CC_API_SECRET: ${CC_API_SECRET:?CC_API_SECRET is not set --see .env.example}
+      HAIL_TOKEN_KEY: ${HAIL_TOKEN_KEY:?HAIL_TOKEN_KEY is not set --see .env.example}
+      CC_REDIRECT_URI: ${CC_REDIRECT_URI:?CC_REDIRECT_URI is not set -- see .env.example}
     ports:
       - "127.0.0.1:8000:8000"
     networks:

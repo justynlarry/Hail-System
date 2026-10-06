@@ -309,6 +309,19 @@ button.expand:hover { border-color: var(--accent); color: var(--accent); }
 .health-ok    { color: var(--ok); font-weight: 600; }
 .health-stale { color: var(--bad); font-weight: 600; }
 
+/* Constant Contact connection state (_cc_status.html).  Both states are solid
+   bars with fixed colours, not theme variables, so the link inside can be white
+   in every state (visited, hover) and both themes: a link colour tuned for the
+   page background is unreadable on a coloured bar. */
+.cc-status { margin: 0.5rem 1.5rem; padding: 0.5rem 0.75rem; border-radius: 4px;
+             color: #fff; font-weight: 600; }
+.cc-ok   { background: #1a7f37; }
+.cc-down { background: #b42318; }
+.cc-status a,
+.cc-status a:visited,
+.cc-status a:hover,
+.cc-status a:active { color: #fff; text-decoration: underline; }
+
 /* Pages without .split still need the page margin */
 h1 ~ table, h1 ~ p, h1 ~ .table-scroll { margin-left: 1.5rem; margin-right: 1.5rem; }
 /* A table is width: 100% (above), so a side margin on top of it pushes its

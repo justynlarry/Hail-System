@@ -11,7 +11,7 @@
 <div class="page admin-page">
 
 <section>
-  <details {% if form %}open{% endif %}>
+  <details {% if form.user_name or form.first_name or form.last_name or form.email %}open{% endif %}>
     <summary>Add user</summary>
     <form method="post" action="{{ url_for('admin.create_user') }}" class="admin-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -40,6 +40,10 @@
   </details>
 </section>
 
+<section>
+  <h2>Integrations</h2>
+  {% include "_cc_status.html" %}
+</section>
 
 <section>
   <h2>Users</h2>

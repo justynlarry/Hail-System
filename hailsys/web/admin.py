@@ -2,7 +2,7 @@ import psycopg
 
 from flask import Blueprint, flash, g, redirect, render_template, request, url_for
 
-from hailsys.queries import quota, dncimport
+from hailsys.queries import quota, dncimport, ccstate
 from hailsys.db import get_connection
 from hailsys.web.auth import MIN_PASSWORD_LENGTH, hash_password, require_role
 from hailsys.tuning import DISPLAY_TZ, denver_day_bounds
@@ -102,6 +102,7 @@ def _render_admin(form=None, status=200):
             (HISTORY_LIMIT,),
         )
         history = cur.fetchall()
+        cc = ccstate.fetch_state(conn)
 
     return render_template(
         "admin.html",
@@ -114,6 +115,7 @@ def _render_admin(form=None, status=200):
         roles=ROLES,
         min_password_length=MIN_PASSWORD_LENGTH,
         usage=usage,
+        cc=cc,
     ), status
 
 def _user_action(sql, params, ok_message):

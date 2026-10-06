@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Constant Contact — Hail System{% endblock %}
+{% block heading %}Constant Contact{% endblock %}
+
+{% block content %}
+<div class="page admin-page">
+
+<section>
+  <h2>Connection</h2>
+  {% if grant %}
+  <table>
+    <tbody>
+      <tr><th>Account</th><td>{{ grant.account_id }}</td></tr>
+      <tr><th>Scopes</th><td>{{ grant.scope }}</td></tr>
+      <tr><th>Access token expires</th>
+          <td>{{ grant.access_expires_at.astimezone(display_tz).strftime("%Y-%m-%d %H:%M") }}</td></tr>
+      <tr><th>Last issued</th>
+          <td>{{ grant.created_at.astimezone(display_tz).strftime("%Y-%m-%d %H:%M") }}</td></tr>
+    </tbody>
+  </table>
+  {% else %}
+  <p>Not connected.</p>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('cc.connect') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit">{{ "Reconnect" if grant else "Connect" }} Constant Contact</button>
+  </form>
+
+  {% if grant %}
+  <form method="post" action="{{ url_for('cc.refresh') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit">Refresh token now</button>
+  </form>
+  <p><small>A refresh replaces the stored token. Nothing refreshes by itself.</small></p>
+  {% endif %}
+</section>
+
+</div>
+{% endblock %}

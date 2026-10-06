@@ -1,0 +1,15 @@
+{# Constant Contact connection state.  From the database only, never an API
+   call.  Needs `cc` (queries/ccstate.fetch_state) and `display_tz`.  The link
+   is for admins: /cc/ is admin-only and would 403 anyone else. #}
+{% if cc.connected %}
+<div class="cc-status cc-ok">
+  Constant Contact connected (token issued
+  {{ cc.issued_at.astimezone(display_tz).strftime("%Y-%m-%d %H:%M") }}).
+  {% if session.role == 'admin' %}<a href="{{ url_for('cc.index') }}">Manage</a>{% endif %}
+</div>
+{% else %}
+<div class="cc-status cc-down">
+  Constant Contact is NOT connected. Email cannot be sent until it is.
+  {% if session.role == 'admin' %}<a href="{{ url_for('cc.index') }}">Connect it</a>{% endif %}
+</div>
+{% endif %}

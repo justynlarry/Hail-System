@@ -15,7 +15,7 @@ from hailsys.rentcast.estimate import estimate_pull
 from hailsys.web.jobs import start_pull, PullInProgress
 from hailsys.db import get_connection
 from hailsys.formatting import csv_safe, magnitude
-from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest
+from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest, ccstate
 from hailsys.tuning import (
     DISPLAY_TZ,
     RECENT_PULL_WINDOW_DAYS,
@@ -256,6 +256,8 @@ def index():
             now=datetime.now(timezone.utc),
             stale_after=INGEST_STALE_AFTER,
         )
+        cc = ccstate.fetch_state(conn)
+        
 
     for row in rows:
         row["work_state"] = workstate.state_for(
@@ -274,6 +276,7 @@ def index():
         feed_since=since,
         feed_limit=FEED_PANEL_LIMIT,
         display_tz=DISPLAY_TZ,
+        cc=cc,
         usage=usage,
         banner=banner,
         page=page,
@@ -281,6 +284,7 @@ def index():
         total_days=total_days,
         filter_args={k: v for k, v in request.args.items() if k != "page"},
         health=health,
+        
     )
 
 @bp.route("/storms/zips")

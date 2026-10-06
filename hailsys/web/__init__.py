@@ -60,6 +60,9 @@ def create_app():
     from . import search
     app.register_blueprint(search.search_bp)
 
+    from . import cc
+    app.register_blueprint(cc.cc_bp)
+
     # Populates g.user on every request; login_required and role_required
     # both read it. Without this registration g.user is never set, and both
     # decorators raise AttributeError instead of redirecting to login.

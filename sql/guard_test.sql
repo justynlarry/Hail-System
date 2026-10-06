@@ -137,8 +137,40 @@ SELECT pg_temp.expect('a new running pull after that is allowed',
              '1999-01-01', 'GUARD-TEST', 1, 1, 'running')$q$, 'ok');
 
 
+-- oauth_tokens (sql/034): insert-only; delete only old, non-latest rows.
+-- created_at is set by hand to simulate age; the whole file rolls back.
+SELECT pg_temp.expect('oauth_tokens insert (40 days old)',
+  $q$INSERT INTO oauth_tokens (provider, account_id, access_token_enc,
+                               refresh_token_enc, scope, access_expires_at,
+                               created_at)
+     VALUES ('constant_contact', 'guard-test', '\x01', '\x02',
+             'contact_data', now(), now() - interval '40 days')$q$, 'ok');
+SELECT pg_temp.expect('oauth_tokens unknown provider blocked',
+  $q$INSERT INTO oauth_tokens (provider, account_id, access_token_enc,
+                               refresh_token_enc, scope, access_expires_at)
+     VALUES ('mailchimp', 'guard-test', '\x01', '\x02',
+             'contact_data', now())$q$, '23514');
+SELECT pg_temp.expect('oauth_tokens UPDATE blocked',
+  $q$UPDATE oauth_tokens SET scope = 'x' WHERE account_id = 'guard-test'$q$, '23001');
+SELECT pg_temp.expect('oauth_tokens old but latest: DELETE blocked',
+  $q$DELETE FROM oauth_tokens WHERE account_id = 'guard-test'$q$, '23001');
+SELECT pg_temp.expect('oauth_tokens newer row inserted',
+  $q$INSERT INTO oauth_tokens (provider, account_id, access_token_enc,
+                               refresh_token_enc, scope, access_expires_at)
+     VALUES ('constant_contact', 'guard-test', '\x03', '\x04',
+             'contact_data', now())$q$, 'ok');
+SELECT pg_temp.expect('oauth_tokens old and superseded: DELETE allowed',
+  $q$DELETE FROM oauth_tokens
+     WHERE account_id = 'guard-test' AND access_token_enc = '\x01'$q$, 'ok');
+SELECT pg_temp.expect('oauth_tokens young and latest: DELETE blocked',
+  $q$DELETE FROM oauth_tokens
+     WHERE account_id = 'guard-test' AND access_token_enc = '\x03'$q$, '23001');
+
+
+
 ROLLBACK;
 
 -- Nothing should have survived.
 SELECT (SELECT count(*) FROM email_templates) AS templates,
-       (SELECT count(*) FROM send_log)        AS send_log_rows;
+       (SELECT count(*) FROM send_log)        AS send_log_rows,
+       (SELECT count(*) FROM oauth_tokens)    AS oauth_token_rows;
