@@ -2115,7 +2115,7 @@ next time the FK naming convention is enforced across the schema.
 
 ## 168. Constant Contact tokens: encryption at rest, and tokens never in logs
 
-**Status:** open
+**Status:** resolved 2026-10-06 (`5e4983b`)
 
 The Constant Contact OAuth2 grant (decision log 2026-10-06) is the first live
 credential stored in the database; every secret so far lives in `.env`. A dump,
@@ -2129,9 +2129,18 @@ Needs a test.
 
 **When:** before `sql/034` and the Constant Contact module are written.
 
+**Resolved 2026-10-06.** `hailsys/constantcontact/tokens.py` encrypts with Fernet
+before insert, key `HAIL_TOKEN_KEY` from `.env` (`web` only), `cryptography==50.0.2`
+installed. A token never reaches a log line or an exception: every message is fixed
+text, `from None` drops the cause, `Grant` and `Issued` hide their token fields from
+`repr()`, and only a short `error` code is taken from an error response. Tests
+(`tests/test_cc_tokens.py`, `tests/test_cc_oauth.py`) fail if any of that regresses.
+Checked live: the stored columns are ciphertext, and no token string appears in the
+web logs.
+
 ## 169. Rotating refresh tokens need serializing
 
-**Status:** open
+**Status:** resolved 2026-10-06 (`5e4983b`), one residual
 
 Each refresh invalidates the previous token, so two concurrent refreshes (two web
 requests) lose the grant, and recovery is re-running the authorization by hand.
@@ -2143,9 +2152,19 @@ here no index can, since the failure is on Constant Contact's side.
 
 **When:** with the refresh path in the Constant Contact module.
 
+**Resolved 2026-10-06.** `oauth.get_access_token` takes `pg_advisory_xact_lock`,
+re-reads the latest row, refreshes only if still stale, inserts, commits, and only
+then returns the token; if the provider answered but the insert fails it logs
+CRITICAL and says to reconnect. A test pins the order lock, call, save, commit.
+Checked live: two refreshes 34 seconds apart gave rows 82 and 83, each with a new
+access and refresh token, so the stored refresh token works for the next refresh.
+
+**Residual:** the lock has not been exercised by two requests refreshing at the
+same moment. **When:** before the first send, or when a second process can refresh.
+
 ## 170. Does Constant Contact set Reply-To on a rewritten From?
 
-**Status:** open
+**Status:** partly answered 2026-10-06; the original email's headers are still needed
 
 Without self-authentication Constant Contact rewrites the visible From to
 `@shared1.ccsend.com` (paid) or `@shared2.ccsend.com` (trial). Unknown whether
@@ -2154,6 +2173,28 @@ this answered. Trial limit: about 100 sends total, length stated as 14 or 30 day
 (confirm at signup).
 
 **When:** the trial header test: one send to yourself, read the raw headers.
+
+**Partly answered, 2026-10-06.** A test email went out through Constant Contact and
+was replied to. The reply's headers: `From: justynlarry@gmail.com` (the recipient
+replying), `To: justyn@roofbrokersinc-weather.com`, and `In-Reply-To` and
+`References` naming a `...@synd.ccsend.com` Message-ID, so it answers a Constant
+Contact message. A reply goes to the original's `Reply-To` if it has one and to its
+`From` otherwise, so the original named `justyn@roofbrokersinc-weather.com` in one
+of the two. That address is on a Cloudflare zone with Email Routing, and the
+reply's `X-Forwarded-For: justyn@roofbrokersinc-weather.com rbi.justyn@gmail.com`
+shows it forwarded to and delivered at `rbi.justyn@gmail.com`. So replies do reach
+the verified address.
+
+**What this does not settle:** which of `From` or `Reply-To` carried it, and
+whether the original was signed by our domain or by `ccsend.com`. The DKIM and SPF
+results in the pasted headers are Cloudflare re-signing the forwarded *reply*, not
+Constant Contact's signature on the original. `roofbrokersinc-weather.com` is the
+dev domain, not `roofbrokersinc.com` or `send.roofbrokersinc.com`, so it says
+nothing yet about RBI's sending identity (item 96).
+
+**When:** read the raw headers of the original message in the receiving inbox
+(`From`, `Reply-To`, `DKIM-Signature` `d=`, `Authentication-Results`); that closes
+this item.
 
 ## 171. `tests/test_cc_tokens.py` fails under the host Python
 
