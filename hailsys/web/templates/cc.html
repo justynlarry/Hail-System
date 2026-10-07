@@ -37,5 +37,44 @@
   {% endif %}
 </section>
 
+<section>
+  <h2>Unsubscribes</h2>
+  {% if sync_ok %}
+  <p>Last good sync:
+     {{ sync_ok.finished_at.astimezone(display_tz).strftime("%Y-%m-%d %H:%M") }}.
+     {{ sync_ok.fetched }} checked, {{ sync_ok.inserted }} new to the DNC list,
+     {{ sync_ok.already_present }} already there, {{ sync_ok.conflicts }} conflicts.</p>
+  {% else %}
+  <p>No successful sync yet.</p>
+  {% endif %}
+
+  {% if last_run and last_run.status != 'ok' %}
+  <p>The latest run (#{{ last_run.run_id }}) is marked {{ last_run.status }}{% if last_run.error_detail %}: {{ last_run.error_detail }}{% endif %}.</p>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('cc.sync') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit">Sync unsubscribes now</button>
+  </form>
+  <p><small>Copies Constant Contact's unsubscribed contacts into the DNC list.
+     Nothing is sent, and nothing is removed from the DNC list.</small></p>
+
+  {% if conflicts %}
+  <h3>Needs review</h3>
+  <p>These are unsubscribed in Constant Contact but were removed from the DNC
+     list by an admin. They were left alone, and they will not be added to
+     Constant Contact.</p>
+  <table>
+    <thead><tr><th>Address</th><th>Removed from the DNC list</th></tr></thead>
+    <tbody>
+    {% for c in conflicts %}
+      <tr><td>{{ c.email_raw }}</td>
+          <td>{{ c.removed_at.astimezone(display_tz).strftime("%Y-%m-%d %H:%M") }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+
 </div>
 {% endblock %}

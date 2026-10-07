@@ -187,7 +187,21 @@ SELECT pg_temp.expect('cc_sync_runs started_at frozen while running',
   $q$UPDATE cc_sync_runs SET started_at = started_at - interval '1 day'
      WHERE watermark = '1999-01-02'$q$, '23001');
 
-
+-- cc_sync_conflicts (sql/036): insert-only, once per run and row.
+INSERT INTO cc_sync_runs (triggered_by, watermark)
+VALUES ((SELECT emp_id FROM users ORDER BY emp_id LIMIT 1), '1999-01-04');
+SELECT pg_temp.expect('cc_sync_conflicts insert',
+  $q$INSERT INTO cc_sync_conflicts (run_id, dnc_id)
+     SELECT (SELECT run_id FROM cc_sync_runs WHERE watermark = '1999-01-04'),
+            (SELECT dnc_id FROM dnc_list ORDER BY dnc_id LIMIT 1)$q$, 'ok');
+SELECT pg_temp.expect('cc_sync_conflicts same run and row twice blocked',
+  $q$INSERT INTO cc_sync_conflicts (run_id, dnc_id)
+     SELECT (SELECT run_id FROM cc_sync_runs WHERE watermark = '1999-01-04'),
+            (SELECT dnc_id FROM dnc_list ORDER BY dnc_id LIMIT 1)$q$, '23505');
+SELECT pg_temp.expect('cc_sync_conflicts UPDATE blocked',
+  $q$UPDATE cc_sync_conflicts SET seen_at = now()$q$, '23001');
+SELECT pg_temp.expect('cc_sync_conflicts DELETE blocked',
+  $q$DELETE FROM cc_sync_conflicts$q$, '23001');
 
 ROLLBACK;
 
@@ -195,4 +209,4 @@ ROLLBACK;
 SELECT (SELECT count(*) FROM email_templates) AS templates,
        (SELECT count(*) FROM send_log)        AS send_log_rows,
        (SELECT count(*) FROM oauth_tokens WHERE account_id = 'guard-test') AS oauth_token_rows,
-       (SELECT count(*) FROM cc_sync_runs WHERE watermark IN ('1999-01-01', '1999-01-02')) AS sync_test_rows;
+       (SELECT count(*) FROM cc_sync_runs WHERE watermark IN ('1999-01-01', '1999-01-02', '1999-01-04')) AS sync_test_rows;

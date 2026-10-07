@@ -110,6 +110,32 @@ class RequestTest(unittest.TestCase):
             with self.assertRaises(api.ApiError):
                 api.request("POST", "/emails", body={})
         self.assertEqual(uo.call_count, 1)
+    def test_an_unexpected_success_status_raises(self):
+        with mock.patch("urllib.request.urlopen", return_value=ok({}, status=206)):
+            with self.assertRaises(api.ApiError):
+                api.request("GET", "/contacts")
+
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+class ThrottleTest(unittest.TestCase):
+    def throttle(self, last, now):
+        with mock.patch.object(api, "_last_request", last), \
+             mock.patch.object(api.time, "monotonic", return_value=now), \
+             mock.patch.object(api.time, "sleep") as sleep:
+            api._throttle()
+        return sleep
+
+    def test_sleeps_only_for_the_rest_of_the_interval(self):
+        sleep = self.throttle(last=100.0, now=100.1)
+        sleep.assert_called_once()
+        self.assertAlmostEqual(sleep.call_args[0][0], 0.2, places=3)
+
+    def test_does_not_sleep_when_the_interval_has_passed(self):
+        self.throttle(last=100.0, now=105.0).assert_not_called()
+
+    def test_the_first_call_does_not_wait_for_the_clock(self):
+        # _last_request starts at 0.0 and monotonic() is host uptime; the bug
+        # slept for the uptime.
+        self.throttle(last=0.0, now=500000.0).assert_not_called()
 
 
 @unittest.skipIf(MISSING, f"missing dependency: {MISSING}")

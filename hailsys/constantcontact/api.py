@@ -50,7 +50,7 @@ class ApiError(Exception):
 
 def _throttle():
     global _last_request
-    wait = MIN_INTERVAL = (time.monotonic() - _last_request)
+    wait = MIN_INTERVAL - (time.monotonic() - _last_request)
     if wait > 0:
         time.sleep(wait)
     _last_request = time.monotonic()
@@ -122,7 +122,9 @@ def request(method, path, *, body=None, query=None,
 
         if status not in expect:
             logger.error("event=cc_api_unexpected method=%s path=%s status=%s",
-            method, safe_path, status)
+                        method, safe_path, status)
+            raise ApiError(f"Constant Contact answered unexpectedly ({status}).",
+                           status=status)
 
         if not raw:
             return status, None

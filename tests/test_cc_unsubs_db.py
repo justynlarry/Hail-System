@@ -95,6 +95,25 @@ class RecordTest(unittest.TestCase):
         self.assertEqual(unsubs._record(self.conn, {"email_address": {}}, self.system),
                          "skipped")
 
+    def test_a_conflict_is_recorded_once_against_the_run(self):
+        run_id = self.conn.execute(
+            "INSERT INTO cc_sync_runs (triggered_by) VALUES (%s) RETURNING run_id",
+            (self.system,)).fetchone()["run_id"]
+        unsubs._record(self.conn, self.contact(), self.system, run_id)
+        self.conn.execute(
+            "UPDATE dnc_list SET removed_at = now(), removed_by = %s "
+            "WHERE email_norm = lower(%s)", (self.system, self.address))
+        for _ in range(2):      # a second sighting in the same run adds nothing
+            self.assertEqual(
+                unsubs._record(self.conn, self.contact(), self.system, run_id),
+                "conflict")
+        n = self.conn.execute(
+            "SELECT count(*) AS n FROM cc_sync_conflicts c "
+            "JOIN dnc_list d USING (dnc_id) "
+            "WHERE c.run_id = %s AND d.email_norm = lower(%s)",
+            (run_id, self.address)).fetchone()["n"]
+        self.assertEqual(n, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -92,7 +92,7 @@ def _failure_text(exc):
         return f"{type(exc).__name__}: {exc}"[:300]
     return type(exc).__name__
 
-def _record(conn, contact, added_by):
+def _record(conn, contact, added_by, run_id=None):
     """Write one unsubscribed contact.  Returns the outcome, doesn't commit"""
     ea = contact.get("email_address") or {}
     address = (ea.get("address") or "").strip()
@@ -112,9 +112,13 @@ def _record(conn, contact, added_by):
     if row:
         return "inserted"
     existing = conn.execute(
-        "SELECT removed_at FROM dnc_list WHERE email_norm = lower(trim(%s))",
-        (address,)).fetchone()
+        "SELECT dnc_id, removed_at FROM dnc_list "
+        "WHERE email_norm = lower(trim(%s))", (address,)).fetchone()
     if existing and existing["removed_at"] is not None:
+        if run_id is not None:
+            conn.execute(
+                "INSERT INTO cc_sync_conflicts (run_id, dnc_id) VALUES (%s, %s) "
+                "ON CONFLICT DO NOTHING", (run_id, existing["dnc_id"]))
         return "conflict"
     return "already_present"
 
@@ -137,7 +141,7 @@ def _run(conn, triggered_by):
     try:
         for contact in api.iter_unsubscribed(updated_after=_iso(watermark)):
             counts["fetched"] += 1
-            counts[_OUTCOME_KEY[_record(conn, contact, system["emp_id"])]] += 1
+            counts[_OUTCOME_KEY[_record(conn, contact, system["emp_id"], run_id)]] += 1
             if counts["fetched"] % COMMIT_EVERY == 0:
                 conn.commit()
         conn.execute(FINISH_SQL, ("ok", counts["fetched"], counts["inserted"],

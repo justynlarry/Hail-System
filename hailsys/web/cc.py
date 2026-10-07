@@ -6,17 +6,19 @@ per attempt, kept in the session, used once, compared in constant time.
 """
 
 import hmac
+import logging
 import secrets
 
-from flask import (Blueprint, flash, redirect, render_template, request,
+from flask import (Blueprint, flash, g, redirect, render_template, request,
                    session, url_for)
 
-from hailsys.constantcontact import oauth, tokens
+from hailsys.constantcontact import api, oauth, tokens, unsubs
 from hailsys.db import get_connection
 from hailsys.tuning import DISPLAY_TZ
 from hailsys.web.auth import require_role
 
 cc_bp = Blueprint("cc", __name__, url_prefix="/cc")
+logger = logging.getLogger(__name__)
 
 STATE_KEY = "cc_oauth_state"
 
@@ -35,7 +37,19 @@ def index():
             "SELECT token_id, account_id, scope, access_expires_at, created_at "
             "FROM oauth_tokens WHERE provider = %s "
             "ORDER BY token_id DESC LIMIT 1", (tokens.PROVIDER,)).fetchone()
-    return render_template("cc.html", grant=grant, display_tz=DISPLAY_TZ)
+        sync_ok = unsubs.last_success(conn)
+        last_run = conn.execute(
+            "SELECT run_id, status, started_at, finished_at, error_detail "
+            "FROM cc_sync_runs ORDER BY run_id DESC LIMIT 1").fetchone()
+        conflicts = conn.execute(
+            "SELECT d.email_raw, d.removed_at FROM cc_sync_conflicts c "
+            "JOIN dnc_list d USING (dnc_id) "
+            "WHERE c.run_id = (SELECT run_id FROM cc_sync_runs "
+            "                   WHERE status = 'ok' ORDER BY run_id DESC LIMIT 1) "
+            "ORDER BY d.email_norm").fetchall()
+    return render_template("cc.html", grant=grant, display_tz=DISPLAY_TZ,
+                           sync_ok=sync_ok, last_run=last_run,
+                           conflicts=conflicts)
 
 
 
@@ -86,4 +100,22 @@ def refresh():
         flash(str(exc))
     else:
         flash("Refreshed the Constant Contact Token.")
+    return redirect(url_for("cc.index"))
+
+@cc_bp.route("/sync", methods=["POST"])
+def sync():
+    try:
+        result = unsubs.run_sync(triggered_by=g.user["emp_id"])
+    except unsubs.SyncBusy as exc:
+        flash(str(exc))
+    except (api.ApiError, oauth.OAuthError) as exc:
+        flash(f"The sync failed: {exc}")
+    except Exception:
+        logger.exception("event=cc_sync_unexpected")
+        flash("The sync failed unexpectedly; see the server log.")
+    else:
+        flash(f"Sync finished: {result['fetched']} unsubscribed contacts "
+              f"checked, {result['inserted']} new to the DNC list, "
+              f"{result['already_present']} already there, "
+              f"{result['conflicts']} conflicts.")
     return redirect(url_for("cc.index"))
