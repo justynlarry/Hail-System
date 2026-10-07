@@ -2592,6 +2592,47 @@ production will use, to check when it exists and repeat the relevant probes ther
 
 **When:** when the production account is created, before the first production send.
 
+## 184. A one-character typo in the API throttle hung a request; no test ran its arithmetic
+
+**Status:** resolved 2026-10-07 (`497d9a7`)
+
+Found 2026-10-07 on the first click of "Sync unsubscribes now": the request took 30
+seconds, gunicorn killed the worker ("WORKER TIMEOUT"), Cloudflare showed an Internal
+Server Error, and the run row was left `running` with nothing fetched. Cause, in
+`hailsys/constantcontact/api.py`: `wait = MIN_INTERVAL = (time.monotonic() -
+_last_request)`, where the second `=` should have been `-`. `_last_request` starts at
+0.0 and `time.monotonic()` is the host's uptime (688,711 seconds, about 8 days), so the
+first request tried to sleep for the uptime. The tests had patched `MIN_INTERVAL` to 0
+and `sleep` out, so the throttle's arithmetic never ran; the same gap hid a dropped
+`raise` for an unexpected success status in `request()`. Both are fixed, with
+`ThrottleTest` (three cases with a faked clock) and a 206 test. Also found in the same
+pass: `unsubs._record` returned `None` for an ordinary already-present address after an
+indentation slip, which the new database test caught.
+
+**The lesson recorded:** a test that mocks away the thing it names does not test it.
+The run table did its job: the orphaned `running` rows were closed as abandoned by the
+next run, and no `dnc_list` row was half-written.
+
+**When:** nothing open. Applies to any new helper that sleeps, retries or reads a clock.
+
+## 185. The sync runs inside the web request; its failure log carries the exception text
+
+**Status:** accepted 2026-10-07
+
+`POST /cc/sync` runs the whole sync in the request. gunicorn kills a worker at 30
+seconds; a first full pull at the dev size takes about a second, and production's
+roughly 600 unsubscribed contacts is two pages of 500, so it should stay well inside
+that, but this has not been measured at production size. A killed request leaves the
+run `running`, which the next run closes as abandoned and which holds no lock (the
+advisory lock dies with the connection). Separately, an unexpected exception in the route
+is logged with `logger.exception`, which writes the exception's message. Nothing we
+raise carries a token (messages are fixed text), but a library error could in principle
+carry data. Accepted: full tracebacks for truly unexpected failures are worth more than
+the risk, and the route shows the admin only a generic message.
+
+**When:** if a sync ever takes more than about 20 seconds, or when the nightly worker
+exists (item 168), move the run to a background thread with a progress line, as pulls do.
+
 ## 70. Permits as a source — corroboration first, roof age later
 
 **Status:** open (parked) — gated on item 70 ("until the system is running")
