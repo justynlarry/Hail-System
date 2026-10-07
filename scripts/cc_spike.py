@@ -104,6 +104,41 @@ def cmd_contact_get(a):
     call("GET", "/contacts", query={"email": a.email, "status": "all",
                                     "include": "list_memberships"})
 
+def cmd_unsubscribed(a):
+    query = {"status": "unsubscribed", "limit": a.limit}
+    if a.updated_after:
+        query["updated_after"] = a.updated_after
+    call("GET", "/contacts", query=query)
+
+def cmd_contact_create(a):
+    call("POST", "/contacts",
+         {"email_address": {"address": a.email,
+                            "permission_to_send": a.permission},
+          "create_source": "Account", "first_name": a.first,
+          "list_memberships": [a.list_id]})
+
+def cmd_bounces(a):
+    call("GET", f"/reports/email_reports/{a.activity_id}/tracking/bounces",
+         query={"limit": 50})
+
+
+def cmd_optouts(a):
+    call("GET", f"/reports/email_reports/{a.activity_id}/tracking/optouts",
+         query={"limit": 50})
+
+
+def cmd_list_add(a):
+    # Body shape is from a summary of the docs, not the reference page.
+    call("POST", "/activities/add_list_memberships",
+         {"source": {"contact_ids": a.contact_ids}, "list_ids": [a.list_id]})
+
+
+def cmd_bulk_status(a):
+    call("GET", f"/activities/{a.bulk_id}")
+
+
+def cmd_campaign_delete(a):
+    call("DELETE", f"/emails/{a.campaign_id}")
 
 def cmd_create(a):
     status, doc = call("POST", "/emails",
@@ -162,6 +197,17 @@ def main():
     add("activity", cmd_activity, ("activity_id", {}))
     add("schedule", cmd_schedule, ("activity_id", {}),
         ("--yes", {"action": "store_true"}))
+    add("unsubscribed", cmd_unsubscribed,
+        ("--limit", {"type": int, "default": 50}),
+        ("--updated-after", {"default": None}))
+    add("contact-create", cmd_contact_create, ("list_id", {}), ("email", {}),
+        ("first", {}), ("--permission", {"default": "explicit"}))
+    add("bounces", cmd_bounces, ("activity_id", {}))
+    add("optouts", cmd_optouts, ("activity_id", {}))
+    add("list-add", cmd_list_add, ("list_id", {}), ("contact_ids", {"nargs": "+"}))
+    add("bulk-status", cmd_bulk_status, ("bulk_id", {}))
+    add("campaign-delete", cmd_campaign_delete, ("campaign_id", {}))
+
 
     a = p.parse_args()
     a.fn(a)

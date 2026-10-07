@@ -2439,9 +2439,28 @@ progress banner like pulls; the send itself is a human click, never a timer.
 
 **When:** after the spike (item 181) and the eligibility work (item 179).
 
+**Decided 2026-10-07, after the spike.** Addressing one realtor: one list per send,
+deleted once the campaign reports `DONE` (option A; a shared queue list was
+rejected because it forces strictly serial sends). Per realtor: `GET` the contact
+by address; not found: `POST /contacts` with the send list (`implicit` or `explicit`
+by the recorded basis, item 179); `unsubscribed`: write to `dnc_list` and skip;
+found and active: bulk add to the send list and poll the activity until `completed`;
+create the campaign (take the `primary_email` activity by role), attach the list,
+store the activity id, schedule, poll to `DONE`, then delete the list (also
+asynchronous). Roughly 8 to 10 calls per realtor: about 1,000 a day at the 10,000
+call limit.
+
+**The record is ours.** `send_log` keeps one row per match with the address used and
+the Constant Contact activity id, whatever happens to the list or the campaign.
+**Decided 2026-10-07:** an append-only table of the rendered subject and HTML, with
+the campaign, activity, contact and list ids, one row per email, linked to its
+`send_log` rows, because Constant Contact will not return the HTML and a sent
+campaign can be deleted on its side. Not yet designed (columns, how `send_log`
+points at it, and the guard); that is its own migration.
+
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
-**Status:** open
+**Status:** spike done 2026-10-07; paid-account checks remain (item 183)
 
 Not established by the documentation read on 2026-10-06 (one page returned a 404):
 - does the unsubscribe footer get added to custom-code HTML sent through the API,
@@ -2489,6 +2508,33 @@ unsubscribed contact is skipped at send time; `GET /contacts?status=unsubscribed
 pagination and an `updated_after` filter (for item 182's sync); paid-account
 differences.
 
+**Spike results, final (2026-10-07).** Adds to the answers above:
+- **Adding a person.** `POST /contacts` creates only: 201 for a new address, 409
+  ("Email already exists for contact <id>") for an existing one, including an
+  unsubscribed one, which stays unsubscribed. It accepts `permission_to_send:
+  "implicit"` and records it as such (`opt_in_source: "Account"`), and the 201 includes
+  `list_memberships`, so create and join are one call. `sign_up_form` stamps `explicit`
+  and re-subscribes (item 182).
+- **Existing active contact.** `POST /activities/add_list_memberships` with
+  `{"source": {"contact_ids": [...]}, "list_ids": [...]}` answers 201; it is a bulk
+  activity (`GET /activities/{id}`, `state` `initialized` then `completed`). Done in the
+  same second for one contact; the docs say 30 seconds to 15+ minutes at volume. It
+  does not touch `permission_to_send`.
+- **Implicit contacts are delivered**, with the same aligned DKIM, DMARC pass and
+  one-click `List-Unsubscribe` as explicit ones. The plain-text part is generated and
+  complete (the table is flattened to one line). `[[trackingImage]]` becomes a
+  per-contact pixel; the unsubscribe link and headers carry the contact id
+  (`X-CTCT-ID`) and the activity id (`X-Campaign-Activity-ID`).
+- **Unsubscribe feed.** `GET /contacts?status=unsubscribed&limit=N` lists them (address,
+  `opt_out_date`, `opt_out_source`); `updated_after` works (a time after the opt-out
+  returns none). It filters on the contact's `updated_at`, so use an overlap.
+- **Per-send reports.** `GET /reports/email_reports/{activity}/tracking/bounces` (codes
+  B, D, F, S, V, X, Z) and `.../tracking/optouts` (an event log, minute resolution, one
+  entry per click) work for `primary_email` activities.
+- **Deletes.** `DELETE /emails/{campaign_id}` answers 204 for a draft AND for a sent
+  campaign. `DELETE /contact_lists/{id}` answers 202 with an activity (asynchronous);
+  the contacts remain. Constant Contact is therefore not our record of what was sent.
+
 ## 182. Constant Contact's API re-subscribes an unsubscribed contact: read before write
 
 **Status:** open (found 2026-10-07; design decided, not built)
@@ -2518,6 +2564,23 @@ attestation by us (item 179).
 
 **When:** before the first send, with item 129's fresh export; the sync is a build step
 of its own.
+
+## 183. Constant Contact behaviours to verify on the paid production account
+
+**Status:** open
+
+The spike ran on the free trial (item 181). What may differ on the paid account that
+production will use, to check when it exists and repeat the relevant probes there:
+- the "Trusted Email from Constant Contact" badge in the footer (trial: present)
+- API and send limits (trial: about 100 recipients in total)
+- the physical address in the footer comes from the account profile; confirm it is
+  RBI's and where it is edited
+- paging of `GET /contacts?status=unsubscribed` beyond one page (not exercised)
+- bulk-activity and list-delete timing at real volume (docs: 30 seconds to 15+ minutes)
+- that the CNAME self-authentication and the `ctct1` DKIM alignment carry over to the
+  production sending domain (item 96)
+
+**When:** when the production account is created, before the first production send.
 
 ## 70. Permits as a source — corroboration first, roof age later
 

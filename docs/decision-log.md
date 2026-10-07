@@ -6531,3 +6531,33 @@ operations.
 production account. Item 181 lists what to verify.
 
 **Related:** items 119, 129, 178-181.
+
+## 2026-10-07 — Constant Contact spike: how we add people, what we sync, what we keep
+
+Run against the dev trial with `scripts/cc_spike.py` (items 180-183). Decisions:
+
+**Adding a person.** Read the contact first. New address: `POST /contacts` (create-only),
+with `implicit` or `explicit` according to the recorded basis (item 179), never the
+sign-up-form endpoint, which re-subscribes unsubscribed contacts and stamps `explicit`.
+An address that already exists and is `unsubscribed` is never added; it goes to
+`dnc_list`. An existing active contact is added to the send list by the bulk activity
+and the activity is polled to `completed`; it does not change their permission.
+
+**Unsubscribes.** Pulled into `dnc_list` from `GET /contacts?status=unsubscribed` with an
+overlapping `updated_after`, on demand before every send and from an admin button; an
+optional nightly run only narrows the window and shows early if the grant has died. A
+send is refused when the last successful sync is too old (item 182).
+
+**Addressing one realtor:** one list per send, deleted when the campaign is `DONE`;
+the alternative (a shared queue list, strictly serial) was rejected.
+
+**What we keep.** Constant Contact is not the record: a sent campaign can be deleted on
+its side and `GET` on an activity does not return the HTML. `send_log` (one row per
+match, with the address used and the activity id) stays the record, and an append-only
+table of the rendered email (subject, HTML and the Constant Contact ids, one row per
+email) is decided 2026-10-07; its columns and migration are still to be designed.
+
+**Async work is polled, never assumed.** Bulk adds and list deletes are activities;
+nothing is sent before the add has `completed`.
+
+**Related:** items 129, 178, 179, 180, 181, 182, 183.
