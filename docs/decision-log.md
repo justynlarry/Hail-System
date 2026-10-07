@@ -6572,3 +6572,23 @@ reactivated, because the add flow's read-before-write rule blocks that person an
 no separate "last sync too old" limit to tune, and a nightly run is only an early
 warning that the grant is alive; (3) `added_at` is Constant Contact's opt-out date, as
 the DNC importer uses its source's date. Related: items 129, 168, 182.
+
+## 2026-10-07 — `sent_emails`: the email as sent, and why `send_log_guard()` was left alone
+
+Built as `sql/037` (`bb443a7`). One row per email, linked from `send_log` through a new
+NOT NULL `email_id`, done now because both tables were empty and a later backfill would
+be far harder. `send_log` stays one row per match; the new table holds what it cannot:
+the rendered subject and HTML (Constant Contact will not return the HTML and a campaign
+can be deleted there), the sync run that cleared the send, the permission we asserted,
+and the Constant Contact ids. The ids are write-once and unique so the crash-recovery rule
+holds in the database: a rerun cannot create a second campaign for the same email.
+
+The audited `send_log_guard()` of `sql/029` was not rewritten. A second, tiny trigger
+freezes `email_id`; both fire on every update. Reason: re-typing a working 40-line guard
+to add one column is the likelier way to break it.
+
+A test-ordering lesson from the same change: the two new `send_log` checks first sat after
+the "known gap" TRUNCATE check, where `send_log` is empty, so an UPDATE and an
+INSERT...SELECT matched no rows and "succeeded". They now run before it.
+
+**Related:** items 177, 180, 182.

@@ -2359,6 +2359,11 @@ not mention it, nor its trigger and its grant shape (SELECT, INSERT, DELETE for
 **When:** as one pass over the three docs, with the next migration or before the
 next schema review.
 
+**Widened 2026-10-07.** Since this item was filed the schema has gained `cc_sync_runs`
+(`sql/035`), `cc_sync_conflicts` (`sql/036`) and `sent_emails` (`sql/037`), and
+`send_log` has a new `email_id` column with its own frozen-column trigger. That is five
+new or changed objects the three schema docs do not mention. Do it as one pass.
+
 ## 178. The test email had an unsubscribe link in the body but no `List-Unsubscribe` header
 
 **Status:** resolved 2026-10-07 for API-sent campaigns; one difference unexplained
@@ -2418,7 +2423,7 @@ send list built only from realtors that have a basis and are not in `dnc_list`.
 
 ## 180. Send design: one email per realtor per send, listing every affected property
 
-**Status:** open (decided 2026-10-07, not built)
+**Status:** open; the rendered-email table is built (`bb443a7`), the send engine is not
 
 Constant Contact has no single-recipient send: the API is contacts, lists and
 campaigns (`POST /emails`, `PUT /emails/activities/{id}` with `contact_list_ids`,
@@ -2457,6 +2462,17 @@ the campaign, activity, contact and list ids, one row per email, linked to its
 `send_log` rows, because Constant Contact will not return the HTML and a sent
 campaign can be deleted on its side. Not yet designed (columns, how `send_log`
 points at it, and the guard); that is its own migration.
+
+**Built 2026-10-07 (`bb443a7`): `sent_emails` (`sql/037`).** One row per email: the exact
+subject and HTML as rendered; `batch_id` (one send click, the progress banner counts by
+it); `sync_run_id` (the unsubscribe sync that cleared the send); `permission_asserted`
+(`implicit`, `explicit`, or `none` for an existing active contact, i.e. what we told
+Constant Contact); the Constant Contact ids (contact, list, campaign, activity) and the
+progress markers (`scheduled_at`, `list_deleted_at`) write-once; the activity and campaign
+ids unique, so a rerun cannot create a second campaign; one email per realtor per batch.
+`send_log` gained `email_id` (NOT NULL, foreign key; frozen by a second small trigger so
+the audited `send_log_guard()` of `sql/029` is untouched). Still to build: the send
+engine that fills it in the order above, and the template rendering.
 
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
