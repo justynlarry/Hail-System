@@ -1266,6 +1266,9 @@ user-initiated or scheduled, never a send path). Settle the design with this
 item's export question: both are about whether `dnc_list` matches Constant
 Contact's.
 
+**Update 2026-10-07:** the spike showed the sync is more than housekeeping; see item
+182.
+
 ## 130. `dnc_list.realtor_id` isn't maintained automatically
 
 **Status:** open
@@ -2358,7 +2361,7 @@ next schema review.
 
 ## 178. The test email had an unsubscribe link in the body but no `List-Unsubscribe` header
 
-**Status:** open
+**Status:** resolved 2026-10-07 for API-sent campaigns; one difference unexplained
 
 Found 2026-10-06 reading the raw headers of a Constant Contact test message
 (item 170). The body carries an unsubscribe link (reported by the sender); the
@@ -2372,6 +2375,15 @@ tried at all.
 
 **When:** before the first real send. Send a campaign to a Gmail inbox with a
 second recipient and read the headers again, and check how an API send behaves.
+
+**Resolved 2026-10-07 for campaigns sent through the API.** The raw headers of the
+spike's real send (activity `b12ac1a0-...`, delivered to Gmail) carry
+`List-Unsubscribe: <https://audience.constantcontact.com/preferences/unsubscribe?...>`
+and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`, and both DKIM signatures
+(`d=roofbrokersinc-weather.com` selector `ctct1`, and `d=auth7.ccsend.com`) list them
+in `h=`. SPF passed for `in.constantcontact.com` and DMARC passed on the aligned DKIM.
+The earlier UI-sent test message had neither header; why is not known. The body
+footer (address, Unsubscribe, Update Profile) is added by Constant Contact.
 
 ## 179. Constant Contact's permission policy: sends must be gated to a recorded basis
 
@@ -2447,6 +2459,65 @@ Not established by the documentation read on 2026-10-06 (one page returned a 404
 **When:** the spike, build step 0: a throwaway script sends a few messages to
 addresses we own, and the answers are recorded here. Repeat on the production
 account once it exists.
+
+**Answers from the spike, 2026-10-07** (`scripts/cc_spike.py`, dev trial; the account
+address `justyn@roofbrokersinc-weather.com` is CONFIRMED with roles DEFAULT_FROM and
+REPLY_TO):
+- `POST /emails` with `format_type` 5 HTML is accepted with no unsubscribe tag and no
+  physical address, and answers 200 with TWO activities, `primary_email` and
+  `permalink`. Select by `role`, never by position.
+- `PUT /emails/activities/{id}` with `format_type`, `from_name`, `from_email`,
+  `reply_to_email`, `subject`, `html_content` and `contact_list_ids` returns 200.
+  `GET` on an activity does not return `html_content`: keep what we rendered.
+- `POST .../schedules` with `"scheduled_date": "0"` answers 201 `[]`; the status was
+  `DONE` within moments for a list of one.
+- Constant Contact adds the footer itself to custom HTML: the account's physical
+  address, Unsubscribe, Update Profile, and a "Trusted Email from Constant Contact"
+  badge (trial; check the paid account).
+- `POST .../tests` answers 204; test sends and drafts did not move the trial counter.
+  One real recipient used one send (99 to 98).
+- One realtor-send took about 6 calls. Documented limits: 1,000 lists per account,
+  50 lists per contact, 4 requests per second, 10,000 per day.
+- `POST /contacts/sign_up_form` creates a contact with `permission_to_send:
+  "explicit"` on its own; see item 182.
+
+**Still open:** `POST /contacts` (permission values, behaviour on an unsubscribed
+address); adding an existing active contact to a list; deleting lists and campaigns;
+our own plain-text part (read the full `text/plain` of a delivered message; the
+first paste was truncated); personalization tag syntax; whether a list containing an
+unsubscribed contact is skipped at send time; `GET /contacts?status=unsubscribed`
+pagination and an `updated_after` filter (for item 182's sync); paid-account
+differences.
+
+## 182. Constant Contact's API re-subscribes an unsubscribed contact: read before write
+
+**Status:** open (found 2026-10-07; design decided, not built)
+
+Observed in the spike. After a contact clicked Unsubscribe, `GET /contacts` showed
+`permission_to_send: "unsubscribed"` with `opt_out_source`, `opt_out_date` and no list
+memberships. A later `POST /contacts/sign_up_form` for the same address answered `200
+"updated"` and the contact was `explicit` again, on the list, with a new `opt_in_date`;
+nothing asked the person. Constant Contact's documentation says the same ("even if a
+contact is currently unsubscribed, POST /contacts/sign_up_form may set the contact's
+email permission policy as having given you explicit permission") and warns that opting
+a contact back in without their own action violates anti-spam and telemarketing law.
+`sign_up_form` also stamps `explicit` on every new contact it creates, which is an
+attestation by us (item 179).
+
+**Rules:**
+1. Never call `sign_up_form` for an address without first reading its state. If it is
+   `unsubscribed`, do not add it; record it in `dnc_list`.
+2. Prefer `POST /contacts` for new contacts: the docs say it returns 409 when the address
+   already exists. Its `permission_to_send` values and its behaviour for an unsubscribed
+   address are not documented; test them (item 181).
+3. Pull Constant Contact's unsubscribes into `dnc_list` BEFORE building a send list or
+   adding anyone. Read-only toward Constant Contact; the only write is `dnc_list`.
+   Run it on demand at send time (mandatory, inside the click) and from an admin button.
+   A nightly timer in front of that is optional and only narrows the window further.
+4. Refuse a send when the last successful sync is older than a set limit.
+
+**When:** before the first send, with item 129's fresh export; the sync is a build step
+of its own.
 
 ## 70. Permits as a source — corroboration first, roof age later
 
