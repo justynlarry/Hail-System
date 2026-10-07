@@ -2474,6 +2474,26 @@ ids unique, so a rerun cannot create a second campaign; one email per realtor pe
 the audited `send_log_guard()` of `sql/029` is untouched). Still to build: the send
 engine that fills it in the order above, and the template rendering.
 
+**Decided 2026-10-07: several storms in one email, which matches are eligible, a cap.**
+- **Scope.** The send screen lets a sender tick more than one storm day, with a choice to
+  combine them into one email per realtor or to send one email per storm. A human ticks what
+  goes out; there is no automatic grouping by date window.
+- **Events.** A listing carries a list of hail events (date, size, distance). One storm is the
+  case of one event per listing. `send_log` already has one row per match (one storm report
+  against one listing), so an email covering two storms for a listing is two rows sharing one
+  `email_id`; no schema change.
+- **Eligible matches.** A match is eligible if it has no `send_log` row other than a failed
+  one (failed sends can be retried) AND its storm is no older than **30 days**
+  (`match_max_age_days`, a setting).
+- **Per-realtor cap.** No more than one email to a realtor in **14 days** (`email_cap_days`, a
+  setting), with a visible override. A capped realtor's matches stay unsent and go in the next
+  eligible email; nothing is lost.
+- **Wording.** The email states facts (the reports, dates, sizes). It does not claim that
+  repeated storms make damage more likely; the copy already says a weather report is not a
+  finding of damage.
+- Both numbers live in the `settings` table, so they appear on the Admin page with the change
+  history already built for the radii and the quota.
+
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
 **Status:** spike done 2026-10-07; paid-account checks remain (item 183)
@@ -2648,6 +2668,28 @@ the risk, and the route shows the admin only a generic message.
 
 **When:** if a sync ever takes more than about 20 seconds, or when the nightly worker
 exists (item 168), move the run to a background thread with a progress line, as pulls do.
+
+## 186. A test email whose link pointed at an `azurewebsites.net` preview host was not delivered
+
+**Status:** resolved by decision 2026-10-07 (circumstantial: one trial)
+
+Found 2026-10-07 while adding a "Schedule a new inspection" link to the email template. A
+test send identical to one that had arrived, except for a new link to
+`roofbrokersinc-preview.azurewebsites.net/Orders/Create`, was accepted by Constant Contact
+(204) but never reached the inbox. The same email with that link pointed at
+`www.roofbrokersinc.com` ("test B") arrived. `azurewebsites.net` is a free hosting domain that
+spammers use heavily, so filters, Constant Contact's or Gmail's, treat links to it with
+suspicion. It is one trial with one difference between the two messages; which system dropped
+the first was not determined. The production site serves the same page
+(`www.roofbrokersinc.com/Orders/Create` redirects to the login page and returns to Orders/Create
+after sign-in).
+
+**Rule:** no `azurewebsites.net` (or other free-hosting) links in outgoing mail. The template takes
+the link as a setting (`schedule_url`); the value is `https://www.roofbrokersinc.com/Orders/Create`
+in dev and production alike. A 204 from a test send means accepted, not delivered.
+
+**When:** before the first real send, send one message containing every link in the final
+template to a Gmail inbox and confirm it arrives.
 
 ## 70. Permits as a source — corroboration first, roof age later
 

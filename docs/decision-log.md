@@ -6592,3 +6592,23 @@ the "known gap" TRUNCATE check, where `send_log` is empty, so an UPDATE and an
 INSERT...SELECT matched no rows and "succeeded". They now run before it.
 
 **Related:** items 177, 180, 182.
+
+## 2026-10-07 — Several storms in one email; eligibility and the per-realtor cap
+
+Decided with the email template design (items 180, 186). A sender ticks the storm days to
+include and chooses whether to combine them into one email per realtor; there is no automatic
+grouping. A listing carries a list of hail events, so one storm is the one-event case, and
+`send_log`'s one-row-per-match shape already fits (two storms on a listing are two rows sharing
+an email).
+
+A match is eligible when it has not already been emailed (failed sends excepted) and its storm is
+no more than 30 days old. A realtor is emailed at most once in 14 days, with a visible override;
+capped matches stay unsent for the next email. Both numbers are settings. The email states
+facts and does not claim repeated storms make damage more likely.
+
+A test email carrying a link to an `azurewebsites.net` preview host was accepted by Constant
+Contact but not delivered, while the same message linking to the production site arrived. Rule:
+no free-hosting links in outgoing mail; the link is a per-environment setting set to the
+production address.
+
+**Related:** items 135, 180, 186.
