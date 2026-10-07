@@ -166,6 +166,27 @@ SELECT pg_temp.expect('oauth_tokens young and latest: DELETE blocked',
   $q$DELETE FROM oauth_tokens
      WHERE account_id = 'guard-test' AND access_token_enc = '\x03'$q$, '23001');
 
+-- cc_sync_runs (sql/035).  Rows are told apart from any real ones by watermark.
+SELECT pg_temp.expect('cc_sync_runs start a run',
+  $q$INSERT INTO cc_sync_runs (triggered_by, watermark)
+     VALUES ((SELECT emp_id FROM users ORDER BY emp_id LIMIT 1), '1999-01-01')$q$, 'ok');
+SELECT pg_temp.expect('cc_sync_runs ok without finished_at (CHECK)',
+  $q$INSERT INTO cc_sync_runs (triggered_by, watermark, status)
+     VALUES ((SELECT emp_id FROM users ORDER BY emp_id LIMIT 1), '1999-01-03', 'ok')$q$, '23514');
+SELECT pg_temp.expect('cc_sync_runs a running row can finish',
+  $q$UPDATE cc_sync_runs SET status = 'ok', finished_at = now(), fetched = 3
+     WHERE watermark = '1999-01-01'$q$, 'ok');
+SELECT pg_temp.expect('cc_sync_runs a finished row is frozen',
+  $q$UPDATE cc_sync_runs SET fetched = 9 WHERE watermark = '1999-01-01'$q$, '23001');
+SELECT pg_temp.expect('cc_sync_runs DELETE blocked',
+  $q$DELETE FROM cc_sync_runs WHERE watermark = '1999-01-01'$q$, '23001');
+SELECT pg_temp.expect('cc_sync_runs start a second run',
+  $q$INSERT INTO cc_sync_runs (triggered_by, watermark)
+     VALUES ((SELECT emp_id FROM users ORDER BY emp_id LIMIT 1), '1999-01-02')$q$, 'ok');
+SELECT pg_temp.expect('cc_sync_runs started_at frozen while running',
+  $q$UPDATE cc_sync_runs SET started_at = started_at - interval '1 day'
+     WHERE watermark = '1999-01-02'$q$, '23001');
+
 
 
 ROLLBACK;
@@ -173,4 +194,5 @@ ROLLBACK;
 -- Nothing should have survived.
 SELECT (SELECT count(*) FROM email_templates) AS templates,
        (SELECT count(*) FROM send_log)        AS send_log_rows,
-       (SELECT count(*) FROM oauth_tokens)    AS oauth_token_rows;
+       (SELECT count(*) FROM oauth_tokens WHERE account_id = 'guard-test') AS oauth_token_rows,
+       (SELECT count(*) FROM cc_sync_runs WHERE watermark IN ('1999-01-01', '1999-01-02')) AS sync_test_rows;
