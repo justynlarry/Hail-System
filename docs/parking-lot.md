@@ -2537,7 +2537,7 @@ differences.
 
 ## 182. Constant Contact's API re-subscribes an unsubscribed contact: read before write
 
-**Status:** open (found 2026-10-07; design decided, not built)
+**Status:** sync built 2026-10-07 (`2884880`); not yet wired to the Admin page or the send click
 
 Observed in the spike. After a contact clicked Unsubscribe, `GET /contacts` showed
 `permission_to_send: "unsubscribed"` with `opt_out_source`, `opt_out_date` and no list
@@ -2564,6 +2564,16 @@ attestation by us (item 179).
 
 **When:** before the first send, with item 129's fresh export; the sync is a build step
 of its own.
+
+**Decided and built 2026-10-07 (`2884880`).** `hailsys/constantcontact/unsubs.py` and
+`sql/035` (`cc_sync_runs`). Answers to the open design questions: an address that is
+unsubscribed in Constant Contact but whose `dnc_list` row an admin removed is a
+**conflict**: counted, reported, never undone (the read-before-write rule still blocks
+that person); the sync runs **inside every send click and a failure stops the send**, so
+rule 4's age limit is replaced by that; `added_at` takes Constant Contact's opt-out date,
+as the DNC importer does with its source's date. Incremental pulls use the last good run's
+start minus one day. Still to do: the Admin button and last-good-sync line, the call from
+the send path, and the optional nightly timer with its own `hail_sync` role (item 168).
 
 ## 183. Constant Contact behaviours to verify on the paid production account
 

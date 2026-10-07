@@ -6561,3 +6561,14 @@ email) is decided 2026-10-07; its columns and migration are still to be designed
 nothing is sent before the add has `completed`.
 
 **Related:** items 129, 178, 179, 180, 181, 182, 183.
+
+## 2026-10-07 — Unsubscribe sync: conflicts, the send gate, and dates
+
+Built as `hailsys/constantcontact/unsubs.py` with `cc_sync_runs` (`sql/035`), `2884880`.
+Decided: (1) an address unsubscribed in Constant Contact whose `dnc_list` row an admin
+REMOVED is counted as a conflict and left alone, never silently re-suppressed or
+reactivated, because the add flow's read-before-write rule blocks that person anyway;
+(2) the sync runs inside every send click and a failed sync stops the send, so there is
+no separate "last sync too old" limit to tune, and a nightly run is only an early
+warning that the grant is alive; (3) `added_at` is Constant Contact's opt-out date, as
+the DNC importer uses its source's date. Related: items 129, 168, 182.
