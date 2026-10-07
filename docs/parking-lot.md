@@ -1107,7 +1107,7 @@ passed. Accepted on that basis. **When:** same trigger as item 111.
 
 ## 119. Mainstream email-sending providers all prohibit this use case
 
-**Status:** resolved by decision 2026-10-06 (caveat: not confirmed in writing)
+**Status:** closed by decision 2026-10-06; qualified 2026-10-07: valid only for the warm pools, not yet enforced (item 179)
 
 Fetched the current AUP/ToS directly from SendGrid, Postmark, Mailgun,
 Resend, and Amazon SES, 2026-09-28: every one prohibits sending to a
@@ -1139,6 +1139,14 @@ provider". The item's own trigger (the use case in writing from the provider) ha
 not happened. Constant Contact's terms for this use case are unconfirmed, and the
 dev trial is the test. If the trial or RBI's account hits a policy wall, this item
 reopens.
+
+**Qualified 2026-10-07.** Constant Contact's own policy bars scraped and
+public-directory addresses (item 179), and the 2026-09-28 decision log scoped
+Constant Contact to the warm pools only (the Constant Contact-active realtors and
+the service-request clients). The 2026-10-06 closure did not carry that scope. It
+holds for those pools; it does not cover listing agents who are in `realtors` only
+because RentCast returned them. Fully closed when the pools are imported with a
+recorded basis per realtor and sending is gated on it.
 
 ## 120. Email templates need CAN-SPAM's footer requirements built in
 
@@ -2364,6 +2372,81 @@ tried at all.
 
 **When:** before the first real send. Send a campaign to a Gmail inbox with a
 second recipient and read the headers again, and check how an API send behaves.
+
+## 179. Constant Contact's permission policy: sends must be gated to a recorded basis
+
+**Status:** open
+
+Found 2026-10-06 reading Constant Contact's email permission policy
+(`knowledgebase.constantcontact.com`, article 5305; re-read the page itself, this is
+from a fetched summary). Acceptable permission is express opt-in, or implied
+permission "through a client or customer relationship" (business cards, a sale, an
+inquiry, membership). Barred: addresses "obtained by surfing the internet or
+'scraping' web pages", and any "distribution list or mailing list", including
+"public directories". A violation "may result in the termination of your account".
+Cold B2B outreach to named individuals is not addressed either way.
+
+Listing agents that RentCast returns are third-party data with no relationship to
+RBI, so most of `realtors` is outside the policy. The decision log (2026-09-28)
+already scoped Constant Contact to the warm pools: about 339 Constant Contact-active
+realtors, and about 675 realtors who called RBI for an inspection. The owner states
+that the people to be emailed are currently opted in. Not yet checkable here:
+`realtors` has no column for the basis, the client list is not imported, and the
+Constant Contact export on file is a two-year-old snapshot, all "Implied", none
+"Confirmed". A violation on RBI's existing account could cost RBI its newsletter
+account, which is why the hail system uses a separate account.
+
+**Decided 2026-10-07:** the audience is restricted to realtors from RBI's in-house
+database and the Constant Contact list; the hail system stays on its own Constant
+Contact account (the dev trial today).
+
+**When:** before the first send. Needs a consent-basis column or table (`sql/035`),
+the imports (item 129's fresh export, and the in-house database, item 83), and a
+send list built only from realtors that have a basis and are not in `dnc_list`.
+
+## 180. Send design: one email per realtor per send, listing every affected property
+
+**Status:** open (decided 2026-10-07, not built)
+
+Constant Contact has no single-recipient send: the API is contacts, lists and
+campaigns (`POST /emails`, `PUT /emails/activities/{id}` with `contact_list_ids`,
+`POST .../schedules` with `"scheduled_date": "0"`). Limits: 4 requests per second and
+10,000 per day. Design: one campaign per realtor per send action, HTML rendered here
+and carrying every matched property for that realtor (distance, hail size, date), so
+an agent with three affected listings gets one email, not three, which also covers
+the duplicate-email gap noted in `docs/phases.md`. `send_log` keeps one row per
+match; the rows of one email share one `provider_message_id`.
+
+**Order of operations per recipient:** build the list excluding `dnc_list` and
+realtors without a basis; insert the `send_log` rows `queued` and commit; re-check
+`dnc_list` immediately before the call; create the campaign; store the activity id
+in `provider_message_id` BEFORE scheduling; schedule. A crash after scheduling then
+leaves an id to reconcile against Constant Contact, and a rerun must never create a
+second campaign for rows that already carry one. Runs in a background thread with a
+progress banner like pulls; the send itself is a human click, never a timer.
+
+**When:** after the spike (item 181) and the eligibility work (item 179).
+
+## 181. Constant Contact behaviours to verify before the send design is locked
+
+**Status:** open
+
+Not established by the documentation read on 2026-10-06 (one page returned a 404):
+- does the unsubscribe footer get added to custom-code HTML sent through the API,
+  or must the HTML carry the tag (and does the API send carry a `List-Unsubscribe`
+  header, item 178)
+- what happens when a contact who previously unsubscribed is added or re-added
+- limits on the number of campaigns, and whether API-created campaigns can be
+  removed (each realtor-send is its own campaign)
+- that a custom-code (format 5) activity is accepted on a trial account
+- that `from_email` and `reply_to_email` must be verified, and the error when not
+- how many API calls one recipient really costs
+- the trial's send cap (about 100) and length (14 or 30 days)
+- what differs on a paid account, which production will be
+
+**When:** the spike, build step 0: a throwaway script sends a few messages to
+addresses we own, and the answers are recorded here. Repeat on the production
+account once it exists.
 
 ## 70. Permits as a source — corroboration first, roof age later
 

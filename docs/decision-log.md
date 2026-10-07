@@ -6506,3 +6506,28 @@ append-only log would accumulate copies of a still-valid secret. pgcrypto: key i
 query text.
 
 **Related:** items 96, 119, 129, 168, 169, 170.
+
+## 2026-10-07 — Audience, account and email shape for the Constant Contact send path
+
+Follows the 2026-10-06 provider decision, after reading Constant Contact's permission
+policy and API (items 179-181).
+
+**Audience: the warm pools only.** Sends go to realtors from RBI's in-house database
+and the Constant Contact list, each with a recorded basis. Listing agents who are in
+`realtors` only because RentCast returned them are not eligible, whatever the
+matching says. Item 119 is therefore closed for those pools and not yet for the
+system: it is fully closed once the pools are imported and the send list is gated on
+the basis (item 179).
+
+**Account.** The hail system stays on a Constant Contact account separate from RBI's
+newsletter account, so a policy problem cannot reach RBI's existing marketing. Today
+that is the dev free trial; production will be a paid account of its own.
+
+**Email shape.** One email per realtor per send, listing every affected property with
+its distance and hail size, not one email per listing. Item 180 has the order of
+operations.
+
+**Testing.** Several test runs on the dev trial first, then the same again on the
+production account. Item 181 lists what to verify.
+
+**Related:** items 119, 129, 178-181.
