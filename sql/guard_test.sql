@@ -29,12 +29,31 @@ INSERT INTO email_templates (template_name, subject, body, created_by)
 VALUES ('guard-test', 's', 'b',
         (SELECT emp_id FROM users ORDER BY emp_id LIMIT 1));
 
-INSERT INTO send_log (realtor_id, recipient_email, match_id, template_id, sent_by)
+INSERT INTO cc_sync_runs (triggered_by, watermark)
+VALUES ((SELECT emp_id FROM users ORDER BY emp_id LIMIT 1), '1999-01-05');
+
+INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id,
+                         sync_run_id, permission_asserted, created_by,
+                         subject, html_body)
+SELECT gen_random_uuid(),
+       (SELECT realtor_id FROM realtors ORDER BY realtor_id LIMIT 1),
+       e,
+       (SELECT template_id FROM email_templates WHERE template_name = 'guard-test'),
+       (SELECT run_id FROM cc_sync_runs WHERE watermark = '1999-01-05'),
+       'none',
+       (SELECT emp_id FROM users ORDER BY emp_id LIMIT 1),
+       's', '<p>b</p>'
+FROM (VALUES ('guard-test-1@example.invalid'),
+             ('guard-test-2@example.invalid')) AS t(e);
+
+INSERT INTO send_log (realtor_id, recipient_email, match_id, template_id, sent_by,
+                      email_id)
 SELECT (SELECT realtor_id FROM realtors ORDER BY realtor_id LIMIT 1),
        e,
        (SELECT match_id FROM storm_listing_matches ORDER BY match_id LIMIT 1),
        (SELECT template_id FROM email_templates WHERE template_name = 'guard-test'),
-       (SELECT emp_id FROM users ORDER BY emp_id LIMIT 1)
+       (SELECT emp_id FROM users ORDER BY emp_id LIMIT 1),
+       (SELECT email_id FROM sent_emails WHERE recipient_email = e)
 FROM (VALUES ('guard-test-1@example.invalid'),
              ('guard-test-2@example.invalid')) AS t(e);
 
@@ -98,6 +117,18 @@ SELECT pg_temp.expect('template reactivate blocked',
 SELECT pg_temp.expect('template DELETE blocked',
   $q$DELETE FROM email_templates
      WHERE template_name = 'guard-test'$q$, '23001');
+
+-- send_log.email_id (sql/037).  These must run BEFORE the TRUNCATE check below,
+-- which empties send_log and would leave them acting on no rows.
+SELECT pg_temp.expect('send_log email_id frozen',
+  $q$UPDATE send_log
+     SET email_id = (SELECT email_id FROM sent_emails
+                     WHERE recipient_email = 'guard-test-2@example.invalid')
+     WHERE recipient_email = 'guard-test-1@example.invalid'$q$, '23001');
+SELECT pg_temp.expect('send_log needs an email (NOT NULL)',
+  $q$INSERT INTO send_log (realtor_id, recipient_email, match_id, template_id, sent_by)
+     SELECT realtor_id, 'guard-test-4@example.invalid', match_id, template_id, sent_by
+     FROM send_log WHERE recipient_email = 'guard-test-1@example.invalid'$q$, '23502');
 
 -- Known gap: the owner can still TRUNCATE. Expected to SUCCEED (still
 -- rolled back below). If you add the no_truncate trigger, cha
@@ -203,10 +234,46 @@ SELECT pg_temp.expect('cc_sync_conflicts UPDATE blocked',
 SELECT pg_temp.expect('cc_sync_conflicts DELETE blocked',
   $q$DELETE FROM cc_sync_conflicts$q$, '23001');
 
+-- sent_emails (sql/037)
+SELECT pg_temp.expect('sent_emails subject frozen',
+  $q$UPDATE sent_emails SET subject = 'x'
+     WHERE recipient_email = 'guard-test-1@example.invalid'$q$, '23001');
+SELECT pg_temp.expect('sent_emails html_body frozen',
+  $q$UPDATE sent_emails SET html_body = '<p>x</p>'
+     WHERE recipient_email = 'guard-test-1@example.invalid'$q$, '23001');
+SELECT pg_temp.expect('sent_emails activity id can be set once',
+  $q$UPDATE sent_emails SET cc_activity_id = 'act-1'
+     WHERE recipient_email = 'guard-test-1@example.invalid'$q$, 'ok');
+SELECT pg_temp.expect('sent_emails the same value again is a harmless retry',
+  $q$UPDATE sent_emails SET cc_activity_id = 'act-1'
+     WHERE recipient_email = 'guard-test-1@example.invalid'$q$, 'ok');
+SELECT pg_temp.expect('sent_emails activity id cannot change once set',
+  $q$UPDATE sent_emails SET cc_activity_id = 'act-2'
+     WHERE recipient_email = 'guard-test-1@example.invalid'$q$, '23001');
+SELECT pg_temp.expect('sent_emails a second email cannot take the same activity id',
+  $q$UPDATE sent_emails SET cc_activity_id = 'act-1'
+     WHERE recipient_email = 'guard-test-2@example.invalid'$q$, '23505');
+SELECT pg_temp.expect('sent_emails scheduled needs an activity id (CHECK)',
+  $q$UPDATE sent_emails SET scheduled_at = now()
+     WHERE recipient_email = 'guard-test-2@example.invalid'$q$, '23514');
+SELECT pg_temp.expect('sent_emails one email per realtor per batch',
+  $q$INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id,
+                              sync_run_id, permission_asserted, created_by,
+                              subject, html_body)
+     SELECT batch_id, realtor_id, 'guard-test-3@example.invalid', template_id,
+            sync_run_id, 'none', created_by, 's', 'b'
+     FROM sent_emails WHERE recipient_email = 'guard-test-1@example.invalid'$q$, '23505');
+SELECT pg_temp.expect('sent_emails DELETE blocked',
+  $q$DELETE FROM sent_emails
+     WHERE recipient_email = 'guard-test-1@example.invalid'$q$, '23001');
+
+
+
 ROLLBACK;
 
 -- Nothing should have survived.
 SELECT (SELECT count(*) FROM email_templates) AS templates,
        (SELECT count(*) FROM send_log)        AS send_log_rows,
        (SELECT count(*) FROM oauth_tokens WHERE account_id = 'guard-test') AS oauth_token_rows,
-       (SELECT count(*) FROM cc_sync_runs WHERE watermark IN ('1999-01-01', '1999-01-02', '1999-01-04')) AS sync_test_rows;
+       (SELECT count(*) FROM sent_emails WHERE recipient_email LIKE 'guard-test-%') AS sent_email_rows,
+       (SELECT count(*) FROM cc_sync_runs WHERE watermark IN ('1999-01-01', '1999-01-02', '1999-01-04', '1999-01-05')) AS sync_test_rows;
