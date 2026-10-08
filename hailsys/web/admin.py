@@ -34,6 +34,10 @@ CHECK_MESSAGES = {
         "Billing day must be between 1 and 28.",
     "settings_rentcast_monthly_quota_check":
         "Monthly quota must be more than 0.",
+    "settings_match_max_age_days_check":
+        "Storm age limit must be between 1 and 90 days.",
+    "settings_email_cap_days_check":
+        "Email cap must be between 1 and 90 days.",
 }
 
 SELF_ACTION_MESSAGE = (
@@ -76,7 +80,8 @@ def _render_admin(form=None, status=200):
                    rentcast_billing_day, rentcast_monthly_quota,
                    global_sessions_invalidated_at,
                    hail_pair_ceiling_m() AS ceiling_m,
-                   listing_freshness_days
+                   listing_freshness_days,
+                   match_max_age_days, email_cap_days
             FROM settings
             """
         )
@@ -93,7 +98,8 @@ def _render_admin(form=None, status=200):
             """
             SELECT h.changed_at, u.user_name,
                    h.default_zip_radius_miles, h.default_match_radius_miles,
-                   h.rentcast_billing_day, h.rentcast_monthly_quota, h.listing_freshness_days
+                   h.rentcast_billing_day, h.rentcast_monthly_quota, h.listing_freshness_days,
+                   h.match_max_age_days, h.email_cap_days
             FROM settings_history h
             JOIN users u ON u.emp_id = h.changed_by
             ORDER BY h.changed_at DESC
@@ -263,6 +269,8 @@ def update_settings():
         billing_day = int(request.form.get("billing_day") or "")
         monthly_quota = int(request.form.get("monthly_quota") or "")
         freshness_days = int(request.form.get("freshness_days") or "")
+        match_max_age = int(request.form.get("match_max_age_days") or "")
+        email_cap = int(request.form.get("email_cap_days") or "")
     except (InvalidOperation, ValueError):
         flash("Radii, billing day, and quota must all be numbers.")
         return redirect(url_for("admin.index"))
@@ -278,9 +286,11 @@ def update_settings():
                 "       default_match_radius_miles = %s, "
                 "        rentcast_billing_day = %s, "
                 "         rentcast_monthly_quota = %s, " 
-                "          listing_freshness_days = %s "
+                "          listing_freshness_days = %s, "
+                "           match_max_age_days = %s, "
+                "            email_cap_days = %s "
                 " WHERE id = 1",
-                (zip_radius, match_radius, billing_day, monthly_quota, freshness_days),
+                (zip_radius, match_radius, billing_day, monthly_quota, freshness_days, match_max_age, email_cap),
             )
             conn.commit()
     except psycopg.errors.CheckViolation as e:

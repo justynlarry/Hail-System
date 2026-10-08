@@ -3,7 +3,8 @@
 
 SETTINGS_SQL = """
     SELECT default_zip_radius_miles, default_match_radius_miles,
-           rentcast_billing_day, rentcast_monthly_quota
+           rentcast_billing_day, rentcast_monthly_quota,
+           match_max_age_days, email_cap_days
         FROM settings
     WHERE id = 1
 """
@@ -25,4 +26,6 @@ def fetch_settings(conn):
         "match_radius_miles": float(row["default_match_radius_miles"]),
         "rentcast_billing_day": row["rentcast_billing_day"],
         "rentcast_monthly_quota": row["rentcast_monthly_quota"],
+        "match_max_age_days": row["match_max_age_days"],
+        "email_cap_days": row["email_cap_days"],
     }

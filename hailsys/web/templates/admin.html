@@ -148,6 +148,18 @@
             <td><input id="freshness_days" name="freshness_days" type="number"
                        step="1" min="1" max="90"
                        value="{{ settings.listing_freshness_days }}" required></td></tr>
+        <tr><th><label for="match_max_age_days">Storm age limit (days)</label></th>
+            <td><input id="match_max_age_days" name="match_max_age_days" type="number"
+                       step="1" min="1" max="90"
+                       value="{{ settings.match_max_age_days }}" required>
+                <br><small>A storm older than this is not emailed about.</small></td></tr>
+        <tr><th><label for="email_cap_days">Email cap (days)</label></th>
+            <td><input id="email_cap_days" name="email_cap_days" type="number"
+                       step="1" min="1" max="90"
+                       value="{{ settings.email_cap_days }}" required>
+                <br><small>A realtor emailed within this many days is held back unless
+                the sender overrides it.</small></td></tr>
+
         <tr><th>Ceiling (read-only)</th>
             <td>{{ "%.1f"|format(ceiling_miles) }} mi — raising it needs a migration
                 and a full recompute, not a settings change.</td></tr>
@@ -178,7 +190,7 @@
   <div class="table-scroll">
   <table>
     <thead><tr><th>When</th><th>By</th><th>Zip radius</th><th>Match radius</th>
-               <th>Billing day</th><th>Monthly quota</th><th>Freshness (days)</th></tr></thead>
+               <th>Billing day</th><th>Monthly quota</th><th>Freshness (days)</th><th>Storm age</th><th>Email cap</th></tr></thead>
     <tbody>
     {% for h in history %}
       <tr>
@@ -191,9 +203,11 @@
         <td>{{ h.rentcast_monthly_quota if h.rentcast_monthly_quota is not none else "—" }}</td>
         {# NULL on rows written before sql/028, which added this column #}
         <td>{{ h.listing_freshness_days if h.listing_freshness_days is not none else "—" }}</td>
+        <td>{{ h.match_max_age_days if h.match_max_age_days is not none else "—" }}</td>
+        <td>{{ h.email_cap_days if h.email_cap_days is not none else "—" }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="7">No changes yet.</td></tr>
+      <tr><td colspan="9">No changes yet.</td></tr>
     {% endfor %}
     </tbody>
   </table>
