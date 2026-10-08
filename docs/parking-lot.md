@@ -2518,6 +2518,44 @@ that go into `sent_emails`. Still to build: the query that turns "eligible match
 renderer's input, eligibility (item 179), the send engine that fills `sent_emails` and `send_log`,
 and the send screen.
 
+**Built 2026-10-08:** the send-list query (`hailsys/queries/sendlist.py`, `33a1c4d`, rules and
+counts per rule, one event per listing per Denver day), the `stale_listing` rule (item 187,
+`943650d`), and the two settings (`sql/038`, `3b91ae4`).
+
+**Send engine decisions, 2026-10-08.** Each email has its own content, so each gets its own
+list and campaign: about 10 calls per email (read contact, create if absent, create list, add
+and poll, create campaign, update, schedule, poll, delete list). A 437-email day is about 4,400
+calls and 25 minutes; a 1,400-realtor day exceeds Constant Contact's 10,000 calls a day.
+- **Background thread**, as the RentCast pulls do; progress is read from `sent_emails` by
+  `batch_id`.
+- **An unknown outcome** (a timeout after a campaign POST): stop that email, mark it "needs
+  review", never retry automatically.
+- **Auth or quota errors stop the whole batch;** any other failure stops only that email. A
+  failed unsubscribe sync stops everything before a row is written.
+- **Daily call budget: send what fits and queue the rest.** The rows stay `queued` in
+  `sent_emails` and `send_log`; a person resumes them with an explicit click on a later day
+  (nothing resumes by itself). Needs a count of today's calls, which does not exist yet, and
+  the reset time of Constant Contact's daily limit is unverified (item 183).
+- Build order: template store (`email_templates` is empty and `sent_emails.template_id` is NOT
+  NULL), CC campaign calls, engine with a fake CC, rehearsal on the dev trial, send screen,
+  status sync.
+
+## 189. No eligibility gate: nothing yet stops an email to an address outside the warm pools
+
+**Status:** open (parked 2026-10-08, by developer decision)
+
+Constant Contact's permission policy bans scraped and public-directory addresses (item 119,
+closed only for warm pools). The send list does not yet check that a realtor is a service
+client or a Constant Contact subscriber, so a real send would email any listing agent with a
+non-DNC address. The planned fix is a basis table keyed by `email_norm` (`service_client` /
+`cc_subscriber`, with source batch, as-of date and detail), loaded by an admin upload like the
+DNC import, and the engine refusing any recipient without a row. Blocked on the fresh
+Constant Contact export (item 129) and a usable in-house client list. Today 7 of the 440
+Sept 22 realtors are in the client file; the Constant Contact pool adds more.
+
+**When:** before the send screen is usable for anything but our own test addresses. The engine
+is built and rehearsed on test addresses only until then.
+
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
 **Status:** spike done 2026-10-07; paid-account checks remain (item 183)
