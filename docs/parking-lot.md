@@ -2540,6 +2540,17 @@ calls and 25 minutes; a 1,400-realtor day exceeds Constant Contact's 10,000 call
   NULL), CC campaign calls, engine with a fake CC, rehearsal on the dev trial, send screen,
   status sync.
 
+**Phase A built 2026-10-08 (`hailsys/email/send.py`, `queue_batch`).** Writes `sent_emails` and
+one `send_log` row per match as `queued`; never commits, never calls Constant Contact; refuses
+unless an unsubscribe sync finished OK within 15 minutes; `allowed_emails` is a required
+argument, so until item 189 exists a caller must name the recipients.
+**Finding while building it:** `sent_emails.permission_asserted` is frozen at insert and NOT
+NULL, but whether we assert `implicit` (new contact) or `none` (existing contact) is only known
+after asking Constant Contact. So Phase B starts with a read-only pre-check (one `GET` per
+recipient) whose answers are passed to `queue_batch`; it also stores `cc_contact_id` for
+existing contacts early and skips anyone already unsubscribed in Constant Contact, even if our
+DNC list has not caught up.
+
 ## 189. No eligibility gate: nothing yet stops an email to an address outside the warm pools
 
 **Status:** open (parked 2026-10-08, by developer decision)
