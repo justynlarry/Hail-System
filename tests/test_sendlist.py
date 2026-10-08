@@ -30,12 +30,15 @@ UTC = timezone.utc
 NOW = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
 TODAY = date(2026, 10, 8)
 AUG15 = datetime(2026, 9, 22, 20, 0, tzinfo=UTC)        # 14:00 in Denver, Sept 22
+SEEN = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)         # seen yesterday: fresh at TODAY
 
 
 def hit(match_id, listing_id=1, realtor_id=10, when=AUG15, mag="1.00", dist="2.00",
-        status="Active", sent=False, dnc=False, cap=False, email="a@x.invalid", address="1 St"):
+        status="Active", sent=False, dnc=False, cap=False, email="a@x.invalid", address="1 St",
+        seen=SEEN):
     return {"match_id": match_id, "listing_id": listing_id, "realtor_id": realtor_id,
-            "list_status": status, "address": address, "utc_datetime": when,
+            "list_status": status, "list_last_seen": seen, "address": address,
+            "utc_datetime": when,
             "magnitude": None if mag is None else Decimal(mag),
             "distance_miles": Decimal(dist), "agent_name": "Jane Smith", "email": email,
             "already_sent": sent, "on_dnc": dnc, "in_cap": cap}
@@ -90,6 +93,7 @@ class SelectTest(unittest.TestCase):
     def test_each_rule_drops_its_hits(self):
         hits = [hit(1, when=AUG15 - timedelta(days=60)),     # too old
                 hit(2, status="Inactive"),
+                hit(8, listing_id=8, realtor_id=12, seen=None),   # stale
                 hit(3, realtor_id=None, email=None),
                 hit(4, sent=True),
                 hit(5, dnc=True),
@@ -98,6 +102,7 @@ class SelectTest(unittest.TestCase):
         out = sl.select(hits, today=TODAY)
         self.assertEqual(self.counts(out, "too_old"), (1, 1))
         self.assertEqual(self.counts(out, "inactive_listing"), (1, 1))
+        self.assertEqual(self.counts(out, "stale_listing"), (1, 1))
         self.assertEqual(self.counts(out, "no_agent_email"), (1, 0))      # no realtor to count
         self.assertEqual(self.counts(out, "already_emailed"), (1, 1))
         self.assertEqual(self.counts(out, "on_dnc_list"), (1, 1))
@@ -116,6 +121,30 @@ class SelectTest(unittest.TestCase):
         out = sl.select([hit(1, when=edge), hit(2, listing_id=2, when=over)], today=TODAY)
         self.assertEqual(self.counts(out, "too_old"), (1, 1))
         self.assertEqual(len(out["realtors"][0]["events"]), 1)
+
+    def test_a_listing_not_seen_lately_is_stale(self):
+        old = datetime(2026, 9, 29, 12, 0, tzinfo=UTC)         # 9 days before Oct 8
+        out = sl.select([hit(1, seen=old)], today=TODAY)
+        self.assertEqual(self.counts(out, "stale_listing"), (1, 1))
+        self.assertEqual(out["realtors"], [])
+
+    def test_a_listing_never_seen_is_stale(self):
+        out = sl.select([hit(1, seen=None)], today=TODAY)
+        self.assertEqual(self.counts(out, "stale_listing"), (1, 1))
+
+    def test_the_freshness_boundary(self):
+        edge = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)        # 7 days: kept
+        over = datetime(2026, 9, 30, 12, 0, tzinfo=UTC)        # 8 days: dropped
+        out = sl.select([hit(1, seen=edge), hit(2, listing_id=2, seen=over)], today=TODAY)
+        self.assertEqual(self.counts(out, "stale_listing"), (1, 1))
+        self.assertEqual(len(out["realtors"][0]["events"]), 1)
+
+    def test_stale_is_counted_after_inactive_and_before_no_agent(self):
+        out = sl.select([hit(1, status="Inactive", seen=None),
+                         hit(2, realtor_id=None, email=None, seen=None)], today=TODAY)
+        self.assertEqual(self.counts(out, "inactive_listing"), (1, 1))
+        self.assertEqual(self.counts(out, "stale_listing"), (1, 0))
+        self.assertEqual(self.counts(out, "no_agent_email"), (0, 0))
 
     def test_a_capped_realtor_is_dropped_whole(self):
         out = sl.select([hit(1, cap=True), hit(2, listing_id=2, cap=True)], today=TODAY)
@@ -182,6 +211,14 @@ class QueryTest(unittest.TestCase):
             for e in r["events"]:
                 self.assertTrue(e["address"])
                 self.assertTrue(e["match_ids"])
+        fresh_after = now.astimezone(sl.DISPLAY_TZ).date() - timedelta(days=sl.FRESH_DAYS)
+        stale = self.conn.execute(
+            "SELECT count(*) AS n FROM listings l "
+            "JOIN storm_listing_matches m USING (listing_id) "
+            "WHERE m.match_id = ANY(%s) AND (l.list_last_seen IS NULL "
+            "OR (l.list_last_seen AT TIME ZONE 'America/Denver')::date < %s)",
+            (kept_matches, fresh_after)).fetchone()["n"]
+        self.assertEqual(stale, 0)                                           # nobody stale
 
 
 if __name__ == "__main__":

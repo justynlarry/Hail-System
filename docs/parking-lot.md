@@ -2715,6 +2715,39 @@ in dev and production alike. A 204 from a test send means accepted, not delivere
 **When:** before the first real send, send one message containing every link in the final
 template to a Gmail inbox and confirm it arrives.
 
+## 187. The send list ignored `listing_freshness_days`; a send needs a fresh RentCast pull first
+
+**Status:** open (rule being built 2026-10-08)
+
+Found 2026-10-08 while adding the eligibility settings (`sql/038`). `sendlist.py` (commit
+`33a1c4d`) kept every listing with `list_status = 'Active'`. That column stays `Active`
+indefinitely for a sold listing (`sql/028`'s own comment), so it does not say the listing is
+still on the market. `settings.listing_freshness_days` (7) exists for this and nothing read it
+for sending (item 140 is the match-page half). The rule is `stale_listing`: a listing whose
+`list_last_seen` is NULL or older than that many Denver days before the send is dropped,
+counted after `inactive_listing`.
+
+**Consequence found with it:** on 2026-10-08 the 656 listings matched to the 2026-09-22 storm
+were last seen between 09-21 and 09-29 (591 on 09-29). With a 7-day threshold **all of them
+are stale**. That is the intended design (pull, then send within a week), but it means a real
+send needs a new RentCast pull for the storm first, which costs requests (item 50 quota), and
+the send screen must say "N listings dropped as stale; pull again to refresh them" rather than
+show an empty list with no reason.
+
+**When:** with the send screen; the rule itself is built first.
+
+## 188. `sql/038` (storm age limit, email cap) is applied to `hail-dev` only
+
+**Status:** open
+
+`match_max_age_days` (30) and `email_cap_days` (14) were added to `settings` and
+`settings_history` on 2026-10-08, with the settings trigger re-created (`sql/038`, commit
+`3b91ae4`). Applied to `hail-dev`. The production OptiPlex is not racked and has none of the
+Constant Contact migrations either (034–037). The schema docs do not describe 038's columns
+(item 177).
+
+**When:** with the production build; apply 034–038 in order and run `sql/guard_test.sql`.
+
 ## 70. Permits as a source — corroboration first, roof age later
 
 **Status:** open (parked) — gated on item 70 ("until the system is running")

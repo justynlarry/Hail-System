@@ -7,6 +7,7 @@ the send screen can say why a count shrank:
 
   * too_old             Storm day is more than max_age_days ago
   * inactive_listing    Listing is inactive
+  * stale_listing       RentCast has not seen the listing within freshness_days
   * no_agent_email      Listing has no realtor/email
   * already_emailed     Match already has a send_log row success
   * on_dnc_list         Realtor's address is on dnc_list
@@ -33,12 +34,13 @@ from hailsys.tuning import DISPLAY_TZ
 
 MAX_AGE_DAYS = 30
 CAP_DAYS = 14
+FRESH_DAYS = 7
 
-REASONS = ("too_old", "inactive_listing", "no_agent_email",
+REASONS = ("too_old", "inactive_listing", "stale_listing", "no_agent_email",
            "already_emailed", "on_dnc_list", "within_cap")
 
 _HITS_SQL = """
-SELECT m.match_id, m.listing_id, l.realtor_id, l.list_status,
+SELECT m.match_id, m.listing_id, l.realtor_id, l.list_status, l.list_last_seen,
     p.property_address AS address,
     i.utc_datetime, i.magnitude, m.distance_miles,
     r.agent_name, r.email_norm AS email,
@@ -71,12 +73,15 @@ def _finite(value):
     return value is not None and Decimal(str(value)).is_finite()
 
 
-def _reason(hit, oldest_day):
+def _reason(hit, oldest_day, freshest_day):
     """The first rule that drops this hit, or None."""
     if _day(hit) < oldest_day:
         return "too_old"
     if hit["list_status"] != "Active":
         return "inactive_listing"
+    seen = hit["list_last_seen"]
+    if seen is None or seen.astimezone(DISPLAY_TZ).date() < freshest_day:
+        return "stale_listing"
     if hit["realtor_id"] is None or not hit["email"]:
         return "no_agent_email"
     if hit["already_sent"]:
@@ -109,13 +114,14 @@ def collapse(hits):
     return sorted(events.values(), key=lambda e: (e["utc_datetime"], e["listing_id"]))
 
 
-def select(hits, *, today, max_age_days=MAX_AGE_DAYS):
+def select(hits, *, today, max_age_days=MAX_AGE_DAYS, freshness_days=FRESH_DAYS):
     """Apply the rules to the gathered hits."""
     oldest_day = today - timedelta(days=max_age_days)
+    freshest_day = today - timedelta(days=freshness_days)
     dropped = {r: {"matches": 0, "realtors": set()} for r in REASONS}
     kept = defaultdict(list)
     for h in hits:
-        reason = _reason(h, oldest_day)
+        reason = _reason(h, oldest_day, freshest_day)
         if reason is None:
             kept[h["realtor_id"]].append(h)
             continue
@@ -137,10 +143,10 @@ def select(hits, *, today, max_age_days=MAX_AGE_DAYS):
                      for r, d in dropped.items()},
     }
 def build_send_list(conn, storm_days, *, now, max_age_days=MAX_AGE_DAYS,
-                    cap_days=CAP_DAYS):
+                    cap_days=CAP_DAYS, freshness_days=FRESH_DAYS):
     """Realtors to email for the ticked Denver days, and why some may have been dropped."""
     since = None if cap_days is None else now - timedelta(days=cap_days)
     hits = conn.execute(_HITS_SQL, {"days": list(storm_days), "tz": DISPLAY_TZ.key,
                                     "since": since}).fetchall()
     return select(hits, today=now.astimezone(DISPLAY_TZ).date(),
-                  max_age_days=max_age_days)
+                  max_age_days=max_age_days, freshness_days=freshness_days)
