@@ -146,7 +146,7 @@ name the storm day(s) it refers to (the un-addressed half of item 106).
 
 ## 16. Merge field vocabulary — where is it stored?
 
-**Status:** open
+**Status:** resolved 2026-10-08 (decided: in code, not a table)
 
 Established that the merge-field list for email templates should be reference
 data, not a hardcoded list, but it is not yet designed. Likely a small table:
@@ -155,6 +155,14 @@ placeholder name, source expression, whether it's required.
 **When:** Phase 5, when templates are written — same phase as item 11 (hail
 size names), which needs the same table. *(`database-schema.md`, open
 question 6)*
+
+**Resolved 2026-10-08 (`ef4eeb2`).** The vocabulary is `ALLOWED_VARS` in `hailsys/email/render.py`.
+A template is checked against it when it is saved (`validate_template`), which rejects any
+placeholder not on the list, so a typo cannot reach a recipient. A table was not needed:
+every placeholder is tied to code that supplies its value, so a row without code behind it
+would be a placeholder that cannot be filled. A placeholder is added by changing that list
+and the code together. (Item 11, hail-size names, did not need the table either; hail size
+goes through `hailsys.formatting.magnitude`.)
 
 ## 19. Does outreach ever fall back to the office email when an agent has none?
 
@@ -1334,6 +1342,17 @@ the second one.
 
 **When:** before the first real send.
 
+**Update 2026-10-08 (`ef4eeb2`).** The first real template is in the repo
+(`hailsys/email/templates/hail_alert.html` and `hail_alert_subject.txt`): logo, a storm data
+panel, a table of listings (one or several storms, one or several listings), the schedule button
+and a second link for existing customers, the "Most of These Are Small" band, a testimonial, the
+CRA and BBB badges, and a one-line advertisement notice. Constant Contact adds the postal address,
+Unsubscribe and Update Profile itself. It has been test-sent to a Gmail inbox and looks right.
+Still open: marketing sign-off on the factual claims (80% certifiable as-is, "most hail repairs
+come in under the insurance deductible", the $35 five-year certification, the attributed Yelp
+quote), and the badge and logo images, which are hosted in the dev trial's Constant Contact
+Library and need re-uploading to the production account (the URLs are settings).
+
 ## 136. Open question: should `nearest_miles` always appear in the email?
 
 **Status:** open
@@ -2493,6 +2512,11 @@ engine that fills it in the order above, and the template rendering.
   finding of damage.
 - Both numbers live in the `settings` table, so they appear on the Admin page with the change
   history already built for the radii and the quota.
+
+**Renderer built 2026-10-08 (`ef4eeb2`):** `hailsys/email/render.py` produces the subject and HTML
+that go into `sent_emails`. Still to build: the query that turns "eligible matches" into the
+renderer's input, eligibility (item 179), the send engine that fills `sent_emails` and `send_log`,
+and the send screen.
 
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
