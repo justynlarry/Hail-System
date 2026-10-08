@@ -1,0 +1,340 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="x-apple-disable-message-reformatting" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>Hail reported near your listing</title>
+<!--[if mso]>
+<style type="text/css">
+  body, table, td, a { font-family: Arial, Helvetica, sans-serif !important; }
+</style>
+<![endif]-->
+</head>
+
+<body style="margin:0; padding:0; background-color:#eef2f6; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+[[trackingImage]]
+
+{#- Variables this template needs (all required, so a missing one is an error):
+    logo_url, badge_cra_url, badge_bbb_url, contact_email, schedule_url   settings per environment
+    agent_first_name   text or empty (falls back to "Hello,")
+    storm_count        distinct storm days in this email
+    storm_dates_label  text, e.g. "August 15, 2026" or "August 15 and August 21, 2026"
+    largest_hail, nearest_miles   text, already formatted, across all listings and storms
+    properties         list of {address, events: [{date, hail_size, miles}]}
+    more_count         how many matched listings are not shown (0 normally)
+-#}
+{% set total = properties|length + more_count %}
+{% set multi = storm_count > 1 %}
+
+<!-- PREHEADER: shows in the inbox preview line, hidden in the body -->
+<div style="display:none; font-size:1px; color:#eef2f6; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden;">
+  {{ largest_hail }} hail, {{ nearest_miles }} away, on {{ storm_dates_label }}.
+  &#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;
+</div>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#eef2f6;">
+<tr>
+<td align="center" style="padding:24px 12px;">
+
+  <!-- ============ 600px FRAME ============ -->
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px; max-width:600px; background-color:#ffffff; border:3px solid #1f5c9e;">
+
+    <!-- ---------- LOGO ---------- -->
+    <tr>
+      <td align="center" style="padding:26px 30px 18px 30px; background-color:#ffffff;">
+        <img src="{{ logo_url }}" width="220" alt="Roof Brokers Inc." style="display:block; border:0; width:220px; max-width:100%; height:auto;" />
+      </td>
+    </tr>
+
+    <!-- ---------- DOTTED RULE ---------- -->
+    <tr>
+      <td style="padding:0 30px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr><td style="border-top:2px dotted #2d7dd2; font-size:0; line-height:0;">&nbsp;</td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- ---------- HEADLINE ---------- -->
+    <tr>
+      <td align="center" style="padding:26px 34px 6px 34px; font-family:Arial,Helvetica,sans-serif; font-size:24px; line-height:30px; font-weight:bold; color:#1b4a80;">
+        Recent Hail {% if multi %}Storms{% else %}Storm{% endif %} Reported Near {% if total == 1 %}Your Listing{% else %}Your Listings{% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td align="center" style="padding:0 34px 24px 34px; font-family:Arial,Helvetica,sans-serif; font-size:14px; line-height:20px; color:#64748b;">
+        National Weather Service storm {% if multi %}reports{% else %}report{% endif %} &middot; {{ storm_dates_label }}
+      </td>
+    </tr>
+
+    <!-- ---------- GREETING + LEDE ---------- -->
+    <tr>
+      <td style="padding:0 34px 18px 34px; font-family:Arial,Helvetica,sans-serif; font-size:16px; line-height:24px; color:#1e293b;">
+        <strong style="color:#1b4a80;">{% if agent_first_name %}{{ agent_first_name }},{% else %}Hello,{% endif %}</strong>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:0 34px 24px 34px; font-family:Arial,Helvetica,sans-serif; font-size:16px; line-height:25px; color:#1e293b;">
+        The National Weather Service logged {% if multi %}hail reports on {{ storm_dates_label }}{% else %}a hail report{% endif %} near {% if total == 1 %}your listing{% else %}<strong>{{ total }}</strong> of your listings{% endif %}.
+      </td>
+    </tr>
+
+    <!-- ---------- THE STORM DATA PANEL ---------- -->
+    <tr>
+      <td style="padding:0 34px 26px 34px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f3f7fc; border-left:5px solid #c0392b;">
+          <tr>
+            <td style="padding:22px 24px 22px 22px;">
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td width="46%" style="font-family:Arial,Helvetica,sans-serif; font-size:11px; line-height:16px; letter-spacing:1.2px; text-transform:uppercase; color:#64748b; padding-bottom:12px;">
+                    Storm {% if multi %}dates{% else %}date{% endif %}
+                  </td>
+                  <td align="right" style="font-family:Arial,Helvetica,sans-serif; font-size:17px; line-height:20px; font-weight:bold; color:#1e293b; padding-bottom:12px;">
+                    {{ storm_dates_label }}
+                  </td>
+                </tr>
+                <tr><td colspan="2" style="border-top:1px solid #dbe6f2; font-size:0; line-height:0; padding-bottom:12px;">&nbsp;</td></tr>
+                <tr>
+                  <td width="46%" style="font-family:Arial,Helvetica,sans-serif; font-size:11px; line-height:16px; letter-spacing:1.2px; text-transform:uppercase; color:#64748b; padding-bottom:12px;">
+                    {% if multi %}Largest reported hail size{% else %}Reported hail size{% endif %}
+                  </td>
+                  <td align="right" style="font-family:Arial,Helvetica,sans-serif; font-size:17px; line-height:20px; font-weight:bold; color:#c0392b; padding-bottom:12px;">
+                    {{ largest_hail }}
+                  </td>
+                </tr>
+                <tr><td colspan="2" style="border-top:1px solid #dbe6f2; font-size:0; line-height:0; padding-bottom:12px;">&nbsp;</td></tr>
+                <tr>
+                  <td width="46%" style="font-family:Arial,Helvetica,sans-serif; font-size:11px; line-height:16px; letter-spacing:1.2px; text-transform:uppercase; color:#64748b;">
+                    Nearest report
+                  </td>
+                  <td align="right" style="font-family:Arial,Helvetica,sans-serif; font-size:17px; line-height:20px; font-weight:bold; color:#1e293b;">
+                    {{ nearest_miles }}
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- ---------- YOUR LISTINGS (one block per property) ---------- -->
+    <tr>
+      <td style="padding:0 34px 26px 34px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr>
+            <td style="padding:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:11px; line-height:16px; letter-spacing:1.2px; text-transform:uppercase; color:#64748b;">{% if multi %}Listing and date{% else %}Listing{% endif %}</td>
+            <td align="center" style="padding:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:11px; line-height:16px; letter-spacing:1.2px; text-transform:uppercase; color:#64748b;">{% if multi %}Hail{% else %}Largest hail{% endif %}</td>
+            <td align="right" style="padding:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:11px; line-height:16px; letter-spacing:1.2px; text-transform:uppercase; color:#64748b;">Nearest report</td>
+          </tr>
+          {% for p in properties %}
+          {% if multi %}
+          <tr>
+            <td colspan="3" style="padding:12px 0 4px 0; border-top:1px solid #dbe6f2; font-family:Arial,Helvetica,sans-serif; font-size:15px; line-height:21px; font-weight:bold; color:#1e293b;">{{ p.address }}{% if p.events|length > 1 %} <span style="font-weight:normal; color:#64748b;">&middot; {{ p.events|length }} reports</span>{% endif %}</td>
+          </tr>
+          {% for e in p.events %}
+          <tr>
+            <td style="padding:2px 8px 6px 14px; font-family:Arial,Helvetica,sans-serif; font-size:14px; line-height:20px; color:#475569;">{{ e.date }}</td>
+            <td align="center" style="padding:2px 8px 6px 8px; font-family:Arial,Helvetica,sans-serif; font-size:14px; line-height:20px; font-weight:bold; color:#c0392b;">{{ e.hail_size }}</td>
+            <td align="right" style="padding:2px 0 6px 8px; font-family:Arial,Helvetica,sans-serif; font-size:14px; line-height:20px; color:#475569;">{{ e.miles }}</td>
+          </tr>
+          {% endfor %}
+          {% else %}
+          <tr>
+            <td style="padding:11px 8px 11px 0; border-top:1px solid #dbe6f2; font-family:Arial,Helvetica,sans-serif; font-size:15px; line-height:21px; color:#1e293b;">{{ p.address }}</td>
+            <td align="center" style="padding:11px 8px; border-top:1px solid #dbe6f2; font-family:Arial,Helvetica,sans-serif; font-size:15px; line-height:21px; font-weight:bold; color:#c0392b;">{{ p.events[0].hail_size }}</td>
+            <td align="right" style="padding:11px 0 11px 8px; border-top:1px solid #dbe6f2; font-family:Arial,Helvetica,sans-serif; font-size:15px; line-height:21px; color:#1e293b;">{{ p.events[0].miles }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+          {% if more_count %}
+          <tr>
+            <td colspan="3" style="padding:11px 0 0 0; border-top:1px solid #dbe6f2; font-family:Arial,Helvetica,sans-serif; font-size:14px; line-height:20px; color:#64748b;">and {{ more_count }} more</td>
+          </tr>
+          {% endif %}
+        </table>
+      </td>
+    </tr>
+
+    <!-- ---------- BODY COPY ---------- -->
+    <tr>
+      <td style="padding:0 34px 20px 34px; font-family:Arial,Helvetica,sans-serif; font-size:16px; line-height:25px; color:#1e293b;">
+        This came from a public weather record, and while it&rsquo;s not confirmation that the roof was damaged, it may be worth having a licensed roofer come out to check for damage.
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:0 34px 26px 34px; font-family:Arial,Helvetica,sans-serif; font-size:16px; line-height:25px; color:#1b4a80; font-weight:bold;">
+        Find out now, while you have time to deal with it.
+      </td>
+    </tr>
+
+    <!-- ---------- CTA BUTTON ---------- -->
+    <tr>
+      <td align="center" style="padding:0 34px 16px 34px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr>
+            <td align="center" bgcolor="#1b4a80" style="background-color:#1b4a80; border-radius:28px;">
+              <a href="https://www.roofbrokersinc.com/Account/LoginRegister"
+                 style="display:block; padding:17px 24px; font-family:Arial,Helvetica,sans-serif; font-size:16px; line-height:20px; font-weight:bold; letter-spacing:1px; color:#ffffff; text-decoration:none; border-radius:28px;">
+                SCHEDULE A FREE INSPECTION
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- ---------- SECONDARY LINK: existing customers ---------- -->
+    <tr>
+      <td align="center" style="padding:0 34px 32px 34px; font-family:Arial,Helvetica,sans-serif; font-size:15px; line-height:22px; color:#475569;">
+        Already have an account?
+        <a href="{{ schedule_url }}" style="color:#1f5c9e; font-weight:bold; text-decoration:none; border-bottom:2px solid #2d7dd2; padding-bottom:2px;">Schedule a new inspection</a>
+      </td>
+    </tr>
+
+    <!-- ---------- BAND: MINOR DAMAGES ---------- -->
+    <tr>
+      <td style="padding:0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f3f7fc; border-top:2px solid #1f5c9e; border-bottom:2px solid #1f5c9e;">
+          <tr>
+            <td style="padding:28px 34px 10px 34px;" align="center">
+              <div style="font-family:Arial,Helvetica,sans-serif; font-size:21px; line-height:26px; font-weight:bold; color:#1b4a80;">Most of These Are Small</div>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:0 34px 22px 34px; font-family:Arial,Helvetica,sans-serif; font-size:15px; line-height:23px; color:#334155;">
+              <strong>80% of homes are certifiable as-is</strong> or with minor repair work, and most hail repairs come in under the insurance deductible.
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 34px 30px 34px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#ffffff; border:1px solid #dbe6f2;">
+                <tr>
+                  <td style="padding:20px 22px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="font-family:Arial,Helvetica,sans-serif; font-size:15px; line-height:22px; color:#1e293b;">
+                      <tr>
+                        <td width="22" valign="top" style="color:#1f5c9e; font-weight:bold; padding-bottom:10px;">&#10003;</td>
+                        <td style="padding-bottom:10px;"><strong>$35 Five-Year Certification</strong> once it passes</td>
+                      </tr>
+                      <tr>
+                        <td width="22" valign="top" style="color:#1f5c9e; font-weight:bold; padding-bottom:10px;">&#10003;</td>
+                        <td style="padding-bottom:10px;">Minimum repairs to certify &mdash; we fix what&rsquo;s necessary, nothing more</td>
+                      </tr>
+                      <tr>
+                        <td width="22" valign="top" style="color:#1f5c9e; font-weight:bold; padding-bottom:10px;">&#10003;</td>
+                        <td style="padding-bottom:10px;">Rapid-response reporting</td>
+                      </tr>
+                      <tr>
+                        <td width="22" valign="top" style="color:#1f5c9e; font-weight:bold; padding-bottom:10px;">&#10003;</td>
+                        <td style="padding-bottom:10px;">Rush repair scheduling</td>
+                      </tr>
+                      <tr>
+                        <td width="22" valign="top" style="color:#1f5c9e; font-weight:bold; padding-bottom:10px;">&#10003;</td>
+                        <td style="padding-bottom:10px;">Multiple vendor estimates</td>
+                      </tr>
+                      <tr>
+                        <td width="22" valign="top" style="color:#1f5c9e; font-weight:bold;">&#10003;</td>
+                        <td>Pay out of closing costs</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- ---------- TESTIMONIAL ---------- -->
+    <tr>
+      <td align="center" style="padding:30px 34px 4px 34px; font-family:Arial,Helvetica,sans-serif; font-size:19px; line-height:24px; font-weight:bold; color:#1b4a80;">
+        Why Realtors Use Roof Brokers
+      </td>
+    </tr>
+    <tr>
+      <td align="center" style="padding:8px 34px 16px 34px; font-family:Arial,Helvetica,sans-serif; font-size:17px; line-height:20px; color:#e8a317; letter-spacing:3px;">
+        &#9733;&#9733;&#9733;&#9733;&#9733;
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:0 34px 14px 34px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-left:3px solid #dbe6f2;">
+          <tr>
+            <td style="padding:2px 0 2px 18px; font-family:Georgia,'Times New Roman',serif; font-size:15px; line-height:24px; color:#334155; font-style:italic;">
+              &ldquo;I&rsquo;ve referred Roof Brokers many times over the years, often numerous times per year when we have had hail storms. They have always been reliable, reasonable and professional. They do what they say they&rsquo;ll do, often when there is a time crunch.&rdquo;
+              <div style="padding-top:10px; font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:18px; color:#64748b; font-style:normal;">&mdash; Jeff G., Yelp</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" style="padding:6px 34px 26px 34px;">
+        <a href="https://birdeye.com/roof-brokers-inc-145262047197938?rsource=2#reviews"
+           style="font-family:Arial,Helvetica,sans-serif; font-size:15px; line-height:20px; font-weight:bold; color:#1f5c9e; text-decoration:none; border-bottom:2px solid #2d7dd2; padding-bottom:2px;">
+          See more reviews
+        </a>
+      </td>
+    </tr>
+
+    <!-- ---------- DOTTED RULE ---------- -->
+    <tr>
+      <td style="padding:0 30px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr><td style="border-top:2px dotted #2d7dd2; font-size:0; line-height:0;">&nbsp;</td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- ---------- SINCE 1992 ---------- -->
+    <tr>
+      <td align="center" style="padding:22px 34px 20px 34px; font-family:Arial,Helvetica,sans-serif; font-size:14px; line-height:21px; color:#475569;">
+        Roof Brokers has certified roofs for Denver Metro real estate agents <strong style="color:#1b4a80;">since 1992</strong>.
+      </td>
+    </tr>
+
+    <!-- ---------- BADGES (CRA / BBB) ---------- -->
+    <tr>
+      <td align="center" style="padding:0 34px 26px 34px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td align="center" style="padding:0 12px;">
+              <img src="{{ badge_cra_url }}" width="140" alt="CRA Member" style="display:block; border:0; width:140px; max-width:100%; height:auto;" />
+            </td>
+            <td align="center" style="padding:0 12px;">
+              <img src="{{ badge_bbb_url }}" width="140" alt="BBB Accredited" style="display:block; border:0; width:140px; max-width:100%; height:auto;" />
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- ---------- AD NOTICE + CONTACT ----------
+         Constant Contact adds the postal address, Unsubscribe and Update Profile
+         itself; it does not add the advertisement notice (CAN-SPAM). -->
+    <tr>
+      <td align="center" style="padding:0 34px 26px 34px; font-family:Arial,Helvetica,sans-serif; font-size:12px; line-height:19px; color:#64748b;">
+        This is an advertisement.
+        &nbsp;&middot;&nbsp;
+        <a href="tel:3037501900" style="color:#1f5c9e; text-decoration:none;">(303) 750-1900</a>
+        &nbsp;&middot;&nbsp;
+        <a href="mailto:{{ contact_email }}" style="color:#1f5c9e; text-decoration:none;">{{ contact_email }}</a>
+      </td>
+    </tr>
+
+  </table>
+  <!-- ============ /FRAME ============ -->
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>
