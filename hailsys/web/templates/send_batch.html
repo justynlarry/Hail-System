@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Send details{% endblock %}
+{% block heading %}Send of {{ emails[0].created_at.astimezone(display_tz).strftime('%Y-%m-%d %H:%M') }}{% endblock %}
+
+{% block content %}
+{% set labels = {'sent': 'Sent', 'failed': 'Failed', 'needs_review': 'Needs review',
+                 'in_progress': 'In progress', 'queued': 'Queued'} %}
+<div class="page">
+<p><a href="{{ url_for('send.batches') }}">Back to recent sends</a></p>
+
+{% if busy %}
+<p class="note warning">A send is running. This page refreshes every 5 seconds.</p>
+<script>setTimeout(function () { location.reload(); }, 5000);</script>
+{% endif %}
+
+<p class="estimate-summary">
+    {{ emails | length }} email{{ '' if emails | length == 1 else 's' }}:
+    <strong>{{ counts.sent }}</strong> sent,
+    <strong>{{ counts.failed }}</strong> failed,
+    <strong>{{ counts.needs_review }}</strong> needs review,
+    <strong>{{ counts.in_progress }}</strong> in progress,
+    <strong>{{ counts.queued }}</strong> queued.
+</p>
+
+{% if counts.needs_review %}
+<p class="note warning">
+    These may have been sent. Check each campaign in Constant Contact before doing anything,
+    and do not re-run them.
+</p>
+<table>
+    <thead><tr><th>To</th><th>Constant Contact activity id</th><th>What happened</th></tr></thead>
+    <tbody>
+        {% for e in emails if e.state == 'needs_review' %}
+        <tr><td>{{ e.recipient_email }}</td><td>{{ e.cc_activity_id or '' }}</td><td>{{ e.email_error }}</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% if counts.queued %}
+<p class="note">
+    {{ counts.queued }} email{{ '' if counts.queued == 1 else 's' }} still queued: the send limit
+    left them for a later, explicit run.
+</p>
+{% endif %}
+
+<table>
+    <thead><tr><th>To</th><th>State</th><th>Sent at</th><th>Detail</th></tr></thead>
+    <tbody>
+        {% for e in emails %}
+        <tr>
+            <td>{{ e.recipient_email }}</td>
+            <td>{{ labels[e.state] }}</td>
+            <td>{% if e.sent_at %}{{ e.sent_at.astimezone(display_tz).strftime('%Y-%m-%d %H:%M') }}{% endif %}</td>
+            <td>{{ e.email_error or '' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

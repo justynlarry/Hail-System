@@ -11,6 +11,7 @@ import contextlib
 import os
 import sys
 import unittest
+import uuid
 from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest import mock
@@ -218,6 +219,40 @@ class SendScreenTest(unittest.TestCase):
         text = self.post("/send/start", expected="2", **self.FORM).get_data(as_text=True)
         self.assertIn("not configured", text)
         start.assert_not_called()
+
+    # ---- the history pages ----
+
+    def test_history_pages_are_admin_only(self):
+        for role in ("viewer", "sender"):
+            if role in self.users:
+                for path in ("/send/batches", f"/send/batch/{uuid.uuid4()}"):
+                    self.assertEqual(self.client_as(role).get(path).status_code, 403, path)
+
+    def test_the_history_page_renders_and_writes_nothing(self):
+        before = self.counts()
+        resp = self.client_as("admin").get("/send/batches")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self.counts(), before)
+
+    def test_an_unknown_or_malformed_batch_is_a_404(self):
+        client = self.client_as("admin")
+        self.assertEqual(client.get(f"/send/batch/{uuid.uuid4()}").status_code, 404)
+        self.assertEqual(client.get("/send/batch/not-a-uuid").status_code, 404)
+
+    def test_a_real_batch_page_renders(self):
+        row = self.conn.execute("SELECT batch_id FROM sent_emails ORDER BY email_id LIMIT 1"
+                                ).fetchone()
+        if row is None:
+            self.skipTest("no sends in this database yet")
+        resp = self.client_as("admin").get(f"/send/batch/{row['batch_id']}")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_the_page_refreshes_itself_only_while_a_send_is_running(self):
+        client = self.client_as("admin")
+        with mock.patch.object(screen.sendjobs, "is_busy", return_value=True):
+            self.assertIn("location.reload", client.get("/send/batches").get_data(as_text=True))
+        with mock.patch.object(screen.sendjobs, "is_busy", return_value=False):
+            self.assertNotIn("location.reload", client.get("/send/batches").get_data(as_text=True))
 
 
 if __name__ == "__main__":

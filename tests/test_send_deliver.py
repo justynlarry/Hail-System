@@ -13,6 +13,7 @@ and Constant Contact is never called.  Skips without a database or without the s
 import os
 import sys
 import unittest
+import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -27,7 +28,7 @@ try:
     from hailsys.constantcontact import campaigns
     from hailsys.constantcontact.api import ApiError
     from hailsys.email import deliver, render, send
-    from hailsys.queries import sendlist
+    from hailsys.queries import sendlist, sendstatus
     MISSING = None
 except ImportError as exc:
     MISSING = str(exc)
@@ -383,6 +384,59 @@ class DeliverTest(unittest.TestCase):
             capped[hit["realtor_id"]] = hit["in_cap"]
         self.assertTrue(capped[self.realtors[0]["realtor_id"]])
         self.assertFalse(capped[self.realtors[1]["realtor_id"]])
+
+    # ---- how the history pages read each outcome ----
+
+    def state(self, index=0):
+        found = sendstatus.fetch_batch(self.conn, self.batch_id)
+        return {e["email_id"]: e for e in found["emails"]}[self.email_ids[index]]
+
+    def test_status_of_a_sent_email(self):
+        self.queue()
+        self.deliver()
+        e = self.state()
+        self.assertEqual(e["state"], "sent")
+        self.assertIsNotNone(e["sent_at"])
+
+    def test_status_of_a_refused_email_is_failed_with_a_reason(self):
+        self.queue()
+        self.cc.hooks["create_campaign"] = ApiError("refused", status=422)
+        self.deliver()
+        e = self.state()
+        self.assertEqual(e["state"], "failed")
+        self.assertIsNotNone(e["email_error"])
+
+    def test_status_of_a_parked_email_is_needs_review_with_its_activity_id(self):
+        self.queue()
+        self.cc.hooks["schedule"] = ApiError("server error", status=503)
+        self.deliver()
+        e = self.state()
+        self.assertEqual(e["state"], "needs_review")
+        self.assertIsNotNone(e["cc_activity_id"])
+
+    def test_status_of_an_untouched_email_is_queued(self):
+        self.queue()
+        self.assertEqual(self.state()["state"], "queued")
+
+    def test_status_after_a_crash_before_scheduling_is_in_progress(self):
+        self.queue()
+        self.cc.hooks["update_campaign"] = Crash("killed")
+        with self.assertRaises(Crash):
+            self.deliver()
+        self.assertEqual(self.state()["state"], "in_progress")
+
+    def test_batch_counts_add_up_and_the_list_agrees(self):
+        self.queue()
+        self.batch(max_emails=1)
+        found = sendstatus.fetch_batch(self.conn, self.batch_id)
+        self.assertEqual(found["counts"], {"sent": 1, "failed": 0, "needs_review": 0,
+                                           "in_progress": 0, "queued": 1})
+        listed = {str(b["batch_id"]): b for b in sendstatus.fetch_batches(self.conn)}
+        row = listed[str(self.batch_id)]
+        self.assertEqual((row["emails"], row["sent"], row["queued"]), (2, 1, 1))
+
+    def test_an_unknown_batch_has_no_status(self):
+        self.assertIsNone(sendstatus.fetch_batch(self.conn, uuid.uuid4()))
 
     # ---- the whole click ----
 

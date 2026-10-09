@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Recent sends{% endblock %}
+{% block heading %}Recent sends{% endblock %}
+
+{% block content %}
+<div class="page">
+<p><a href="{{ url_for('send.index') }}">Back to the preview</a></p>
+
+{% if busy %}
+<p class="note warning">A send is running. This page refreshes every 5 seconds.</p>
+<script>setTimeout(function () { location.reload(); }, 5000);</script>
+{% endif %}
+
+{% if sync %}
+<p class="note">
+    Last unsubscribe sync: <strong>{{ sync.status }}</strong>
+    {% if sync.started_at %}at {{ sync.started_at.astimezone(display_tz).strftime('%b %d %H:%M') }}{% endif %}.
+</p>
+{% else %}
+<p class="note">No unsubscribe sync has run yet.</p>
+{% endif %}
+
+{% if batches %}
+<table>
+    <thead>
+        <tr><th>Started</th><th>By</th><th>Emails</th><th>Sent</th><th>Failed</th>
+            <th>Needs review</th><th>In progress</th><th>Queued</th><th></th></tr>
+    </thead>
+    <tbody>
+        {% for b in batches %}
+        <tr>
+            <td>{{ b.started_at.astimezone(display_tz).strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ b.emp_fname or '' }}</td>
+            <td>{{ b.emails }}</td>
+            <td>{{ b.sent }}</td>
+            <td>{{ b.failed }}</td>
+            <td>{{ b.needs_review }}</td>
+            <td>{{ b.in_progress }}</td>
+            <td>{{ b.queued }}</td>
+            <td><a href="{{ url_for('send.batch', batch_id=b.batch_id) }}">Details</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="note">No sends yet.</p>
+{% endif %}
+</div>
+{% endblock %}

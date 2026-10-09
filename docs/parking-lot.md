@@ -2723,6 +2723,24 @@ cannot be undone with a normal `DELETE`.
 
 **When:** none, resolved. Revisit if a test harness for the web app gets its own database.
 
+## 196. A send that fails before it queues anything leaves no trace except a log line
+
+**Status:** open (found 2026-10-09, planning the send history page)
+
+`sendjobs._run` runs `deliver.run_send` in a background thread and catches any exception, logging
+`event=send_job_failed`. If the failure comes before `queue_batch` commits (the unsubscribe sync
+raising, a refusal for a stale sync, a recipient lookup failing), no `sent_emails` row exists, so
+the history pages (`/send/batches`, `/send/batch/<id>`) have nothing to show. The sync case is
+softened by showing the latest `cc_sync_runs` row on the history page; any other early failure is
+visible only in the `web` container log. A person who clicks Send now and sees an empty history has
+no way to tell "nothing was eligible" from "it failed".
+
+**Fix when needed:** a small `send_runs` table written by the thread (started, finished, status,
+fixed error text, batch id once it exists), like `cc_sync_runs`, and shown on the history page.
+
+**When:** before anyone other than the developer sends from the UI, or the first time a send
+fails silently in practice, whichever is first.
+
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
 **Status:** spike done 2026-10-07; paid-account checks remain (item 183)

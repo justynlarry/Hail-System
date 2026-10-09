@@ -5,9 +5,12 @@
 {% block content %}
 <div class="page">
 <p class="note">
-    This page only previews. Nothing is written and Constant Contact is not called.
-    Sending is not built yet.
+    This page previews first. Nothing is written or sent until you review a send and press
+    Send now. <a href="{{ url_for('send.batches') }}">Recent sends</a>
 </p>
+{% if busy %}
+<p class="note warning">A send is running. <a href="{{ url_for('send.batches') }}">See progress</a>.</p>
+{% endif %}
 
 <form method="get" action="{{ url_for('send.index') }}">
     {% if available %}

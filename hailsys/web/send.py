@@ -13,7 +13,7 @@ from flask import (Blueprint, abort, flash, g, redirect, render_template, reques
 
 from hailsys.db import get_connection
 from hailsys.email import render, templatestore
-from hailsys.queries import sendlist
+from hailsys.queries import sendlist, sendstatus
 from hailsys.tuning import DISPLAY_TZ
 from hailsys.web import sendjobs
 from hailsys.web.auth import require_role
@@ -95,7 +95,8 @@ def index():
         reasons=[(r, REASON_LABELS[r]) for r in sendlist.REASONS],
         listing_count=listing_count, sample_subject=sample_subject,
         sample_html=sample_html, sample_problem=sample_problem,
-        default_max_emails=DEFAULT_MAX_EMAILS, max_emails_limit=MAX_EMAILS_LIMIT)
+        default_max_emails=DEFAULT_MAX_EMAILS, max_emails_limit=MAX_EMAILS_LIMIT,
+        busy=sendjobs.is_busy())
 
 
 def parse_allow_list(text):
@@ -215,5 +216,26 @@ def start():
         flash("A send is already running.  Nothing new was started.")
         return _back(form["days"])
     flash(f"Send started: up to {min(len(mine), form['max_emails'])} of {len(mine)} emails. "
-          "It runs in the background.  The result is in the log until the progress view is built.")
-    return _back(form["days"])
+          "It runs in the background. This page shows progress.")
+    return redirect(url_for("send.batches"))
+
+
+@send_bp.route("/batches")
+def batches():
+    with get_connection() as conn:
+        rows = sendstatus.fetch_batches(conn)
+        sync = sendstatus.fetch_last_sync(conn)
+        conn.rollback()
+    return render_template("send_batches.html", batches=rows, sync=sync,
+                           busy=sendjobs.is_busy(), display_tz=DISPLAY_TZ)
+
+
+@send_bp.route("/batch/<uuid:batch_id>")
+def batch(batch_id):
+    with get_connection() as conn:
+        found = sendstatus.fetch_batch(conn, batch_id)
+        conn.rollback()
+    if found is None:
+        abort(404)
+    return render_template("send_batch.html", emails=found["emails"], counts=found["counts"],
+                           busy=sendjobs.is_busy(), display_tz=DISPLAY_TZ)
