@@ -2608,6 +2608,46 @@ are loaded, but nothing reads `municipal_boundaries` or `county_boundaries` yet 
 **When:** after the Phase 5 email work; Phase 6 with address search. Start with the trial
 (step 1); it decides whether the rest is worth building.
 
+## 191. No count of Constant Contact calls per day; `max_emails` is a stand-in
+
+**Status:** open (found 2026-10-09, building Phase B)
+
+An email costs about 10 calls (item 180) and Constant Contact allows 10,000 a day, so a
+1,400-realtor day cannot finish. `deliver_batch(max_emails=N)` stops after N emails and leaves
+the rest `queued` for an explicit later run, but N is a number a person types, not a count of
+calls made today. Nothing records calls, and the reset time of the daily limit is unverified
+(item 183).
+
+**When:** before a send larger than about 900 emails (9,000 calls), and before the send screen
+offers a "send all" button. Until then the screen must pass a `max_emails` it has checked by hand.
+
+## 192. The send screen needs a sender identity in `.env` (`CC_FROM_NAME`, `CC_FROM_EMAIL`)
+
+**Status:** open (found 2026-10-09)
+
+`deliver_email` takes `sender` = `{from_name, from_email, reply_to}` and passes it to
+`campaign_fields`. Nothing reads it from configuration yet, and the From address must be a
+verified sender in the Constant Contact account (item 183). Neither variable is in `.env` on
+`hail-dev` or on the production box.
+
+**When:** when the send screen is built (piece 4, the dev-trial rehearsal needs it first).
+
+## 193. Phase B was keyed in with slips that would have failed on the first send
+
+**Status:** resolved 2026-10-09 (caught before commit by diffing against the verified copy and
+running the tests)
+
+`hailsys/email/deliver.py` as first keyed in had: `cc_activity_ide` in `_ID_COLUMNS` (every
+activity-id save would fail the assert); `_mark` ending in a bare `conn.execute` with no
+commit; `found["permissoin"]` (KeyError); two dropped lines in `_put_contact_on_list` (no
+`add_to_list` after a 409, no contact id stored after a create); `conn.execute(+_EMAIL_SQL, …)`
+(TypeError on every call); outcome `"need_review"` for `"needs_review"` (KeyError in the batch
+counter); and `run_send` missing the send-list and `lookup_contacts` block (NameError). The
+`in_cap` edit in `sendlist.py` was also not yet in. All fixed; 79 tests pass.
+
+**Lesson:** the test suite finds these, and the diff against the scratchpad copy found them
+first. Key in, `py_compile`, run the suites, before anything is committed.
+
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
 **Status:** spike done 2026-10-07; paid-account checks remain (item 183)

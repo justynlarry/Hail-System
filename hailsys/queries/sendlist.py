@@ -51,7 +51,8 @@ SELECT m.match_id, m.listing_id, l.realtor_id, l.list_status, l.list_last_seen,
             WHERE d.email_norm = r.email_norm AND d.removed_at IS NULL)
         AS on_dnc,
     EXISTS (SELECT 1 FROM sent_emails e
-            WHERE e.realtor_id = r.realtor_id AND e.error_detail IS NULL
+              JOIN send_log s ON s.email_id = e.email_id
+            WHERE e.realtor_id = r.realtor_id AND s.send_status <> 'failed'
               AND e.created_at >= %(since)s)
         AS in_cap
 FROM storm_listing_matches m
