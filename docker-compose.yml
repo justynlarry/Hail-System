@@ -123,6 +123,14 @@ services:
       CC_API_SECRET: ${CC_API_SECRET:?CC_API_SECRET is not set --see .env.example}
       HAIL_TOKEN_KEY: ${HAIL_TOKEN_KEY:?HAIL_TOKEN_KEY is not set --see .env.example}
       CC_REDIRECT_URI: ${CC_REDIRECT_URI:?CC_REDIRECT_URI is not set -- see .env.example}
+      CC_FROM_NAME: "Roof Brokers, Inc."
+      CC_FROM_EMAIL: "justyn@roofbrokersinc-weather.com"
+      CC_REPLY_TO: "justyn@roofbrokersinc-weather.com"
+      EMAIL_LOGO_URL: "https://files.constantcontact.com/9d5b079f901/01027145-977a-464d-85af-b11a0e72653c.png"
+      EMAIL_BADGE_CRA_URL: "https://files.constantcontact.com/9d5b079f901/e2672dcb-efb2-47f3-a776-340a4167f3f2.jpg"
+      EMAIL_BADGE_BBB_URL: "https://files.constantcontact.com/9d5b079f901/bf427d28-22b1-4b9c-bdcb-32dfb93b361f.png"
+      EMAIL_CONTACT_EMAIL: "justyn@roofbrokersinc-weather.com"
+      EMAIL_SCHEDULE_URL: "https://www.roofbrokersinc.com/Orders/Create"
     ports:
       - "127.0.0.1:8000:8000"
     networks:

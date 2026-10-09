@@ -2632,6 +2632,31 @@ verified sender in the Constant Contact account (item 183). Neither variable is 
 
 **When:** when the send screen is built (piece 4, the dev-trial rehearsal needs it first).
 
+## 194. The sender identity is hard-coded in `docker-compose.yml`; a user should be able to choose it in the UI
+
+**Status:** open, accepted for now (2026-10-09, by developer decision)
+
+Item 192 put `CC_FROM_NAME`, `CC_FROM_EMAIL` and `CC_REPLY_TO` (and the `EMAIL_*` asset URLs and
+contact address) in the `web` service's `environment:` block, which is where the repo keeps
+non-secrets. That is fine for the rehearsal and the pilot, but one fixed From address is not the
+long-term shape: a user who wants a campaign to go out from their own address should be able to
+pick it from the UI. Probably a drop-down on the send screen filled from the `users` table (a
+sender name, From and reply-to address per user, or a list of allowed senders an admin
+maintains). `deliver_email` already takes `sender` as an argument, so the engine does not
+change; only where the dict comes from does.
+
+**Constraints to settle when it is built:**
+- Constant Contact only sends from a **verified** sender address on the account (item 183), so a
+  user's address cannot be offered until it is verified there. An admin-maintained list of
+  verified senders is safer than every user's email.
+- The chosen sender must be recorded with the send (today `sent_emails` stores the rendered
+  subject and HTML but not the From address), because `sent_emails` is the record of what was
+  sent and a from-address that lives only in a form field is lost.
+- Changes to the list should go through `settings_history` or similar, like the other settings.
+
+**When:** before more than one person sends, or when someone other than the developer asks to send
+from their own address. Until then `sender_from_env()` in `hailsys/email/deliver.py` is the source.
+
 ## 193. Phase B was keyed in with slips that would have failed on the first send
 
 **Status:** resolved 2026-10-09 (caught before commit by diffing against the verified copy and

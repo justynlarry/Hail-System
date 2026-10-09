@@ -23,6 +23,7 @@ stops only that email.  Database error or crash isn't caught here.
 
 
 import logging
+import os
 from datetime import datetime, timezone
 
 from hailsys.constantcontact import campaigns, unsubs
@@ -54,6 +55,21 @@ class BatchStopped(Exception):
 
 class BatchBusy(Exception):
     """Another run is delivering this batch"""
+
+
+_SENDER_ENV = {"from_name": "CC_FROM_NAME", "from_email": "CC_FROM_EMAIL",
+               "reply_to": "CC_REPLY_TO"}
+
+
+def sender_from_env():
+    """The 'sender' dict deliver_email wants."""
+    sender = {}
+    for field, var in _SENDER_ENV.items():
+        value = (os.environ.get(var) or "").strip()
+        if not value:
+            raise render.SettingsError(f"{var} is not set in the environment")
+        sender[field] = value
+    return sender
 
 
 # ------ small database steps (each commits, so no transaction is open across an HTTP call) ----

@@ -424,6 +424,26 @@ class DeliverTest(unittest.TestCase):
         self.assertEqual(got, {self.emails[0]: {"contact_id": "c-1", "permission": "implicit"},
                                self.emails[1]: None})
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+class SenderFromEnvTest(unittest.TestCase):
+    ENV = {"CC_FROM_NAME": " RBI ", "CC_FROM_EMAIL": "from@example.com",
+           "CC_REPLY_TO": "reply@example.com"}
+
+    def test_reads_all_three_and_strips(self):
+        with mock.patch.dict(os.environ, self.ENV):
+            self.assertEqual(deliver.sender_from_env(),
+                             {"from_name": "RBI", "from_email": "from@example.com",
+                              "reply_to": "reply@example.com"})
+
+    def test_a_missing_variable_is_loud(self):
+        for missing in self.ENV:
+            env = {k: v for k, v in self.ENV.items() if k != missing}
+            with mock.patch.dict(os.environ, env, clear=True):
+                with self.assertRaises(render.SettingsError) as ctx:
+                    deliver.sender_from_env()
+            self.assertIn(missing, str(ctx.exception))
+
+
 
 if __name__ == "__main__":
     unittest.main()
