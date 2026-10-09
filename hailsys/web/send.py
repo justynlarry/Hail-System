@@ -5,12 +5,14 @@ the send engine.  sendjobs.start_send() is the only door to the engine, reached
 by the Send-now POST
 """
 
+import logging
 import re
 from datetime import datetime, timezone
 
 from flask import (Blueprint, abort, flash, g, redirect, render_template, request, session,
                    url_for)
 
+from hailsys.constantcontact import api, oauth, statuses
 from hailsys.db import get_connection
 from hailsys.email import render, templatestore
 from hailsys.queries import sendlist, sendstatus
@@ -18,7 +20,7 @@ from hailsys.tuning import DISPLAY_TZ
 from hailsys.web import sendjobs
 from hailsys.web.auth import require_role
 
-
+logger = logging.getLogger(__name__)
 
 send_bp = Blueprint("send", __name__, url_prefix="/send")
 
@@ -225,8 +227,9 @@ def batches():
     with get_connection() as conn:
         rows = sendstatus.fetch_batches(conn)
         sync = sendstatus.fetch_last_sync(conn)
+        check = statuses.last_success(conn)
         conn.rollback()
-    return render_template("send_batches.html", batches=rows, sync=sync,
+    return render_template("send_batches.html", batches=rows, sync=sync, check=check,
                            busy=sendjobs.is_busy(), display_tz=DISPLAY_TZ)
 
 
@@ -239,3 +242,22 @@ def batch(batch_id):
         abort(404)
     return render_template("send_batch.html", emails=found["emails"], counts=found["counts"],
                            busy=sendjobs.is_busy(), display_tz=DISPLAY_TZ)
+
+
+@send_bp.route("/check", methods=["POST"])
+def check():
+    """Ask Constant Contact about bounces for recent sends.  Read-only toward Constant
+    Contact: it sends nothing."""
+    try:
+        result = statuses.run_check(triggered_by=session["emp_id"])
+    except statuses.StatusBusy as exc:
+        flash(str(exc))
+    except (api.ApiError, oauth.OAuthError) as exc:
+        flash(f"The bounce check stopped: {exc}")
+    except Exception:
+        logger.exception("event=cc_status_unexpected")
+        flash("The bounce check failed unexpectedly; see the server log.")
+    else:
+        flash(f"Bounce check finished: {result['checked']} emails checked, "
+              f"{result['bounced']} bounced, {result['suppressed']} added to the DNC list.")
+    return redirect(url_for("send.batches"))

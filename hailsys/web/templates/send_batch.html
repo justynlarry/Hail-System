@@ -3,7 +3,7 @@
 {% block heading %}Send of {{ emails[0].created_at.astimezone(display_tz).strftime('%Y-%m-%d %H:%M') }}{% endblock %}
 
 {% block content %}
-{% set labels = {'sent': 'Sent', 'failed': 'Failed', 'needs_review': 'Needs review',
+{% set labels = {'sent': 'Sent', 'bounced': 'Bounced', 'failed': 'Failed', 'needs_review': 'Needs review',
                  'in_progress': 'In progress', 'queued': 'Queued'} %}
 <div class="page">
 <p><a href="{{ url_for('send.batches') }}">Back to recent sends</a></p>
@@ -16,6 +16,7 @@
 <p class="estimate-summary">
     {{ emails | length }} email{{ '' if emails | length == 1 else 's' }}:
     <strong>{{ counts.sent }}</strong> sent,
+    <strong>{{ counts.bounced }}</strong> bounced,
     <strong>{{ counts.failed }}</strong> failed,
     <strong>{{ counts.needs_review }}</strong> needs review,
     <strong>{{ counts.in_progress }}</strong> in progress,
@@ -52,7 +53,7 @@
             <td>{{ e.recipient_email }}</td>
             <td>{{ labels[e.state] }}</td>
             <td>{% if e.sent_at %}{{ e.sent_at.astimezone(display_tz).strftime('%Y-%m-%d %H:%M') }}{% endif %}</td>
-            <td>{{ e.email_error or '' }}</td>
+            <td>{{ e.bounce_detail or e.email_error or '' }}</td>
         </tr>
         {% endfor %}
     </tbody>

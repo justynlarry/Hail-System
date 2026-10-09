@@ -20,10 +20,20 @@
 <p class="note">No unsubscribe sync has run yet.</p>
 {% endif %}
 
+<form method="post" action="{{ url_for('send.check') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p class="note">
+        {% if check %}Last bounce check: {{ check.finished_at.astimezone(display_tz).strftime('%b %d %H:%M') }}
+        ({{ check.checked }} checked, {{ check.bounced }} bounced).
+        {% else %}No bounce check has run yet.{% endif %}
+        <button type="submit">Check for bounces</button>
+    </p>
+</form>
+
 {% if batches %}
 <table>
     <thead>
-        <tr><th>Started</th><th>By</th><th>Emails</th><th>Sent</th><th>Failed</th>
+        <tr><th>Started</th><th>By</th><th>Emails</th><th>Sent</th><th>Bounced</th><th>Failed</th>
             <th>Needs review</th><th>In progress</th><th>Queued</th><th></th></tr>
     </thead>
     <tbody>
@@ -33,6 +43,7 @@
             <td>{{ b.emp_fname or '' }}</td>
             <td>{{ b.emails }}</td>
             <td>{{ b.sent }}</td>
+            <td>{{ b.bounced }}</td>
             <td>{{ b.failed }}</td>
             <td>{{ b.needs_review }}</td>
             <td>{{ b.in_progress }}</td>

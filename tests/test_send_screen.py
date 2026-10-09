@@ -254,6 +254,46 @@ class SendScreenTest(unittest.TestCase):
         with mock.patch.object(screen.sendjobs, "is_busy", return_value=False):
             self.assertNotIn("location.reload", client.get("/send/batches").get_data(as_text=True))
 
+    # ---- the bounce check button (the check itself is always stubbed here) ----
+
+    def test_the_check_needs_a_token(self):
+        self.assertEqual(self.client_as("admin").post("/send/check").status_code, 400)
+
+    def test_the_check_is_post_only(self):
+        self.assertEqual(self.client_as("admin").get("/send/check").status_code, 405)
+
+    def test_only_admin_may_run_the_check(self):
+        with mock.patch.object(screen.statuses, "run_check") as run:
+            for role in ("viewer", "sender"):
+                if role in self.users:
+                    self.assertEqual(self.post("/send/check", role).status_code, 403, role)
+        run.assert_not_called()
+
+    def test_a_check_reports_what_it_found(self):
+        result = {"run_id": 1, "checked": 3, "bounced": 1, "suppressed": 1}
+        with mock.patch.object(screen.statuses, "run_check", return_value=result) as run:
+            text = self.post("/send/check").get_data(as_text=True)
+        run.assert_called_once_with(triggered_by=self.users["admin"])
+        self.assertIn("3 emails checked", text)
+
+    def test_a_check_already_running_is_said_so(self):
+        busy = screen.statuses.StatusBusy("A bounce check is already running.")
+        with mock.patch.object(screen.statuses, "run_check", side_effect=busy):
+            text = self.post("/send/check").get_data(as_text=True)
+        self.assertIn("already running", text)
+
+    def test_a_constant_contact_error_is_said_so(self):
+        with mock.patch.object(screen.statuses, "run_check",
+                               side_effect=screen.api.ApiError("nope")):
+            text = self.post("/send/check").get_data(as_text=True)
+        self.assertIn("bounce check stopped", text)
+
+    def test_an_unexpected_error_is_said_so_and_logged(self):
+        with mock.patch.object(screen.statuses, "run_check", side_effect=RuntimeError("x")):
+            with self.assertLogs("hailsys.web.send", level="ERROR"):
+                text = self.post("/send/check").get_data(as_text=True)
+        self.assertIn("failed unexpectedly", text)
+
 
 if __name__ == "__main__":
     unittest.main()

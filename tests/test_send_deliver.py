@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT))
 try:
     import psycopg
     from psycopg.rows import dict_row
-    from hailsys.constantcontact import campaigns
+    from hailsys.constantcontact import campaigns, statuses
     from hailsys.constantcontact.api import ApiError
     from hailsys.email import deliver, render, send
     from hailsys.queries import sendlist, sendstatus
@@ -429,14 +429,123 @@ class DeliverTest(unittest.TestCase):
         self.queue()
         self.batch(max_emails=1)
         found = sendstatus.fetch_batch(self.conn, self.batch_id)
-        self.assertEqual(found["counts"], {"sent": 1, "failed": 0, "needs_review": 0,
-                                           "in_progress": 0, "queued": 1})
+        self.assertEqual(found["counts"], {"sent": 1, "bounced": 0, "failed": 0,
+                                           "needs_review": 0, "in_progress": 0, "queued": 1})
         listed = {str(b["batch_id"]): b for b in sendstatus.fetch_batches(self.conn)}
         row = listed[str(self.batch_id)]
         self.assertEqual((row["emails"], row["sent"], row["queued"]), (2, 1, 1))
 
     def test_an_unknown_batch_has_no_status(self):
         self.assertIsNone(sendstatus.fetch_batch(self.conn, uuid.uuid4()))
+
+    # ---- the bounce check ----
+
+    def run_check(self, records=None, fail=None):
+        """Run the bounce check on this transaction.  `records` maps an activity id to the
+        bounce records the fake report returns; anything else gets an empty report."""
+        def fetch(activity_id):
+            if fail:
+                raise fail
+            return (records or {}).get(activity_id, [])
+        return statuses._run(self.conn, self.user, fetch)
+
+    def bounce(self, code, index=0, address=None):
+        email = self.email(index)
+        rec = {"email_address": address or email["recipient_email"], "bounce_code": code}
+        return {email["cc_activity_id"]: [rec]}
+
+    def sent_status(self, index=0):
+        return self.conn.execute("SELECT send_status, error_detail FROM send_log "
+                                 "WHERE email_id = %s", (self.email_ids[index],)).fetchone()
+
+    def dnc_rows(self, index=0):
+        return self.conn.execute("SELECT source FROM dnc_list WHERE email_norm = lower(%s)",
+                                 (self.email(index)["recipient_email"],)).fetchall()
+
+    def test_a_hard_bounce_marks_the_email_and_suppresses_the_address(self):
+        self.queue()
+        self.deliver()
+        result = self.run_check(self.bounce("B"))
+        self.assertEqual((result["bounced"], result["suppressed"]), (1, 1))
+        row = self.sent_status()
+        self.assertEqual(row["send_status"], "bounced")
+        self.assertIn("code B", row["error_detail"])
+        self.assertEqual([r["source"] for r in self.dnc_rows()], ["hard_bounce"])
+
+    def test_a_soft_bounce_marks_the_email_but_does_not_suppress(self):
+        self.queue()
+        self.deliver()
+        result = self.run_check(self.bounce("F"))
+        self.assertEqual((result["bounced"], result["suppressed"]), (1, 0))
+        self.assertEqual(self.sent_status()["send_status"], "bounced")
+        self.assertEqual(self.dnc_rows(), [])
+
+    def test_a_vacation_reply_is_not_a_bounce(self):
+        self.queue()
+        self.deliver()
+        result = self.run_check(self.bounce("V"))
+        self.assertEqual(result["bounced"], 0)
+        self.assertEqual(self.sent_status()["send_status"], "sent")
+
+    def test_a_record_for_another_address_is_ignored(self):
+        self.queue()
+        self.deliver()
+        self.run_check(self.bounce("B", address="someone.else@example.com"))
+        self.assertEqual(self.sent_status()["send_status"], "sent")
+        self.assertEqual(self.dnc_rows(), [])
+
+    def test_a_second_check_changes_nothing(self):
+        self.queue()
+        self.deliver()
+        self.run_check(self.bounce("B"))
+        again = self.run_check(self.bounce("B"))
+        self.assertEqual((again["bounced"], again["suppressed"]), (0, 0))
+        self.assertEqual(len(self.dnc_rows()), 1)
+
+    def test_an_address_already_on_the_dnc_list_is_left_alone(self):
+        self.queue()
+        self.deliver()
+        self.conn.execute("INSERT INTO dnc_list (email_raw, added_by, source, reason) "
+                          "VALUES (%s, %s, 'manual', 'test')",
+                          (self.email()["recipient_email"], self.user))
+        result = self.run_check(self.bounce("B"))
+        self.assertEqual((result["bounced"], result["suppressed"]), (1, 0))
+        self.assertEqual([r["source"] for r in self.dnc_rows()], ["manual"])
+
+    def test_an_unknown_code_is_recorded_as_other(self):
+        self.queue()
+        self.deliver()
+        self.run_check(self.bounce("Q"))
+        self.assertIn("code X", self.sent_status()["error_detail"])
+
+    def test_a_failed_fetch_marks_the_run_failed_and_changes_nothing(self):
+        self.queue()
+        self.deliver()
+        with self.assertRaises(ApiError):
+            self.run_check(fail=ApiError("boom"))
+        run = self.conn.execute("SELECT status, error_detail FROM cc_status_runs "
+                                "ORDER BY run_id DESC LIMIT 1").fetchone()
+        self.assertEqual(run["status"], "failed")
+        self.assertIn("ApiError", run["error_detail"])
+        self.assertEqual(self.sent_status()["send_status"], "sent")
+
+    def test_a_successful_check_is_logged(self):
+        self.queue()
+        self.deliver()
+        result = self.run_check()
+        self.assertGreaterEqual(result["checked"], 1)
+        self.assertEqual(statuses.last_success(self.conn)["run_id"], result["run_id"])
+
+    def test_a_bounced_email_reads_as_bounced_in_the_history(self):
+        self.queue()
+        self.deliver()
+        self.run_check(self.bounce("B"))
+        e = self.state()
+        self.assertEqual(e["state"], "bounced")
+        self.assertIn("code B", e["bounce_detail"])
+        found = sendstatus.fetch_batch(self.conn, self.batch_id)
+        self.assertEqual(found["counts"]["bounced"], 1)
+        self.assertEqual(found["counts"]["sent"], 0)
 
     # ---- the whole click ----
 
@@ -497,6 +606,33 @@ class SenderFromEnvTest(unittest.TestCase):
                     deliver.sender_from_env()
             self.assertIn(missing, str(ctx.exception))
 
+
+
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+class WorstCodeTest(unittest.TestCase):
+    def rec(self, code, address="a@example.com"):
+        return {"email_address": address, "bounce_code": code}
+
+    def test_nothing_to_record(self):
+        self.assertIsNone(statuses.worst_code([], "a@example.com"))
+
+    def test_only_vacation_replies_is_nothing(self):
+        self.assertIsNone(statuses.worst_code([self.rec("V")], "a@example.com"))
+
+    def test_a_hard_code_wins_over_a_soft_one_in_any_order(self):
+        for records in ([self.rec("F"), self.rec("S")], [self.rec("S"), self.rec("F")]):
+            self.assertEqual(statuses.worst_code(records, "a@example.com"), "S")
+
+    def test_the_address_match_ignores_case_and_spaces(self):
+        self.assertEqual(statuses.worst_code([self.rec("D", " A@Example.COM ")],
+                                             "a@example.com"), "D")
+
+    def test_other_addresses_are_ignored(self):
+        self.assertIsNone(statuses.worst_code([self.rec("B", "b@example.com")], "a@example.com"))
+
+    def test_an_unknown_or_missing_code_counts_as_other(self):
+        self.assertEqual(statuses.worst_code([self.rec("Q")], "a@example.com"), "X")
+        self.assertEqual(statuses.worst_code([self.rec(None)], "a@example.com"), "X")
 
 
 if __name__ == "__main__":

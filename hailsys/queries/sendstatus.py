@@ -4,7 +4,8 @@ One state per email, worked out from sent_emails and send_log, nothing stored.
 Every email has at least one send_log row and the engine moves all of an email's
 queued rows together, so the rows of one email are read as a group:
 
-  sent          no queued rows left and none failed (sent, or later bounced or complained)
+  sent          no queued rows left, none failed and none bounced
+  bounced       no queued rows left, none failed, at least one bounced or complained
   failed        no queued rows left and at least one failed: nothing was sent
   needs_review  still queued, and sent_emails.error_detail is set: it MAY have been sent
   in_progress   still queued, and a list, campaign or schedule is already recorded: running
@@ -12,7 +13,7 @@ queued rows together, so the rows of one email are read as a group:
   queued        still queued and nothing started
 """
 
-STATES = ("sent", "failed", "needs_review", "in_progress", "queued")
+STATES = ("sent", "bounced", "failed", "needs_review", "in_progress", "queued")
 
 def _with_states(where):
     """Shared CTE, 'where' is one of the constants below."""
@@ -23,6 +24,8 @@ WITH per_email AS (
         e.error_detail AS email_error,
         count(*) FILTER(WHERE s.send_status = 'queued') AS n_queued,
         count(*) FILTER(WHERE s.send_status = 'failed') AS n_failed,
+        count(*) FILTER(WHERE s.send_status IN ('bounced', 'complained')) AS n_bounced,
+        max(s.error_detail) FILTER (WHERE s.send_status IN ('bounced', 'complained')) AS bounce_detail,
         max(s.sent_at) AS sent_at
     FROM sent_emails e
     JOIN send_log s ON s.email_id = e.email_id
@@ -31,6 +34,7 @@ WITH per_email AS (
 ), state AS (
     SELECT p.*,
             CASE
+              WHEN n_queued = 0 AND n_failed = 0 AND n_bounced > 0 THEN 'bounced'
               WHEN n_queued = 0 AND n_failed = 0 THEN 'sent'
               WHEN n_queued = 0 THEN 'failed'
               WHEN email_error IS NOT NULL THEN 'needs_review'
@@ -48,6 +52,7 @@ FROM (
     SELECT batch_id, min(created_at) AS started_at, min(created_by) AS created_by,
            count(*) AS emails,
            count(*) FILTER (WHERE state = 'sent') AS sent,
+           count(*) FILTER (WHERE state = 'bounced') AS bounced,
            count(*) FILTER (WHERE state = 'failed') AS failed,
            count(*) FILTER (WHERE state = 'needs_review') AS needs_review,
            count(*) FILTER (WHERE state = 'in_progress') AS in_progress,
