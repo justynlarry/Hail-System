@@ -71,6 +71,33 @@
 <iframe sandbox title="Sample email" srcdoc="{{ sample_html }}"
         style="width:100%; height:600px; border:1px solid var(--border);"></iframe>
 {% endif %}
+
+{% if found.realtors %}
+<h3>Review a send</h3>
+<form method="post" action="{{ url_for('send.confirm') }}" class="confirm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% for d in ticked | sort %}<input type="hidden" name="day" value="{{ d.isoformat() }}">{% endfor %}
+    <p>
+        <label for="allowed">Send only to these addresses (required; separate with spaces,
+        commas or new lines):</label><br>
+        <textarea name="allowed" id="allowed" rows="4" cols="50" required></textarea>
+    </p>
+    <p>
+        <label for="max_emails">Send at most</label>
+        <input type="number" name="max_emails" id="max_emails" value="{{ default_max_emails }}"
+               min="1" max="{{ max_emails_limit }}">
+        emails now. The rest stay queued for a later, explicit run.
+    </p>
+    {% if found.excluded.within_cap.matches %}
+    <p>
+        <label><input type="checkbox" name="override_cap">
+        Include realtors emailed within the cap window
+        ({{ found.excluded.within_cap.realtors }} realtor{{ '' if found.excluded.within_cap.realtors == 1 else 's' }})</label>
+    </p>
+    {% endif %}
+    <button type="submit">Review send</button>
+</form>
+{% endif %}
 {% endif %}
 </div>
 {% endblock %}

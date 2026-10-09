@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Confirm send{% endblock %}
+{% block heading %}Confirm send{% endblock %}
+
+{% block content %}
+<div class="page">
+<p class="estimate-summary">
+    <strong>{{ mine | length }}</strong> email{{ '' if mine | length == 1 else 's' }} ready
+    for {{ form.days | length }} storm day{{ '' if form.days | length == 1 else 's' }}.
+    This send delivers at most <strong>{{ going }}</strong> now (about {{ calls }} Constant
+    Contact calls); {{ (mine | length) - going }} stay queued.
+</p>
+<p>From: <strong>{{ sender.from_name }} &lt;{{ sender.from_email }}&gt;</strong></p>
+
+<table>
+    <thead><tr><th>To</th><th>Events</th></tr></thead>
+    <tbody>
+        {% for r in mine %}
+        <tr><td>{{ r.email }}</td><td>{{ r.events | length }}</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if unmatched %}
+<p class="note warning">
+    Not on the send list for these days, so they will be ignored: {{ unmatched | join(', ') }}
+</p>
+{% endif %}
+
+{% if busy %}
+<p class="note warning">A send is already running. Wait for it to finish before starting another.</p>
+{% endif %}
+
+<form method="post" action="{{ url_for('send.start') }}" class="confirm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% for d in form.days %}<input type="hidden" name="day" value="{{ d.isoformat() }}">{% endfor %}
+    <input type="hidden" name="allowed" value="{{ form.allowed | join(',') }}">
+    <input type="hidden" name="max_emails" value="{{ form.max_emails }}">
+    {% if form.override_cap %}<input type="hidden" name="override_cap" value="1">{% endif %}
+    <!-- The count, not the list: /send/start recomputes and refuses if it no longer matches. -->
+    <input type="hidden" name="expected" value="{{ mine | length }}">
+    <button type="submit" {% if busy %}disabled{% endif %}>Send {{ going }} email{{ '' if going == 1 else 's' }} now</button>
+    <a href="{{ url_for('send.index', day=form.days | map('string') | list) }}">Cancel</a>
+</form>
+
+<p class="note">Nothing is sent until you press the button above.</p>
+</div>
+{% endblock %}
