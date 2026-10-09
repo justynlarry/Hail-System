@@ -540,3 +540,17 @@ reroofs are in RESCON or under a separate ROOFSIDE type. Permit numbers like
 `2021-ROOFSIDE-…` suggest a separate type. The 2017 known answer is
 **18,475** roof permits, 54.6% above 2016, after the May 2017 hailstorm.
 Parking-lot item 81.
+
+## 6. Monthly subscription costs
+
+As stated by the developer on 2026-10-09, not checked against invoices:
+
+| Service | Per month | Notes |
+|---|---|---|
+| Mailchimp | $162.89 | The prior contractor-built system's provider (§4, parking-lot item 96) |
+| Airtable | $48.00 | Holds the legacy list and DNC entries (`reference/Airtable-…`) |
+| RentCast | $74.00 | Listings; the quota is `settings.rentcast_monthly_quota` (item 50) |
+| PermitStack | $29.99 | The site's public price list showed Indie at $29 (§5); the extra $0.99 is not explained |
+
+These four total $314.88 a month. Constant Contact's cost is not recorded here: the
+dev account is a trial, and the paid plan has not been priced (parking-lot item 183).
