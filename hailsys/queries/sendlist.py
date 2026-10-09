@@ -151,3 +151,20 @@ def build_send_list(conn, storm_days, *, now, max_age_days=MAX_AGE_DAYS,
                                     "since": since}).fetchall()
     return select(hits, today=now.astimezone(DISPLAY_TZ).date(),
                   max_age_days=max_age_days, freshness_days=freshness_days)
+
+
+_DAYS_SQL = """
+SELECT (i.utc_datetime AT TIME ZONE %(tz)s)::date AS day, count(*) AS matches
+FROM storm_listing_matches m
+JOIN iem_data i ON i.iem_id = m.iem_id
+WHERE i.report_text = 'HAIL'
+  AND (i.utc_datetime AT TIME ZONE %(tz)s)::date >= %(oldest)s
+GROUP BY 1
+ORDER BY 1 DESC
+"""
+
+
+def fetch_send_days(conn, *, today, max_age_days=MAX_AGE_DAYS):
+    """Denver storm days with hail matches that are not too old to send, newest first."""
+    return conn.execute(_DAYS_SQL, {"tz": DISPLAY_TZ.key,
+                                    "oldest": today - timedelta(days=max_age_days)}).fetchall()

@@ -2551,6 +2551,19 @@ recipient) whose answers are passed to `queue_batch`; it also stores `cc_contact
 existing contacts early and skips anyone already unsubscribed in Constant Contact, even if our
 DNC list has not caught up.
 
+**Phase B built 2026-10-09 (`20a6e66`, `hailsys/email/deliver.py`)** and **rehearsed on
+`hail-dev` 2026-10-09 (`44a846a`).** `scripts/rehearse_send.py --send 1` made the first real send:
+one email to `rbi.justyn+t2@gmail.com` for the dev-only seed rows of `sql/dev_rehearsal_seed.sql`
+(2026-09-19 storm). Result: `sent_emails` 1 row (`scheduled_at` to `list_deleted_at` about 17
+seconds), `send_log` 1 row `sent` with the activity id, `cc_sync_runs` 418 `ok` just before, list
+deleted. The message arrived; headers show DKIM (both `roofbrokersinc-weather.com` and Constant
+Contact's domain), SPF and DMARC passing, and a one-click `List-Unsubscribe`. The positive
+address was an existing subscribed contact, so `permission_asserted` was `none`; the
+create-a-new-contact path (`implicit`) has not been run against the real API, only against the
+fake. The run also wrote the first `email_templates` row. Not yet done: the send screen (piece 5).
+The rehearsal rows are permanent on `hail-dev` and nowhere else; the production box has none of
+the Phase B code, the compose variables or the seed.
+
 ## 189. No eligibility gate: nothing yet stops an email to an address outside the warm pools
 
 **Status:** open (parked 2026-10-08, by developer decision)
@@ -2623,7 +2636,14 @@ offers a "send all" button. Until then the screen must pass a `max_emails` it ha
 
 ## 192. The send screen needs a sender identity in `.env` (`CC_FROM_NAME`, `CC_FROM_EMAIL`)
 
-**Status:** open (found 2026-10-09)
+**Status:** resolved on `hail-dev` 2026-10-09 (`44a846a`); **not applied to the production box.**
+The three `CC_*` sender variables and the five `EMAIL_*` variables are in the `web` service's
+`environment:` block of `docker-compose.yml` (non-secrets live there, not in `.env`), read by
+`deliver.sender_from_env()` and `render.EmailSettings.from_env()`; both load in the running
+container and the rehearsal send used them. The From address worked as a verified sender on the
+dev trial account. Making the sender a UI choice is item 194. Original finding below.
+
+(found 2026-10-09)
 
 `deliver_email` takes `sender` = `{from_name, from_email, reply_to}` and passes it to
 `campaign_fields`. Nothing reads it from configuration yet, and the From address must be a
@@ -2672,6 +2692,36 @@ counter); and `run_send` missing the send-list and `lookup_contacts` block (Name
 
 **Lesson:** the test suite finds these, and the diff against the scratchpad copy found them
 first. Key in, `py_compile`, run the suites, before anything is committed.
+
+## 195. A mutation check committed two false rows to `cc_sync_runs` on `hail-dev`
+
+**Status:** resolved 2026-10-09 (rows removed by the developer through the loader; table and guard
+verified afterwards)
+
+While proving the `/send` preview's "writes nothing" test, Claude mutated a throwaway copy so the
+preview committed an `INSERT INTO cc_sync_runs`, and ran it with the copy mounted over the real
+`web` container. The container's database is the real `hail-dev` one, so the test's requests
+committed **runs 459 and 460**: `status = ok`, `fetched = 0`, `watermark` NULL,
+`triggered_by` the system user, 2026-10-09 19:12:49 UTC. The test did catch the mutation.
+
+**Effect while they existed:** the Admin Constant Contact page would have shown run 460 as the
+last good sync, and the send gate (an `ok` sync within 15 minutes) would have been satisfied for
+15 minutes by a sync that never ran. The next real sync's watermark would have moved 6 minutes
+later, which the 1-day overlap in `unsubs.OVERLAP` absorbs. No send was made in that window.
+
+**Removed** by a single transaction as the loader's superuser: disable `trg_cc_sync_runs_guard`,
+delete exactly run ids 459 and 460 (only if they matched the false-row signature), re-enable the
+trigger, and abort unless 9 rows remained. Verified after: 9 rows, latest `ok` run is 418 (the
+real rehearsal sync), trigger enabled (`O`), and a superuser `DELETE` of run 418 is still refused.
+This was an exception to the table's "never deleted" rule, made for rows that were never a real
+sync; it is recorded here and not as a precedent.
+
+**Lesson:** a mutation check whose mutation *writes* must run inside a transaction that is rolled
+back, or against a scratch database, never against `hail-dev` through the app's own connection.
+`cc_sync_runs`, `sent_emails`, `send_log` and `email_templates` are append-only, so a mistake there
+cannot be undone with a normal `DELETE`.
+
+**When:** none, resolved. Revisit if a test harness for the web app gets its own database.
 
 ## 181. Constant Contact behaviours to verify before the send design is locked
 

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Send{% endblock %}
+{% block heading %}Send — preview{% endblock %}
+
+{% block content %}
+<div class="page">
+<p class="note">
+    This page only previews. Nothing is written and Constant Contact is not called.
+    Sending is not built yet.
+</p>
+
+<form method="get" action="{{ url_for('send.index') }}">
+    {% if available %}
+    <table>
+        <thead><tr><th></th><th>Storm day</th><th>Matches</th></tr></thead>
+        <tbody>
+            {% for d in available %}
+            <tr>
+                <td><input type="checkbox" name="day" value="{{ d.day.isoformat() }}"
+                           id="day-{{ d.day.isoformat() }}"
+                           {% if d.day in ticked %}checked{% endif %}></td>
+                <td><label for="day-{{ d.day.isoformat() }}">{{ d.day.strftime('%a %b %d, %Y') }}</label></td>
+                <td>{{ '{:,}'.format(d.matches) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <button type="submit">Preview</button>
+    {% else %}
+    <p class="note">No storm days with hail matches inside the age limit.</p>
+    {% endif %}
+</form>
+
+{% if found is not none %}
+<h3>Preview for {{ ticked | length }} storm day{{ '' if ticked | length == 1 else 's' }}</h3>
+<p class="estimate-summary">
+    <strong>{{ found.realtors | length }}</strong>
+    email{{ '' if found.realtors | length == 1 else 's' }} would be queued,
+    covering <strong>{{ listing_count }}</strong>
+    listing{{ '' if listing_count == 1 else 's' }}.
+    ({{ found.considered.matches }} matches for {{ found.considered.realtors }} realtors
+    were considered.)
+</p>
+
+<table>
+    <thead><tr><th>Left out because</th><th>Matches</th><th>Realtors</th></tr></thead>
+    <tbody>
+        {% for key, label in reasons %}
+        <tr>
+            <td>{{ label }}</td>
+            <td>{{ found.excluded[key].matches }}</td>
+            <td>{{ found.excluded[key].realtors }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if found.excluded.stale_listing.matches %}
+<p class="note warning">
+    {{ found.excluded.stale_listing.matches }} match{{ '' if found.excluded.stale_listing.matches == 1 else 'es' }}
+    dropped because RentCast has not seen the listing recently. Pull the storm's zips
+    again from the <a href="{{ url_for('main.index') }}">Storm Days</a> page, then preview again.
+</p>
+{% endif %}
+
+{% if sample_problem %}
+<p class="note warning">The sample email could not be built: {{ sample_problem }}</p>
+{% elif sample_html %}
+<h3>Sample (first on the list)</h3>
+<p>Subject: <strong>{{ sample_subject }}</strong></p>
+<iframe sandbox title="Sample email" srcdoc="{{ sample_html }}"
+        style="width:100%; height:600px; border:1px solid var(--border);"></iframe>
+{% endif %}
+{% endif %}
+</div>
+{% endblock %}

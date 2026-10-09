@@ -63,6 +63,9 @@ def create_app():
     from . import cc
     app.register_blueprint(cc.cc_bp)
 
+    from . import send
+    app.register_blueprint(send.send_bp)
+
     # Populates g.user on every request; login_required and role_required
     # both read it. Without this registration g.user is never set, and both
     # decorators raise AttributeError instead of redirecting to login.
