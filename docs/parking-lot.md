@@ -2567,6 +2567,47 @@ Sept 22 realtors are in the client file; the Constant Contact pool adds more.
 **When:** before the send screen is usable for anything but our own test addresses. The engine
 is built and rehearsed on test addresses only until then.
 
+## 190. Address search as an office tool: jurisdiction, permit issuer and adopted codes
+
+**Status:** open (parked 2026-10-08, by developer decision: the email work comes first)
+
+**The use.** Staff now look an address up in printed books to learn which jurisdiction it is in,
+who issues its permit, and which building codes that jurisdiction enforces. The books are out
+of date and miss newer builds. `/search` already geocodes (item 124) and the boundary tables
+are loaded, but nothing reads `municipal_boundaries` or `county_boundaries` yet (checked
+2026-10-08), so `/search` states no jurisdiction.
+
+**What is known and what is not** (see `docs/data-sources.md` §5 and decision log 2026-09-23):
+- Jurisdiction by point-in-polygon is the strong part: DOLA boundaries current, known-answer
+  points correct (Civic Center Park, Aurora Municipal Center, Highlands Ranch = Douglas).
+- **Newer builds are the open risk.** The Census Geocoder matches street ranges, which lag for new
+  subdivisions, and its points are interpolated to about a block. A house too new for the books
+  may be too new for Census. Not tested. RentCast properties we already hold carry their own
+  coordinates and could be looked up directly.
+- **Permit issuer is only partly known:** 50 of 82 issuers have an official who-issues page; 32
+  are unverified (item 98), PPRBD covers several El Paso towns, Pueblo may be a second regional
+  issuer. Showing an unchecked department name would be a confident-looking error.
+- **Adopted building codes are not researched at all.** Which edition of the IRC/IBC, and which
+  local amendments, each of the roughly 82 issuers enforces has not been gathered, and codes
+  change on adoption cycles. This is a data-collection and upkeep job (a table keyed by issuer
+  with the edition, adoption date, source URL and a verified-on date), not something derivable
+  from the boundary data. Nothing may be shown to staff as a code requirement without a
+  source and a verified-on date.
+
+**Plan when picked up:**
+1. Read-only trial first (item 78's idea with our own known answers): about 20 addresses staff
+   know, including new builds and ones near a city line; count geocoder and polygon misses.
+2. If acceptable: build the jurisdiction lookup, the near-boundary warning (item 77) and the
+   correction table (item 75, Hudson at minimum).
+3. Issuer and code columns appear only for issuers that have been verified (items 97, 98); the
+   rest read "not verified". Answers state their data date ("boundaries as of the last DOLA
+   load").
+
+**Related:** items 23 and 124 (geocoding), 70–82 (permits and jurisdiction), 97, 98.
+
+**When:** after the Phase 5 email work; Phase 6 with address search. Start with the trial
+(step 1); it decides whether the rest is worth building.
+
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
 **Status:** spike done 2026-10-07; paid-account checks remain (item 183)
@@ -2799,7 +2840,7 @@ Constant Contact migrations either (034–037). The schema docs do not describe 
 
 ## 70. Permits as a source — corroboration first, roof age later
 
-**Status:** open (parked) — gated on item 70 ("until the system is running")
+**Status:** open (parked) — until the system is running
 
 Open-data roofing permits exist for Aurora, unincorporated Adams and
 unincorporated Douglas, and each surges after a known hail day
@@ -2809,7 +2850,73 @@ confidence and what the UI shows a sender. "No roof permit on record since
 back that far. Never "your roof is X years old" (decision log 2026-09-23,
 the claim rule). Items 71–84 are the prerequisites and follow-ons.
 
-**When:** parked until the system is running.
+**Commercial aggregators (noted 2026-10-08; PermitStack read from its public pages, not tested).**
+**Shovels** is from research outside the 2026-09-23 session and not re-verified: free tier 1 year
+of history, 10 results per query, no downloads; Basic $599/month for full history; updates on the
+1st and 15th; its jurisdiction CSV was a dead end. Coverage of our 82 issuers, roofing
+identification and terms were never checked. **PermitStack** (permit-stack.com; permitstack.com is
+an unrelated California firm), read 2026-10-08 from its home and coverage pages: REST API with SDKs
+and bulk city CSVs; claims 110M+ permits, nightly refresh; each permit auto-classified into one of
+20 categories (roofing is one); fields seen are `permit_number`, `category`, address,
+`estimated_value`, lat/lon, full-text search of descriptions, contractor (phone/email on
+Developer, $79/month, and up); **no material field shown**. Plans: Free 100 requests/day and the
+last 30 days only; Indie $29; Developer $79 (10,000/day, 50,000-row CSV); Business $149; bulk city
+CSVs $39-$349 one-time. Redistribution or bulk delivery needs a custom Enterprise plan; terms text
+not read. Colorado coverage (28 rows, data through 2026-10-07): PPRBD, Denver, Boulder, Douglas,
+Arvada, Westminster, Aurora, Centennial (access blocked), Parker, Adams, Weld, Fort Collins;
+Lakewood and Thornton absent; Longmont and Larimer thin. It overlaps the open-data sources already
+graded; its additions are the grade-C cities (Denver, Arvada, Westminster, Weld) and perhaps
+coordinates for PPRBD. Neither aggregator is chosen or ruled out.
+
+**What our own open data says about the roof** (scan of the 2026-09-23 snapshots, read-only):
+Douglas `DESCRIPTION` is a material category on 90% of 75,703 roofing permits (composition 65,767;
+tile/slate 1,157; metal 1,100; built-up 286; membrane 209; wood 63), `JOB_VALUATION` on 72,965,
+`SCOPE_OF_WORK` empty. Aurora's free-text description names a material or method on 35,057 of
+36,634 (often with squares, e.g. "REROOF WITH EPDM 220 SQS"), `valuation` on 36,628. Adams'
+description names a material on about 9,075 of 16,672 (some say Class 4 impact shingles), no
+valuation. Free text is typed by contractors and unchecked, so it needs parsing and is
+incomplete; the claim rule still applies (permits never become "your roof is X years old").
+
+**PermitStack tested on its free tier, 2026-10-08** (about 18 of 100 daily requests; results in
+`data/research/permitstack_trial_2026-10-08/`, gitignored: `jurisdiction_summary.csv` and
+`sample_roofing_records.csv`, 500 records). Sample = 50 roofing permits per jurisdiction from the
+last 30 days (page size is capped at 50).
+- **Terms (section 4):** commercial use allowed ("any lawful purpose"); results may be stored and
+  cached indefinitely; no attribution; barred are reselling the data as a dataset or competing
+  API and bulk-downloading the whole database; exports never carry owner names or mailing
+  addresses. Nothing on outreach either way (ask support@permit-stack.com if it matters).
+- **Fields:** permit number, status, address, `description_raw`, `estimated_value`, filed, issued
+  and completed dates, `contractor_name`, lat/lon with `location_source`. **No material field:**
+  `enrichment.materials` was empty on every record (450 records, 54 with an enrichment object at
+  all). Material exists only as description text.
+- **Per jurisdiction (description / value / contractor / lat-lon of 50; roofing permits in all
+  history):** Douglas 50/50/0/50 (material category on all 50; 75,787); Centennial 50/50/0/50
+  (material words on 37; 51,505); Parker 50/0/0/47 (26; 4,521); Adams 50/0/0/21 (19; 16,459);
+  Westminster 50/0/50/45 (11; 38,678); Arvada 50/50/50/50 (10; 45,317); Boulder 50/0/48/50 (2,
+  "Roofing Replacement Permit"; 28,382); **PPRBD 50/50/49/50 (6; 373,187), coordinates derived,
+  description only "REROOF"**; Denver 1/1/0/50 (bare address and filing date; 51,383); Fort
+  Collins 0/0/49/48 (26,732). Weld has 0 roofing permits classified, Colorado Springs 0, Larimer
+  2; Lakewood and Thornton are not covered.
+- **Free tier shows the last 30 days only** (403 `feature_locked` for older dates; Indie $29/month
+  unlocks history). Rate limit 30 requests/minute, 100/day. `state=` is ignored by the
+  jurisdictions list (995 rows nationwide, 27 in Colorado).
+- **Judgement:** no better than our open data for material; its value is coverage. It adds PPRBD
+  with coordinates (the free PPRBD export had none), Centennial, Arvada, Westminster and Parker.
+  Douglas, Centennial and Parker carry the most material text.
+
+**Denver tested for later fill-in (2026-10-09, 3 requests):** 50 roofing records each from 14 Sep,
+24-26 Sep and 6-7 Oct are equally bare. Status advances (15 of the 50 sampled from 14 Sep are FINAL), but
+description, value and contractor stay empty on `ROOFSIDE` permits. The two records with a
+description were not reroofs (a pergola, roof framing repair) and matched the roofing category
+only by type. So the gap is in what Denver publishes, not in timing; PermitStack cannot add what
+the source lacks. Only the last 30 days could be tested.
+
+**Still unverified:** history depth and whether older records carry richer descriptions (needs a
+paid month, Indie $29), contractor contact details (Developer, $79), and Shovels (not tested).
+
+**When:** parked until the system is running. If permits are pursued, the cheapest next test is one
+Indie month to check history depth for PPRBD, Arvada, Westminster and Centennial, and to see
+whether older Denver records have descriptions. Check Shovels the same way.
 
 ## 71. Records (CORA) request to Aurora for full roofing-permit history
 

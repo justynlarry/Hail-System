@@ -503,9 +503,32 @@ From research outside the 2026-09-23 session. Not re-verified ⚠.
   and no downloads. Basic is $599/month for full history. Updates on the 1st
   and 15th. Its jurisdiction CSV was a dead end. **Still a possible fallback
   for jurisdictions with no open data.**
-- **PermitStack:** its pricing and coverage claims are internally
-  inconsistent.
+- **PermitStack** (permit-stack.com; permitstack.com is an unrelated firm),
+  tested on the free tier 2026-10-08. REST API, SDKs, bulk city CSVs, nightly
+  refresh. Roofing is one of 20 auto-classified categories. Fields: description,
+  `estimated_value`, contractor, lat/lon; **no material** (`enrichment.materials`
+  empty on all 450 sampled records), only description text. Colorado: PPRBD
+  (373,187 roofing permits, derived coordinates, description only "REROOF"),
+  Douglas, Centennial, Arvada, Westminster, Parker, Adams, Boulder, Denver
+  (51,383 roofing permits but bare records), Fort Collins; Weld has no roofing
+  classified, Lakewood and Thornton are not covered. Free tier is the last 30
+  days only. Terms allow commercial use and indefinite caching, bar reselling
+  or bulk-downloading the database, and say nothing on outreach. Overlaps the
+  open data above; adds PPRBD with coordinates and the portal-only cities.
+  Details: parking-lot item 70.
 - **Apify community scrapers:** rejected as unreliable.
+
+### What the open permit records say about the roof (2026-10-08 scan)
+
+Read-only scan of the 2026-09-23 snapshots. Douglas `DESCRIPTION` is a
+material category on 90% of 75,703 roofing permits (composition 65,767,
+tile/slate 1,157, metal 1,100, built-up 286, membrane 209, wood 63), with
+`JOB_VALUATION` on 72,965 and `SCOPE_OF_WORK` empty. Aurora's free-text
+description names a material or method on 35,057 of 36,634 (often with
+squares), `valuation` on 36,628. Adams' description names a material on about
+9,075 of 16,672 (some say Class 4 impact shingles) and has no valuation. The
+text is typed by contractors and unchecked, so it needs parsing and is
+incomplete.
 
 ### Denver (not examined)
 
