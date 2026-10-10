@@ -2564,6 +2564,32 @@ fake. The run also wrote the first `email_templates` row. Not yet done: the send
 The rehearsal rows are permanent on `hail-dev` and nowhere else; the production box has none of
 the Phase B code, the compose variables or the seed.
 
+**Send screen (piece 5) built 2026-10-09** (`e2d9fab` preview, `3d72711` confirm and start,
+`5645f90` history; `/send`, admin only; a mandatory allow-list; one global advisory lock
+`send:run`; `hailsys/web/sendjobs.py` is the only door to the engine). The **UI send was
+rehearsed the same day** with `sql/dev_rehearsal_seed_2.sql` (realtor `rbi.justyn+t3@gmail.com`,
+dev only): `sent_emails` 883 `sent`, the activity id in the stored row matches
+`X-Campaign-Activity-ID` in the received message, DKIM, SPF and DMARC pass, one-click
+`List-Unsubscribe` present. Items 194 (sender choice in the UI) and 196 (pre-queue failures
+leave no trace) came out of it.
+
+**Status sync (piece 6) built 2026-10-09 (`53f8d56`)**: `sql/039_cc_status_runs.sql` (applied to
+`hail-dev` only), `hailsys/constantcontact/statuses.py`, a **Check for bounces** button on
+`/send/batches` (POST `/send/check`, admin only, read-only toward Constant Contact), and a
+Bounced state in the history pages. It rechecks every email still `sent` within 14 days, one GET
+per email. Code meanings, from Constant Contact's bounces report guide (not from a live
+bounce): **B** and **S** address does not exist (also written to `dnc_list` as `hard_bounce`);
+**D**, **F**, **X**, **Z** recorded as `bounced` only; **V** vacation autoreply is *delivered*,
+so not a bounce; an unknown code is stored as X. **Known limits:** (1) **no complaints
+endpoint was found**, so `complained` is never written automatically (`Z`, blocked, is the
+nearest signal); (2) **the shape of a non-empty bounces response is unverified**: the only real
+responses were empty (`{"tracking_activities": [], "_links": null}` for emails 584 and 883), so
+the parser follows the documentation (`email_address`, `bounce_code`); (3) one GET per email
+runs inside the click, which is fine at rehearsal volume and counts against item 191's call
+budget at real volume. **Next:** a deliberate bounce rehearsal (one send to a made-up address,
+own seed, explicit yes) to confirm the real response shape. Still open on this item: 5d (resume
+of the queued remainder) and the eligibility gate (item 189).
+
 ## 189. No eligibility gate: nothing yet stops an email to an address outside the warm pools
 
 **Status:** open (parked 2026-10-08, by developer decision)
@@ -2740,6 +2766,30 @@ fixed error text, batch id once it exists), like `cc_sync_runs`, and shown on th
 
 **When:** before anyone other than the developer sends from the UI, or the first time a send
 fails silently in practice, whichever is first.
+
+## 197. A mutation check let a GET reach the real bounce check and write `cc_status_runs` on `hail-dev`
+
+**Status:** resolved 2026-10-10 (test fixed; the row was kept by decision)
+
+While mutation-testing the new `/send/check` route (piece 6), Claude changed the route to accept
+GET. `test_the_check_is_post_only` sent `GET /send/check` without stubbing
+`statuses.run_check`, so under the mutation the request ran a real bounce check on `hail-dev`:
+**`cc_status_runs` run 86**, `ok`, checked 2, bounced 0, `triggered_by` 2, 2026-10-09 23:31 UTC,
+and two read-only GETs to Constant Contact. Nothing else changed: `send_log` rows 584 and 883
+still `sent`, no `hard_bounce` rows in `dnc_list`, other row counts the same. The test did catch
+the mutation. It is the same class as item 195: Claude checked the route tests for unstubbed
+writers beforehand and wrongly judged them all stubbed.
+
+**Row 86 is kept.** Unlike the false rows of item 195 it is a true record of a check that ran and
+found nothing, and deleting from an append-only log needs the guard trigger disabled. It was not
+a human click; this entry is the explanation.
+
+**Fixed:** `test_the_check_is_post_only` now patches `statuses.run_check` and asserts it is not
+called, so a wrongly allowed GET cannot reach the real check. Claude now lists every route and
+function a mutation can reach, and confirms each is stubbed, before running it.
+
+**When:** none, resolved. Revisit with item 195: if the web tests get their own database, both
+stop being possible.
 
 ## 181. Constant Contact behaviours to verify before the send design is locked
 

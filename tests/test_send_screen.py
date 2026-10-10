@@ -260,7 +260,11 @@ class SendScreenTest(unittest.TestCase):
         self.assertEqual(self.client_as("admin").post("/send/check").status_code, 400)
 
     def test_the_check_is_post_only(self):
-        self.assertEqual(self.client_as("admin").get("/send/check").status_code, 405)
+        # Stubbed: if a GET were ever allowed it must not reach the real check, which writes
+        # cc_status_runs on hail-dev (item 197).
+        with mock.patch.object(screen.statuses, "run_check") as run:
+            self.assertEqual(self.client_as("admin").get("/send/check").status_code, 405)
+        run.assert_not_called()
 
     def test_only_admin_may_run_the_check(self):
         with mock.patch.object(screen.statuses, "run_check") as run:
