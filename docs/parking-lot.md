@@ -2937,7 +2937,7 @@ differences.
 
 ## 182. Constant Contact's API re-subscribes an unsubscribed contact: read before write
 
-**Status:** sync built 2026-10-07 (`2884880`); not yet wired to the Admin page or the send click
+**Status:** built and wired (checked 2026-10-12); only the optional nightly timer is not built
 
 Observed in the spike. After a contact clicked Unsubscribe, `GET /contacts` showed
 `permission_to_send: "unsubscribed"` with `opt_out_source`, `opt_out_date` and no list
@@ -2974,6 +2974,15 @@ rule 4's age limit is replaced by that; `added_at` takes Constant Contact's opt-
 as the DNC importer does with its source's date. Incremental pulls use the last good run's
 start minus one day. Still to do: the Admin button and last-good-sync line, the call from
 the send path, and the optional nightly timer with its own `hail_sync` role (item 168).
+
+**Checked 2026-10-12: all but the timer is built and in use.** The **Sync unsubscribes now**
+button, the last-good-sync line, the latest failed run and the conflicts table are on the
+Constant Contact page (`/cc/`, `hailsys/web/cc.py`, admin only). `run_send` and `run_resume` both
+sync first and stop on failure; `queue_batch` refuses unless the sync finished OK just before; a
+contact unsubscribed in Constant Contact is skipped at queue time and again at delivery. The one
+gap found was that `POST /cc/sync` had no tests; `tests/test_cc_sync_route.py` (11 tests, the sync
+always stubbed; four mutation checks, all caught) now covers it. The optional nightly timer and its
+`hail_sync` role are **not built, and not needed** while every send syncs first.
 
 ## 183. Constant Contact behaviours to verify on the paid production account
 
