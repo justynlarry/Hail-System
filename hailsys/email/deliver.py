@@ -24,7 +24,7 @@ stops only that email.  Database error or crash isn't caught here.
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from hailsys.constantcontact import campaigns, unsubs
 from hailsys.constantcontact.api import ApiError
@@ -37,6 +37,9 @@ logger = logging.getLogger(__name__)
 # Column names are interpolated into SQL, only these are passed.
 _ID_COLUMNS = frozenset({"cc_contact_id", "cc_list_id", "cc_campaign_id", "cc_activity_id"})
 _MARK_COLUMNS = frozenset({"scheduled_at", "list_deleted_at"})
+
+# A resume re-sends queued emails, its content and eligibility are only trusted for this period of time.
+RESUME_MAX_DAYS = 7
 
 _EMAIL_SQL = """
 SELECT e.email_id, e.batch_id, e.recipient_email, e.subject, e.html_body,
@@ -56,6 +59,11 @@ class BatchStopped(Exception):
 class BatchBusy(Exception):
     """Another run is delivering this batch"""
 
+class NothingToResume(Exception):
+    """The batch has no queued email that can still be delivered."""
+
+class BatchTooOld(Exception):
+    """Queued emails are past the resume window."""
 
 _SENDER_ENV = {"from_name": "CC_FROM_NAME", "from_email": "CC_FROM_EMAIL",
                "reply_to": "CC_REPLY_TO"}
@@ -306,3 +314,45 @@ def run_send(*, user_id, storm_days, email_settings, sender, allowed_emails,
         summary["delivery"] = deliver_batch(summary["batch_id"], sender=sender, cc=cc,
                                             max_emails=max_emails)
     return summary
+
+# ------ Resume -----------------------
+
+# Same test as _deliver_all, queued rows and no error recorded.  needs_review emails
+# (error_detail set) are never picked up.
+
+_OLDEST_QUEUED_SQL = """
+SELECT min(e.created_at) AS oldest
+FROM sent_emails e
+WHERE e.batch_id = %s AND e.error_detail IS NULL
+    AND EXISTS (SELECT 1 FROM send_log s
+        WHERE s.email_id = e.email_id AND s.send_status = 'queued')
+"""
+
+def check_resumable(batch_id, *, now=None):
+    """Raise NothingToResume or BatchTooOld, else return.  Read-Only.
+    
+    Created as its own function so the web route can refuse before a thread
+    starts.
+    """
+    now = now or datetime.now(timezone.utc)
+    with get_connection() as conn:
+        oldest = conn.execute(_OLDEST_QUEUED_SQL, (batch_id,)).fetchone()["oldest"]
+        conn.commit()
+    if oldest is None:
+        raise NothingToResume("This batch has no queued emails to deliver.")
+    if now - oldest > timedelta(days=RESUME_MAX_DAYS):
+        raise BatchTooOld(f"The queued emails date from {oldest:%Y-%m-%d}, more than "
+                          f"{RESUME_MAX_DAYS} days ago.  They are too old to resume.")
+
+def run_resume(*, user_id, batch_id, sender, max_emails=None,
+               sync=unsubs.run_sync, cc=campaigns, now=None):
+    """Finish queued emails of an earlier batch, on user click.
+    
+    Refuses a batch whose oldest queued email is more than RESUME_MAX_DAYS old.
+    Unsubscribe sync runs first, someone who unsubscribed since the batch was
+    queued has to reach the dnc_list before the per-email check.  A failed sync
+    raises before anything is sent.  Returns the delivery counts.
+    """
+    check_resumable(batch_id, now=now)
+    sync(triggered_by=user_id)
+    return deliver_batch(batch_id, sender=sender, cc=cc, max_emails=max_emails)

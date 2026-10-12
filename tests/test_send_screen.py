@@ -298,6 +298,122 @@ class SendScreenTest(unittest.TestCase):
                 text = self.post("/send/check").get_data(as_text=True)
         self.assertIn("failed unexpectedly", text)
 
+    # ---- the resume button (the engine door is always stubbed here) ----
+
+    BATCH = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    RESUME_PATH = f"/send/batch/{BATCH}/resume"
+
+    def resume_stubs(self, counts=None, start_error=None, busy=False):
+        """Everything a resume can reach is replaced: the batch read, the config, the lock
+        check and the engine door.  Returns the mock for the engine door."""
+        base = {"sent": 0, "bounced": 0, "failed": 0, "needs_review": 0,
+                "in_progress": 0, "queued": 0}
+        email = {"created_at": datetime.now(timezone.utc), "state": "queued",
+                 "recipient_email": "a@example.com", "sent_at": None, "bounce_detail": None,
+                 "email_error": None, "cc_activity_id": None}
+        found = {"emails": [email], "counts": {**base, **(counts or {})}}
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(mock.patch.object(screen.sendstatus, "fetch_batch",
+                                              return_value=found))
+        stack.enter_context(mock.patch.object(screen.sendjobs, "load_config",
+                                              return_value=(object(), SENDER)))
+        stack.enter_context(mock.patch.object(screen.sendjobs, "is_busy", return_value=busy))
+        return stack.enter_context(mock.patch.object(screen.sendjobs, "start_resume",
+                                                     side_effect=start_error))
+
+    def test_resume_needs_a_token(self):
+        start = self.resume_stubs({"queued": 2})
+        self.assertEqual(self.client_as("admin").post(self.RESUME_PATH).status_code, 400)
+        start.assert_not_called()
+
+    def test_resume_is_post_only(self):
+        start = self.resume_stubs({"queued": 2})
+        self.assertEqual(self.client_as("admin").get(self.RESUME_PATH).status_code, 405)
+        start.assert_not_called()
+
+    def test_resume_is_admin_only(self):
+        start = self.resume_stubs({"queued": 2})
+        for role in ("viewer", "sender"):
+            if role in self.users:
+                self.assertEqual(self.post(self.RESUME_PATH, role, expected="2",
+                                           max_emails="2").status_code, 403, role)
+        start.assert_not_called()
+
+    def test_resume_without_a_count_is_a_400(self):
+        start = self.resume_stubs({"queued": 2})
+        self.assertEqual(self.post(self.RESUME_PATH, max_emails="2").status_code, 400)
+        start.assert_not_called()
+
+    def test_resume_of_an_unknown_batch_is_a_404(self):
+        start = self.resume_stubs({"queued": 2})
+        with mock.patch.object(screen.sendstatus, "fetch_batch", return_value=None):
+            resp = self.post(self.RESUME_PATH, expected="2", max_emails="2")
+        self.assertEqual(resp.status_code, 404)
+        start.assert_not_called()
+
+    def test_resume_refuses_a_bad_limit(self):
+        start = self.resume_stubs({"queued": 2})
+        for bad in ("", "0", "abc", str(screen.MAX_EMAILS_LIMIT + 1)):
+            text = self.post(self.RESUME_PATH, expected="2", max_emails=bad).get_data(as_text=True)
+            self.assertIn("must be between 1 and", text, bad)
+        start.assert_not_called()
+
+    def test_resume_refuses_when_the_count_changed(self):
+        start = self.resume_stubs({"queued": 2})
+        text = self.post(self.RESUME_PATH, expected="3", max_emails="2").get_data(as_text=True)
+        self.assertIn("changed since you looked", text)
+        start.assert_not_called()
+
+    def test_resume_counts_queued_and_in_progress_and_starts_the_engine(self):
+        start = self.resume_stubs({"queued": 1, "in_progress": 1})
+        text = self.post(self.RESUME_PATH, expected="2", max_emails="5").get_data(as_text=True)
+        self.assertIn("Resume started", text)
+        start.assert_called_once_with(user_id=self.users["admin"], batch_id=self.BATCH,
+                                      sender=SENDER, max_emails=5)
+
+    def test_resume_does_not_count_parked_emails(self):
+        start = self.resume_stubs({"queued": 1, "needs_review": 3})
+        text = self.post(self.RESUME_PATH, expected="4", max_emails="5").get_data(as_text=True)
+        self.assertIn("changed since you looked", text)
+        start.assert_not_called()
+
+    def test_resume_says_why_it_was_refused(self):
+        for error, words in ((screen.sendjobs.SendInProgress("busy"), "already running"),
+                             (screen.sendjobs.BatchTooOld("too old to resume"), "too old"),
+                             (screen.sendjobs.NothingToResume("nothing queued"), "nothing queued")):
+            with self.subTest(error=type(error).__name__):
+                self.resume_stubs({"queued": 2}, start_error=error)
+                text = self.post(self.RESUME_PATH, expected="2",
+                                 max_emails="2").get_data(as_text=True)
+                self.assertIn(words, text)
+                self.assertNotIn("Resume started", text)
+
+    def test_resume_stops_when_sending_is_not_configured(self):
+        start = self.resume_stubs({"queued": 2})
+        err = render.SettingsError("CC_FROM_NAME is not set")
+        with mock.patch.object(screen.sendjobs, "load_config", side_effect=err):
+            text = self.post(self.RESUME_PATH, expected="2", max_emails="2").get_data(as_text=True)
+        self.assertIn("not configured", text)
+        start.assert_not_called()
+
+    def test_the_batch_page_offers_resume_only_when_something_can_be_resumed(self):
+        self.resume_stubs({"queued": 2, "in_progress": 1, "needs_review": 4})
+        text = self.client_as("admin").get(f"/send/batch/{self.BATCH}").get_data(as_text=True)
+        self.assertIn("Resume queued emails", text)
+        self.assertIn('name="expected" value="3"', text)
+        self.assertIn(str(screen.sendjobs.RESUME_MAX_DAYS), text)
+
+    def test_the_batch_page_hides_resume_when_nothing_is_queued(self):
+        self.resume_stubs({"sent": 2, "needs_review": 1})
+        text = self.client_as("admin").get(f"/send/batch/{self.BATCH}").get_data(as_text=True)
+        self.assertNotIn("Resume queued emails", text)
+
+    def test_the_resume_button_is_disabled_while_a_send_runs(self):
+        self.resume_stubs({"queued": 2}, busy=True)
+        text = self.client_as("admin").get(f"/send/batch/{self.BATCH}").get_data(as_text=True)
+        self.assertIn('<button type="submit" disabled>Resume queued emails', text)
+
 
 if __name__ == "__main__":
     unittest.main()

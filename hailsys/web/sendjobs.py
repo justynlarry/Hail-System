@@ -25,6 +25,10 @@ _UNLOCK = "SELECT pg_advisory_unlock(hashtext(%s))"
 class SendInProgress(Exception):
     """Another send is running."""
 
+# Re-exported so hailsys/web/send.py doesn't import the engine itself.
+NothingToResume = deliver.NothingToResume
+BatchTooOld = deliver.BatchTooOld
+RESUME_MAX_DAYS = deliver.RESUME_MAX_DAYS
 
 def load_config():
     """(email_settings, sender) from environment, render.SettingsError names variable."""
@@ -66,4 +70,36 @@ def start_send(*, user_id, **run_kwargs):
     if is_busy():
         raise SendInProgress("a send is already running")
     thread = threading.Thread(target=_run, args=(user_id, run_kwargs), daemon=True)
+    thread.start()
+
+def _run_resume(user_id, batch_id, run_kwargs):
+    """Thread body for a resume, same lock as _run so a resume and send don't overlap."""
+    try:
+        with get_connection() as conn:
+            if not conn.execute(_TRY_LOCK, (LOCK_KEY,)).fetchone()["got"]:
+                logger.warning("event=resume_not_started reason=busy")
+                return
+            conn.commit()
+            try:
+                counts = deliver.run_resume(user_id=user_id, batch_id=batch_id, **run_kwargs)
+                logger.info("event=resume_job_complete batch_id=%s delivery=%s", batch_id, counts)
+            finally:
+                conn.rollback()
+                conn.execute(_UNLOCK, (LOCK_KEY,))
+                conn.commit()
+    except Exception:
+        logger.exception("event=resume_job_failed")
+
+
+def start_resume(*, user_id, batch_id, **run_kwargs):
+    """Resume a batch's queued emails in a thread.
+    
+    Raises SendInProgress if a send is running, and deliver.NothingToResume or
+    deliver.BatchTooOld, before a thread starts so route can explain.
+    """
+    if is_busy():
+        raise SendInProgress("a send is already running")
+    deliver.check_resumable(batch_id)
+    thread = threading.Thread(target=_run_resume, args=(user_id, batch_id, run_kwargs),
+                              daemon=True)
     thread.start()

@@ -587,6 +587,101 @@ class DeliverTest(unittest.TestCase):
         self.assertEqual(got, {self.emails[0]: {"contact_id": "c-1", "permission": "implicit"},
                                self.emails[1]: None})
 
+    # ---- resuming a batch that was left partly queued (item 180, 5d) ----
+
+    def resume(self, sync=None, now=None, **kw):
+        def ok(*, triggered_by):
+            return {"run_id": self.run_id}
+        with self.patched():
+            return deliver.run_resume(user_id=self.user, batch_id=self.batch_id, sender=SENDER,
+                                      sync=sync or ok, cc=self.cc, now=now, **kw)
+
+    def age(self, days):
+        """A `now` that is `days` after the batch was queued (its oldest email)."""
+        oldest = self.conn.execute("SELECT min(created_at) AS t FROM sent_emails "
+                                   "WHERE batch_id = %s", (self.batch_id,)).fetchone()["t"]
+        return oldest + timedelta(days=days)
+
+    def test_a_resume_syncs_first_then_delivers_what_is_still_queued(self):
+        self.queue()
+        first = self.batch(max_emails=1)
+        self.assertEqual((first["sent"], first["remaining"]), (1, 1))
+        calls_before = len(self.cc.calls)
+        seen = []
+
+        def sync(*, triggered_by):
+            seen.append((triggered_by, len(self.cc.calls)))
+            return {"run_id": self.run_id}
+
+        counts = self.resume(sync=sync, now=self.age(1))
+        self.assertEqual(seen, [(self.user, calls_before)])      # synced, before any new call
+        self.assertEqual(counts["sent"], 1)
+        self.assertEqual(self.cc.calls.count("schedule"), 2)      # each email exactly once
+        self.assertEqual(self.statuses(1), {"sent"})
+
+    def test_a_resume_whose_sync_fails_sends_nothing(self):
+        self.queue()
+
+        def broken(*, triggered_by):
+            raise RuntimeError("sync failed")
+
+        with self.assertRaises(RuntimeError):
+            self.resume(sync=broken, now=self.age(1))
+        self.assertEqual(self.cc.calls, [])
+        self.assertEqual(self.statuses(0), {"queued"})
+
+    def test_a_batch_past_the_window_is_refused_before_anything_is_called(self):
+        self.queue()
+        sync = mock.Mock()
+        with self.assertRaises(deliver.BatchTooOld):
+            self.resume(sync=sync, now=self.age(deliver.RESUME_MAX_DAYS + 1))
+        sync.assert_not_called()
+        self.assertEqual(self.cc.calls, [])
+        self.assertEqual(self.statuses(0), {"queued"})
+
+    def test_a_batch_exactly_at_the_window_is_still_resumed(self):
+        self.queue()
+        counts = self.resume(now=self.age(deliver.RESUME_MAX_DAYS))
+        self.assertEqual(counts["sent"], 2)
+
+    def test_a_batch_with_nothing_queued_is_refused(self):
+        self.queue()
+        self.batch()
+        self.cc.calls.clear()
+        sync = mock.Mock()
+        with self.assertRaises(deliver.NothingToResume):
+            self.resume(sync=sync, now=self.age(1))
+        sync.assert_not_called()
+        self.assertEqual(self.cc.calls, [])
+
+    def test_an_unknown_batch_has_nothing_to_resume(self):
+        with self.patched():
+            with self.assertRaises(deliver.NothingToResume):
+                deliver.check_resumable(uuid.uuid4(), now=NOW)
+
+    def test_a_parked_email_is_never_resumed(self):
+        self.queue()
+        self.cc.hooks["wait_until_done"] = ApiError("did not reach DONE in time")
+        self.assertEqual(self.deliver(0), "needs_review")
+        del self.cc.hooks["wait_until_done"]
+        self.cc.calls.clear()
+        counts = self.resume(now=self.age(1))
+        self.assertEqual(counts["sent"], 1)                       # only the other email
+        self.assertEqual(self.cc.calls.count("schedule"), 1)
+        self.assertEqual(self.statuses(0), {"queued"})            # still parked, untouched
+        self.assertEqual(self.statuses(1), {"sent"})
+
+    def test_a_crashed_email_is_resumed_without_a_second_campaign(self):
+        self.queue()
+        self.cc.hooks["update_campaign"] = Crash()
+        with self.assertRaises(Crash):
+            self.deliver(0)
+        del self.cc.hooks["update_campaign"]
+        self.cc.calls.clear()
+        counts = self.resume(now=self.age(1))
+        self.assertEqual(counts["sent"], 2)
+        self.assertNotIn("create_campaign", self.cc.calls[:self.cc.calls.index("schedule")])
+
 @unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class SenderFromEnvTest(unittest.TestCase):
     ENV = {"CC_FROM_NAME": " RBI ", "CC_FROM_EMAIL": "from@example.com",

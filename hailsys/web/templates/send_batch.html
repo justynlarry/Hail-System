@@ -45,6 +45,23 @@
 </p>
 {% endif %}
 
+{% set resumable = counts.queued + counts.in_progress %}
+{% if resumable %}
+<form method="post" action="{{ url_for('send.resume', batch_id=batch_id) }}" class="confirm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="expected" value="{{ resumable }}">
+    <label for="max_emails">Send at most</label>
+    <input type="number" name="max_emails" id="max_emails" min="1" max="{{ max_emails_limit }}"
+           value="{{ [resumable, max_emails_limit] | min }}">
+    <button type="submit" {% if busy %}disabled{% endif %}>Resume queued emails</button>
+</form>
+<p class="note">
+    {{ resumable }} email{{ '' if resumable == 1 else 's' }} can be resumed. Resuming runs the
+    unsubscribe sync first, and refuses emails queued more than {{ resume_max_days }} days ago.
+    Emails marked needs review are never resumed.
+</p>
+{% endif %}
+
 <table>
     <thead><tr><th>To</th><th>State</th><th>Sent at</th><th>Detail</th></tr></thead>
     <tbody>

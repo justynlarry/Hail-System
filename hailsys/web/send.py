@@ -1,8 +1,8 @@
 """Send Screen.  Admin Only 10/8/2026.
 
 Preview and confirm pages are read only:  they don't write anything and don't import
-the send engine.  sendjobs.start_send() is the only door to the engine, reached
-by the Send-now POST
+the send engine.  sendjobs (start_send, start_resume) is the only door to the engine, reached
+by the Send-now and resume POST
 """
 
 import logging
@@ -241,7 +241,54 @@ def batch(batch_id):
     if found is None:
         abort(404)
     return render_template("send_batch.html", emails=found["emails"], counts=found["counts"],
+                           batch_id=batch_id, max_emails_limit=MAX_EMAILS_LIMIT,
+                           resume_max_days=sendjobs.RESUME_MAX_DAYS,
                            busy=sendjobs.is_busy(), display_tz=DISPLAY_TZ)
+
+@send_bp.route("/batch/<uuid:batch_id>/resume", methods=["POST"])
+def resume(batch_id):
+    """Deliver the queued remainder of one batch.  User-Click only, not
+    automated.  Count shown on the page must still match."""
+    def back():
+        return redirect(url_for("send.batch", batch_id=batch_id))
+
+    try:
+        expected = int(request.form["expected"])
+    except (KeyError, ValueError):
+        abort(400)
+    try:
+        max_emails = int(request.form.get("max_emails") or "")
+    except ValueError:
+        max_emails = 0
+    if not 1 <= max_emails <= MAX_EMAILS_LIMIT:
+        flash(f"'Send at most' must be between 1 and {MAX_EMAILS_LIMIT}")
+        return back()
+    with get_connection() as conn:
+        found = sendstatus.fetch_batch(conn, batch_id)
+        conn.rollback()
+    if found is None:
+        abort(404)
+    resumable = found["counts"]["queued"] + found["counts"]["in_progress"]
+    if resumable != expected:
+        flash(f"The batch changed since you looked at it ({expected} to {resumable} "
+              "resumable emails).  Nothing was sent.  Review it again.")
+        return back()
+    try:
+        _, sender = sendjobs.load_config()
+    except render.SettingsError as exc:
+        flash(f"Sending is not configured: {exc}")
+        return back()
+    try:
+        sendjobs.start_resume(user_id=session["emp_id"], batch_id=batch_id,
+                              sender=sender, max_emails=max_emails)
+    except sendjobs.SendInProgress:
+        flash("A send is already running.  Nothing new was started.")
+    except (sendjobs.NothingToResume, sendjobs.BatchTooOld) as exc:
+        flash(str(exc))
+    else:
+        flash(f"Resume started: up to {min(max_emails, resumable)} of {resumable} queued "
+              "emails. It runs in the background. This page shows progress.")
+    return back()
 
 
 @send_bp.route("/check", methods=["POST"])

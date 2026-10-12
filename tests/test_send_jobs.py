@@ -72,6 +72,58 @@ class SendJobsTest(unittest.TestCase):
                                        daemon=True)
         thread.return_value.start.assert_called_once()
 
+    # ---- resume (item 180, 5d): same lock, same thread rules ----
+
+    def test_the_lock_is_held_during_a_resume_and_released_after(self):
+        seen = []
+
+        def run_resume(**kw):
+            seen.append(sendjobs.is_busy())
+            return {"sent": 0}
+
+        with mock.patch.object(sendjobs.deliver, "run_resume", side_effect=run_resume):
+            sendjobs._run_resume(1, "batch", {})
+        self.assertEqual(seen, [True])
+        self.assertFalse(sendjobs.is_busy())
+
+    def test_a_failing_resume_releases_the_lock_and_does_not_raise(self):
+        with mock.patch.object(sendjobs.deliver, "run_resume", side_effect=RuntimeError("x")):
+            with self.assertLogs("hailsys.web.sendjobs", level="ERROR"):
+                sendjobs._run_resume(1, "batch", {})
+        self.assertFalse(sendjobs.is_busy())
+
+    def test_a_busy_lock_means_the_resume_never_starts(self):
+        self.hold()
+        with mock.patch.object(sendjobs.deliver, "run_resume") as run_resume:
+            sendjobs._run_resume(1, "batch", {})
+        run_resume.assert_not_called()
+
+    def test_start_resume_refuses_when_busy_and_checks_nothing(self):
+        self.hold()
+        with mock.patch.object(sendjobs.deliver, "check_resumable") as check:
+            with self.assertRaises(sendjobs.SendInProgress):
+                sendjobs.start_resume(user_id=1, batch_id="b")
+        check.assert_not_called()
+
+    def test_start_resume_refuses_before_a_thread_starts(self):
+        with mock.patch.object(sendjobs, "is_busy", return_value=False), \
+             mock.patch.object(sendjobs.deliver, "check_resumable",
+                               side_effect=sendjobs.BatchTooOld("too old")), \
+             mock.patch.object(sendjobs.threading, "Thread") as thread:
+            with self.assertRaises(sendjobs.BatchTooOld):
+                sendjobs.start_resume(user_id=1, batch_id="b")
+        thread.assert_not_called()
+
+    def test_start_resume_starts_one_daemon_thread(self):
+        with mock.patch.object(sendjobs, "is_busy", return_value=False), \
+             mock.patch.object(sendjobs.deliver, "check_resumable"), \
+             mock.patch.object(sendjobs.threading, "Thread") as thread:
+            sendjobs.start_resume(user_id=7, batch_id="b", sender="s", max_emails=3)
+        thread.assert_called_once_with(
+            target=sendjobs._run_resume,
+            args=(7, "b", {"sender": "s", "max_emails": 3}), daemon=True)
+        thread.return_value.start.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

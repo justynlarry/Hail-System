@@ -2596,8 +2596,21 @@ The raw record carries `email_address` and `bounce_code` as the parser expects, 
 `campaign_activity_id`, `tracking_activity_type`, `first_name`, `current_email_address` and
 `created_time` (all ignored), and `_links` is `null`. **The code was X**, a real X and not the
 parser's fallback, for a mailbox that does not exist, so the B/S guess in the guide was wrong for
-this case and nothing reached `dnc_list`: item 198. Still open on this item: 5d (resume of the
-queued remainder) and the eligibility gate (item 189).
+this case and nothing reached `dnc_list`: item 198.
+
+**Resume (piece 5d) built 2026-10-12.** A **Resume queued emails** button on `/send/batch/<id>`
+(POST `/send/batch/<id>/resume`, admin only, with the count guard that `/send/start` has). It runs
+`deliver.run_resume` in a background thread under the same `send:run` lock: `check_resumable`
+first, which refuses a batch with nothing queued or whose oldest queued email is more than 7 days
+old (`RESUME_MAX_DAYS`); then the unsubscribe sync, so anyone who unsubscribed since queueing
+reaches `dnc_list` before the per-email check; then `deliver_batch`. Both `queued` and
+`in_progress` emails are resumed; `needs_review` never is. 28 tests; five mutation checks, all
+caught. **Known limits:** (1) a failed sync on resume leaves only a log line and a failed
+`cc_sync_runs` row, no trace on the history page (the same class as item 196); (2) the daily call
+budget is still manual, since the person clicking chooses the number (item 183); (3) a queued
+email past 7 days has no way out, because a "discard the rest" action has not been built and
+queued rows block their matches from any new send. **Not yet run against the real Constant
+Contact API**, only against the fake. Still open on this item: the eligibility gate (item 189).
 
 ## 189. No eligibility gate: nothing yet stops an email to an address outside the warm pools
 
