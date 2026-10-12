@@ -14,7 +14,8 @@ from hailsys.queries import sendlist
 
 DAY = date(2026, 9, 19)
 ALLOWED = ["rbi.justyn+t2@gmail.com", "rbi.justyn@gmail.com",
-           "rbi-bounce-test-7f3k9q@gmail.com"]
+           "rbi-bounce-test-7f3k9q@gmail.com",
+           "rbi.justyn+t4@gmail.com", "rbi.justyn+t5@gmail.com"]
 
 def main():
     send_n = None

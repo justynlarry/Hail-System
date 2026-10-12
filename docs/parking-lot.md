@@ -2609,8 +2609,16 @@ caught. **Known limits:** (1) a failed sync on resume leaves only a log line and
 `cc_sync_runs` row, no trace on the history page (the same class as item 196); (2) the daily call
 budget is still manual, since the person clicking chooses the number (item 183); (3) a queued
 email past 7 days has no way out, because a "discard the rest" action has not been built and
-queued rows block their matches from any new send. **Not yet run against the real Constant
-Contact API**, only against the fake. Still open on this item: the eligibility gate (item 189).
+queued rows block their matches from any new send (item 199).
+
+**Rehearsed against the real API 2026-10-12** (`sql/dev_rehearsal_seed_4.sql`, batch
+`6f593ef4-afe9-4d98-84d2-c80a6a19af9d`, `hail-dev` only): `--send 1` of two emails sent `+t4` and
+left `+t5` queued; **Resume queued emails** in the browser then sent `+t5`, after unsubscribe sync
+run 1604, with its own campaign and no second campaign for `+t4`. Both messages arrived, Constant
+Contact's `sends` reports show both, and the `bounces` reports are empty. The running `web`
+container had to be restarted to pick up the new route.
+
+Still open on this item: the eligibility gate (item 189).
 
 ## 189. No eligibility gate: nothing yet stops an email to an address outside the warm pools
 
