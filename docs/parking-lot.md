@@ -2835,6 +2835,21 @@ Revisit after the first real send, once the bounce check has run on it. Look at 
 back, and whether any bounced address is eligible for a second email. Settle it before a second
 send goes out.
 
+## 199. A queued email past the resume window has no way out
+
+**Status:** open (found 2026-10-12, with piece 5d of item 180)
+
+`deliver.check_resumable` refuses a batch whose oldest queued email is more than 7 days old.
+Queued `send_log` rows count as emailed in `sendlist` (`send_status <> 'failed'`), so those
+matches are blocked from every new send, and the realtor stays inside the 14-day cap until the
+rows age out. Nothing on the history page turns them into `failed`. A discard action would do
+what `deliver._fail` does for a refused email: mark the remaining `queued` rows `failed` with a
+reason, which makes the matches eligible again.
+
+**When:** before the first real send, or the first time a send is left partly queued, whichever
+comes first. A person would click it, never a timer, and it needs its own guard, test and
+admin-only route.
+
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
 **Status:** spike done 2026-10-07; paid-account checks remain (item 183)
