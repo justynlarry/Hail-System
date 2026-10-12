@@ -13,7 +13,8 @@ from hailsys.email import deliver, render
 from hailsys.queries import sendlist
 
 DAY = date(2026, 9, 19)
-ALLOWED = ["rbi.justyn+t2@gmail.com", "rbi.justyn@gmail.com"]
+ALLOWED = ["rbi.justyn+t2@gmail.com", "rbi.justyn@gmail.com",
+           "rbi-bounce-test-7f3k9q@gmail.com"]
 
 def main():
     send_n = None

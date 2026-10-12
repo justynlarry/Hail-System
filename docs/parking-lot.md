@@ -2582,13 +2582,22 @@ bounce): **B** and **S** address does not exist (also written to `dnc_list` as `
 **D**, **F**, **X**, **Z** recorded as `bounced` only; **V** vacation autoreply is *delivered*,
 so not a bounce; an unknown code is stored as X. **Known limits:** (1) **no complaints
 endpoint was found**, so `complained` is never written automatically (`Z`, blocked, is the
-nearest signal); (2) **the shape of a non-empty bounces response is unverified**: the only real
-responses were empty (`{"tracking_activities": [], "_links": null}` for emails 584 and 883), so
-the parser follows the documentation (`email_address`, `bounce_code`); (3) one GET per email
+nearest signal); (2) ~~the shape of a non-empty bounces response is unverified~~ **verified
+2026-10-12** (see below); (3) one GET per email
 runs inside the click, which is fine at rehearsal volume and counts against item 191's call
-budget at real volume. **Next:** a deliberate bounce rehearsal (one send to a made-up address,
-own seed, explicit yes) to confirm the real response shape. Still open on this item: 5d (resume
-of the queued remainder) and the eligibility gate (item 189).
+budget at real volume.
+
+**Bounce rehearsal run 2026-10-12** (`sql/dev_rehearsal_seed_3.sql`, batch
+`1f9452e5-a6e4-49a4-b171-09fd9cb263fd`, email 1808, to the made-up address
+`rbi-bounce-test-7f3k9q@gmail.com`, `hail-dev` only). It exercised the create-a-new-contact path
+against the real API for the first time (`permission_asserted` `implicit`). The bounce was reported
+about 7 minutes after sending and the check recorded it (`cc_status_runs` 132, `send_log` `bounced`).
+The raw record carries `email_address` and `bounce_code` as the parser expects, plus `contact_id`,
+`campaign_activity_id`, `tracking_activity_type`, `first_name`, `current_email_address` and
+`created_time` (all ignored), and `_links` is `null`. **The code was X**, a real X and not the
+parser's fallback, for a mailbox that does not exist, so the B/S guess in the guide was wrong for
+this case and nothing reached `dnc_list`: item 198. Still open on this item: 5d (resume of the
+queued remainder) and the eligibility gate (item 189).
 
 ## 189. No eligibility gate: nothing yet stops an email to an address outside the warm pools
 
@@ -2790,6 +2799,28 @@ function a mutation can reach, and confirms each is stubbed, before running it.
 
 **When:** none, resolved. Revisit with item 195: if the web tests get their own database, both
 stop being possible.
+
+## 198. A nonexistent mailbox bounced as code X, so it was not suppressed
+
+**Status:** open (found 2026-10-12)
+
+Bounce rehearsal, email 1808 (item 180): Constant Contact reported `bounce_code` X (not B or S)
+about 7 minutes after the send to `rbi-bounce-test-7f3k9q@gmail.com`, a made-up Gmail address.
+`statuses.py` writes `hard_bounce` to `dnc_list` only for B and S, so X left `send_log` `bounced`
+and `dnc_list` untouched (0 rows). One data point: it is not known whether X is how Gmail's
+rejection is always reported, or what other providers return.
+
+**What the send list does with a bounced row** (read in `hailsys/queries/sendlist.py`, 2026-10-12):
+`send_status <> 'failed'` counts as sent, so `bounced` blocks that same *match* for good
+(`already_emailed`) and blocks that *realtor* for the 14-day cap (`within_cap`). Nothing else.
+After 14 days a new match for the same address (a new storm, or another of the agent's listings)
+is eligible again, and gets emailed and bounces again. The immediate pre-send `dnc_list` check in
+the engine is also `dnc_list` only (not re-read this session).
+
+**When:** accepted for now (developer decision, 2026-10-12): not enough data to design a rule.
+Revisit after the first real send, once the bounce check has run on it. Look at which codes come
+back, and whether any bounced address is eligible for a second email. Settle it before a second
+send goes out.
 
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
