@@ -62,6 +62,25 @@
 </p>
 {% endif %}
 
+{% if discardable %}
+<form method="post" action="{{ url_for('send.discard', batch_id=batch_id) }}" class="confirm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="expected" value="{{ discardable }}">
+    <label>
+        <input type="checkbox" name="confirm" value="yes" required>
+        I understand this cannot be undone
+    </label>
+    <button type="submit" {% if busy %}disabled{% endif %}>
+        Discard {{ discardable }} untouched queued email{{ '' if discardable == 1 else 's' }}
+    </button>
+</form>
+<p class="note">
+    Discarding gives up on emails that were queued but never started in Constant Contact. Their
+    matches become eligible for a new send. Emails already in progress or marked needs review
+    are not touched.
+</p>
+{% endif %}
+
 <table>
     <thead><tr><th>To</th><th>State</th><th>Sent at</th><th>Detail</th></tr></thead>
     <tbody>

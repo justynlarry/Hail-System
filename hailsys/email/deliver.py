@@ -356,3 +356,58 @@ def run_resume(*, user_id, batch_id, sender, max_emails=None,
     check_resumable(batch_id, now=now)
     sync(triggered_by=user_id)
     return deliver_batch(batch_id, sender=sender, cc=cc, max_emails=max_emails)
+
+
+# ------ Discard ------------
+
+# An email is 'untouched' when nothing has been recorded for it in Constant Contact.  It
+# doesn't have a list, campaign, activity, schedule, or error.  An in_progress email is 
+# left alone, to determine next steps resume queries Constant Contact.
+
+_UNTOUCHED_SQL = """
+e.batch_id = %s AND e.error_detail IS NULL
+AND e.cc_list_id IS NULL AND e.cc_campaign_id IS NULL AND e.cc_activity_id IS NULL
+AND e.scheduled_at IS NULL AND e.list_deleted_at IS NULL
+AND EXISTS(SELECT 1 FROM send_log s
+    WHERE s.email_id = e.email_id AND s.send_status = 'queued')
+"""
+
+def count_untouched(batch_id):
+    """How many queued emails of this batch discard_queued would discard."""
+    with get_connection() as conn:
+        n = conn.execute("SELECT count(*) AS n FROM sent_emails e WHERE" + _UNTOUCHED_SQL,
+                        (batch_id,)).fetchone()["n"]
+        conn.commit()
+        return n
+
+def discard_queued(batch_id, *, user_id, now=None):
+    """Give up on untouched emails of a batch, on user click.  Returns the count.
+    
+    send_log rows become 'failed', so matches are eligible for a later send, same as 
+    _fail.  A row is either discarded whole or not at all.  The WHERE repeats the 
+    untouched test so an email that started is not discarded.  Raises BatchBusy while
+    the batch is being delivered."""
+    now = now or datetime.now(timezone.utc)
+    detail = f"Discarded by user {user_id} on {now:%Y-%m-%d}"
+    key = f"deliver:{batch_id}"
+    with get_connection() as conn:
+        got = conn.execute("SELECT pg_try_advisory_lock(hashtext(%s)) AS got",
+                           (key,)).fetchone()["got"]
+        conn.commit()
+        if not got:
+            raise BatchBusy("This batch is being delivered, try again when it has finished.")
+        try:
+            n = conn.execute(
+                "WITH hit AS (UPDATE sent_emails e SET error_detail = %s WHERE "
+                + _UNTOUCHED_SQL + "RETURNING e.email_id), "
+                "logged AS (UPDATE send_log SET send_status = 'failed', error_detail = %s, "
+                "status_updated_at = now() WHERE send_status = 'queued' "
+                "AND email_id IN (SELECT email_id FROM hit) RETURNING 1) "
+                "SELECT (SELECT count(*) FROM hit) AS n",
+                (detail, batch_id, detail)).fetchone()["n"]
+            conn.commit()
+            return n
+        finally:
+            conn.rollback()
+            conn.execute("SELECT pg_advisory_unlock(hashtext(%s))", (key,))
+            conn.commit()

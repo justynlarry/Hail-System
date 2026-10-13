@@ -125,5 +125,39 @@ class SendJobsTest(unittest.TestCase):
         thread.return_value.start.assert_called_once()
 
 
+    # ---- discard (item 199): the same global lock, no thread ----
+
+    def test_the_lock_is_held_during_a_discard_and_released_after(self):
+        seen = []
+
+        def discard(batch_id, *, user_id):
+            seen.append(sendjobs.is_busy())
+            return 2
+
+        with mock.patch.object(sendjobs.deliver, "discard_queued", side_effect=discard):
+            self.assertEqual(sendjobs.discard_queued(user_id=1, batch_id="b"), 2)
+        self.assertEqual(seen, [True])
+        self.assertFalse(sendjobs.is_busy())
+
+    def test_a_discard_is_refused_while_a_send_runs(self):
+        self.hold()
+        with mock.patch.object(sendjobs.deliver, "discard_queued") as discard:
+            with self.assertRaises(sendjobs.SendInProgress):
+                sendjobs.discard_queued(user_id=1, batch_id="b")
+        discard.assert_not_called()
+
+    def test_a_failing_discard_releases_the_lock_and_raises(self):
+        with mock.patch.object(sendjobs.deliver, "discard_queued",
+                               side_effect=sendjobs.BatchBusy("busy")):
+            with self.assertRaises(sendjobs.BatchBusy):
+                sendjobs.discard_queued(user_id=1, batch_id="b")
+        self.assertFalse(sendjobs.is_busy())
+
+    def test_the_discard_count_comes_from_the_engine(self):
+        with mock.patch.object(sendjobs.deliver, "count_untouched", return_value=3) as count:
+            self.assertEqual(sendjobs.count_discardable("b"), 3)
+        count.assert_called_once_with("b")
+
+
 if __name__ == "__main__":
     unittest.main()

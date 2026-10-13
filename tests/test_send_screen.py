@@ -415,5 +415,109 @@ class SendScreenTest(unittest.TestCase):
         self.assertIn('<button type="submit" disabled>Resume queued emails', text)
 
 
+    # ---- the discard button (the engine door is always stubbed here) ----
+
+    DISCARD_PATH = f"/send/batch/{BATCH}/discard"
+
+    def discard_stubs(self, discardable=2, result=2, discard_error=None, busy=False,
+                      exists=True):
+        """Everything a discard can reach is replaced: the batch read, the count, the lock
+        check and the engine door.  Returns the mock for the engine door."""
+        base = {"sent": 0, "bounced": 0, "failed": 0, "needs_review": 0,
+                "in_progress": 0, "queued": 0}
+        email = {"created_at": datetime.now(timezone.utc), "state": "queued",
+                 "recipient_email": "a@example.com", "sent_at": None, "bounce_detail": None,
+                 "email_error": None, "cc_activity_id": None}
+        found = {"emails": [email], "counts": base} if exists else None
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(mock.patch.object(screen.sendstatus, "fetch_batch",
+                                              return_value=found))
+        stack.enter_context(mock.patch.object(screen.sendjobs, "count_discardable",
+                                              return_value=discardable))
+        stack.enter_context(mock.patch.object(screen.sendjobs, "is_busy", return_value=busy))
+        return stack.enter_context(mock.patch.object(
+            screen.sendjobs, "discard_queued", return_value=result, side_effect=discard_error))
+
+    def test_discard_needs_a_token(self):
+        discard = self.discard_stubs()
+        self.assertEqual(self.client_as("admin").post(self.DISCARD_PATH).status_code, 400)
+        discard.assert_not_called()
+
+    def test_discard_is_post_only(self):
+        discard = self.discard_stubs()
+        self.assertEqual(self.client_as("admin").get(self.DISCARD_PATH).status_code, 405)
+        discard.assert_not_called()
+
+    def test_discard_is_admin_only(self):
+        discard = self.discard_stubs()
+        for role in ("viewer", "sender"):
+            if role in self.users:
+                self.assertEqual(self.post(self.DISCARD_PATH, role, expected="2",
+                                           confirm="yes").status_code, 403, role)
+        discard.assert_not_called()
+
+    def test_discard_without_a_count_is_a_400(self):
+        discard = self.discard_stubs()
+        self.assertEqual(self.post(self.DISCARD_PATH, confirm="yes").status_code, 400)
+        discard.assert_not_called()
+
+    def test_discard_without_the_confirm_box_discards_nothing(self):
+        discard = self.discard_stubs()
+        text = self.post(self.DISCARD_PATH, expected="2").get_data(as_text=True)
+        self.assertIn("Tick the box", text)
+        discard.assert_not_called()
+
+    def test_discard_of_an_unknown_batch_is_a_404(self):
+        discard = self.discard_stubs(exists=False)
+        self.assertEqual(self.post(self.DISCARD_PATH, expected="2",
+                                   confirm="yes").status_code, 404)
+        discard.assert_not_called()
+
+    def test_discard_refuses_when_the_count_changed(self):
+        discard = self.discard_stubs(discardable=1)
+        text = self.post(self.DISCARD_PATH, expected="2", confirm="yes").get_data(as_text=True)
+        self.assertIn("changed since you looked", text)
+        discard.assert_not_called()
+
+    def test_discard_runs_once_as_that_admin_and_reports_the_count(self):
+        discard = self.discard_stubs(discardable=2, result=2)
+        text = self.post(self.DISCARD_PATH, expected="2", confirm="yes").get_data(as_text=True)
+        discard.assert_called_once_with(user_id=self.users["admin"], batch_id=self.BATCH)
+        self.assertIn("Discarded 2 queued emails", text)
+
+    def test_discard_of_one_email_reads_in_the_singular(self):
+        self.discard_stubs(discardable=1, result=1)
+        text = self.post(self.DISCARD_PATH, expected="1", confirm="yes").get_data(as_text=True)
+        self.assertIn("Discarded 1 queued email.", text)
+
+    def test_discard_says_why_it_was_refused(self):
+        for error, expect in ((screen.sendjobs.SendInProgress("x"), "already running"),
+                              (screen.sendjobs.BatchBusy("being delivered"), "being delivered")):
+            with self.subTest(expect=expect):
+                self.discard_stubs(discard_error=error)
+                text = self.post(self.DISCARD_PATH, expected="2",
+                                 confirm="yes").get_data(as_text=True)
+                self.assertIn(expect, text)
+                self.assertNotIn("Discarded 2", text)
+
+    def test_the_batch_page_offers_discard_only_when_something_is_untouched(self):
+        self.discard_stubs(discardable=3)
+        text = self.client_as("admin").get(f"/send/batch/{self.BATCH}").get_data(as_text=True)
+        self.assertIn("Discard 3 untouched queued emails", text)
+        self.assertIn('name="expected" value="3"', text)
+        self.assertIn('name="confirm"', text)
+
+    def test_the_batch_page_hides_discard_when_nothing_is_untouched(self):
+        self.discard_stubs(discardable=0)
+        text = self.client_as("admin").get(f"/send/batch/{self.BATCH}").get_data(as_text=True)
+        self.assertNotIn("untouched queued email", text)
+
+    def test_the_discard_button_is_disabled_while_a_send_runs(self):
+        self.discard_stubs(discardable=2, busy=True)
+        text = self.client_as("admin").get(f"/send/batch/{self.BATCH}").get_data(as_text=True)
+        self.assertIn('<button type="submit" disabled>', text)
+
+
 if __name__ == "__main__":
     unittest.main()

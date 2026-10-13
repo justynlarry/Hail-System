@@ -30,6 +30,8 @@ NothingToResume = deliver.NothingToResume
 BatchTooOld = deliver.BatchTooOld
 RESUME_MAX_DAYS = deliver.RESUME_MAX_DAYS
 
+BatchBusy = deliver.BatchBusy
+
 def load_config():
     """(email_settings, sender) from environment, render.SettingsError names variable."""
     return render.EmailSettings.from_env(), deliver.sender_from_env()
@@ -103,3 +105,25 @@ def start_resume(*, user_id, batch_id, **run_kwargs):
     thread = threading.Thread(target=_run_resume, args=(user_id, batch_id, run_kwargs),
                               daemon=True)
     thread.start()
+
+def count_discardable(batch_id):
+    """Untouched queued emails of a batch that discard_queued would discard (read-only)."""
+    return deliver.count_untouched(batch_id)
+
+
+def discard_queued(*, user_id, batch_id):
+    """Discard a batch's untouched queued emails now (one UPDATE, so no thread).
+
+    Raises SendInProgress while a send or resume holds the lock, and BatchBusy if this batch
+    is being delivered.  Returns how many emails were discarded.
+    """
+    with get_connection() as conn:
+        if not conn.execute(_TRY_LOCK, (LOCK_KEY,)).fetchone()["got"]:
+            raise SendInProgress("a send is already running")
+        conn.commit()
+        try:
+            return deliver.discard_queued(batch_id, user_id=user_id)
+        finally:
+            conn.rollback()
+            conn.execute(_UNLOCK, (LOCK_KEY,))
+            conn.commit()

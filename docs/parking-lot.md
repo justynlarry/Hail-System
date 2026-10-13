@@ -2845,7 +2845,8 @@ send goes out.
 
 ## 199. A queued email past the resume window has no way out
 
-**Status:** open (found 2026-10-12, with piece 5d of item 180)
+**Status:** built 2026-10-13 (found 2026-10-12, with piece 5d of item 180); not yet rehearsed
+against the real database or clicked in the browser; the `in_progress` limit below is open
 
 `deliver.check_resumable` refuses a batch whose oldest queued email is more than 7 days old.
 Queued `send_log` rows count as emailed in `sendlist` (`send_status <> 'failed'`), so those
@@ -2857,6 +2858,26 @@ reason, which makes the matches eligible again.
 **When:** before the first real send, or the first time a send is left partly queued, whichever
 comes first. A person would click it, never a timer, and it needs its own guard, test and
 admin-only route.
+
+**Built 2026-10-13.** `deliver.discard_queued` / `count_untouched`, `sendjobs.discard_queued`
+(takes the global `send:run` lock, so it can't overlap a send or resume) and
+`POST /send/batch/<id>/discard` (admin only, CSRF, a required confirm box, and an `expected`
+count that must still match). The button sits on the batch page under the resume form.
+- **Allowed at any time, not only past the 7-day window.** It only touches emails that are
+  provably untouched, so a window adds a rule and no safety.
+- **Provably untouched** means state `queued` with no `cc_list_id`, `cc_campaign_id`,
+  `cc_activity_id`, `scheduled_at`, `list_deleted_at` or `error_detail`. One statement marks
+  both `sent_emails.error_detail` and the `send_log` rows `failed` ("Discarded by user N on
+  DATE"), so the matches are eligible for a new send.
+- 31 tests; 15 mutations run, 13 caught. The two that can't be: dropping the `scheduled_at` /
+  `list_deleted_at` conditions (the `sql/037` CHECK constraints already require an activity id
+  and a list id first) and dropping the explicit unlock (closing the connection frees the lock).
+
+**Known limit, open:** an `in_progress` email (a list or campaign exists, the schedule call
+unknown) is never discarded. Marking it `failed` could make its matches eligible again and
+email the agent twice. Past the window the resume refuses it too, so it stays stuck until
+someone checks Constant Contact by hand. **When:** the first time a real send leaves one stuck;
+the fix would be a look at the campaign's status in Constant Contact before deciding.
 
 ## 181. Constant Contact behaviours to verify before the send design is locked
 

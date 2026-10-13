@@ -243,6 +243,7 @@ def batch(batch_id):
     return render_template("send_batch.html", emails=found["emails"], counts=found["counts"],
                            batch_id=batch_id, max_emails_limit=MAX_EMAILS_LIMIT,
                            resume_max_days=sendjobs.RESUME_MAX_DAYS,
+                           discardable=sendjobs.count_discardable(batch_id),
                            busy=sendjobs.is_busy(), display_tz=DISPLAY_TZ)
 
 @send_bp.route("/batch/<uuid:batch_id>/resume", methods=["POST"])
@@ -288,6 +289,40 @@ def resume(batch_id):
     else:
         flash(f"Resume started: up to {min(max_emails, resumable)} of {resumable} queued "
               "emails. It runs in the background. This page shows progress.")
+    return back()
+
+@send_bp.route("/batch/<uuid:batch_id>/discard", methods=["POST"])
+def discard(batch_id):
+    """Give up on untouched queued emails of one batch, so their matches can be sent
+    again.  User-Click only, the count shown on the page must match."""
+    def back():
+        return redirect(url_for("send.batch", batch_id=batch_id))
+    try:
+        expected = int(request.form["expected"])
+    except (KeyError, ValueError):
+        abort(400)
+    if request.form.get("confirm") != "yes":
+        flash("Tick the box to confirm.  Nothing was discarded.")
+        return back()
+    with get_connection() as conn:
+        found = sendstatus.fetch_batch(conn, batch_id)
+        conn.rollback()
+    if found is None:
+        abort(404)
+    discardable = sendjobs.count_discardable(batch_id)
+    if discardable != expected:
+        flash(f"The batch changed since you looked at it ({expected} to {discardable} "
+              "untouched queued emails).  Nothing was discarded.  Review it again.")
+        return back()
+    try:
+        n = sendjobs.discard_queued(user_id=session["emp_id"], batch_id=batch_id)
+    except sendjobs.SendInProgress:
+        flash("A send is already running.  Nothing was discarded.")
+    except sendjobs.BatchBusy as exc:
+        flash(str(exc))
+    else:
+        flash(f"Discarded {n} queued email{'' if n == 1 else 's'}.  Their matches can be "
+              "sent again.")
     return back()
 
 

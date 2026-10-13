@@ -682,6 +682,127 @@ class DeliverTest(unittest.TestCase):
         self.assertEqual(counts["sent"], 2)
         self.assertNotIn("create_campaign", self.cc.calls[:self.cc.calls.index("schedule")])
 
+
+    # ---- discard (item 199): only emails nothing was ever recorded for ----
+
+    def discard(self, now=NOW):
+        with self.patched():
+            return deliver.discard_queued(self.batch_id, user_id=self.user, now=now)
+
+    def untouched(self):
+        with self.patched():
+            return deliver.count_untouched(self.batch_id)
+
+    def eligible(self):
+        found = sendlist.build_send_list(self.conn, [DAY], now=NOW)["realtors"]
+        return {r["email"] for r in found}
+
+    def test_a_discard_fails_the_untouched_emails_with_a_reason(self):
+        self.queue()
+        self.assertEqual(self.untouched(), 2)
+        self.assertEqual(self.discard(), 2)
+        for i in (0, 1):
+            self.assertEqual(self.statuses(i), {"failed"})
+            for log in self.log_status(i):
+                self.assertIn("Discarded by user", log["error_detail"])
+            self.assertIn("2026-09-30", self.email(i)["error_detail"])
+        self.assertEqual(self.untouched(), 0)
+
+    def test_a_discard_makes_the_matches_eligible_for_a_new_send(self):
+        self.queue()
+        self.assertFalse(set(self.emails) & self.eligible())
+        self.discard()
+        self.assertTrue(set(self.emails) <= self.eligible())
+
+    def test_a_discard_calls_nothing_and_a_second_one_discards_nothing(self):
+        self.queue()
+        self.discard()
+        self.assertEqual(self.discard(), 0)
+        self.assertEqual(self.cc.calls, [])
+
+    def test_a_discarded_batch_has_nothing_to_resume(self):
+        self.queue()
+        self.discard()
+        with self.assertRaises(deliver.NothingToResume):
+            self.resume(now=self.age(1))
+
+    def test_a_discard_leaves_a_sent_email_alone(self):
+        self.queue()
+        self.deliver(0)
+        self.assertEqual(self.discard(), 1)
+        self.assertEqual(self.statuses(0), {"sent"})
+        self.assertEqual(self.statuses(1), {"failed"})
+
+    def test_a_discard_leaves_a_parked_email_alone(self):
+        self.queue()
+        self.cc.hooks["wait_until_done"] = ApiError("did not reach DONE in time")
+        self.assertEqual(self.deliver(0), "needs_review")
+        self.assertEqual(self.discard(), 1)
+        self.assertEqual(self.statuses(0), {"queued"})            # still counted as emailed
+        self.assertEqual(self.statuses(1), {"failed"})
+
+    def test_a_discard_leaves_an_in_progress_email_alone(self):
+        # A crash after the list was made: the schedule call may or may not have happened.
+        # Marking it failed could email the agent twice, so only a resume may decide.
+        self.queue()
+        self.cc.hooks["update_campaign"] = Crash("killed")
+        with self.assertRaises(Crash):
+            self.deliver(0)
+        self.assertEqual(self.untouched(), 1)
+        self.assertEqual(self.discard(), 1)
+        self.assertEqual(self.statuses(0), {"queued"})
+        self.assertIsNone(self.email(0)["error_detail"])
+        self.assertEqual(self.statuses(1), {"failed"})
+
+    def test_a_discard_of_an_unknown_batch_discards_nothing(self):
+        with self.patched():
+            self.assertEqual(
+                deliver.discard_queued(uuid.uuid4(), user_id=self.user, now=NOW), 0)
+
+    def test_a_batch_being_delivered_elsewhere_is_not_discarded(self):
+        self.queue()
+        other = psycopg.connect()
+        self.addCleanup(other.close)
+        other.execute("SELECT pg_advisory_lock(hashtext(%s))", (f"deliver:{self.batch_id}",))
+        with self.assertRaises(deliver.BatchBusy):
+            self.discard()
+        self.assertEqual(self.statuses(0), {"queued"})
+        self.assertEqual(self.statuses(1), {"queued"})
+
+    def protected_by(self, **trace):
+        """Set one trace in Constant Contact on the first email.  A real crash sets several
+        at once, which would hide a condition that was dropped, so each is tried alone."""
+        self.queue()
+        (column, value), = trace.items()
+        self.conn.execute(f"UPDATE sent_emails SET {column} = %s WHERE email_id = %s",
+                          (value, self.email_ids[0]))
+        self.assertEqual(self.untouched(), 1)
+        self.assertEqual(self.discard(), 1)
+        self.assertEqual(self.statuses(0), {"queued"})
+        self.assertEqual(self.statuses(1), {"failed"})
+
+    # scheduled_at and list_deleted_at can't be tried alone: sql/037 requires an activity id
+    # and a list id before either can be set, so those two are always covered by these.
+    def test_a_list_alone_protects_an_email(self):
+        self.protected_by(cc_list_id="L1")
+
+    def test_a_campaign_alone_protects_an_email(self):
+        self.protected_by(cc_campaign_id="camp1")
+
+    def test_an_activity_alone_protects_an_email(self):
+        self.protected_by(cc_activity_id="act1")
+
+    def test_an_error_alone_protects_an_email(self):
+        self.protected_by(error_detail="something went wrong")
+
+    def test_an_email_with_no_queued_row_is_not_touched(self):
+        self.queue()
+        self.conn.execute("UPDATE send_log SET send_status = 'failed' WHERE email_id = %s",
+                          (self.email_ids[0],))
+        self.assertEqual(self.untouched(), 1)
+        self.assertEqual(self.discard(), 1)
+        self.assertIsNone(self.email(0)["error_detail"])
+
 @unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class SenderFromEnvTest(unittest.TestCase):
     ENV = {"CC_FROM_NAME": " RBI ", "CC_FROM_EMAIL": "from@example.com",
