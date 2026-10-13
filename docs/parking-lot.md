@@ -144,6 +144,13 @@ agents if consolidated: about 42% fewer. The cap should be designed around
 windows of agents, not per-storm counts, and a consolidated email still has to
 name the storm day(s) it refers to (the un-addressed half of item 106).
 
+**Checked 2026-10-13.** The numbers are no longer unset: `email_cap_days` is a setting (14) on the
+Admin page with its change history, and the send list drops a realtor emailed in that window
+(`within_cap`), with a visible override on the send screen. That is the soft half. The hard half
+is not built: the override is an application choice, and nothing in the database refuses a second
+email to a realtor inside the window. **Still open** for that reason. **When:** before the override
+is used on a real send, or if a duplicate email is ever reported.
+
 ## 16. Merge field vocabulary — where is it stored?
 
 **Status:** resolved 2026-10-08 (decided: in code, not a table)
@@ -462,7 +469,7 @@ the production box. Related: item 102.
 
 ## 53. Zero test coverage under `hailsys/web/`
 
-**Status:** open
+**Status:** open; narrowed 2026-10-13 (the send and Constant Contact screens are tested; see the last paragraph)
 
 Of the 100 test cases in `tests/`, 88 cover `hailsys/iem/` and the ingest
 scripts, and 12 (`tests/test_formatting.py`, 2026-09-22) cover
@@ -484,6 +491,14 @@ still none under `hailsys/web/`: views, auth and admin are unexercised. The gap
 has now cost more than the two bugs above: switching Jinja to `StrictUndefined`
 (item 32) surfaced three 500s no test could see (`/login` signed out, `/admin/`
 on a plain GET, `/search` with no address), found by hand after the change.
+
+**Checked 2026-10-13.** The suite is 493 tests. The send screens are covered by
+`test_send_screen` (70), `test_send_jobs` (19) and `test_cc_sync_route` (11, `POST /cc/sync` and
+`GET /cc/`), which sign in by writing the session and stub every route that could write. Still
+with no test that reaches them: `/admin`, `/pull` and `/match`, `/search`, `/exports`,
+`/territory`, `/activity`, `/account` and the storm pages. `/login` is touched only as a
+signed-out redirect. Not closed, because the older half of the gap is the one that has already
+cost bugs. **When:** before any of those screens is changed again.
 
 ## 55. Duplicate properties from RentCast address variants — one lot, two emails
 
@@ -1200,7 +1215,7 @@ recorded basis per realtor and sending is gated on it.
 
 ## 120. Email templates need CAN-SPAM's footer requirements built in
 
-**Status:** open
+**Status:** mostly met (checked 2026-10-13); the postal address rests on item 183
 
 Checked actual draft outreach copy ("...Our inspections are free...")
 against `15 U.S.C. § 7702` and `16 CFR § 316.3`, 2026-09-28: it reads as a
@@ -1217,6 +1232,17 @@ still-undesigned merge-field vocabulary.
 **When:** item 16, when the merge-field vocabulary and templates are
 designed — this is a concrete requirement for that design, not a separate
 task.
+
+**Checked 2026-10-13, against the template that exists now** (`hailsys/email/templates/hail_alert.html`,
+`email_templates` has its first row since the 2026-10-09 rehearsal):
+- **Non-deceptive subject:** met. The subject names the storm and the listing address.
+- **Advertisement notice:** met. The footer reads "This is an advertisement."
+- **Working opt-out:** met on the rehearsals: Constant Contact adds the Unsubscribe link and a
+  one-click `List-Unsubscribe` header (seen in the received messages), and the unsubscribe sync
+  brings opt-outs into `dnc_list` before every send.
+- **Valid postal address:** not ours to build. Constant Contact adds it from the account
+  profile (the trial's was seen in the footer). Whether it is RBI's, and where it is edited, is
+  an open check on the paid account (item 183).
 
 ## 121. Real send volume, measured: consolidating across storms is a real lever, throttling a personal account isn't
 
@@ -2484,7 +2510,8 @@ send list built only from realtors that have a basis and are not in `dnc_list`.
 
 ## 180. Send design: one email per realtor per send, listing every affected property
 
-**Status:** open; the rendered-email table is built (`bb443a7`), the send engine is not
+**Status:** built and rehearsed on `hail-dev` (checked 2026-10-13); open only for the eligibility
+gate (item 189) and for the production box, which has none of it
 
 Constant Contact has no single-recipient send: the API is contacts, lists and
 campaigns (`POST /emails`, `PUT /emails/activities/{id}` with `contact_list_ids`,
@@ -2660,7 +2687,15 @@ run 1604, with its own campaign and no second campaign for `+t4`. Both messages 
 Contact's `sends` reports show both, and the `bounces` reports are empty. The running `web`
 container had to be restarted to pick up the new route.
 
-Still open on this item: the eligibility gate (item 189).
+**Checked 2026-10-13: the three known limits of 5d above are superseded.**
+- The daily call budget is no longer manual: every attempt is counted and the engine stops at the
+  limit (item 191). The status sync's one GET per email is counted too.
+- A queued email past the resume window can now be discarded (item 199, rehearsed 2026-10-13).
+- A failed sync on resume still leaves only a log line and a failed `cc_sync_runs` row: filed as
+  item 200.
+Also built since: one email per house, deduped on `address_key` (item 55).
+
+Still open on this item: the eligibility gate (item 189), and the production box.
 
 ## 189. No eligibility gate: nothing yet stops an email to an address outside the warm pools
 
@@ -2972,6 +3007,20 @@ email the agent twice. Past the window the resume refuses it too, so it stays st
 someone checks Constant Contact by hand. **When:** the first time a real send leaves one stuck;
 the fix would be a look at the campaign's status in Constant Contact before deciding.
 
+## 200. A failed unsubscribe sync on a resume leaves only a log line
+
+**Status:** open (found 2026-10-12 with piece 5d of item 180; filed 2026-10-13)
+
+`sendjobs._run_resume` runs `deliver.run_resume`, which syncs unsubscribes before it sends
+anything and raises if the sync fails. Nothing has been sent in that case, which is the safe
+outcome. But the only trace is the log line `event=resume_job_failed` and a `failed` row in
+`cc_sync_runs`; the batch page still shows the emails queued and says nothing. A person who
+clicked Resume sees "Resume started", and then nothing happens. The same class as item 196
+(a send that fails before it queues anything).
+
+**When:** with item 196, when the history page gets a way to show a job that failed before
+it started. Until then the person has to look at the log.
+
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
 **Status:** spike done 2026-10-07; paid-account checks remain (item 183)
@@ -3180,7 +3229,9 @@ template to a Gmail inbox and confirm it arrives.
 
 ## 187. The send list ignored `listing_freshness_days`; a send needs a fresh RentCast pull first
 
-**Status:** open (rule being built 2026-10-08)
+**Status:** resolved 2026-10-08 (`943650d`, the `stale_listing` rule; checked 2026-10-13). A real send
+still needs a fresh RentCast pull for the storm first, by design; the send screen counts the
+dropped listings under "RentCast has not seen the listing recently (pull again)"
 
 Found 2026-10-08 while adding the eligibility settings (`sql/038`). `sendlist.py` (commit
 `33a1c4d`) kept every listing with `list_status = 'Active'`. That column stays `Active`
