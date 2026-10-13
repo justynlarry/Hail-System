@@ -144,6 +144,9 @@ class DeliverTest(unittest.TestCase):
             schedule_url="https://www.example.com/Orders/Create")
         self.run_id = self.new_sync_run()
         self.cc = FakeCC()
+        patcher = mock.patch.object(deliver.budget, "exhausted", return_value=False)
+        self.exhausted = patcher.start()
+        self.addCleanup(patcher.stop)
 
     # ---- helpers ----
 
@@ -836,6 +839,48 @@ class DeliverTest(unittest.TestCase):
         after, _ = self.emails_on_list()
         self.assertEqual(after, before)
 
+    # ---- the daily call budget (item 191) ----
+
+    def test_a_spent_budget_stops_the_batch_before_any_call(self):
+        self.queue()
+        self.exhausted.return_value = True
+        counts = self.batch()
+        self.assertTrue(counts["budget_stop"])
+        self.assertEqual((counts["sent"], counts["remaining"]), (0, 2))
+        self.assertEqual(self.cc.calls, [])
+        self.assertEqual(self.statuses(0), {"queued"})
+        self.assertEqual(self.statuses(1), {"queued"})
+
+    def test_a_budget_that_runs_out_midway_leaves_the_rest_queued(self):
+        self.queue()
+        self.exhausted.side_effect = [False, True]
+        counts = self.batch()
+        self.assertTrue(counts["budget_stop"])
+        self.assertEqual((counts["sent"], counts["remaining"]), (1, 1))
+        self.assertEqual(self.statuses(0), {"sent"})
+        self.assertEqual(self.statuses(1), {"queued"})
+
+    def test_a_batch_with_budget_left_is_not_stopped(self):
+        self.queue()
+        counts = self.batch()
+        self.assertFalse(counts["budget_stop"])
+        self.assertEqual(counts["sent"], 2)
+
+    def test_the_email_cap_is_reported_before_the_budget(self):
+        self.queue()
+        self.exhausted.return_value = True
+        counts = self.batch(max_emails=0)
+        self.assertFalse(counts["budget_stop"])
+        self.assertEqual(counts["remaining"], 2)
+        self.exhausted.assert_not_called()
+
+    def test_what_a_spent_budget_left_queued_can_be_resumed_later(self):
+        self.queue()
+        self.exhausted.return_value = True
+        self.batch()
+        self.exhausted.return_value = False
+        counts = self.resume(now=self.age(1))
+        self.assertEqual(counts["sent"], 2)
 
 @unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class SenderFromEnvTest(unittest.TestCase):

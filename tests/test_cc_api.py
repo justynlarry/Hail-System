@@ -46,6 +46,9 @@ class RequestTest(unittest.TestCase):
                         mock.patch.object(api, "MIN_INTERVAL", 0)):
             patcher.start()
             self.addCleanup(patcher.stop)
+        recorder = mock.patch.object(api.budget, "record_call")
+        self.record = recorder.start()
+        self.addCleanup(recorder.stop)
 
     def test_success_sends_agent_and_bearer_and_returns_parsed(self):
         with mock.patch("urllib.request.urlopen", return_value=ok({"a": 1})) as uo:
@@ -114,6 +117,45 @@ class RequestTest(unittest.TestCase):
         with mock.patch("urllib.request.urlopen", return_value=ok({}, status=206)):
             with self.assertRaises(api.ApiError):
                 api.request("GET", "/contacts")
+
+    # ---- the daily call count (item 191) ----
+
+    def test_each_attempt_is_counted_before_it_is_made(self):
+        order = []
+        self.record.side_effect = lambda *a: order.append("count")
+        with mock.patch("urllib.request.urlopen",
+                        side_effect=lambda *a, **k: (order.append("call"), ok({}))[1]):
+            api.request("GET", "/contacts")
+        self.assertEqual(order, ["count", "call"])
+
+    def test_a_retried_attempt_is_counted_again(self):
+        with mock.patch("urllib.request.urlopen", side_effect=[http_error(503), ok({})]):
+            api.request("GET", "/contacts")
+        self.assertEqual(self.record.call_count, 2)
+
+    def test_a_throttled_attempt_is_counted(self):
+        with mock.patch("urllib.request.urlopen",
+                        side_effect=[http_error(429, b'{"error_key":"throttled"}'), ok({})]):
+            api.request("POST", "/emails", body={})
+        self.assertEqual(self.record.call_count, 2)
+
+    def test_a_refused_attempt_is_counted_once(self):
+        with mock.patch("urllib.request.urlopen", side_effect=[http_error(400)]):
+            with self.assertRaises(api.ApiError):
+                api.request("GET", "/contacts")
+        self.assertEqual(self.record.call_count, 1)
+
+    def test_if_the_count_cannot_be_written_the_call_is_not_made(self):
+        self.record.side_effect = RuntimeError("database is down")
+        with mock.patch("urllib.request.urlopen") as uo:
+            with self.assertRaises(RuntimeError):
+                api.request("POST", "/emails", body={})
+        uo.assert_not_called()
+
+    def test_the_count_gets_the_method_and_the_path_without_its_query(self):
+        with mock.patch("urllib.request.urlopen", return_value=ok({})):
+            api.request("GET", "/contacts", query={"email": "someone@example.com"})
+        self.record.assert_called_once_with("GET", "/contacts")
 
 @unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class ThrottleTest(unittest.TestCase):

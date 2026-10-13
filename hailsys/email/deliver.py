@@ -26,7 +26,7 @@ import logging
 import os
 from datetime import datetime, timedelta, timezone
 
-from hailsys.constantcontact import campaigns, unsubs
+from hailsys.constantcontact import budget, campaigns, unsubs
 from hailsys.constantcontact.api import ApiError
 from hailsys.db import get_connection
 from hailsys.email import render, send
@@ -249,9 +249,13 @@ def _deliver_all(conn, batch_id, sender, cc, max_emails):
         (batch_id,)).fetchall()]
     conn.commit()
     counts = {"sent": 0, "failed": 0, "needs_review": 0, "skipped": 0,
-             "remaining": 0, "stopped": False}
+             "remaining": 0, "stopped": False, "budget_stop": False}
     for n, email_id in enumerate(ids):
         if max_emails is not None and n >= max_emails:
+            counts["remaining"] = len(ids) - n
+            break
+        if budget.exhausted():
+            counts["budget_stop"] = True
             counts["remaining"] = len(ids) - n
             break
         try:

@@ -23,7 +23,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from hailsys.constantcontact import oauth
+from hailsys.constantcontact import budget, oauth
 from hailsys.db import get_connection
 
 logger = logging.getLogger(__name__)
@@ -95,6 +95,7 @@ def request(method, path, *, body=None, query=None,
             headers["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=data, headers=headers,
                                      method=method)
+        budget.record_call(method, safe_path)
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
                 status, raw = resp.status, resp.read()
