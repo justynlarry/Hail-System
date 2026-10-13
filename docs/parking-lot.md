@@ -2869,7 +2869,7 @@ count that must still match). The button sits on the batch page under the resume
   `cc_activity_id`, `scheduled_at`, `list_deleted_at` or `error_detail`. One statement marks
   both `sent_emails.error_detail` and the `send_log` rows `failed` ("Discarded by user N on
   DATE"), so the matches are eligible for a new send.
-- 31 tests; 15 mutations run, 13 caught. The two that can't be: dropping the `scheduled_at` /
+- 31 tests; 16 mutations run, 14 caught. The two that can't be: dropping the `scheduled_at` /
   `list_deleted_at` conditions (the `sql/037` CHECK constraints already require an activity id
   and a list id first) and dropping the explicit unlock (closing the connection frees the lock).
 
