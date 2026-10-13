@@ -659,7 +659,7 @@ shared agent, 126 groups) stays deferred. What was built:
   Ave`, `andwgmz01@gmail.com` kept over `edersoto1@yahoo.com`, a same-day tie broken by the
   lower `listing_id`) and one merge (`4518 N Wordsworth Cir`, one agent, two listings). The
   list builds in 0.06 s (`properties_address_key_idx` exists).
-- **Tests:** 19 new (14 on made-up rows, 2 on the real SQL: queue the Hallam winner in a rolled
+- **Tests:** 19 new (17 on made-up rows, 2 on the real SQL: queue the Hallam winner in a rolled
   back transaction and check the twin is not picked up, and that a failed send does not cover
   its house); 15 mutations run, 14 caught.
 
