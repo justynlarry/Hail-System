@@ -2855,8 +2855,8 @@ send goes out.
 
 ## 199. A queued email past the resume window has no way out
 
-**Status:** built 2026-10-13 (found 2026-10-12, with piece 5d of item 180); not yet rehearsed
-against the real database or clicked in the browser; the `in_progress` limit below is open
+**Status:** built and rehearsed 2026-10-13 (found 2026-10-12, with piece 5d of item 180); the
+`in_progress` limit below is open
 
 `deliver.check_resumable` refuses a batch whose oldest queued email is more than 7 days old.
 Queued `send_log` rows count as emailed in `sendlist` (`send_status <> 'failed'`), so those
@@ -2882,6 +2882,15 @@ count that must still match). The button sits on the batch page under the resume
 - 31 tests; 16 mutations run, 14 caught. The two that can't be: dropping the `scheduled_at` /
   `list_deleted_at` conditions (the `sql/037` CHECK constraints already require an activity id
   and a list id first) and dropping the explicit unlock (closing the connection frees the lock).
+
+**Rehearsed 2026-10-13 on dev.** `sql/dev_rehearsal_seed_5.sql` (+t6, +t7, TEST-REHEARSAL-7/8) and
+`rehearse_send.py --send 0` queued batch `6d7912e1-...` (2 emails, nothing scheduled: one
+Constant Contact read for the sync and contact lookups, no writes there). After a `web` restart,
+the discard form showed on the batch page; ticking the box and clicking Discard set both
+`send_log` rows and both `sent_emails.error_detail` to "Discarded by user 2 on 2026-10-13" in
+one update, status `failed`, no Constant Contact id touched, and the send preview listed both
+realtors as eligible again. The refusal paths (stale count, send running) are covered by tests
+only, not clicked.
 
 **Known limit, open:** an `in_progress` email (a list or campaign exists, the schedule call
 unknown) is never discarded. Marking it `failed` could make its matches eligible again and
