@@ -97,7 +97,7 @@ def index():
         "send.html", available=available, ticked=set(days), found=found,
         reasons=[(r, REASON_LABELS[r]) for r in sendlist.REASONS],
         listing_count=listing_count, sample_subject=sample_subject,
-        sample_html=sample_html, sample_problem=sample_problem,
+        sample_html=sample_html, sample_problem=sample_problem, budget=sendjobs.calls_budget(),
         default_max_emails=DEFAULT_MAX_EMAILS, max_emails_limit=MAX_EMAILS_LIMIT,
         busy=sendjobs.is_busy())
 
@@ -185,7 +185,8 @@ def confirm():
     going = min(len(mine), form["max_emails"])
     return render_template(
         "send_confirm.html", form=form, mine=mine, unmatched=unmatched, sender=sender,
-        going=going, calls=going * CALLS_PER_EMAIL, busy=sendjobs.is_busy())
+        going=going, calls=going * CALLS_PER_EMAIL,  budget=sendjobs.calls_budget(),
+        busy=sendjobs.is_busy())
 
 
 @send_bp.route("/start", methods=["POST"])
@@ -243,7 +244,7 @@ def batch(batch_id):
         abort(404)
     return render_template("send_batch.html", emails=found["emails"], counts=found["counts"],
                            batch_id=batch_id, max_emails_limit=MAX_EMAILS_LIMIT,
-                           resume_max_days=sendjobs.RESUME_MAX_DAYS,
+                           resume_max_days=sendjobs.RESUME_MAX_DAYS, budget=sendjobs.calls_budget(),
                            discardable=sendjobs.count_discardable(batch_id),
                            busy=sendjobs.is_busy(), display_tz=DISPLAY_TZ)
 

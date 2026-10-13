@@ -158,6 +158,24 @@ class SendJobsTest(unittest.TestCase):
             self.assertEqual(sendjobs.count_discardable("b"), 3)
         count.assert_called_once_with("b")
 
+    # ---- the call count for the screens (item 191) ----
+
+    def test_calls_budget_reports_what_is_used_what_remains_and_what_is_usable(self):
+        with mock.patch.object(sendjobs.budget, "used", return_value=1234):
+            self.assertEqual(sendjobs.calls_budget(),
+                             {"used": 1234, "limit": 10000, "headroom": 200,
+                              "remaining": 8766, "usable": 8566})
+
+    def test_the_headroom_is_held_back_from_what_is_usable_but_not_from_what_remains(self):
+        with mock.patch.object(sendjobs.budget, "used", return_value=9900):
+            got = sendjobs.calls_budget()
+        self.assertEqual((got["remaining"], got["usable"]), (100, 0))
+
+    def test_calls_budget_is_never_negative(self):
+        with mock.patch.object(sendjobs.budget, "used", return_value=12000):
+            got = sendjobs.calls_budget()
+        self.assertEqual((got["remaining"], got["usable"]), (0, 0))
+
 
 if __name__ == "__main__":
     unittest.main()

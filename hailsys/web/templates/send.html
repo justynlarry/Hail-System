@@ -11,6 +11,7 @@
 {% if busy %}
 <p class="note warning">A send is running. <a href="{{ url_for('send.batches') }}">See progress</a>.</p>
 {% endif %}
+{% include "_budget.html" %}
 
 <form method="get" action="{{ url_for('send.index') }}">
     {% if available %}

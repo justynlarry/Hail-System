@@ -14,6 +14,7 @@ import threading
 
 from hailsys.db import get_connection
 from hailsys.email import deliver, render
+from hailsys.constantcontact import budget
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,17 @@ def is_busy():
             conn.execute(_UNLOCK, (LOCK_KEY,))
         conn.commit()
     return not got
+
+
+def calls_budget():
+    """Constant Contact calls used in last 24 hours, for the screens.
+    
+    'usable' is what can still be spent before the engine stops starting new emails.
+    Headroom is kept back for an email already sent."""
+    used = budget.used()
+    return {"used": used, "limit": budget.DAILY_LIMIT, "headroom": budget.HEADROOM,
+            "remaining": max(budget.DAILY_LIMIT - used, 0),
+            "usable": max(budget.DAILY_LIMIT - budget.HEADROOM - used, 0)}
 
 
 def _run(user_id, run_kwargs):

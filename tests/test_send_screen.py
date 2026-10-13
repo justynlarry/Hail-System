@@ -518,6 +518,74 @@ class SendScreenTest(unittest.TestCase):
         text = self.client_as("admin").get(f"/send/batch/{self.BATCH}").get_data(as_text=True)
         self.assertIn('<button type="submit" disabled>', text)
 
+    # ---- the daily call count on the screens (item 191, piece B) ----
+
+    BUDGET = {"used": 1234, "limit": 10000, "headroom": 200, "remaining": 8766, "usable": 8566}
+
+    def budget_stub(self, **over):
+        """Replace the count, so no screen test depends on how many real calls were made."""
+        patcher = mock.patch.object(screen.sendjobs, "calls_budget",
+                                    return_value={**self.BUDGET, **over})
+        self.addCleanup(patcher.stop)
+        return patcher.start()
+
+    def test_the_send_page_shows_the_call_count(self):
+        self.budget_stub()
+        text = self.client_as("admin").get("/send/").get_data(as_text=True)
+        self.assertIn("<strong>1234</strong>", text)
+        self.assertIn("About 8566 more", text)
+
+    def test_the_call_count_is_a_warning_when_nothing_is_usable(self):
+        self.budget_stub(used=9900, remaining=100, usable=0)
+        text = self.client_as("admin").get("/send/").get_data(as_text=True)
+        self.assertIn('class="note warning">\n    Constant Contact calls', text)
+
+    def test_the_call_count_is_not_a_warning_with_budget_left(self):
+        self.budget_stub()
+        text = self.client_as("admin").get("/send/").get_data(as_text=True)
+        self.assertIn('class="note">\n    Constant Contact calls', text)
+
+    def test_the_batch_page_shows_the_call_count_while_emails_are_queued(self):
+        self.resume_stubs({"queued": 2})
+        self.budget_stub()
+        text = self.client_as("admin").get(f"/send/batch/{self.BATCH}").get_data(as_text=True)
+        self.assertIn("Constant Contact calls in the last 24 hours", text)
+
+    def test_the_batch_page_leaves_the_call_count_out_when_nothing_is_queued(self):
+        self.resume_stubs({"sent": 2})
+        self.budget_stub()
+        text = self.client_as("admin").get(f"/send/batch/{self.BATCH}").get_data(as_text=True)
+        self.assertNotIn("Constant Contact calls in the last 24 hours", text)
+
+    def test_confirm_warns_when_the_send_needs_more_calls_than_can_be_used(self):
+        start = self.stubs()
+        self.budget_stub(usable=5)
+        text = self.post("/send/confirm", **self.FORM).get_data(as_text=True)
+        self.assertIn("needs about 20 Constant Contact calls", text)
+        self.assertIn("only 5 can", text)
+        self.assertIn("Send 2 emails now", text)                       # warn only
+        self.assertNotIn('<button type="submit" disabled>Send 2', text)
+        start.assert_not_called()
+
+    def test_confirm_shows_the_call_count(self):
+        self.stubs()
+        self.budget_stub()
+        text = self.post("/send/confirm", **self.FORM).get_data(as_text=True)
+        self.assertIn("<strong>1234</strong>", text)
+        self.assertIn("About 8566 more", text)
+
+    def test_confirm_does_not_warn_when_the_calls_fit(self):
+        self.stubs()
+        self.budget_stub(usable=8566)
+        text = self.post("/send/confirm", **self.FORM).get_data(as_text=True)
+        self.assertNotIn("needs about", text)
+
+    def test_confirm_does_not_warn_when_the_calls_exactly_fit(self):
+        self.stubs()
+        self.budget_stub(usable=20)                                    # 2 emails x 10 calls
+        text = self.post("/send/confirm", **self.FORM).get_data(as_text=True)
+        self.assertNotIn("needs about", text)
+
 
 if __name__ == "__main__":
     unittest.main()

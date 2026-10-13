@@ -1,0 +1,5 @@
+<p class="note{% if budget.usable == 0 %} warning{% endif %}">
+    Constant Contact calls in the last 24 hours: <strong>{{ budget.used }}</strong> of
+    {{ budget.limit }}. About {{ budget.usable }} more can be used before sending pauses
+    (the last {{ budget.headroom }} are kept in reserve).
+</p>

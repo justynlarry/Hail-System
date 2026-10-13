@@ -10,6 +10,14 @@
     This send delivers at most <strong>{{ going }}</strong> now (about {{ calls }} Constant
     Contact calls); {{ (mine | length) - going }} stay queued.
 </p>
+{% include "_budget.html" %}
+{% if calls > budget.usable %}
+<p class="note warning">
+    This send needs about {{ calls }} Constant Contact calls, and only {{ budget.usable }} can
+    be used in the daily budget. It will stop when the budget is used up and the rest stay
+    queued. Nothing is lost: resume them on a later day.
+</p>
+{% endif %}
 <p>From: <strong>{{ sender.from_name }} &lt;{{ sender.from_email }}&gt;</strong></p>
 
 <table>

@@ -2726,7 +2726,8 @@ are loaded, but nothing reads `municipal_boundaries` or `county_boundaries` yet 
 
 ## 191. No count of Constant Contact calls per day; `max_emails` is a stand-in
 
-**Status:** open (found 2026-10-09, building Phase B)
+**Status:** built 2026-10-13 (found 2026-10-09, building Phase B); the reset time of the
+daily limit is still unverified (item 183)
 
 An email costs about 10 calls (item 180) and Constant Contact allows 10,000 a day, so a
 1,400-realtor day cannot finish. `deliver_batch(max_emails=N)` stops after N emails and leaves
@@ -2736,6 +2737,42 @@ calls made today. Nothing records calls, and the reset time of the daily limit i
 
 **When:** before a send larger than about 900 emails (9,000 calls), and before the send screen
 offers a "send all" button. Until then the screen must pass a `max_emails` it has checked by hand.
+
+**Built 2026-10-13.**
+- **Count.** `api.request` records every HTTP attempt in `cc_api_calls` (`sql/040`; method and
+  the first path segment only, never an id; append-only, `hail_app` has INSERT and SELECT only)
+  *before* making it. Retries, 429s and status polls are included. If the insert fails the call
+  is not made, which is safe because nothing was sent; recording after would risk failing
+  after a campaign POST succeeded. `hailsys/constantcontact/budget.py` holds `DAILY_LIMIT`
+  (10,000), `HEADROOM` (200), `used()`, `remaining()` and `exhausted()`.
+- **Window.** The last 24 hours, not a calendar day: the reset time is unverified, and a rolling
+  count is never lower than any calendar-day count, so it can be too cautious (the second
+  morning) but cannot overshoot.
+- **Engine.** `deliver._deliver_all` stops starting new emails once `used >= limit - headroom`
+  and returns `budget_stop: True` with the number left; they stay `queued` for the resume button
+  on a later day. The email cap (`max_emails`) is checked first. A 429 from Constant Contact
+  still stops the batch as before.
+- **Screens.** `/send/`, the confirm page and a batch page with queued emails show "calls in the
+  last 24 hours: N of 10000, about M more usable". The confirm page also warns (it does not
+  block) when the estimate exceeds what is usable. The figures reach the screens through
+  `sendjobs.calls_budget()`, so the screens still never import the engine.
+- **Tests:** 31 new (6 in `test_cc_api`, 9 in `test_cc_budget`, 5 in `test_send_deliver`, 8 in
+  `test_send_screen`, 3 in `test_send_jobs`). Every test that could reach `request` stubs the
+  recorder, because the table cannot be cleaned. 24 mutations run, 24 caught (13 on the count
+  and the engine, 11 on the screens; one confirm-page gap, the figure itself, was found and
+  closed with a test).
+
+**Still open:**
+- **The reset time** of Constant Contact's daily limit (item 183). When it is known, change
+  `WINDOW` in `budget.py` to a calendar day in the right timezone.
+- **`CALLS_PER_EMAIL = 10` is a floor.** The polls in `wait_for_activity` and `wait_until_done`
+  each count, so a slow activity costs more. The real figure per email can now be read from
+  `cc_api_calls` after the first real send; revisit the estimate then.
+- **Counting starts at `sql/040`.** Calls made before it was applied are not in the table.
+- **Not on the production OptiPlex:** `sql/040` is applied on `hail-dev` only, like the rest of
+  the Phase B code and `sql/039`.
+- **No "send all" button exists,** so the trigger "before the send screen offers one" still
+  stands; the budget stop makes it safe to add.
 
 ## 192. The send screen needs a sender identity in `.env` (`CC_FROM_NAME`, `CC_FROM_EMAIL`)
 

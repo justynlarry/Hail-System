@@ -43,6 +43,7 @@
     {{ counts.queued }} email{{ '' if counts.queued == 1 else 's' }} still queued: the send limit
     left them for a later, explicit run.
 </p>
+{% include "_budget.html" %}
 {% endif %}
 
 {% set resumable = counts.queued + counts.in_progress %}
