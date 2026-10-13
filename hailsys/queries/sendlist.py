@@ -37,11 +37,12 @@ CAP_DAYS = 14
 FRESH_DAYS = 7
 
 REASONS = ("too_old", "inactive_listing", "stale_listing", "no_agent_email",
-           "already_emailed", "on_dnc_list", "within_cap")
+           "already_emailed", "on_dnc_list", "within_cap", "duplicate_address")
 
 _HITS_SQL = """
 SELECT m.match_id, m.listing_id, l.realtor_id, l.list_status, l.list_last_seen,
     p.property_address AS address,
+    p.address_key,
     i.utc_datetime, i.magnitude, m.distance_miles,
     r.agent_name, r.email_norm AS email,
     EXISTS (SELECT 1 FROM send_log s
@@ -54,7 +55,17 @@ SELECT m.match_id, m.listing_id, l.realtor_id, l.list_status, l.list_last_seen,
               JOIN send_log s ON s.email_id = e.email_id
             WHERE e.realtor_id = r.realtor_id AND s.send_status <> 'failed'
               AND e.created_at >= %(since)s)
-        AS in_cap
+        AS in_cap,
+    EXISTS (SELECT 1 FROM properties p2
+        JOIN listings l2 ON l2.rentcast_id = p2.rentcast_id
+        JOIN storm_listing_matches m2 ON m2.listing_id = l2.listing_id
+        JOIN iem_data i2 ON i2.iem_id = m2.iem_id
+        JOIN send_log s2 ON s2.match_id = m2.match_id
+      WHERE p.address_key IS NOT NULL AND p2.address_key = p.address_key
+        AND s2.send_status <> 'failed' AND i2.report_text = 'HAIL'
+        AND (i2.utc_datetime AT TIME ZONE %(tz)s)::date
+          = (i.utc_datetime AT TIME ZONE %(tz)s)::date)
+        AS key_emailed
 FROM storm_listing_matches m
 JOIN iem_data i     ON i.iem_id = m.iem_id
 JOIN listings l     ON l.listing_id = m.listing_id
@@ -87,6 +98,8 @@ def _reason(hit, oldest_day, freshest_day):
         return "no_agent_email"
     if hit["already_sent"]:
         return "already_emailed"
+    if hit["key_emailed"]:
+        return "duplicate_address"
     if hit["on_dnc"]:
         return "on_dnc_list"
     if hit["in_cap"]:
@@ -94,16 +107,35 @@ def _reason(hit, oldest_day, freshest_day):
     return None
 
 
+def _rank(hit):
+    """Lower wins:  Most recently seen listing, then the lower listing_id."""
+    seen = hit.get("list_last_seen")
+    return (-(seen.timestamp() if seen else 0), hit["listing_id"])
+
+def _house_day(hit):
+    """Hits for one house on one day are one event, whichever listing they came through.
+    A NULL address_key doesn't merge, that house is its own listing."""
+    key = hit.get("address_key")
+    return (key if key is not None else ("listing", hit["listing_id"]), _day(hit))
+
+
+
 def collapse(hits):
-    """One event per (listing, Denver day), sorted by time."""
+    """One event per (house, Denver day), sorted by time.  A house carried by several listing
+    rows (RentCast address variants) shows the address of the best-ranked one."""
     events = {}
     for h in hits:
-        key = (h["listing_id"], _day(h))
+        key = _house_day(h)
         e = events.get(key)
         if e is None:
             e = events[key] = {"listing_id": h["listing_id"], "address": h["address"],
                                "utc_datetime": h["utc_datetime"], "magnitude": None,
-                               "distance_miles": h["distance_miles"], "match_ids": []}
+                               "distance_miles": h["distance_miles"], "match_ids": [],
+                               "rank": _rank(h)}
+        elif _rank(h) < e["rank"]:
+            e["rank"] = _rank(h)
+            e["listing_id"] = h["listing_id"]
+            e["address"] = h["address"]
         e["match_ids"].append(h["match_id"])
         if h["utc_datetime"] < e["utc_datetime"]:
             e["utc_datetime"] = h["utc_datetime"]
@@ -112,7 +144,31 @@ def collapse(hits):
         if _finite(h["magnitude"]) and (e["magnitude"] is None
                                         or h["magnitude"] > e["magnitude"]):
             e["magnitude"] = h["magnitude"]
+    for e in events.values():
+        del e["rank"]
     return sorted(events.values(), key=lambda e: (e["utc_datetime"], e["listing_id"]))
+
+
+def _one_agent_per_house(hits, dropped):
+    """Of the agents still eligible for one house on one day, email only the best ranked.
+    Runs after every other rule, so a winner another rule would have dropped won't take
+    the house away from an agent who can be emailed."""
+    best = {}
+    for h in hits:
+        if h.get("address_key") is None:
+            continue
+        key = _house_day(h)
+        if key not in best or _rank(h) < _rank(best[key]):
+            best[key] = h
+    kept = []
+    for h in hits:
+        winner = best.get(_house_day(h)) if h.get("address_key") is not None else None
+        if winner is not None and winner["realtor_id"] != h["realtor_id"]:
+            dropped["duplicate_address"]["matches"] += 1
+            dropped["duplicate_address"]["realtors"].add(h["realtor_id"])
+        else:
+            kept.append(h)
+    return kept
 
 
 def select(hits, *, today, max_age_days=MAX_AGE_DAYS, freshness_days=FRESH_DAYS):
@@ -120,16 +176,18 @@ def select(hits, *, today, max_age_days=MAX_AGE_DAYS, freshness_days=FRESH_DAYS)
     oldest_day = today - timedelta(days=max_age_days)
     freshest_day = today - timedelta(days=freshness_days)
     dropped = {r: {"matches": 0, "realtors": set()} for r in REASONS}
-    kept = defaultdict(list)
+    survivors = []
     for h in hits:
         reason = _reason(h, oldest_day, freshest_day)
         if reason is None:
-            kept[h["realtor_id"]].append(h)
+            survivors.append(h)
             continue
         dropped[reason]["matches"] += 1
         if h["realtor_id"] is not None:
             dropped[reason]["realtors"].add(h["realtor_id"])
-
+    kept = defaultdict(list)
+    for h in _one_agent_per_house(survivors, dropped):
+        kept[h["realtor_id"]].append(h)
     realtors = []
     for realtor_id in sorted(kept):
         rows = kept[realtor_id]

@@ -177,7 +177,7 @@ class SendScreenTest(unittest.TestCase):
         self.stubs(mine=[])
         text = self.post("/send/confirm", **self.FORM).get_data(as_text=True)
         self.assertIn("nothing to send", text)
-        self.assertNotIn("emails now", text)
+        self.assertNotRegex(text, r"Send \d+ emails? now")
 
     def test_confirm_on_real_data_writes_nothing_and_never_starts(self):
         before = self.counts()

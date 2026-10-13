@@ -40,6 +40,7 @@ REASON_LABELS = {
     "already_emailed": "Already emailed for this match",
     "on_dnc_list": "Address is on the do-not-contact list",
     "within_cap": "Emailed within the cap window",
+    "duplicate_address": "Same address already covered by another listing",
 }
 
 

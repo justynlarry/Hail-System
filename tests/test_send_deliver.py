@@ -803,6 +803,40 @@ class DeliverTest(unittest.TestCase):
         self.assertEqual(self.discard(), 1)
         self.assertIsNone(self.email(0)["error_detail"])
 
+    # ---- the key_emailed flag in the real SQL (item 55) ----
+
+    HALLAM_WINNER, HALLAM_TWIN = "andwgmz01@gmail.com", "edersoto1@yahoo.com"
+
+    def emails_on_list(self):
+        found = sendlist.build_send_list(self.conn, [DAY], now=NOW)
+        return {r["email"] for r in found["realtors"]}, found
+
+    def queue_hallam_winner(self):
+        before, _ = self.emails_on_list()
+        if self.HALLAM_WINNER not in before or self.HALLAM_TWIN in before:
+            self.skipTest("the 1104 Hallam Ave pair is not in this database as expected")
+        out = send.queue_batch(
+            self.conn, user_id=self.user, storm_days=[DAY], email_settings=self.settings,
+            now=NOW, sync_run_id=self.run_id, allowed_emails={self.HALLAM_WINNER},
+            contacts={self.HALLAM_WINNER: None})
+        self.batch_id = out["batch_id"]
+        return before
+
+    def test_a_house_emailed_through_one_listing_is_not_emailed_through_its_twin(self):
+        before = self.queue_hallam_winner()
+        after, found = self.emails_on_list()
+        self.assertEqual(after, before - {self.HALLAM_WINNER})       # nobody else lost
+        self.assertGreaterEqual(found["excluded"]["duplicate_address"]["realtors"], 1)
+
+    def test_a_failed_send_does_not_cover_its_house(self):
+        before = self.queue_hallam_winner()
+        self.conn.execute("UPDATE send_log SET send_status = 'failed' "
+                          "WHERE email_id IN (SELECT email_id FROM sent_emails "
+                          "                   WHERE batch_id = %s)", (self.batch_id,))
+        after, _ = self.emails_on_list()
+        self.assertEqual(after, before)
+
+
 @unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class SenderFromEnvTest(unittest.TestCase):
     ENV = {"CC_FROM_NAME": " RBI ", "CC_FROM_EMAIL": "from@example.com",

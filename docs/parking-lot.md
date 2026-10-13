@@ -487,7 +487,7 @@ on a plain GET, `/search` with no address), found by hand after the change.
 
 ## 55. Duplicate properties from RentCast address variants — one lot, two emails
 
-**Status:** open
+**Status:** built 2026-10-13, one gap accepted (see the last status paragraph)
 
 RentCast's `id` is derived from the address string, so a formatting change
 upstream mints a new id for the same building (`docs/data-sources.md`). Two
@@ -637,7 +637,39 @@ built; revisit only if a duplicate email is actually reported. No suffix
 merging, ever — decided, not deferred, because a same-zip suffix
 disagreement could be a genuine distinct street.
 
-**Status, 2026-09-30: open.** The key exists and is populated (`sql/024`, `025`, `027`; 25,219 properties, 50 duplicate groups covering 100 properties, 287 NULL keys), and the send-time design is decided (Part 1, decision log 2026-09-29). But nothing reads `address_key`: the repository's only references are `sql/024`, `025`, `027` and docs. The matcher, the match page and the CSV exports all treat every `properties` row as distinct, and no send path exists. **The dedup is not built**, and this remains a blocker for the first send.
+**Status, 2026-10-13: built, one gap accepted.** Send-time dedup (Part 1) is in
+`hailsys/queries/sendlist.py`; the matcher, the match page and the CSV exports still treat every
+`properties` row as distinct, by design (dedup stays at send time, above). Part 2 (unit plus
+shared agent, 126 groups) stays deferred. What was built:
+- **One event per house per Denver storm day.** Hits that share an `address_key` on one day are
+  one event, whichever listing row they came through; their `match_ids` merge, so every match
+  still gets its own `send_log` row. The event shows the address of the best-ranked listing
+  (most recently seen, then lower `listing_id`). A NULL key never merges (287 of 25,362
+  properties have none).
+- **One agent per house.** Of the agents still eligible for one house on one day, only the
+  best-ranked is emailed; the others are counted as `duplicate_address`. This runs after every
+  other rule, so an agent another rule would have dropped (DNC, cap, and later the eligibility
+  gate of item 189) cannot take the house away from one who can be emailed.
+- **A house already emailed that day is dropped** (`key_emailed` in the SQL, also
+  `duplicate_address`, checked after `already_emailed` and before the DNC rule), so the losing
+  agent is not picked up by the next send. Failed sends do not count.
+- **Measured 2026-10-13** on 50 duplicate groups (104 listing rows): 22 had no live matched
+  listing on both sides, 22 were one agent on both rows (one email listing the same house twice
+  before), 6 were two agents. On the real 2026-09-22 storm: one match dropped (`1104 Hallam
+  Ave`, `andwgmz01@gmail.com` kept over `edersoto1@yahoo.com`, a same-day tie broken by the
+  lower `listing_id`) and one merge (`4518 N Wordsworth Cir`, one agent, two listings). The
+  list builds in 0.06 s (`properties_address_key_idx` exists).
+- **Tests:** 19 new (14 on made-up rows, 2 on the real SQL: queue the Hallam winner in a rolled
+  back transaction and check the twin is not picked up, and that a failed send does not cover
+  its house); 15 mutations run, 14 caught.
+
+**Accepted gap:** the same-day condition inside the `key_emailed` SQL is not covered (a mutation
+dropping it passes), because proving it needs the same house on two storm days with a send in
+between. **When:** the first duplicate email is reported, or any change to that SQL.
+
+**Known limits:** a winner dropped later, at queue time (`unsubscribed_in_cc`, an unrenderable
+email), leaves that house without an email in that send. The tie-break is arbitrary but stable.
+No suffix merging, ever (decided above).
 
 ## 61. Force a password change on next login after an admin reset
 
@@ -2645,6 +2677,11 @@ Sept 22 realtors are in the client file; the Constant Contact pool adds more.
 
 **When:** before the send screen is usable for anything but our own test addresses. The engine
 is built and rehearsed on test addresses only until then.
+
+**Requirement from item 55 (2026-10-13):** the gate must be a per-hit rule inside
+`sendlist._reason`, not a check after the list is built. The one-agent-per-house dedup runs
+after every per-hit rule, so with the gate in `_reason` it prefers the agent who is in our own
+database. A gate applied later could remove the winner and leave the house with no email.
 
 ## 190. Address search as an office tool: jurisdiction, permit issuer and adopted codes
 

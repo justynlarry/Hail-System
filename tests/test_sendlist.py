@@ -35,9 +35,10 @@ SEEN = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)         # seen yesterday: fresh 
 
 def hit(match_id, listing_id=1, realtor_id=10, when=AUG15, mag="1.00", dist="2.00",
         status="Active", sent=False, dnc=False, cap=False, email="a@x.invalid", address="1 St",
-        seen=SEEN):
+        seen=SEEN, key=None, key_sent=False):
     return {"match_id": match_id, "listing_id": listing_id, "realtor_id": realtor_id,
             "list_status": status, "list_last_seen": seen, "address": address,
+            "address_key": key, "key_emailed": key_sent,
             "utc_datetime": when,
             "magnitude": None if mag is None else Decimal(mag),
             "distance_miles": Decimal(dist), "agent_name": "Jane Smith", "email": email,
@@ -77,6 +78,40 @@ class CollapseTest(unittest.TestCase):
 
     def test_two_listings_are_two_events(self):
         self.assertEqual(len(sl.collapse([hit(1, listing_id=1), hit(2, listing_id=2)])), 2)
+
+    # ---- one house carried by several listing rows (item 55) ----
+
+    def test_one_house_through_two_listings_is_one_event_covering_both_matches(self):
+        events = sl.collapse([hit(1, listing_id=1, key="K"), hit(2, listing_id=2, key="K")])
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["match_ids"], [1, 2])
+
+    def test_the_event_shows_the_most_recently_seen_listing(self):
+        older = SEEN - timedelta(days=1)
+        e = sl.collapse([hit(1, listing_id=1, key="K", address="1 St, Littleton", seen=older),
+                         hit(2, listing_id=2, key="K", address="1 St, Highlands Ranch")])[0]
+        self.assertEqual((e["listing_id"], e["address"]), (2, "1 St, Highlands Ranch"))
+
+    def test_a_tie_shows_the_lower_listing_id(self):
+        e = sl.collapse([hit(1, listing_id=5, key="K", address="five"),
+                         hit(2, listing_id=3, key="K", address="three")])[0]
+        self.assertEqual((e["listing_id"], e["address"]), (3, "three"))
+
+    def test_a_missing_key_never_merges(self):
+        events = sl.collapse([hit(1, listing_id=1), hit(2, listing_id=2)])
+        self.assertEqual(len(events), 2)
+
+    def test_different_keys_do_not_merge(self):
+        events = sl.collapse([hit(1, listing_id=1, key="K1"), hit(2, listing_id=2, key="K2")])
+        self.assertEqual(len(events), 2)
+
+    def test_one_house_on_two_days_is_two_events(self):
+        events = sl.collapse([hit(1, listing_id=1, key="K"),
+                              hit(2, listing_id=2, key="K", when=AUG15 + timedelta(days=6))])
+        self.assertEqual(len(events), 2)
+
+    def test_the_internal_rank_is_not_left_in_the_event(self):
+        self.assertNotIn("rank", sl.collapse([hit(1, key="K")])[0])
 
 
 @unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
@@ -168,6 +203,69 @@ class SelectTest(unittest.TestCase):
         kept = sum(len(e["match_ids"]) for r in out["realtors"] for e in r["events"])
         dropped = sum(d["matches"] for d in out["excluded"].values())
         self.assertEqual(kept + dropped, out["considered"]["matches"])
+
+    # ---- one agent per house (item 55) ----
+
+    def test_two_agents_one_house_only_the_most_recently_seen_is_emailed(self):
+        older = SEEN - timedelta(days=1)
+        out = sl.select([hit(1, listing_id=1, realtor_id=10, key="K", seen=older),
+                         hit(2, listing_id=2, realtor_id=11, key="K")], today=TODAY)
+        self.assertEqual([r["realtor_id"] for r in out["realtors"]], [11])
+        self.assertEqual(self.counts(out, "duplicate_address"), (1, 1))
+
+    def test_a_tie_between_agents_goes_to_the_lower_listing_id(self):
+        out = sl.select([hit(1, listing_id=5, realtor_id=10, key="K"),
+                         hit(2, listing_id=3, realtor_id=11, key="K")], today=TODAY)
+        self.assertEqual([r["realtor_id"] for r in out["realtors"]], [11])
+
+    def test_the_winner_is_chosen_among_agents_who_can_be_emailed(self):
+        # Realtor 11 ranks first but is on the DNC list: realtor 10 must still get the house.
+        older = SEEN - timedelta(days=1)
+        out = sl.select([hit(1, listing_id=1, realtor_id=10, key="K", seen=older),
+                         hit(2, listing_id=2, realtor_id=11, key="K", dnc=True)], today=TODAY)
+        self.assertEqual([r["realtor_id"] for r in out["realtors"]], [10])
+        self.assertEqual(self.counts(out, "on_dnc_list"), (1, 1))
+        self.assertEqual(self.counts(out, "duplicate_address"), (0, 0))
+
+    def test_a_capped_agent_does_not_take_the_house_either(self):
+        older = SEEN - timedelta(days=1)
+        out = sl.select([hit(1, listing_id=1, realtor_id=10, key="K", seen=older),
+                         hit(2, listing_id=2, realtor_id=11, key="K", cap=True)], today=TODAY)
+        self.assertEqual([r["realtor_id"] for r in out["realtors"]], [10])
+
+    def test_one_agent_with_two_listings_of_one_house_gets_one_event(self):
+        out = sl.select([hit(1, listing_id=1, key="K"), hit(2, listing_id=2, key="K")],
+                        today=TODAY)
+        self.assertEqual(len(out["realtors"]), 1)
+        self.assertEqual(len(out["realtors"][0]["events"]), 1)
+        self.assertEqual(out["realtors"][0]["events"][0]["match_ids"], [1, 2])
+        self.assertEqual(self.counts(out, "duplicate_address"), (0, 0))
+
+    def test_the_same_house_on_different_days_keeps_both_agents(self):
+        out = sl.select([hit(1, listing_id=1, realtor_id=10, key="K"),
+                         hit(2, listing_id=2, realtor_id=11, key="K",
+                             when=AUG15 + timedelta(days=6))], today=TODAY)
+        self.assertEqual([r["realtor_id"] for r in out["realtors"]], [10, 11])
+
+    def test_a_missing_key_never_competes(self):
+        out = sl.select([hit(1, listing_id=1, realtor_id=10),
+                         hit(2, listing_id=2, realtor_id=11)], today=TODAY)
+        self.assertEqual([r["realtor_id"] for r in out["realtors"]], [10, 11])
+
+    def test_a_house_already_emailed_that_day_is_dropped(self):
+        out = sl.select([hit(1, key="K", key_sent=True)], today=TODAY)
+        self.assertEqual(out["realtors"], [])
+        self.assertEqual(self.counts(out, "duplicate_address"), (1, 1))
+
+    def test_an_already_emailed_match_is_counted_before_its_house(self):
+        out = sl.select([hit(1, key="K", sent=True, key_sent=True)], today=TODAY)
+        self.assertEqual(self.counts(out, "already_emailed"), (1, 1))
+        self.assertEqual(self.counts(out, "duplicate_address"), (0, 0))
+
+    def test_an_emailed_house_is_counted_before_the_dnc_list(self):
+        out = sl.select([hit(1, key="K", key_sent=True, dnc=True)], today=TODAY)
+        self.assertEqual(self.counts(out, "duplicate_address"), (1, 1))
+        self.assertEqual(self.counts(out, "on_dnc_list"), (0, 0))
 
 
 @unittest.skipIf(MISSING, f"missing dependency: {MISSING}")

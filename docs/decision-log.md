@@ -6612,3 +6612,27 @@ no free-hosting links in outgoing mail; the link is a per-environment setting se
 production address.
 
 **Related:** items 135, 180, 186.
+
+---
+
+## 2026-10-13 — Item 55: one agent per house, chosen after eligibility
+
+Implements Part 1 of 2026-09-29. Hits that share an `address_key` on one Denver storm day are one
+event; where two different agents remain, only one is emailed.
+
+**Decision: the winner is chosen after every other rule, from the agents who can actually be
+emailed.** Ranking is the most recently seen listing, then the lower `listing_id`. Choosing first
+and filtering after would let an agent who is on the DNC list, in the 14-day cap, or (item 189)
+not in our own database take the house away from an agent who could have been emailed. The
+developer's rule: matching a current contact in our database matters more than the agent count.
+Item 189's gate therefore has to be a per-hit rule so the dedup sees it.
+
+A house already emailed on that storm day, through any of its listing rows, is dropped as
+`duplicate_address`, so the losing agent is not picked up by the next send. Failed sends do not
+count. The rank is arbitrary between agents who tie (`1104 Hallam Ave`: the lower `listing_id`
+wins); it is stable, and nothing better distinguishes them yet.
+
+Measured on the real 2026-09-22 storm: one agent dropped, one merge. Unchanged from 2026-09-29:
+no suffix merging, and Part 2 (unit plus shared agent) stays unbuilt.
+
+**Related:** items 55, 189.
