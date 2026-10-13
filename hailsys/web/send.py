@@ -7,6 +7,7 @@ by the Send-now and resume POST
 
 import logging
 import re
+from decimal import Decimal
 from datetime import datetime, timezone
 
 from flask import (Blueprint, abort, flash, g, redirect, render_template, request, session,
@@ -15,7 +16,7 @@ from flask import (Blueprint, abort, flash, g, redirect, render_template, reques
 from hailsys.constantcontact import api, oauth, statuses
 from hailsys.db import get_connection
 from hailsys.email import render, templatestore
-from hailsys.queries import sendlist, sendstatus
+from hailsys.queries import sendlist, sendstatus, templatelist
 from hailsys.tuning import DISPLAY_TZ
 from hailsys.web import sendjobs
 from hailsys.web.auth import require_role
@@ -27,6 +28,11 @@ send_bp = Blueprint("send", __name__, url_prefix="/send")
 DEFAULT_MAX_EMAILS = 5
 MAX_EMAILS_LIMIT = 1000
 CALLS_PER_EMAIL = 10
+SAMPLE_AGENT = "Pat Example"
+SAMPLE_MATCHES = [{"listing_id": 0, "address": "123 Example St, Denver, CO 80202",
+                  "utc_datetime": datetime(2026, 1, 1, 20, 0, tzinfo=timezone.utc),
+                  "magnitude": Decimal("1.75"), "distance_miles": Decimal("1.2")}]
+
 _ADDRESS = re.compile(r"[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+")
 
 
@@ -69,17 +75,72 @@ def _days_from_form():
     return sorted(days)
 
 
-def _sample(realtor):
-    """(subject, html, problem) for one realtor's email.  Never raises: a page that cannot show
-    the sample should say why, not fail."""
+def _template_page():
     try:
-        email_settings = render.EmailSettings.from_env()
-        context = render.build_context(realtor["agent_name"], realtor["events"], email_settings)
-        subject_src, body_src = templatestore.load_files()
+        return int(request.args.getlist("tpage")[-1])
+    except (IndexError, ValueError):
+        return 1
+
+
+def _chosen_name():
+    """The template picked on the page:  a radio click wins, then the value carried from the last
+    view of the page, then the built-in."""
+    return (request.args.get("template_pick") or request.args.get("template")
+            or templatestore.TEMPLATE_NAME)
+
+
+def _builtin_row():
+    """The built-in template as a list row, for a database that has no saved version of it yet
+    (first send saves it).  Reads the files, does not write."""
+    subject_src, body_src = templatestore.load_files()
+    return {"template_id": None, "template_name": templatestore.TEMPLATE_NAME,
+            "description": None, "subject": subject_src, "body": body_src,
+            "report_type": None, "report_text": None, "created_at": None,
+            "emp_fname": None, "emp_lname": None, "versions": 0, "last_used": None,
+            "sends": 0}
+
+
+def _row_sources(row):
+    """The built-in template renders from its files, any other from its saved row, the same
+    rule as templatestore.load."""
+    if row["template_name"] == templatestore.TEMPLATE_NAME:
+        return templatestore.load_files()
+    return row["subject"], row["body"]
+
+
+def _render_row(row, context):
+    """(subject, html, problem) for one template row.  Never raises."""
+    subject_src, body_src = _row_sources(row)
+    try:
         subject, html = render.render(subject_src, body_src, context)
-    except (render.SettingsError, render.RenderError) as exc:
+    except render.RenderError as exc:
         return None, None, str(exc)
     return subject, html, None
+
+
+def _sample_context(found):
+    """(context, where it came from, problem): the first realtor on the send list, or stand-in
+    data when no storm day has been previewed.  Never raises."""
+    try:
+        email_settings = render.EmailSettings.from_env()
+        if found and found["realtors"]:
+            first = found["realtors"][0]
+            return (render.build_context(first["agent_name"], first["events"], email_settings),
+                    "the first realtor on the list", None)
+        return (render.build_context(SAMPLE_AGENT, SAMPLE_MATCHES, email_settings),
+                "stand-in storm data", None)
+    except (render.SettingsError, render.RenderError) as exc:
+        return None, None, str(exc)
+
+
+def _template_available(name):
+    """The built-in always is (it comes from its files), any other needs an active row."""
+    if name == templatestore.TEMPLATE_NAME:
+        return True
+    with get_connection() as conn:
+        row = templatelist.fetch_one(conn, name)
+        conn.rollback()
+    return row is not None
 
 
 @send_bp.route("/")
@@ -89,6 +150,7 @@ def index():
     tuning = dict(max_age_days=s["match_max_age_days"],
                   freshness_days=s["listing_freshness_days"])
     days = _days_from_args()
+    chosen = _chosen_name()
     with get_connection() as conn:
         available = sendlist.fetch_send_days(
             conn, today=now.astimezone(DISPLAY_TZ).date(), max_age_days=tuning["max_age_days"])
@@ -96,18 +158,47 @@ def index():
         if days:
             found = sendlist.build_send_list(
                 conn, days, now=now, cap_days=s["email_cap_days"], **tuning)
+        listing = templatelist.fetch_page(conn, _template_page())
+        selected = templatelist.fetch_one(conn, chosen)
+        if selected is None and chosen != templatestore.TEMPLATE_NAME:
+            flash(f"The template '{chosen[:60]}' is not available.  Showing the built-in template.")
+            chosen = templatestore.TEMPLATE_NAME
+            selected = templatelist.fetch_one(conn, chosen)
         conn.rollback()                     # read only: nothing to keep
+    if selected is None:
+        selected = _builtin_row()
+        if listing["total"] == 0:
+            listing["rows"] = [selected]
+    context, sample_source, context_problem = _sample_context(found)
+
+    def sample_of(row):
+        if context is None:
+            return None, None, context_problem
+        return _render_row(row, context)
+
+    templates = []
+    for row in listing["rows"]:
+        subject, html, problem = sample_of(row)
+        builtin = row["template_name"] == templatestore.TEMPLATE_NAME
+        templates.append({
+            "row": row, "subject": subject, "html": html, "problem": problem,
+            "chosen": row["template_name"] == chosen,
+            "file_changed": (builtin and row["template_id"] is not None
+                             and (row["subject"], row["body"]) != templatestore.load_files())})
 
     listing_count = 0
     sample_subject = sample_html = sample_problem = None
     if found and found["realtors"]:
         listing_count = len({e["listing_id"] for r in found["realtors"] for e in r["events"]})
-        sample_subject, sample_html, sample_problem = _sample(found["realtors"][0])
+        sample_subject, sample_html, sample_problem = sample_of(selected)
     return render_template(
         "send.html", available=available, ticked=set(days), found=found,
         reasons=[(r, REASON_LABELS[r]) for r in sendlist.REASONS],
         listing_count=listing_count, sample_subject=sample_subject,
         sample_html=sample_html, sample_problem=sample_problem, budget=sendjobs.calls_budget(),
+        templates=templates, chosen=chosen, selected=selected, sample_source=sample_source,
+        tpage=listing["page"], tpages=listing["pages"], ttotal=listing["total"],
+        display_tz=DISPLAY_TZ,
         default_max_emails=DEFAULT_MAX_EMAILS, max_emails_limit=MAX_EMAILS_LIMIT,
         busy=sendjobs.is_busy())
 
@@ -129,7 +220,9 @@ def parse_allow_list(text):
 
 
 def _back(days):
-    return redirect(url_for("send.index", day=[d.isoformat() for d in days]))
+    return redirect(url_for("send.index", day=[d.isoformat() for d in days],
+                            template=request.form.get("template") or None))
+
 
 def _read_form():
     """(form, problem:  review/start form)"""
@@ -145,7 +238,8 @@ def _read_form():
     except ValueError:
         max_emails = 0
     form = {"days": sorted(days), "allowed": allowed, "max_emails": max_emails,
-            "override_cap": "override_cap" in request.form}
+            "override_cap": "override_cap" in request.form,
+            "template": request.form.get("template") or templatestore.TEMPLATE_NAME}
     if not days:
         problem = "Tick at least one storm day."
     elif bad:
@@ -155,6 +249,8 @@ def _read_form():
                    "There is no send-to-everyone option.")
     elif not 1 <= max_emails <= MAX_EMAILS_LIMIT:
         problem = f"'Send at most' must be between 1 and {MAX_EMAILS_LIMIT}."
+    elif not _template_available(form["template"]):
+        problem = "That template is not available."
     else:
         problem = None
     return form, problem
@@ -193,10 +289,13 @@ def confirm():
               "so there is nothing to send.")
         return _back(form["days"])
     going = min(len(mine), form["max_emails"])
+    with get_connection() as conn:
+        template_row = templatelist.fetch_one(conn, form["template"])
+        conn.rollback()
     return render_template(
         "send_confirm.html", form=form, mine=mine, unmatched=unmatched, sender=sender,
-        going=going, calls=going * CALLS_PER_EMAIL,  budget=sendjobs.calls_budget(),
-        busy=sendjobs.is_busy())
+        going=going, calls=going * CALLS_PER_EMAIL, budget=sendjobs.calls_budget(),
+        template_row=template_row, busy=sendjobs.is_busy())
 
 
 @send_bp.route("/start", methods=["POST"])
@@ -224,7 +323,8 @@ def start():
         sendjobs.start_send(
             user_id=session["emp_id"], storm_days=form["days"], email_settings=email_settings,
             sender=sender, allowed_emails=form["allowed"], override_cap=form["override_cap"],
-            max_emails=form["max_emails"], max_age_days=s["match_max_age_days"],
+            max_emails=form["max_emails"], template_name=form["template"],
+            max_age_days=s["match_max_age_days"],
             cap_days=s["email_cap_days"], freshness_days=s["listing_freshness_days"])
     except sendjobs.SendInProgress:
         flash("A send is already running.  Nothing new was started.")

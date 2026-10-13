@@ -653,5 +653,227 @@ class SendScreenTest(unittest.TestCase):
         for part in ("day=2026-09-19", "template=hail_alert", "tpage=2"):
             self.assertIn(part, location)
 
+    # ---- the template list on the send page (item 202; the list query is stubbed) ----
+
+    def trow(self, name, template_id=1, **over):
+        row = {"template_id": template_id, "template_name": name, "description": None,
+               "subject": f"Subject of {name}",
+               "body": "<p>MARKER-" + name + " {{ agent_first_name }}</p>[[trackingImage]]",
+               "report_type": None, "report_text": None,
+               "created_at": datetime(2026, 10, 1, 15, 0, tzinfo=timezone.utc),
+               "emp_fname": "Ada", "emp_lname": "Lovelace", "versions": 1,
+               "last_used": None, "sends": 0}
+        row.update(over)
+        return row
+
+    def template_stubs(self, rows, page=1, pages=1, total=None, extra=()):
+        """The list and the single lookup, replaced.  `extra` rows are found by name but are
+        not on the page."""
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        listing = {"rows": rows, "page": page, "pages": pages,
+                   "total": len(rows) if total is None else total}
+        fetch_page = stack.enter_context(
+            mock.patch.object(screen.templatelist, "fetch_page", return_value=listing))
+        by_name = {r["template_name"]: r for r in [*rows, *extra]}
+        stack.enter_context(mock.patch.object(
+            screen.templatelist, "fetch_one", side_effect=lambda conn, name: by_name.get(name)))
+        return fetch_page
+
+    def send_page(self, query=""):
+        return self.client_as("admin").get("/send/" + query).get_data(as_text=True)
+
+    def test_every_template_is_a_row_with_a_radio_and_its_columns(self):
+        self.template_stubs([
+            self.trow("alpha", 1, description="Alpha note", versions=3, sends=2,
+                      last_used=datetime(2026, 10, 5, 15, 0, tzinfo=timezone.utc)),
+            self.trow("beta", 2)])
+        text = self.send_page()
+        self.assertIn('name="template_pick" value="alpha"', text)
+        self.assertIn('name="template_pick" value="beta"', text)
+        self.assertIn("Alpha note", text)
+        self.assertIn("v3", text)
+        self.assertIn("Ada Lovelace", text)
+        self.assertIn("2026-10-05", text)
+
+    def test_the_built_in_is_chosen_when_nothing_else_is(self):
+        self.template_stubs([self.trow("hail_alert"), self.trow("beta", 2)])
+        text = self.send_page()
+        self.assertIn("Chosen: <strong>hail_alert</strong>", text)
+        self.assertNotIn("is not available", text)          # the default is not a fallback
+        self.assertRegex(text, r'value="hail_alert"\s+id="tpl-1" checked')
+
+    def test_a_radio_click_wins_over_the_carried_value(self):
+        self.template_stubs([self.trow("hail_alert"), self.trow("beta", 2)])
+        text = self.send_page("?template=hail_alert&template_pick=beta")
+        self.assertIn("Chosen: <strong>beta</strong>", text)
+        self.assertRegex(text, r'value="beta"\s+id="tpl-2" checked')
+
+    def test_the_carried_value_is_used_when_nothing_is_clicked(self):
+        self.template_stubs([self.trow("hail_alert"), self.trow("beta", 2)])
+        self.assertIn("Chosen: <strong>beta</strong>", self.send_page("?template=beta"))
+
+    def test_the_choice_is_kept_when_it_is_on_another_page(self):
+        self.template_stubs([self.trow("hail_alert")], page=1, pages=3, total=25,
+                            extra=[self.trow("zeta", 9)])
+        text = self.send_page("?template=zeta")
+        self.assertIn("Chosen: <strong>zeta</strong>", text)
+        self.assertIn('<input type="hidden" name="template" value="zeta">', text)
+        self.assertNotIn(" checked", text.split("<h3>Template</h3>")[1].split("</table>")[0])
+
+    def test_an_unknown_template_falls_back_to_the_built_in_and_says_so(self):
+        self.template_stubs([self.trow("hail_alert")])
+        text = self.send_page("?template=nope")
+        self.assertIn("is not available", text)
+        self.assertIn("Chosen: <strong>hail_alert</strong>", text)
+
+    def test_previous_and_next_carry_the_page_and_the_edges_are_disabled(self):
+        self.template_stubs([self.trow("alpha")], page=2, pages=3, total=25)
+        text = " ".join(self.send_page("?tpage=2").split())
+        self.assertIn("Page 2 of 3 (25 templates)", text)
+        self.assertIn('name="tpage" value="1" >Previous', text)
+        self.assertIn('name="tpage" value="3" >Next', text)
+        self.template_stubs([self.trow("alpha")], page=1, pages=3, total=25)
+        self.assertIn('name="tpage" value="0" disabled>Previous',
+                      " ".join(self.send_page().split()))
+
+    def test_the_current_page_is_sent_before_the_buttons_so_a_button_wins(self):
+        self.template_stubs([self.trow("alpha")], page=2, pages=3, total=25)
+        text = self.send_page("?tpage=2")
+        hidden = text.index('<input type="hidden" name="tpage" value="2">')
+        button = text.index('<button type="submit" name="tpage"')
+        self.assertLess(hidden, button)
+
+    def test_one_page_has_no_paging_buttons(self):
+        self.template_stubs([self.trow("alpha")])
+        self.assertNotIn('<button type="submit" name="tpage"', self.send_page())
+
+    def test_the_last_tpage_in_the_url_is_the_page_asked_for(self):
+        fetch_page = self.template_stubs([self.trow("alpha")])
+        self.send_page("?tpage=1&tpage=3")
+        self.assertEqual(fetch_page.call_args.args[1], 3)
+
+    def test_a_bad_page_number_means_page_one(self):
+        fetch_page = self.template_stubs([self.trow("alpha")])
+        self.send_page("?tpage=abc")
+        self.assertEqual(fetch_page.call_args.args[1], 1)
+
+    def test_only_an_unused_template_has_a_description_editor(self):
+        self.template_stubs([self.trow("fresh", 7, sends=0), self.trow("used", 8, sends=2)])
+        text = self.send_page()
+        self.assertIn('<form id="desc-7"', text)
+        self.assertIn('form="desc-7"', text)
+        self.assertNotIn('id="desc-8"', text)
+        self.assertNotIn('form="desc-8"', text)
+
+    def test_the_description_form_carries_the_page_state(self):
+        self.template_stubs([self.trow("fresh", 7)])
+        text = self.send_page("?day=2026-09-19&template=fresh&tpage=1")
+        form = text.split('<form id="desc-7"')[1].split("</form>")[0]
+        self.assertIn('name="csrf_token"', form)
+        self.assertIn('name="day" value="2026-09-19"', form)
+        self.assertIn('name="template" value="fresh"', form)
+        self.assertIn('name="tpage" value="1"', form)
+        self.assertIn("/send/templates/7/description", form)
+
+    def test_each_row_has_its_own_sample(self):
+        self.template_stubs([self.trow("alpha", 1), self.trow("beta", 2)])
+        text = self.send_page()
+        self.assertIn("MARKER-alpha", text)
+        self.assertIn("MARKER-beta", text)
+        self.assertEqual(text.count("<summary>Show sample</summary>"), 2)
+
+    def test_a_template_that_cannot_render_says_why_and_the_others_still_show(self):
+        self.template_stubs([self.trow("alpha", 1, body="<p>{{ nope }}</p>[[trackingImage]]"),
+                             self.trow("beta", 2)])
+        text = self.send_page()
+        self.assertIn("The sample could not be built", text)
+        self.assertIn("MARKER-beta", text)
+
+    def test_a_fresh_database_still_offers_the_built_in(self):
+        self.template_stubs([], total=0)
+        text = self.send_page()
+        self.assertIn('name="template_pick" value="hail_alert"', text)
+        self.assertIn("not saved yet", text)
+
+    def test_the_built_in_is_flagged_when_its_files_have_changed(self):
+        self.template_stubs([self.trow("hail_alert", 1, body="an older saved body")])
+        self.assertIn("files changed since this version", self.send_page())
+
+    def test_the_built_in_is_not_flagged_when_it_matches_its_files(self):
+        subject, body = screen.templatestore.load_files()
+        self.template_stubs([self.trow("hail_alert", 1, subject=subject, body=body)])
+        self.assertNotIn("files changed since this version", self.send_page())
+
+    def test_the_preview_sample_is_the_chosen_template_on_the_first_realtor(self):
+        self.template_stubs([self.trow("hail_alert"), self.trow("beta", 2)])
+        found = {"realtors": [{"realtor_id": 1, "email": "a@example.com",
+                               "agent_name": "Pat Q", "events": screen.SAMPLE_MATCHES}],
+                 "considered": {"matches": 1, "realtors": 1},
+                 "excluded": {r: {"matches": 0, "realtors": 0}
+                              for r in screen.sendlist.REASONS}}
+        with mock.patch.object(screen.sendlist, "build_send_list", return_value=found):
+            text = self.send_page("?day=2026-09-19&template=beta")
+        sample = text.split("<h3>Sample (first on the list)</h3>")[1]
+        self.assertIn("Subject: <strong>Subject of beta</strong>", sample)
+        self.assertIn("MARKER-beta", sample)
+
+    def test_the_review_form_carries_the_chosen_template(self):
+        self.template_stubs([self.trow("hail_alert"), self.trow("beta", 2)])
+        found = {"realtors": [{"realtor_id": 1, "email": "a@example.com",
+                               "agent_name": "Pat Q", "events": screen.SAMPLE_MATCHES}],
+                 "considered": {"matches": 1, "realtors": 1},
+                 "excluded": {r: {"matches": 0, "realtors": 0}
+                              for r in screen.sendlist.REASONS}}
+        with mock.patch.object(screen.sendlist, "build_send_list", return_value=found):
+            text = self.send_page("?day=2026-09-19&template=beta")
+        review = text.split("<h3>Review a send</h3>")[1]
+        self.assertIn('name="template" value="beta"', review)
+
+    # ---- the choice through review, confirm and start ----
+
+    def test_a_fresh_database_can_still_send_the_built_in(self):
+        start = self.stubs()
+        self.template_stubs([], total=0)                   # no saved row for any template
+        self.post("/send/start", expected="2", **self.FORM)
+        start.assert_called_once()
+
+    def test_confirm_shows_the_chosen_template_and_carries_it(self):
+        self.stubs()
+        self.template_stubs([self.trow("beta", 2, description="Beta note")])
+        text = self.post("/send/confirm", **{**self.FORM, "template": "beta"}).get_data(as_text=True)
+        self.assertIn("Template: <strong>beta</strong> &mdash; Beta note", text)
+        self.assertIn('name="template" value="beta"', text)
+
+    def test_start_hands_the_chosen_template_to_the_engine(self):
+        start = self.stubs()
+        self.template_stubs([self.trow("beta", 2)])
+        self.post("/send/start", expected="2", **{**self.FORM, "template": "beta"})
+        self.assertEqual(start.call_args.kwargs["template_name"], "beta")
+
+    def test_start_uses_the_built_in_when_no_template_is_sent(self):
+        start = self.stubs()
+        self.post("/send/start", expected="2", **self.FORM)
+        self.assertEqual(start.call_args.kwargs["template_name"], "hail_alert")
+
+    def test_an_unknown_template_is_refused_at_confirm_and_at_start(self):
+        start = self.stubs()
+        self.template_stubs([self.trow("beta", 2)])
+        for path in ("/send/confirm", "/send/start"):
+            text = self.post(path, expected="2", **{**self.FORM, "template": "nope"}
+                             ).get_data(as_text=True)
+            self.assertIn("That template is not available.", text, path)
+        start.assert_not_called()
+
+    def test_a_refused_form_sends_the_chosen_template_back_to_the_page(self):
+        self.stubs()
+        self.template_stubs([self.trow("beta", 2)])
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        resp = self.client_as("admin").post(
+            "/send/confirm", data={**self.FORM, "allowed": "", "template": "beta"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("template=beta", resp.headers["Location"])
+
+
 if __name__ == "__main__":
     unittest.main()

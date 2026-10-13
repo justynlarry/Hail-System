@@ -29,11 +29,90 @@
             {% endfor %}
         </tbody>
     </table>
-    <button type="submit">Preview</button>
     {% else %}
     <p class="note">No storm days with hail matches inside the age limit.</p>
     {% endif %}
+
+    <h3>Template</h3>
+    <p>
+        Chosen: <strong>{{ chosen }}</strong>{% if selected.description %} &mdash; {{ selected.description }}{% endif %}
+    </p>
+    {% if sample_source %}
+    <p class="note">The samples below use {{ sample_source }}.</p>
+    {% endif %}
+    <input type="hidden" name="template" value="{{ chosen }}">
+    <input type="hidden" name="tpage" value="{{ tpage }}">
+    <table>
+        <thead>
+            <tr><th></th><th>Template</th><th>Description</th><th>Subject</th><th>Version</th>
+                <th>Created</th><th>Last used</th><th>Sends</th></tr>
+        </thead>
+        <tbody>
+            {% for t in templates %}
+            {% set r = t.row %}
+            <tr>
+                <td><input type="radio" name="template_pick" value="{{ r.template_name }}"
+                           id="tpl-{{ loop.index }}" {% if t.chosen %}checked{% endif %}></td>
+                <td><label for="tpl-{{ loop.index }}">{{ r.template_name }}</label></td>
+                <td>
+                    {% if r.template_id is not none and r.sends == 0 %}
+                    <input type="text" name="description" form="desc-{{ r.template_id }}"
+                           value="{{ r.description or '' }}" maxlength="300" size="40"
+                           aria-label="Description of {{ r.template_name }}">
+                    <button type="submit" form="desc-{{ r.template_id }}">Save</button>
+                    {% else %}
+                    {{ r.description or '' }}
+                    {% endif %}
+                </td>
+                <td>{% if t.subject %}{{ t.subject | truncate(70) }}{% endif %}</td>
+                <td>
+                    {% if r.versions %}v{{ r.versions }}{% else %}not saved yet{% endif %}
+                    {% if t.file_changed %}<br><span class="note">files changed since this version; the next send saves a new one</span>{% endif %}
+                </td>
+                <td>{% if r.created_at %}{{ r.emp_fname }} {{ r.emp_lname }},
+                    {{ r.created_at.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</td>
+                <td>{% if r.last_used %}{{ r.last_used.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</td>
+                <td>{{ r.sends }}</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td colspan="7">
+                    <details>
+                        <summary>Show sample</summary>
+                        {% if t.problem %}
+                        <p class="note warning">The sample could not be built: {{ t.problem }}</p>
+                        {% else %}
+                        <p>Subject: <strong>{{ t.subject }}</strong></p>
+                        <iframe sandbox title="Sample of {{ r.template_name }}" srcdoc="{{ t.html }}"
+                                style="width:100%; height:600px; border:1px solid var(--border);"></iframe>
+                        {% endif %}
+                    </details>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if tpages > 1 %}
+    <p>
+        <button type="submit" name="tpage" value="{{ tpage - 1 }}" {% if tpage <= 1 %}disabled{% endif %}>Previous</button>
+        Page {{ tpage }} of {{ tpages }} ({{ ttotal }} templates)
+        <button type="submit" name="tpage" value="{{ tpage + 1 }}" {% if tpage >= tpages %}disabled{% endif %}>Next</button>
+    </p>
+    {% endif %}
+
+    {% if available %}<button type="submit">Preview</button>{% endif %}
 </form>
+
+{# A description is saved by its own small form: it cannot sit inside the page's GET form. #}
+{% for t in templates if t.row.template_id is not none and t.row.sends == 0 %}
+<form id="desc-{{ t.row.template_id }}" method="post"
+      action="{{ url_for('send.template_description', template_id=t.row.template_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% for d in ticked | sort %}<input type="hidden" name="day" value="{{ d.isoformat() }}">{% endfor %}
+    <input type="hidden" name="template" value="{{ chosen }}">
+    <input type="hidden" name="tpage" value="{{ tpage }}">
+</form>
+{% endfor %}
 
 {% if found is not none %}
 <h3>Preview for {{ ticked | length }} storm day{{ '' if ticked | length == 1 else 's' }}</h3>
@@ -81,6 +160,7 @@
 <form method="post" action="{{ url_for('send.confirm') }}" class="confirm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% for d in ticked | sort %}<input type="hidden" name="day" value="{{ d.isoformat() }}">{% endfor %}
+    <input type="hidden" name="template" value="{{ chosen }}">
     <p>
         <label for="allowed">Send only to these addresses (required; separate with spaces,
         commas or new lines):</label><br>

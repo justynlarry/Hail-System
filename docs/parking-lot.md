@@ -3042,7 +3042,7 @@ builder, drip campaigns) has settled, so a page that is about to change is not p
 
 ## 202. Template list, and a template choice on the send page
 
-**Status:** open (filed 2026-10-13, by developer request)
+**Status:** built 2026-10-13 (filed the same day, by developer request); browser check pending
 
 Today there is one template: `hail_alert`, the file in `hailsys/email/templates/`.
 `queue_batch` always calls `templatestore.ensure_current`, and the send page shows that one
@@ -3056,6 +3056,41 @@ sample, which is clunky once there are several. Wanted:
   `is_active` is.
 
 **When:** first of the 202 to 204 group (items 203 and 204 both make templates plural).
+
+**Built 2026-10-13.**
+- **Migration `sql/041`:** `email_templates.description` (300 characters at most). It can be
+  edited **only until the template has been used in an email**; the guard of `sql/030` was
+  replaced to refuse a change once a `sent_emails` row refers to the template (a queued, sent or
+  discarded email counts as use). The built-in's description was set in the migration. A new
+  version copies its predecessor's description. `sql/guard_test.sql` passes 29 of 29.
+- **The engine takes a template.** `templatestore.load` gives the built-in from its files (no
+  row is written by a preview; `ensure_current` still saves it when a send is queued) and any
+  other name from its active row. `template_name` flows from the send form through
+  `start_send`, `run_send` and `queue_batch`; an unknown or retired name is refused before
+  anything is written.
+- **The list is on the send page,** in the same form as the storm days, so one Preview picks
+  both: a radio per template, with name, description, rendered subject, version, creator and
+  date, last used and sends; 10 to a page (`templatelist.PAGE_SIZE`, a constant, not a setting).
+  Previous and Next are submit buttons in the form, so the ticked days and the choice survive a
+  page change; the choice is also carried in a hidden field for when it is on another page. A
+  radio click wins over the carried value. Each row expands to its own sample, rendered with the
+  first realtor on the list or, before a preview, stand-in storm data. An unknown name falls back
+  to the built-in with a message; a fresh database still offers the built-in. The built-in is
+  flagged when its files differ from its saved version.
+- **The description editor:** a text box and Save on each row of a template nobody has used, in
+  a separate POST form (a GET form cannot hold it), admin only. The chosen template, the days and
+  the page survive the save.
+- **The choice goes through review, confirm and start** (a hidden field; confirm shows the name
+  and description), and a refused form sends the choice back to the page.
+- **Tests:** 64 new (2 on the description copy, 5 on `load`, 7 on `set_description`, 4 on
+  `queue_batch`, 1 on `run_send`, 10 on the list query, 9 on the description route, 26 on the
+  send page and its form); 46 mutations run on the new code, 45 caught, and the 1 left is an equivalent mutant (the
+  route's own `commit()`, which leaving the `with` block already does). Gaps the first runs found
+  in my own tests were closed, not accepted.
+
+**Not built (as agreed):** a "show retired" toggle (later); a version guard (a template changing
+between the preview and the start), which waits for item 203, since nothing can create a new
+version from the UI before then.
 
 ## 203. A template builder in the web UI, and email images managed from the UI
 

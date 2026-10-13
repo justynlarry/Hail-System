@@ -19,6 +19,7 @@
 </p>
 {% endif %}
 <p>From: <strong>{{ sender.from_name }} &lt;{{ sender.from_email }}&gt;</strong></p>
+<p>Template: <strong>{{ form.template }}</strong>{% if template_row and template_row.description %} &mdash; {{ template_row.description }}{% endif %}</p>
 
 <table>
     <thead><tr><th>To</th><th>Events</th></tr></thead>
@@ -43,6 +44,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% for d in form.days %}<input type="hidden" name="day" value="{{ d.isoformat() }}">{% endfor %}
     <input type="hidden" name="allowed" value="{{ form.allowed | join(',') }}">
+    <input type="hidden" name="template" value="{{ form.template }}">
     <input type="hidden" name="max_emails" value="{{ form.max_emails }}">
     {% if form.override_cap %}<input type="hidden" name="override_cap" value="1">{% endif %}
     <!-- The count, not the list: /send/start recomputes and refuses if it no longer matches. -->
