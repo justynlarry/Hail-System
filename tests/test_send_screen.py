@@ -586,6 +586,72 @@ class SendScreenTest(unittest.TestCase):
         text = self.post("/send/confirm", **self.FORM).get_data(as_text=True)
         self.assertNotIn("needs about", text)
 
+    # ---- the description editor (item 202; the storage is always stubbed here) ----
+
+    DESC_PATH = "/send/templates/123/description"
+
+    def desc_stub(self, **kw):
+        patcher = mock.patch.object(screen.templatestore, "set_description", **kw)
+        self.addCleanup(patcher.stop)
+        return patcher.start()
+
+    def test_description_needs_a_token(self):
+        save = self.desc_stub()
+        self.assertEqual(self.client_as("admin").post(self.DESC_PATH).status_code, 400)
+        save.assert_not_called()
+
+    def test_description_is_post_only(self):
+        save = self.desc_stub()
+        self.assertEqual(self.client_as("admin").get(self.DESC_PATH).status_code, 405)
+        save.assert_not_called()
+
+    def test_description_is_admin_only(self):
+        save = self.desc_stub()
+        for role in ("viewer", "sender"):
+            if role in self.users:
+                self.assertEqual(self.post(self.DESC_PATH, role, description="x").status_code,
+                                 403, role)
+        save.assert_not_called()
+
+    def test_description_is_saved_and_says_so(self):
+        save = self.desc_stub()
+        text = self.post(self.DESC_PATH, description="New note").get_data(as_text=True)
+        self.assertEqual(save.call_count, 1)
+        self.assertEqual(save.call_args.args[1:], (123, "New note"))
+        self.assertIn("Description saved.", text)
+
+    def test_a_frozen_description_says_why_and_is_not_reported_as_saved(self):
+        self.desc_stub(side_effect=screen.templatestore.DescriptionFrozen(
+            "This template has been used in an email, so its description can no longer change."))
+        text = self.post(self.DESC_PATH, description="x").get_data(as_text=True)
+        self.assertIn("has been used in an email", text)
+        self.assertNotIn("Description saved.", text)
+
+    def test_a_too_long_description_says_so(self):
+        self.desc_stub(side_effect=ValueError("The description is limited to 300 characters."))
+        text = self.post(self.DESC_PATH, description="x").get_data(as_text=True)
+        self.assertIn("limited to 300 characters", text)
+        self.assertNotIn("Description saved.", text)
+
+    def test_an_unknown_template_is_a_404(self):
+        self.desc_stub(side_effect=screen.templatestore.TemplateNotFound(123))
+        self.assertEqual(self.post(self.DESC_PATH, description="x").status_code, 404)
+
+    def test_a_bad_day_is_a_400_and_nothing_is_saved(self):
+        save = self.desc_stub()
+        self.assertEqual(self.post(self.DESC_PATH, description="x", day="nope").status_code, 400)
+        save.assert_not_called()
+
+    def test_the_redirect_keeps_the_days_the_template_and_the_page(self):
+        self.desc_stub()
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        resp = self.client_as("admin").post(
+            self.DESC_PATH, data=dict(description="x", day="2026-09-19", template="hail_alert",
+                                      tpage="2"))
+        self.assertEqual(resp.status_code, 302)
+        location = resp.headers["Location"]
+        for part in ("day=2026-09-19", "template=hail_alert", "tpage=2"):
+            self.assertIn(part, location)
 
 if __name__ == "__main__":
     unittest.main()

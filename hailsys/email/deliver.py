@@ -29,7 +29,7 @@ from datetime import datetime, timedelta, timezone
 from hailsys.constantcontact import budget, campaigns, unsubs
 from hailsys.constantcontact.api import ApiError
 from hailsys.db import get_connection
-from hailsys.email import render, send
+from hailsys.email import render, send, templatestore
 from hailsys.queries import sendlist
 
 logger = logging.getLogger(__name__)
@@ -289,6 +289,7 @@ def deliver_batch(batch_id, *, sender, cc=campaigns, max_emails=None):
 def run_send(*, user_id, storm_days, email_settings, sender, allowed_emails,
              override_cap=False, max_emails=None, max_age_days=sendlist.MAX_AGE_DAYS,
              cap_days=sendlist.CAP_DAYS, freshness_days=sendlist.FRESH_DAYS,
+             template_name=templatestore.TEMPLATE_NAME,
              sync=unsubs.run_sync, cc=campaigns, now=None):
     """One send click.  Sync unsubscribes, look up recipients, queue, then deliver.
 
@@ -312,7 +313,7 @@ def run_send(*, user_id, storm_days, email_settings, sender, allowed_emails,
             conn, user_id=user_id, storm_days=storm_days, email_settings=email_settings,
             now=now, sync_run_id=result["run_id"], allowed_emails=allowed,
             contacts=contacts, override_cap=override_cap, max_age_days=max_age_days,
-            cap_days=cap_days, freshness_days=freshness_days)
+            cap_days=cap_days, freshness_days=freshness_days, template_name=template_name)
         conn.commit()           # Queued rows are on disk before anything is sent
     if summary["batch_id"]:
         summary["delivery"] = deliver_batch(summary["batch_id"], sender=sender, cc=cc,

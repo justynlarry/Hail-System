@@ -11,6 +11,7 @@ the data is not there.
 import os
 import sys
 import unittest
+import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
@@ -21,7 +22,7 @@ sys.path.insert(0, str(ROOT))
 try:
     import psycopg
     from psycopg.rows import dict_row
-    from hailsys.email import render, send
+    from hailsys.email import render, send, templatestore
     from hailsys.queries import sendlist
     MISSING = None
 except ImportError as exc:
@@ -110,6 +111,56 @@ class QueueBatchTest(unittest.TestCase):
         self.assertEqual(self.count("email_templates", "template_id = %s", (ids.pop(),)), 1)
 
     # ---- who is left out ----
+
+    # ---- the chosen template (item 202) ----
+
+    TEMPLATE_BODY = "<p>MARKER-ZX {{ agent_first_name }}</p>[[trackingImage]]"
+    TEMPLATE_SUBJECT = "Hail near {{ total }} of your listings"
+
+    def saved_template(self):
+        name = f"test-{uuid.uuid4()}"
+        template_id = templatestore.ensure_current(
+            self.conn, created_by=self.user, name=name,
+            subject_src=self.TEMPLATE_SUBJECT, body_src=self.TEMPLATE_BODY)
+        return name, template_id
+
+    def test_a_chosen_template_is_rendered_and_saved_under_its_own_id(self):
+        name, template_id = self.saved_template()
+        built_in = self.count("email_templates", "template_name = 'hail_alert'")
+        out = self.queue(template_name=name)
+        rows = self.conn.execute(
+            "SELECT template_id, subject, html_body FROM sent_emails WHERE batch_id = %s",
+            (out["batch_id"],)).fetchall()
+        self.assertEqual(len(rows), 2)
+        for row in rows:
+            self.assertEqual(row["template_id"], template_id)
+            self.assertIn("MARKER-ZX", row["html_body"])
+            self.assertTrue(row["subject"].startswith("Hail near"))
+        logged = self.conn.execute(
+            "SELECT DISTINCT s.template_id FROM send_log s JOIN sent_emails e USING (email_id) "
+            "WHERE e.batch_id = %s", (out["batch_id"],)).fetchall()
+        self.assertEqual([r["template_id"] for r in logged], [template_id])
+        self.assertEqual(self.count("email_templates", "template_name = 'hail_alert'"), built_in)
+
+    def test_the_default_is_still_the_built_in_template(self):
+        self.saved_template()
+        out = self.queue()
+        html = self.conn.execute("SELECT html_body FROM sent_emails WHERE batch_id = %s LIMIT 1",
+                                 (out["batch_id"],)).fetchone()["html_body"]
+        self.assertNotIn("MARKER-ZX", html)
+
+    def test_an_unknown_template_is_refused_and_nothing_is_written(self):
+        before = (self.count("sent_emails"), self.count("send_log"))
+        with self.assertRaises(send.SendError):
+            self.queue(template_name=f"no-such-{uuid.uuid4()}")
+        self.assertEqual((self.count("sent_emails"), self.count("send_log")), before)
+
+    def test_a_retired_template_is_refused(self):
+        name, template_id = self.saved_template()
+        self.conn.execute("UPDATE email_templates SET is_active = FALSE WHERE template_id = %s",
+                          (template_id,))
+        with self.assertRaises(send.SendError):
+            self.queue(template_name=name)
 
     def test_only_allowed_addresses_are_queued(self):
         out = self.queue(allowed_emails=[self.emails[0].upper()],

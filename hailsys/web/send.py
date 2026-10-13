@@ -59,6 +59,16 @@ def _days_from_args():
     return sorted(days)
 
 
+def _days_from_form():
+    days = set()
+    for raw in request.form.getlist("day"):
+        try:
+            days.add(datetime.strptime(raw, "%Y-%m-%d").date())
+        except ValueError:
+            abort(400)
+    return sorted(days)
+
+
 def _sample(realtor):
     """(subject, html, problem) for one realtor's email.  Never raises: a page that cannot show
     the sample should say why, not fail."""
@@ -326,6 +336,28 @@ def discard(batch_id):
         flash(f"Discarded {n} queued email{'' if n == 1 else 's'}.  Their matches can be "
               "sent again.")
     return back()
+
+
+@send_bp.route("/templates/<int:template_id>/description", methods=["POST"])
+def template_description(template_id):
+    """Save the description typed on a template row.  The page it came from is rebuilt from the
+    same hidden fields, so the ticked days, the chosen template and the page are not lost."""
+    days = _days_from_form()
+    try:
+        with get_connection() as conn:
+            templatestore.set_description(conn, template_id, request.form.get("description"))
+            conn.commit()
+    except ValueError as exc:
+        flash(str(exc))
+    except templatestore.DescriptionFrozen as exc:
+        flash(str(exc))
+    except templatestore.TemplateNotFound:
+        abort(404)
+    else:
+        flash("Description saved.")
+    return redirect(url_for("send.index", day=[d.isoformat() for d in days],
+                            template=request.form.get("template") or None,
+                            tpage=request.form.get("tpage") or None))
 
 
 @send_bp.route("/check", methods=["POST"])

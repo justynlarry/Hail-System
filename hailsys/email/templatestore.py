@@ -13,14 +13,24 @@ each insert a version.
 """
 
 from pathlib import Path
+import psycopg
 
 from hailsys.email import render
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 TEMPLATE_NAME = "hail_alert"
 
+MAX_DESCRIPTION = 300
+
+class TemplateNotFound(LookupError):
+    """No active template has this name."""
+
+class DescriptionFrozen(Exception):
+    """The template has been used in an email, so its description can no longer change."""
+
+
 _ACTIVE_SQL = """
-    SELECT template_id, subject, body
+    SELECT template_id, subject, body, description
       FROM email_templates
     WHERE template_name = %s AND is_active
     ORDER BY template_id DESC
@@ -46,12 +56,52 @@ def ensure_current(conn, *, created_by, name=TEMPLATE_NAME, subject_src=None, bo
         return active["template_id"]
 
     new_id = conn.execute(
-        "INSERT INTO email_templates (template_name, subject, body, created_by, supersedes_id) "
-        "VALUES(%s, %s, %s, %s, %s) RETURNING template_id",
+        "INSERT INTO email_templates (template_name, subject, body, created_by, supersedes_id," \
+        "description) "
+        "VALUES(%s, %s, %s, %s, %s, %s) RETURNING template_id",
         (name, subject_src, body_src, created_by,
-         active["template_id"] if active else None)).fetchone()["template_id"]
+         active["template_id"] if active else None,
+         active["description"] if active else None)).fetchone()["template_id"]
         # One activer version per name.  Retiring is one-way.
     conn.execute(
         "UPDATE email_templates SET is_active = FALSE "
         "WHERE template_name = %s AND is_active AND template_id <> %s", (name, new_id))
     return new_id
+
+
+def load(conn, name=TEMPLATE_NAME):
+    """(subject_src, body_src, template_id) to render and save under 'name'.
+    
+    The built-in template comes from its files and its template_id is None:  it is saved by
+    ensure_current only when a send is actually queued, so a preview writes nothing.  Any other
+    name comes from its active row.  Raises TemplateNotFound for an unknown or retired name.
+    """
+    if name == TEMPLATE_NAME:
+        subject_src, body_src = load_files()
+        return subject_src, body_src, None
+    row = conn.execute(_ACTIVE_SQL, (name,)).fetchone()
+    if row is None:
+        raise TemplateNotFound(name)
+    return row["subject"], row["body"], row["template_id"]
+
+
+def set_description(conn, template_id, text):
+    """Set the note shown beside an active template.  User commits.
+    
+    Empty text clears it.  Raises ValueError for text that is too long, TemplateNotFound if
+    there is no active template with this id, and DescriptionFrozen if the database refuses
+    because the template has been used in an email (saving the text it already has is fine).
+    """
+    text = (text or "").strip() or None
+    if text is not None and len(text) > MAX_DESCRIPTION:
+        raise ValueError(f"The description is limited to {MAX_DESCRIPTION} characters.")
+    try:
+        cur = conn.execute(
+            "UPDATE email_templates SET description = %s WHERE template_id = %s AND is_active",
+            (text, template_id))
+    except psycopg.errors.RestrictViolation:
+        conn.rollback()
+        raise DescriptionFrozen("This template has been used in an email, so its description "
+                                "can no longer change.") from None
+    if cur.rowcount == 0:
+        raise TemplateNotFound(template_id)

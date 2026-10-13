@@ -39,7 +39,8 @@ def _check_syn(conn, run_id, now):
 def queue_batch(conn, *, user_id, storm_days, email_settings, now, sync_run_id,
                 allowed_emails, contacts, override_cap=False,
                 max_age_days=sendlist.MAX_AGE_DAYS, cap_days=sendlist.CAP_DAYS,
-                freshness_days=sendlist.FRESH_DAYS):
+                freshness_days=sendlist.FRESH_DAYS,
+                template_name=templatestore.TEMPLATE_NAME):
     """Queue one email per eligible realtor.  Returns what was queued and what was left out."""
     _check_syn(conn, sync_run_id, now)
     found = sendlist.build_send_list(
@@ -48,7 +49,10 @@ def queue_batch(conn, *, user_id, storm_days, email_settings, now, sync_run_id,
 
     allowed = {e.strip().lower() for e in allowed_emails}
     skipped = {"not_allowed": 0, "unsubscribed_in_cc": 0, "unrenderable": []}
-    subject_src, body_src = templatestore.load_files()
+    try:
+        subject_src, body_src, saved_id = templatestore.load(conn, template_name)
+    except templatestore.TemplateNotFound:
+        raise SendError("That template is not available.") from None
 
     plan = []
     for r in found["realtors"]:
@@ -75,7 +79,8 @@ def queue_batch(conn, *, user_id, storm_days, email_settings, now, sync_run_id,
     if not plan:
         return summary
 
-    template_id = templatestore.ensure_current(conn, created_by=user_id)
+    template_id = saved_id or templatestore.ensure_current(
+        conn, created_by=user_id, subject_src=subject_src, body_src=body_src)
     batch_id = uuid.uuid4()
     for r, contact, subject, html in plan:
         email_id = conn.execute(

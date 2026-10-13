@@ -584,6 +584,25 @@ class DeliverTest(unittest.TestCase):
         self.assertEqual(out["delivery"]["sent"], 2)
         self.assertEqual(self.cc.calls[:2], ["find_contact", "find_contact"])   # the pre-check
 
+    def test_the_chosen_template_reaches_the_queue(self):
+        name = f"test-{uuid.uuid4()}"
+        template_id = deliver.templatestore.ensure_current(
+            self.conn, created_by=self.user, name=name,
+            subject_src="Hail near {{ total }} of your listings",
+            body_src="<p>MARKER-ZX {{ agent_first_name }}</p>[[trackingImage]]")
+
+        def sync(*, triggered_by):
+            return {"run_id": self.run_id}
+
+        out = self.run_send(sync, template_name=name)
+        rows = self.conn.execute(
+            "SELECT template_id, html_body FROM sent_emails WHERE batch_id = %s",
+            (out["batch_id"],)).fetchall()
+        self.assertEqual(len(rows), 2)
+        for row in rows:
+            self.assertEqual(row["template_id"], template_id)
+            self.assertIn("MARKER-ZX", row["html_body"])
+
     def test_lookup_contacts_maps_each_address(self):
         self.cc.contacts[self.emails[0]] = {"contact_id": "c-1", "permission": "implicit"}
         got = deliver.lookup_contacts(self.emails, cc=self.cc)

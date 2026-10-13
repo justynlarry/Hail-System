@@ -108,6 +108,27 @@ SELECT pg_temp.expect('send_log DELETE blocked',
 SELECT pg_temp.expect('template body frozen',
   $q$UPDATE email_templates SET body = 'changed'
      WHERE template_name = 'guard-test'$q$, '23001');
+
+SELECT pg_temp.expect('description frozen once the template has been used',
+  $q$UPDATE email_templates SET description = 'changed'
+     WHERE template_name = 'guard-test'$q$, '23001');
+
+INSERT INTO email_templates (template_name, subject, body, created_by)
+VALUES ('guard-test-unused', 's', 'b',
+        (SELECT emp_id FROM users ORDER BY emp_id LIMIT 1));
+
+SELECT pg_temp.expect('description editable before any use',
+  $q$UPDATE email_templates SET description = 'first'
+     WHERE template_name = 'guard-test-unused'$q$, 'ok');
+SELECT pg_temp.expect('description editable again before any use',
+  $q$UPDATE email_templates SET description = 'second'
+     WHERE template_name = 'guard-test-unused'$q$, 'ok');
+SELECT pg_temp.expect('description over 300 characters refused',
+  $q$UPDATE email_templates SET description = repeat('x', 301)
+     WHERE template_name = 'guard-test-unused'$q$, '23514');
+SELECT pg_temp.expect('body still frozen on an unused template',
+  $q$UPDATE email_templates SET body = 'changed'
+     WHERE template_name = 'guard-test-unused'$q$, '23001');
 SELECT pg_temp.expect('template retire (is_active true -> false)',
   $q$UPDATE email_templates SET is_active = FALSE
      WHERE template_name = 'guard-test'$q$, 'ok');
