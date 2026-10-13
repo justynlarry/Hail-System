@@ -798,7 +798,7 @@ seed CSV drifting from the live `report_types` table.
 
 ## 96. Has RBI answered the DNS ask?
 
-**Status:** open
+**Status:** open; reframed 2026-10-12: decide the sending domain (see the last paragraph)
 
 `phases.md` runs "the domain and email-sending setup" alongside every phase
 from day one, because DNS changes at a small company can sit in an inbox for
@@ -855,6 +855,16 @@ From unchanged and DMARC passing on DKIM. So the mechanism works end to end for 
 root domain. Still unconfirmed: whether Constant Contact accepts a **subdomain**
 such as `send.roofbrokersinc.com` for self-authentication. The ask to Constant
 Contact support stands.
+
+**Reframed 2026-10-12, from the developer.** The production computer's sending domain will be
+different from the company's domain (`roofbrokersinc.com`), and which domain it will be is not
+decided. So this item is no longer only "waiting on RBI's answer": the first job is to decide
+the sending domain. The `send.roofbrokersinc.com` plan and the one-shot NS ask above were
+written for the company's domain and stand only if that domain is used. Whatever is chosen
+still needs SPF, DKIM and DMARC, the Constant Contact self-authentication question, and the
+single-domain-per-account limit above. Development carries on meanwhile on the dev domain
+(`roofbrokersinc-weather.com`, item 170). **When:** before the production server sends
+anything; the choice also decides what the DNS ask to RBI says, or whether there is one.
 
 ## 100. New-construction properties share a subdivision point
 
