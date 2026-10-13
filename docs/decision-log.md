@@ -6636,3 +6636,38 @@ Measured on the real 2026-09-22 storm: one agent dropped, one merge. Unchanged f
 no suffix merging, and Part 2 (unit plus shared agent) stays unbuilt.
 
 **Related:** items 55, 189.
+
+---
+
+## 2026-10-13 — Templates in the UI, drip campaigns, and a UI access point for anything changeable
+
+Decided with the developer, to be filed as parking-lot items 202 to 204.
+
+**Templates are built in the UI as blocks.** Not free HTML (breaks in Outlook and Gmail, loses
+the template's conditionals, invites template injection) and not Constant Contact's editor (it
+will not return the HTML and `sent_emails` must hold the exact HTML). A person arranges blocks;
+the system renders them to the same email-safe tables as today. Rich text is bold, italic, a
+palette colour and links, from an allow-list. The advertisement notice and the contact line are
+locked blocks (item 120). Editing saves a new version (the existing append-only rule). Admin
+only. Item 203.
+
+**Images are a named table managed from the admin page** (`email_images`), not environment
+variables and not pasted per template. The same section takes today's `EMAIL_*` variables. No
+Constant Contact call is needed to add one; a library picker can come later on an explicit
+button (each call counts against the daily budget, item 191).
+
+**Drip campaigns: Level 1 first.** A person's click starts every step, so the two rules in
+`CLAUDE.md` ("nothing sends email automatically", "RentCast calls are always user-initiated")
+stand unchanged. The click must be one click: recipients are fixed at step 1, so no allow-list is
+typed, and the click runs the whole step (fresh RentCast check, sync, list, queue, send) in the
+background. **Level 2** (a daily job) would supersede those two rules and is not decided; it
+would need its own entry here, a default-off switch, and items 189 and 129 first. Item 204.
+
+**The allow-list is temporary.** It is the stand-in for the eligibility gate (item 189). When
+the gate exists the send form drops it and the preview is the list.
+
+**Anything an operator may need to add or change gets a UI access point** (added to
+`CLAUDE.md`, Conventions). Fixed ceilings and safety limits stay in code. Existing exceptions
+that this will fold in: the `EMAIL_*` and `CC_FROM_*` environment values (items 203, 194).
+
+**Related:** items 120, 129, 189, 191, 194, 201 to 204.

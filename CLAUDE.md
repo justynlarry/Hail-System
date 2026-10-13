@@ -148,6 +148,11 @@ These have already bitten us. Do not re-discover them.
 - Scripts that ingest external data must be idempotent and safe to re-run.
 - Failures should be loud. Silent partial success is worse than an error.
 - Comment the *why*, not the *what*, especially around the traps above.
+- Anything an operator may need to add or change has a UI access point (the admin page), with
+  changes logged to `settings_history`: not a config file, an environment variable or a code
+  constant. Fixed ceilings and safety limits stay in code and are documented as such (the
+  Constant Contact daily limit and headroom, the suppression rule, `MAX_EMAILS_LIMIT`). Decision
+  log 2026-10-13.
 - `web`, `app` and `loader` bind-mount the repo (edit = deploy). Only `ingest`
   runs image-baked code, on purpose, because the nightly timers should run a
   known artifact -- rebuild it before testing ingest changes, and run

@@ -2713,6 +2713,13 @@ Sept 22 realtors are in the client file; the Constant Contact pool adds more.
 **When:** before the send screen is usable for anything but our own test addresses. The engine
 is built and rehearsed on test addresses only until then.
 
+**The allow-list goes away with the gate (developer, 2026-10-13).** The mandatory allow-list on
+the send form is a stand-in for this item: it exists because nothing else says who may be emailed.
+When the gate exists, the form drops the allow-list and the preview becomes the list: the
+realtors that pass every rule, including having a recorded basis. With no row in the basis table
+no one is eligible, so an empty table sends nothing. `queue_batch`'s required `allowed_emails`
+argument goes at the same time.
+
 **Requirement from item 55 (2026-10-13):** the gate must be a per-hit rule inside
 `sendlist._reason`, not a check after the list is built. The one-agent-per-house dedup runs
 after every per-hit rule, so with the gate in `_reason` it prefers the agent who is in our own
@@ -3020,6 +3027,117 @@ clicked Resume sees "Resume started", and then nothing happens. The same class a
 
 **When:** with item 196, when the history page gets a way to show a job that failed before
 it started. Until then the person has to look at the log.
+
+## 201. Web UI cosmetic pass: make each page more user-friendly and better looking
+
+**Status:** open (filed 2026-10-13, by developer request)
+
+The developer will go through the pages one at a time and list what to change. No page has been
+reviewed yet, so there is no list. Related small items already filed: 108 (match-page column
+widths), 109 (the match page on a phone), 112 (the territory layout on tablets), 113 (CSS
+leftovers) and 156 (four light-mode colour pairs below WCAG AA).
+
+**When:** after the send-screen work of the 2026-10-13 discussion (template list, template
+builder, drip campaigns) has settled, so a page that is about to change is not polished twice.
+
+## 202. Template list, and a template choice on the send page
+
+**Status:** open (filed 2026-10-13, by developer request)
+
+Today there is one template: `hail_alert`, the file in `hailsys/email/templates/`.
+`queue_batch` always calls `templatestore.ensure_current`, and the send page shows that one
+sample, which is clunky once there are several. Wanted:
+- **A list of rows:** name, description, subject, report type, version, created by and date,
+  last used, and how many sends used it; 10 to a page, with next and previous.
+- **A template choice** on the send form, carried through `run_send`, `queue_batch` and the
+  engine as a `template_id` (today the engine has no such argument).
+- **A `description` column** on `email_templates`. The guard of `sql/030` freezes every other
+  column, so the migration replaces the guard to leave `description` editable the way
+  `is_active` is.
+
+**When:** first of the 202 to 204 group (items 203 and 204 both make templates plural).
+
+## 203. A template builder in the web UI, and email images managed from the UI
+
+**Status:** open (filed 2026-10-13, by developer request; shape agreed the same day)
+
+Staff should be able to create a template in the UI, with an image that is already in Constant
+Contact, bold, italic and coloured text, and the other parts of the current template.
+**Decided 2026-10-13: a block builder.** A template is an ordered list of blocks that the system
+renders into the same email-safe table HTML as today; a person never writes markup. Rejected:
+a free-HTML rich-text editor (its output breaks in Outlook and Gmail, loses the conditionals in
+`hail_alert.html`, and invites template injection) and Constant Contact's own editor (it will
+not return the HTML, and `sent_emails` must hold the exact HTML, item 180).
+- **Blocks for v1:** image, heading, text paragraph, button, divider, the storm data panel and
+  the listings table (both system-rendered), badges, and the footer.
+- **Rich text inside a paragraph:** bold, italic, a colour from a palette and links, converted
+  server-side to inline-styled spans from an allow-list; anything else is stripped.
+- **Locked blocks:** the advertisement notice and the contact line cannot be removed (item
+  120). Constant Contact adds the unsubscribe and the postal address.
+- **Versions:** editing saves a new version that supersedes the old one, as `email_templates`
+  already requires. The sandboxed renderer and its fixed variable list (`ALLOWED_VARS`) stay
+  the authority; the builder generates the template, so no one writes template syntax.
+- **Images:** a named-image table (`email_images`: unique name, https URL, alt text, who and
+  when, retired not deleted; free-hosting domains refused as the renderer already does) with an
+  "Email images" section on the admin page. No Constant Contact calls; a picker that lists the
+  Constant Contact library can come later on an explicit button, since each call counts against
+  item 191's budget. The same admin section takes the other values that are environment
+  variables today (`EMAIL_*`: the logo, the badges, the contact email, the schedule URL).
+- **A "send me a test" button** using Constant Contact's test-send endpoint (the spike found it
+  answers 204 and does not move the trial counter).
+- **Out of v1:** drag and drop, free layout, styling beyond the palette, image upload.
+- **Audience:** admin only.
+- **Pieces, in order:** (1) `email_images` and its admin section; (2) the block model and
+  renderer, seeded with the current template; (3) storage and versioning; (4) the editor form
+  and preview; (5) the rich-text sanitizer (the security-sensitive part: many XSS tests);
+  (6) the test send.
+- **Known limit:** email-client rendering cannot be tested here beyond sending test messages;
+  the constrained blocks are what keep it safe.
+
+Related: 120 (the footer), 194 (the sender identity, same idea), item 16's merge-field
+vocabulary (`ALLOWED_VARS` is it).
+
+**When:** after 202. Piece (1) can start at once, since it is standalone.
+
+## 204. Drip campaigns: an initial email, then follow-ups
+
+**Status:** open (filed 2026-10-13, by developer request; the owner asked for it)
+
+**The ask:** an initial email about a storm, then N follow-ups with a chosen number of days
+between each (1 to 2, 2 to 3, 3 to 4). Each follow-up must re-check, with RentCast, that the
+listing is still active, so a sold property's agent is not emailed. The developer expects the
+RentCast call count to stay flat or fall over a campaign.
+
+**Decided 2026-10-13: Level 1 first, and it must be truly one click.**
+- **Level 1.** A campaign stores its steps, gaps and a template per step, and its recipients
+  are fixed at step 1 (so there is no allow-list to type). When a step is due, a banner says so
+  ("Follow-up 2 is due for up to N recipients"); one button runs the whole step in a background
+  job: a fresh RentCast check, the unsubscribe sync, the send list, queue, send, within item
+  191's call budget. **Level 1 keeps both `CLAUDE.md` rules intact** (nothing sends
+  automatically; no automatic RentCast call), because a person's click starts every step.
+- **Level 2** (a daily job runs due steps itself) only on need. It would supersede two
+  non-negotiable rules in `CLAUDE.md` by a written decision, behind a settings switch
+  (`auto_followups`, default off), with a global kill switch, a per-campaign pause, a step and
+  volume cap, failure-closed behaviour (no fresh RentCast check means no send) and an automatic
+  resume across days. **Not before items 189 and 129**: repeat mail to an unvetted list, or to
+  someone who unsubscribed in the possibly missing nine months, is worse than one mail.
+
+**Each step re-checks before sending:** the unsubscribe sync and the DNC list, that the listing
+was seen within the freshness window (the existing `stale_listing` rule), no bounce, and the call
+budget. The 14-day cap has to apply between campaigns, not within one.
+
+**Open questions:**
+- **RentCast.** A pull is per zip, so a shrinking recipient list does not shrink the cost
+  proportionally. Whether RentCast offers a cheaper lookup per listing is not checked; read its
+  documentation and `hailsys/rentcast/client.py` before promising "flat or falling".
+- **The new chain.** The click must run pull, then send, as one background job; pulls and sends
+  are separate jobs today.
+- **Volume.** About 10 calls per email: 440 recipients across 3 steps is about 13,200 calls, more
+  than one day, so a step can span two days. In Level 1 the person resumes on the second day.
+- **Data model.** Something like `drip_campaigns` plus steps linked to each step's `batch_id`.
+
+**When:** after 202 and the first pieces of 203 (steps need a template choice). Level 2 only
+after 189 and 129.
 
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
