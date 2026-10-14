@@ -3218,6 +3218,157 @@ built, whichever comes first. Not before Phase 5 sending works on the circle as 
 **Related:** items 35, 191; decision log 2026-09-16, 2026-10-07, 2026-10-13; *Not on the roadmap:
 Radar-derived hail size (NOAA MRMS / MESH)*.
 
+**Added 2026-10-14.** Three points.
+- **Open question: a softer email for the outer tier?** Tier 3 houses are inside the circle with no
+  radar hail. They may deserve different wording from Tier 1, or no email until the inner tiers
+  are done. Undecided. It touches the template choice (items 202, 203) and the claim question in
+  blocker 2.
+- **Send order under warm-up throttling.** This is the use the tiers are for: while the warm-up
+  limits how many emails go out, the tiers decide who is reached first. It applies only if the
+  tiers are adopted.
+- **Related:** item 206 changes the footprint itself (radar core, margin, circle as fallback);
+  this item only ranks. They can be combined, and 206's core, margin and circle would be these tiers.
+
+## 206. Radar-shaped storm areas: a radar core plus a margin, with the circle as the fallback
+
+**Status:** open (proposal, filed 2026-10-14; not decided)
+
+**Evidence:** decision log 2026-10-13, *Findings, not a decision: report-based circles against
+radar hail (MRMS MESH), 60 storms*; analysis files in `docs/analysis/storm-shape-mesh-2026-10/`
+(in the repo; CSVs and download caches are not, see its README; a full copy is on the workstation at
+`~/hail-analysis-archive-2026-10-13/`).
+- **Reports are good markers.** 485 of 536 actionable hail reports (90%) have MESH at or above
+  1.00 in within 5 km.
+- **The circle is the wrong shape.** It holds about 56% of the radar hail area pooled (median 67% per
+  storm), and a median of only 14% of each circle's area has radar hail. Real swaths are narrow
+  strips along the storm's path, a few km wide against a 16 km circle diameter.
+
+**The proposal.** Replace the per-report circle as the storm's footprint with:
+- **Core:** the MRMS MESH swath for the storm window, keeping only patches within a few km of a
+  filed report. (A swath with no report near it is not used: nobody has said hail fell there.)
+- **Margin:** a buffer around the core, "a little larger, just in case".
+- **Fallback:** today's circle, only where radar cannot help: before the archives start (Iowa State
+  2019-08-20; NOAA AWS 2020-10-14, the MRMS version 12 date), during outages, and in the mountains.
+
+**Next step:** prototype on the 60 storms already processed. Report the same measures the 60-storm
+study used (coverage, precision, area) for core plus margin against the circle. No matcher change.
+
+**Limits already known.**
+- **Mountains are untested.** None of the 60 storms is centred west of longitude -105.06, and only 29
+  actionable hail reports lie west of -105.1. The one far-west case, the S0025 west piece, had 0 of 13
+  reports confirmed by MESH.
+- **MESH is uncalibrated** and read high against reports here (median 1.76 in against 1.25 in
+  reported). The core threshold and margin width are placeholders until items 207 and 208 exist.
+- **The product's claim changes** from "reported" to "estimated". The same blocker as item 205, point 2.
+- **Value-based cutoffs conflict with decision log 2026-09-16.** The core should use presence of
+  radar hail, not its value, unless that entry is superseded on evidence.
+
+**When:** the prototype can be picked up at any time. **No matcher change** until it has a
+decision-log entry, and not before the inspection data (items 207, 208) can set the threshold and
+margin. Phase 5 sending works on the circle as it is.
+
+**Related:** items 205, 207, 208, 210; decision log 2026-09-16 and 2026-10-13.
+
+## 207. Inspection export from RBI
+
+**Status:** open (not requested yet; filed 2026-10-14)
+
+RBI has done about 20 to 30 inspections a day since 2014, each rated low, moderate, high or severe.
+That is the ground truth that everything in items 205 and 206 is waiting for.
+
+**What the export must contain.**
+- **Every inspection, including the no-damage ones.** Without the zeros, damage rates cannot be
+  computed.
+- **The inspector's estimate of the damage's age.** Older damage can be wrongly attributed to a newer
+  storm, and the damage-age estimate is the only guard against it.
+- The address (exact, not a zip), the inspection date and the rating.
+
+**Fallback if the damage-age estimate is missing:** use only inspections that have exactly one
+qualifying storm before them. How "qualifying" is defined is still to be settled. This is a cut,
+not a correction, and it will drop part of the data.
+
+**Ask RBI before the export is pulled.** Do not request or pull it first. The file holds addresses
+and homeowner information: **keep it out of git**. The remote is public, which is why every `*.csv`
+is ignored repo-wide.
+
+**When:** ask RBI before the export is pulled, and before any threshold or margin is set (items 206,
+208).
+
+**Related:** items 205, 206, 208, 209.
+
+## 208. Inspection calibration: set the radar core threshold and margin width from damage rates
+
+**Status:** open (parked on item 207)
+
+Once the export in item 207 exists: join each inspection to the storm that most likely caused it, then
+choose the MESH threshold for the core and the margin width (items 205, 206) from observed damage
+rates, instead of the placeholders (1.00 in and 0.75 in lines, an unspecified margin). Questions to
+answer:
+- How does the damage rate (moderate or worse) fall off with the MESH value and with distance from the
+  swath?
+- Is the circle's outer part (Tier 3) worth reaching at all?
+- Does the relationship differ in the foothills?
+
+**When:** the export arrives. Not before.
+
+**Related:** items 205, 206, 207; decision log 2026-10-13, point 6.
+
+## 209. Structured inspection capture going forward
+
+**Status:** open (to raise with RBI; filed 2026-10-14)
+
+Whatever the old export looks like, new inspections should be recorded so they can be used:
+- A fixed severity scale (the same four levels, always).
+- The exact address and the inspection date.
+- **No-damage inspections kept**, not dropped.
+- The inspector's damage-age estimate.
+
+This is a request to RBI about how they record, not something this system can force. It also costs
+nothing now and makes item 208 repeatable later.
+
+**When:** raise with RBI now, with item 207.
+
+**Related:** items 207, 208.
+
+## 210. Extra weather sources for the storm footprint
+
+**Status:** open (parked on item 206's prototype; every source below is **unverified**)
+
+Not checked: coverage, history, terms, format or cost for any of them. Listed so that the question
+is recorded.
+1. **NWS warning polygons** (Iowa State IEM archive). The shape fallback for storms before the MESH
+   archives start. **Highest priority.**
+2. **MRMS rotation tracks and probability of severe hail.** Related products on the same archives.
+3. **CoCoRaHS hail pads.** Ground truth; CoCoRaHS is already discussed in the decision log
+   (report-source confidence).
+4. **mPING public reports.** See item 7, dropped 2026-09-30: today mPING arrives as `PUBLIC`.
+5. **NCEI Storm Events Database.**
+6. **Upper-level winds or HRRR,** for a live storm direction.
+7. **Commercial hail maps,** only as a paid benchmark to compare against, not a source.
+
+**When:** after the prototype in item 206 shows what a radar footprint can and cannot do.
+
+**Related:** items 206, 7.
+
+## 211. The 60-minute MESH check: 27 cells are unexplained
+
+**Status:** open (filed 2026-10-14)
+
+A 60-minute maximum built from 30 Iowa State two-minute files (2026-06-08, 21:02 to 22:00 UTC) matched
+NOAA's `MESH_Max_60min` file on 249 of 276 cells at or above 0.75 in. The largest difference was 5 mm,
+and both had 76 cells at or above 1.00 in. **It is not a decoder problem:** the hand-written decoder and
+pygrib agree on every cell (0 of 225,000, and 0 of 402,290 in the 60-storm run). The likely cause is
+a difference in time window or file stamp between the two products. **Untested:** `validate_window.py`
+(in `storm_shape/mesh/`) was written for this and never run to completion, and the 60-storm run could
+not confirm that a file stamped H covers exactly the hour before it.
+
+**Why it matters:** the 60-storm study (item 205's evidence) uses hourly `MESH_Max_60min` files.
+
+**When:** before the 60-minute product sets a threshold or a window for any decision, or whenever
+`mesh60` is rerun.
+
+**Related:** items 205, 206; `docs/analysis/storm-shape-mesh-2026-10/mesh60/summary.md`.
+
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
 **Status:** spike done 2026-10-07; paid-account checks remain (item 183)
