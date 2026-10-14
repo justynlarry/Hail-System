@@ -1,0 +1,87 @@
+{
+ "storm_id": "A02477",
+ "start_local": "2026-08-22 15:44:00",
+ "end_local": "2026-08-22 16:25:00",
+ "n_reports": 8,
+ "n_actionable": 8,
+ "n_actionable_hail": 4,
+ "n_hail": 4,
+ "max_hail_reported_in": 1.75,
+ "centroid_lat": 40.28875,
+ "centroid_lon": -104.17375,
+ "share_reports_west_of_cutoff": 0.0,
+ "domain_km2": 5501.344361217702,
+ "domain_max_mesh_mm": 86.0999984741211,
+ "mesh100_km2": 534.0666343928515,
+ "mesh100_in_circles_km2": 396.35363342564534,
+ "mesh100_beyond8mi_km2": 32.00486238712325,
+ "share100_covered": 0.7421426614232064,
+ "share100_beyond8mi": 0.05992672136035547,
+ "mesh075_km2": 674.7390324418416,
+ "mesh075_in_circles_km2": 461.5128297889264,
+ "mesh075_beyond8mi_km2": 54.62380628905159,
+ "share075_covered": 0.6839871529571042,
+ "share075_beyond8mi": 0.08095545635083715,
+ "circles_km2": 841.5091403501692,
+ "precision100": 0.4710033610100949,
+ "reports": [
+  {
+   "iem_id": 85468,
+   "local": "2026-08-22 16:05:00",
+   "lat": 40.29,
+   "lon": -104.24,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 80.19999694824219,
+   "max_mesh_5km_in": 3.1574801948126847,
+   "foothills": false
+  },
+  {
+   "iem_id": 85472,
+   "local": "2026-08-22 16:10:00",
+   "lat": 40.28,
+   "lon": -104.15,
+   "reported_in": 1.5,
+   "max_mesh_5km_mm": 86.0999984741211,
+   "max_mesh_5km_in": 3.3897637194535863,
+   "foothills": false
+  },
+  {
+   "iem_id": 85470,
+   "local": "2026-08-22 16:10:00",
+   "lat": 40.29,
+   "lon": -104.19,
+   "reported_in": 1.25,
+   "max_mesh_5km_mm": 86.0999984741211,
+   "max_mesh_5km_in": 3.3897637194535863,
+   "foothills": false
+  },
+  {
+   "iem_id": 85475,
+   "local": "2026-08-22 16:25:00",
+   "lat": 40.39,
+   "lon": -104.09,
+   "reported_in": 1.75,
+   "max_mesh_5km_mm": 58.099998474121094,
+   "max_mesh_5km_in": 2.287401514729177,
+   "foothills": false
+  }
+ ],
+ "n_act_hail_mesh_ge100": 4,
+ "n_act_hail_mesh_ge075": 4,
+ "report_hit_rate100": 1.0,
+ "files": [
+  {
+   "hour": "2026-08-22T22:00:00+00:00",
+   "file": "20260822-220000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2026-08-22T23:00:00+00:00",
+   "file": "20260822-230000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

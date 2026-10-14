@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Storm Tracks Map</title>
+<style>
+:root{--bg:#fff;--ink:#1a1a1a;--mute:#666;--line:#ccc;--cov:#e8eef5;--covl:#7a8ea6;--buf:#999}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15181c;--ink:#e8e8e8;--mute:#9aa;--line:#444;--cov:#222b36;--covl:#5a6d85;--buf:#778}}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px system-ui,sans-serif}
+header{padding:10px 16px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;border-bottom:1px solid var(--line)}
+h1{font-size:16px;margin:0}label{color:var(--mute)}select,button{font:inherit}
+#wrap{position:relative;height:calc(100vh - 110px);min-height:360px}
+svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+#leg{padding:6px 16px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;color:var(--mute);font-size:12px}
+#grad{width:220px;height:10px;border-radius:5px}
+</style></head><body>
+<header><h1>Storm tracks, past 12 months (local dates, America/Denver)</h1>
+<label>Month <select id="mon"><option value="">all</option></select></label>
+<label><input type="checkbox" id="h" checked> hail (circle)</label>
+<label><input type="checkbox" id="w" checked> wind (square)</label>
+<label><input type="checkbox" id="u" checked> reports not in a qualifying storm</label>
+<button id="rst">reset view</button></header>
+<div id="wrap"><svg id="s"></svg></div>
+<div id="leg"><span>Date →</span><span id="d0"></span><div id="grad"></div><span id="d1"></span>
+<span>Arrow = fitted track, pointing the way the storm moved. Dashed = coverage zips; dotted = 50 km buffer. Hover for details. No basemap (self-contained).</span></div>
+<script>
+const D=/*DATA*/null;
+const NS="http://www.w3.org/2000/svg",svg=document.getElementById("s");
+const dark=()=>matchMedia("(prefers-color-scheme: dark)").matches&&document.documentElement.dataset.theme!=="light";
+const lat0=39.5,k=Math.cos(lat0*Math.PI/180);
+const P=(lo,la)=>[lo*k*100,-la*100];
+const t0=Math.min(...D.storms.map(s=>Date.parse(s.start.replace(" ","T")))),t1=Math.max(...D.storms.map(s=>Date.parse(s.start.replace(" ","T"))));
+const frac=s=>(Date.parse(s.replace(" ","T"))-t0)/(t1-t0||1);
+const col=f=>dark()?`hsl(210 70% ${35+50*f}%)`:`hsl(210 80% ${75-50*f}%)`;
+const sdate={};D.storms.forEach(s=>sdate[s.id]=s);
+const fmt=ms=>new Date(ms).toISOString().slice(0,10);
+document.getElementById("d0").textContent=fmt(t0);document.getElementById("d1").textContent=fmt(t1);
+function el(n,a,p){const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e}
+function ring(c){return c.map((p,i)=>(i?"L":"M")+P(p[0],p[1]).join(",")).join("")+"Z"}
+function polys(g){return g.type==="Polygon"?[g.coordinates]:g.coordinates}
+let vb;function setvb(a){vb=a;svg.setAttribute("viewBox",a.join(" "))}
+function draw(){
+ svg.innerHTML="";const m=document.getElementById("mon").value,sh=h.checked,sw=w.checked,su=u.checked,dk=dark();
+ document.getElementById("grad").style.background=`linear-gradient(90deg,${col(0)},${col(1)})`;
+ const sc=vb[2]/svg.clientWidth;      // user units per pixel, keeps marks a constant screen size
+ for(const [g,fill,st,dash] of [[D.buf,"none","var(--buf)","1 4"],[D.cov,"var(--cov)","var(--covl)","4 3"]])
+  for(const pg of polys(g)){el("path",{d:pg.map(ring).join(""),fill:fill,"fill-rule":"evenodd",stroke:st,"stroke-width":sc*1.2,"stroke-dasharray":dash.split(" ").map(x=>x*sc*1.5).join(" ")})}
+ const keep=id=>{const s=sdate[id];return !m||s.start.startsWith(m)};
+ for(const r of D.rep){const s=sdate[r.s];if(!keep(r.s)||(!s.q&&!su))continue;
+  const hail=r.t==="HAIL";if(hail?!sh:!sw)continue;
+  const [x,y]=P(r.lo,r.la),f=frac(s.start),sz=sc*(hail?3+(r.m||1)*1.5:5);
+  const c=s.q?col(f):"var(--mute)",e=hail?el("circle",{cx:x,cy:y,r:sz,fill:c,"fill-opacity":.75,stroke:"var(--bg)","stroke-width":sc}):
+   el("rect",{x:x-sz*.8,y:y-sz*.8,width:sz*1.6,height:sz*1.6,fill:c,"fill-opacity":.75,stroke:"var(--bg)","stroke-width":sc});
+  el("title",{},e).textContent=`${s.id}${s.q?"":" (below threshold)"}\n${r.lt} MT\n${r.t} ${r.m??"n/a"}`}
+ for(const s of D.storms){if(!s.q||!keep(s.id))continue;
+  const a=P(...s.trk[0]),b=P(...s.trk[1]),c=col(frac(s.start));
+  const L=el("path",{d:`M${a}L${b}`,stroke:c,"stroke-width":sc*2.5,fill:"none","stroke-linecap":"round"});
+  const ang=Math.atan2(b[1]-a[1],b[0]-a[0]),hs=sc*9;
+  el("path",{d:`M${b}L${b[0]-hs*Math.cos(ang-.45)},${b[1]-hs*Math.sin(ang-.45)}L${b[0]-hs*Math.cos(ang+.45)},${b[1]-hs*Math.sin(ang+.45)}Z`,fill:c});
+  el("title",{},L).textContent=`${s.id}  ${s.start} → ${s.end} MT\n${s.n} reports; toward ${s.bearing}° at ${s.speed} km/h (fit R² ${s.r2})\nmax hail ${s.mh??"-"} in, max gust ${s.mw??"-"} mph`}
+}
+const all=[...D.buf.coordinates.flat(2).filter(x=>x.length==2),...(D.buf.type==="Polygon"?D.buf.coordinates[0]:D.buf.coordinates.flat(1).flat(1))].map(p=>P(p[0],p[1]));
+const xs=all.map(p=>p[0]),ys=all.map(p=>p[1]);
+const home=[Math.min(...xs)-10,Math.min(...ys)-10,Math.max(...xs)-Math.min(...xs)+20,Math.max(...ys)-Math.min(...ys)+20];
+const months=[...new Set(D.storms.filter(s=>s.q).map(s=>s.start.slice(0,7)))].sort();
+months.forEach(m=>{const o=document.createElement("option");o.value=m;o.textContent=m;mon.appendChild(o)});
+setvb(home);
+for(const id of ["mon","h","w","u"])document.getElementById(id).onchange=draw;
+rst.onclick=()=>{setvb(home);draw()};
+svg.addEventListener("wheel",e=>{e.preventDefault();const r=svg.getBoundingClientRect(),f=e.deltaY>0?1.2:1/1.2;
+ const px=vb[0]+(e.clientX-r.left)/r.width*vb[2],py=vb[1]+(e.clientY-r.top)/r.height*vb[3];
+ setvb([px-(px-vb[0])*f,py-(py-vb[1])*f,vb[2]*f,vb[3]*f]);draw()},{passive:false});
+let drag;svg.onpointerdown=e=>{drag=[e.clientX,e.clientY,...vb];svg.setPointerCapture(e.pointerId)};
+svg.onpointermove=e=>{if(!drag)return;const r=svg.getBoundingClientRect();
+ setvb([drag[2]-(e.clientX-drag[0])/r.width*drag[4],drag[3]-(e.clientY-drag[1])/r.height*drag[5],drag[4],drag[5]]);draw()};
+svg.onpointerup=()=>drag=null;
+addEventListener("resize",draw);draw();
+</script></body></html>

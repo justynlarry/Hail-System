@@ -1,0 +1,93 @@
+{
+ "storm_id": "A01946",
+ "start_local": "2022-07-27 16:41:00",
+ "end_local": "2022-07-27 18:08:00",
+ "n_reports": 5,
+ "n_actionable": 5,
+ "n_actionable_hail": 4,
+ "n_hail": 4,
+ "max_hail_reported_in": 1.5,
+ "centroid_lat": 40.708000000000006,
+ "centroid_lon": -104.66400000000002,
+ "share_reports_west_of_cutoff": 0.0,
+ "domain_km2": 5993.751248410519,
+ "domain_max_mesh_mm": 64.5,
+ "mesh100_km2": 202.30361961626113,
+ "mesh100_in_circles_km2": 147.21194224820812,
+ "mesh100_beyond8mi_km2": 43.87159003313194,
+ "share100_covered": 0.7276782418794411,
+ "share100_beyond8mi": 0.21686013387377645,
+ "mesh075_km2": 415.50898533011525,
+ "mesh075_in_circles_km2": 254.99624740207355,
+ "mesh075_beyond8mi_km2": 117.5195808580665,
+ "share075_covered": 0.613696108640065,
+ "share075_beyond8mi": 0.2828328267430825,
+ "circles_km2": 785.9626008385574,
+ "precision100": 0.18730145949838464,
+ "reports": [
+  {
+   "iem_id": 26817,
+   "local": "2022-07-27 17:25:00",
+   "lat": 40.77,
+   "lon": -104.69,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 41.400001525878906,
+   "max_mesh_5km_in": 1.6299213199164924,
+   "foothills": false
+  },
+  {
+   "iem_id": 26818,
+   "local": "2022-07-27 17:48:00",
+   "lat": 40.64,
+   "lon": -104.68,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 63.900001525878906,
+   "max_mesh_5km_in": 2.515748091570036,
+   "foothills": false
+  },
+  {
+   "iem_id": 26819,
+   "local": "2022-07-27 18:03:00",
+   "lat": 40.58,
+   "lon": -104.6,
+   "reported_in": 1.5,
+   "max_mesh_5km_mm": 35.29999923706055,
+   "max_mesh_5km_in": 1.3897637494905728,
+   "foothills": false
+  },
+  {
+   "iem_id": 26820,
+   "local": "2022-07-27 18:08:00",
+   "lat": 40.55,
+   "lon": -104.58,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 32.400001525878906,
+   "max_mesh_5km_in": 1.2755906112550752,
+   "foothills": false
+  }
+ ],
+ "n_act_hail_mesh_ge100": 4,
+ "n_act_hail_mesh_ge075": 4,
+ "report_hit_rate100": 1.0,
+ "files": [
+  {
+   "hour": "2022-07-27T23:00:00+00:00",
+   "file": "20220727-230000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2022-07-28T00:00:00+00:00",
+   "file": "20220728-000000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2022-07-28T01:00:00+00:00",
+   "file": "20220728-010000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

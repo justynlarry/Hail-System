@@ -1,0 +1,5 @@
+# MESH download cache, re-fetched from NOAA S3 on a rerun
+mesh60/raw/
+mesh60/crops/
+.venv/
+__pycache__/

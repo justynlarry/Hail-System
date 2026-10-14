@@ -3174,6 +3174,50 @@ budget. The 14-day cap has to apply between campaigns, not within one.
 **When:** after 202 and the first pieces of 203 (steps need a template choice). Level 2 only
 after 189 and 129.
 
+## 205. Likelihood tiers: rank outreach by radar swath and distance instead of one circle
+
+**Status:** open (proposal, filed 2026-10-13; not decided)
+
+**Evidence:** decision log 2026-10-13, *Findings, not a decision: report-based circles against
+radar hail (MRMS MESH), 60 storms*, and `docs/analysis/storm-shape-mesh-2026-10/mesh60/summary.md`.
+- Today's circles hold about 56–67% of radar hail area, and only about 14% of circle area has
+  radar hail.
+- 90% of actionable hail reports sit on radar hail.
+
+**The proposal.** Rank instead of cut off:
+- **Tier 1:** inside the swath at a high value, near a report.
+- **Tier 2:** inside the swath at a lower value, or near a report where radar is weak.
+- **Tier 3:** inside today's 5-mile circle with no radar hail. Reached last.
+
+Every house the circle reaches today stays reachable. Radar decides the order and adds the swath
+beyond the circle. The cutoff is a setting, with an admin page access point. Inspections set the
+boundaries.
+
+**Size, by area, from the 60 storms (houses not counted).**
+- 70% of circle area has no MESH ≥ 0.75 in, so it would be Tier 3.
+- The swath beyond the circles adds +16% at 1.00 in and +29% at 0.75 in.
+
+**Blocks adoption.** Detail is in the decision-log entry.
+1. Tiering on radar *value* conflicts with decision log 2026-09-16 (radar size is not a severity
+   signal). That entry has to be superseded on evidence, or the tiers have to use swath presence and
+   distance only.
+2. Reaching beyond the circle changes the product's claim from "reported" to "estimated". The
+   *Radar-derived hail size* entry under *Not on the roadmap* requires its own decision-log entry for
+   that.
+3. The send unit is a realtor email listing several properties (2026-10-07), so realtors need an
+   ordering rule.
+4. "Where radar is weak" is undefined; there is no foothills evidence yet.
+5. There is no inspection data.
+
+Correction to the original framing: the early volume limit is our own warm-up plan (`phases.md`).
+The only provider limit in code is Constant Contact's 10,000 API calls a day (`budget.py`).
+
+**When:** the first inspection results exist, or before any send ranking or radar-based reach is
+built, whichever comes first. Not before Phase 5 sending works on the circle as it is.
+
+**Related:** items 35, 191; decision log 2026-09-16, 2026-10-07, 2026-10-13; *Not on the roadmap:
+Radar-derived hail size (NOAA MRMS / MESH)*.
+
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
 **Status:** spike done 2026-10-07; paid-account checks remain (item 183)

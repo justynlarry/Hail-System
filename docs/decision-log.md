@@ -6671,3 +6671,144 @@ the gate exists the send form drops it and the preview is the list.
 that this will fold in: the `EMAIL_*` and `CC_FROM_*` environment values (items 203, 194).
 
 **Related:** items 120, 129, 189, 191, 194, 201 to 204.
+
+---
+
+## 2026-10-13 — Findings, not a decision: report-based circles against radar hail (MRMS MESH), 60 storms
+
+**This entry records findings. It changes nothing.** The match radius (5.0 mi), the actionable
+floors and the one-circle-per-report rule all stay as they are. It is filed so the numbers can be
+found later, and so a future radius or footprint decision has a baseline to cite. It also records a
+proposed direction (likelihood tiers, below). That is a proposal, not a decision.
+
+**Evidence:** `docs/analysis/storm-shape-mesh-2026-10/`. The main write-up is
+`mesh60/summary.md`; the earlier shape work is in `storm_shape/summary.md`. The CSVs are not in git
+(the repo-wide rule); the folder's README says how to regenerate them. A full copy including the
+CSVs is on the workstation at `~/hail-analysis-archive-2026-10-13/`.
+
+**Method, briefly.**
+- The storms are the 60 "good-fit" storm clusters since 2020-10-14. A storm cluster is a group of
+  HAIL and convective-wind reports linked within 30 km and 60 min, with at least 5 reports, at least
+  30 min, and a time-vs-position fit of R² ≥ 0.5.
+- For each storm, the per-cell maximum of NOAA's hourly `MESH_Max_60min` grids covering its report
+  times.
+- MESH area at or above 1.00 in was counted within 30 km of the storm's reports.
+- That area was compared with today's footprint: 5.0 mi circles around actionable reports, in
+  UTM 13N.
+
+**Findings.**
+
+1. **Report reliability: 90%.** 485 of 536 actionable hail reports (90%) have MESH ≥ 1.00 in
+   within 5 km, and 519 (97%) have MESH ≥ 0.75 in. Reports land where radar sees hail. This agrees
+   with the 2026-09-16 NEXRAD study (93.5% corroboration), which used a different radar product.
+2. **Circle recall: about 56–67%.** Today's circles hold 56% of the MESH ≥ 1.00 in area, pooled
+   over all storms. Per storm the median is 67% (IQR 42–81%, the 52 storms with at least 10 km² of
+   MESH hail). 29% of MESH hail area (per-storm median 20%) is more than 8 mi from any actionable
+   report, so no report-based rule reaches it.
+3. **Circle precision: about 14%.** The median share of a storm's circle area that has
+   MESH ≥ 1.00 in is 14% (IQR 4–32%). Swaths are a few km wide; a circle is 16 km across.
+4. **S0025 (2026-06-08) is an outlier, not the typical case.**
+   - The whole 34-report storm: 31% covered, 54% beyond 8 mi, 5 of 20 actionable hail reports with
+     MESH ≥ 1.00 in nearby. That is in the worst fifth of the 60.
+   - Its 22-report west cell: 0% covered and 0 of 13 reports hit. No storm in the 60 with more than
+     3 actionable hail reports is that low.
+   - S0025 itself is not one of the 60; it failed the fit filter (R² 0.47).
+   - The earlier "circles covered none, 56–71% beyond 8 mi" combined the west cell's coverage with
+     the whole storm's distance figure.
+5. **MESH archive dates, checked over HTTP on 2026-10-13.**
+   - NOAA Open Data (`noaa-mrms-pds` on S3, anonymous HTTPS) starts **2020-10-14**. The first file
+     is 00:00:25 UTC, and that day is partial (112 of 720 files).
+   - Iowa State's mtarchive (2-min `MESH` only, no 60-min max) starts **2019-08-20 16:46 UTC**.
+     2019-08-19 has no files.
+   - The 2004 to mid-2019 storms (115 of 180 good-fit) have no MESH in either archive.
+   - The files are GRIB2. `pygrib` 2.1.8 installs from a wheel with no system libraries, and it
+     matched the hand-written decoder on all 402,290 cells of a Colorado crop.
+
+**Limits that bound these numbers.**
+- **Selection bias.** The 60 are the storms whose reports move coherently. Poorly fitting storms
+  like S0025 were excluded by construction, so outliers may be more common than 1 in 60 among the
+  128 storm-sized clusters that failed the fit.
+- MESH is an uncalibrated radar estimate. Here it reads high against reports: median 1.76 in near
+  a report vs 1.25 in reported. Part of that comes from taking a maximum over hours and a 5 km disc.
+- The 60-minute window of the hourly file was not independently checked.
+- The radius and floors were read from the storm-shape summary, not re-read from the DB.
+- Storms share days, so they are not independent.
+- Nothing was checked against storm surveys, news or claims.
+
+**Open questions (not decided here).**
+- **Damage threshold.** Neither the 1.00 in report floor nor a 1.00 in MESH line has been tested
+  against roof damage. We have no inspection or claims data to calibrate either, and MESH and
+  reports disagree on size. Until that exists, "covered" measures agreement between two estimates,
+  not damage captured.
+- **Mountains.** The foothills split (longitude −105.0, a stand-in for elevation) shows no penalty.
+  But none of the 60 storms is centred west of −105.06, and only 29 reports lie west of −105.1.
+  Whether radar or reports fail in the foothills, as S0025 suggests, is untested.
+- Whether to act on the 29% of radar hail beyond 8 mi at all. Acting would change the product's
+  claim from "reported" to "estimated" (parking lot, "Radar-derived hail size": its trigger has not
+  fired). These findings answer that section's two "verify" points: archive depth and file format.
+
+**Proposed direction, not decided: a ranking instead of a single shape.**
+
+The findings change the question from "which shape" to "which order". Outreach can go wider than
+confirmed hail, as long as the most likely damaged roofs come first.
+
+*Likelihood tiers instead of one cutoff:*
+- **Tier 1, most likely:** inside the radar swath at a high hail value, near a report.
+- **Tier 2, likely:** inside the radar swath at a lower value, or close to a report where radar is
+  weak.
+- **Tier 3, possible:** inside today's 5-mile circle, but with no radar hail. Still reached, just
+  last.
+
+Nothing is lost. Every house the circle reaches today stays reachable. Radar only decides the order,
+and adds the swath beyond the circle.
+
+*Why it fits:*
+- **Early sending volume is limited.** While the sending domain warms up, daily volume is kept low.
+  Tiers decide who gets those limited sends: the most likely damaged roofs first.
+- **The cutoff stays adjustable.** Wider or tighter outreach later is a setting, not a redesign.
+  Under the 2026-10-13 rule it would sit on the admin page, with changes logged to
+  `settings_history`.
+- **Inspections set the tier boundaries.** Inspection results show how damage rates fall off with
+  radar value and distance, which turns the tiers into actual likelihoods.
+
+*Size of each tier, from the 60 storms.* These are pooled areas within the 30 km domains, not houses;
+house counts need the `properties` table on hail-dev and were not computed.
+- Today's circles total 53,013 km². 20% of that area has MESH ≥ 1.00 in, and 31% has MESH ≥ 0.75 in.
+  These are the Tier 1 and 2 candidates inside the circle.
+- **70% has no MESH ≥ 0.75 in.** That is the Tier 3 candidate area, so under this scheme most of
+  today's circle would be sent last.
+- The swath beyond the circles adds 8,401 km² at MESH ≥ 1.00 in, which is +16% on top of circle area,
+  or +29% at 0.75 in.
+
+*Checked against the repo before adopting; these have to be settled first:*
+1. **Tiers 1 and 2 split on radar hail value, which 2026-09-16 rules out.** That entry: "Radar-estimated
+   hail size is not adopted as a severity signal" (radar vs reported size, r = 0.24–0.38), and MESH
+   "must not be justified on severity grounds". Ranking by *inside vs outside the swath* is the use
+   2026-09-16 left open (corroborating existence). Ranking by *value* needs either inspection evidence
+   strong enough to supersede that entry, or tiers redefined on swath and distance only. 2026-09-16
+   used NEXRAD Level-III `MAXSIZE`, not MRMS MESH, so whether its finding carries over to MESH is
+   itself unverified.
+2. **The early cap is our own warm-up plan, not a provider rule.** The only provider limit in code is
+   Constant Contact's 10,000 API calls a day (`hailsys/constantcontact/budget.py`, `DAILY_LIMIT`, a
+   fixed ceiling). The low early volume is `phases.md`'s warm-up schedule (2026-09-01, 2026-09-28).
+   The argument holds either way: early sends are scarce.
+3. **"Adds the swath beyond the circle" changes the product's claim.** Today's email lists each
+   property with its distance and reported hail size (2026-10-07). A swath-only property has no
+   report and no reported size, only an estimate. The parking lot's MESH section requires a separate
+   decision-log entry on that point before MESH is adopted. Ordering within the circle does not
+   change the claim; reaching beyond it does.
+4. **The unit sent is a realtor email, not a house.** Each email lists every affected property for one
+   realtor in the warm pools (2026-10-07). Tiers rank properties, so a rule is still needed for
+   ordering realtors, for example by their best property's tier.
+5. **"Where radar is weak" (Tier 2) has no definition yet.** It depends on the mountains question
+   above, which these data could not answer.
+6. **Inspection data does not exist yet.** Until it does, the boundaries between tiers are placeholders.
+
+Filed as parking-lot item 205.
+
+**Related:** decision log 2026-09-16 (radar size is not a severity signal), 2026-09-01 (sending goes
+through a queue; warm-up), 2026-10-07 (audience and email shape), 2026-10-13 (UI access point for
+anything changeable); parking lot items 35 and 205, and the "Radar-derived hail size (NOAA MRMS / MESH)"
+section.
+
+---

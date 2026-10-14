@@ -1,0 +1,304 @@
+{
+ "A02261": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02257": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A01808": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A01979": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02427": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A01947": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02363": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A01950": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A01964": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02118": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02302": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A01915": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02336": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02067": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02053": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02268": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02418": {
+  "n_other_reports": 1,
+  "other_clusters": [
+   "A02420"
+  ],
+  "n_other_hail_ge100": 1
+ },
+ "A02068": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02367": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A01878": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02451": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A01877": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02185": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02361": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02466": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02079": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02122": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02368": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02215": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02196": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02167": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02410": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02164": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02198": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02080": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A01946": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02281": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02063": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02248": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02023": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02396": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02224": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02094": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A01973": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02040": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02429": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02028": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02263": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02419": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A01930": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02398": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02417": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02271": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02456": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02116": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02156": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02001": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02477": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A01994": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ },
+ "A02313": {
+  "n_other_reports": 0,
+  "other_clusters": [],
+  "n_other_hail_ge100": 0
+ }
+}

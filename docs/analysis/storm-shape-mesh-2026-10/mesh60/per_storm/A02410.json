@@ -1,0 +1,97 @@
+{
+ "storm_id": "A02410",
+ "start_local": "2026-06-08 17:19:00",
+ "end_local": "2026-06-08 18:35:00",
+ "n_reports": 7,
+ "n_actionable": 6,
+ "n_actionable_hail": 5,
+ "n_hail": 6,
+ "max_hail_reported_in": 3.4,
+ "centroid_lat": 39.35142857142858,
+ "centroid_lon": -103.80142857142859,
+ "share_reports_west_of_cutoff": 0.0,
+ "domain_km2": 7062.846781725799,
+ "domain_max_mesh_mm": 60.79999923706055,
+ "mesh100_km2": 1207.6798679019157,
+ "mesh100_in_circles_km2": 400.61372086198423,
+ "mesh100_beyond8mi_km2": 587.2416439063998,
+ "share100_covered": 0.3317217844808198,
+ "share100_beyond8mi": 0.48625605138769595,
+ "mesh075_km2": 1805.698319544028,
+ "mesh075_in_circles_km2": 588.888200368097,
+ "mesh075_beyond8mi_km2": 847.9674692296916,
+ "share075_covered": 0.3261276781366237,
+ "share075_beyond8mi": 0.469606389977601,
+ "circles_km2": 917.9826540138272,
+ "precision100": 0.4364066348207381,
+ "reports": [
+  {
+   "iem_id": 84400,
+   "local": "2026-06-08 17:19:00",
+   "lat": 39.31,
+   "lon": -104.21,
+   "reported_in": 2.75,
+   "max_mesh_5km_mm": 48.70000076293945,
+   "max_mesh_5km_in": 1.9173228646826557,
+   "foothills": false
+  },
+  {
+   "iem_id": 84404,
+   "local": "2026-06-08 17:31:00",
+   "lat": 39.28,
+   "lon": -104.09,
+   "reported_in": 2.0,
+   "max_mesh_5km_mm": 40.900001525878906,
+   "max_mesh_5km_in": 1.6102362805464137,
+   "foothills": false
+  },
+  {
+   "iem_id": 84406,
+   "local": "2026-06-08 17:56:00",
+   "lat": 39.3,
+   "lon": -103.86,
+   "reported_in": 3.4,
+   "max_mesh_5km_mm": 39.79999923706055,
+   "max_mesh_5km_in": 1.5669291038212814,
+   "foothills": false
+  },
+  {
+   "iem_id": 84407,
+   "local": "2026-06-08 18:12:00",
+   "lat": 39.45,
+   "lon": -103.62,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 43.5,
+   "max_mesh_5km_in": 1.7125984251968505,
+   "foothills": false
+  },
+  {
+   "iem_id": 84409,
+   "local": "2026-06-08 18:22:00",
+   "lat": 39.37,
+   "lon": -103.68,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 52.70000076293945,
+   "max_mesh_5km_in": 2.0748031796432858,
+   "foothills": false
+  }
+ ],
+ "n_act_hail_mesh_ge100": 5,
+ "n_act_hail_mesh_ge075": 5,
+ "report_hit_rate100": 1.0,
+ "files": [
+  {
+   "hour": "2026-06-09T00:00:00+00:00",
+   "file": "20260609-000000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2026-06-09T01:00:00+00:00",
+   "file": "20260609-010000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

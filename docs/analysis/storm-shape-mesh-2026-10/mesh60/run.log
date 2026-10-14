@@ -1,0 +1,287 @@
+membership rebuilt: 2494 clusters, all match storms_all.csv on n_reports/start/end
+good-fit storms with start_local >= 2020-10-14: 60
+S0025 is A02408 (excluded, fit_weak, R2 0.47); run as reference only
+[1/62] A01808 2021-05-02 13:14:00 files 1 | MESH>=1in 0 km2, covered n/a | peak RSS 424 MB
+[2/62] A01877 2021-08-19 14:25:00 files 2 | MESH>=1in 17 km2, covered 78% | peak RSS 426 MB
+[3/62] A01878 2021-08-19 14:30:00 files 2 | MESH>=1in 68 km2, covered 61% | peak RSS 426 MB
+[4/62] A01915 2022-06-07 13:25:00 files 2 | MESH>=1in 195 km2, covered 59% | peak RSS 426 MB
+[5/62] A01930 2022-07-06 14:20:00 files 2 | MESH>=1in 188 km2, covered 91% | peak RSS 426 MB
+[6/62] A01946 2022-07-27 16:41:00 files 3 | MESH>=1in 202 km2, covered 73% | peak RSS 426 MB
+[7/62] A01947 2022-07-27 19:35:00 files 2 | MESH>=1in 391 km2, covered 77% | peak RSS 426 MB
+[8/62] A01950 2022-07-27 23:09:00 files 1 | MESH>=1in 37 km2, covered 92% | peak RSS 426 MB
+[9/62] A01964 2023-05-04 15:30:00 files 2 | MESH>=1in 0 km2, covered n/a | peak RSS 426 MB
+[10/62] A01973 2023-05-10 16:23:00 files 3 | MESH>=1in 1546 km2, covered 43% | peak RSS 427 MB
+[11/62] A01979 2023-05-25 14:48:00 files 3 | MESH>=1in 10 km2, covered 100% | peak RSS 427 MB
+[12/62] A01994 2023-05-28 15:33:00 files 2 | MESH>=1in 32 km2, covered 100% | peak RSS 427 MB
+[13/62] A02001 2023-05-31 15:04:00 files 2 | MESH>=1in 60 km2, covered 87% | peak RSS 427 MB
+[14/62] A02023 2023-06-16 15:15:00 files 2 | MESH>=1in 544 km2, covered 68% | peak RSS 427 MB
+[15/62] A02028 2023-06-21 18:11:00 files 2 | MESH>=1in 29 km2, covered 71% | peak RSS 427 MB
+[16/62] A02040 2023-06-22 14:17:00 files 4 | MESH>=1in 1424 km2, covered 81% | peak RSS 427 MB
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/urllib/request.py", line 1333, in do_open
+    h.request(req.get_method(), req.selector, req.data, headers,
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              encode_chunked=req.has_header('Transfer-encoding'))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/http/client.py", line 1386, in request
+    self._send_request(method, url, body, headers, encode_chunked)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/http/client.py", line 1432, in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/http/client.py", line 1381, in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/http/client.py", line 1141, in _send_output
+    self.send(msg)
+    ~~~~~~~~~^^^^^
+  File "/usr/lib/python3.14/http/client.py", line 1085, in send
+    self.connect()
+    ~~~~~~~~~~~~^^
+  File "/usr/lib/python3.14/http/client.py", line 1527, in connect
+    self.sock = self._context.wrap_socket(self.sock,
+                ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+                                          server_hostname=server_hostname)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/ssl.py", line 469, in wrap_socket
+    return self.sslsocket_class._create(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        sock=sock,
+        ^^^^^^^^^^
+    ...<5 lines>...
+        session=session
+        ^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/lib/python3.14/ssl.py", line 1087, in _create
+    self.do_handshake()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.14/ssl.py", line 1383, in do_handshake
+    self._sslobj.do_handshake()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+ConnectionResetError: [Errno 104] Connection reset by peer
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/larryman/hail-analysis/mesh60/run_storms.py", line 180, in <module>
+    mx, files = storm_max_grid(c)
+                ~~~~~~~~~~~~~~^^^
+  File "/home/larryman/hail-analysis/mesh60/run_storms.py", line 125, in storm_max_grid
+    crop, how = mg.cached_crop(day, st)
+                ~~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/larryman/hail-analysis/mesh60/meshgrid.py", line 67, in cached_crop
+    with urllib.request.urlopen(f"{BUCKET}/CONUS/{PROD}/{day}/{name}", timeout=120) as r, open(part, "wb") as f:
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/urllib/request.py", line 187, in urlopen
+    return opener.open(url, data, timeout)
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/urllib/request.py", line 487, in open
+    response = self._open(req, data)
+  File "/usr/lib/python3.14/urllib/request.py", line 504, in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+                              '_open', req)
+  File "/usr/lib/python3.14/urllib/request.py", line 464, in _call_chain
+    result = func(*args)
+  File "/usr/lib/python3.14/urllib/request.py", line 1381, in https_open
+    return self.do_open(http.client.HTTPSConnection, req,
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        context=self._context)
+                        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/urllib/request.py", line 1336, in do_open
+    raise URLError(err)
+urllib.error.URLError: <urlopen error [Errno 104] Connection reset by peer>
+membership rebuilt: 2494 clusters, all match storms_all.csv on n_reports/start/end
+good-fit storms with start_local >= 2020-10-14: 60
+S0025 is A02408 (excluded, fit_weak, R2 0.47); run as reference only
+[1/62] A01808 done, skipped
+[2/62] A01877 done, skipped
+[3/62] A01878 done, skipped
+[4/62] A01915 done, skipped
+[5/62] A01930 done, skipped
+[6/62] A01946 done, skipped
+[7/62] A01947 done, skipped
+[8/62] A01950 done, skipped
+[9/62] A01964 done, skipped
+[10/62] A01973 done, skipped
+[11/62] A01979 done, skipped
+[12/62] A01994 done, skipped
+[13/62] A02001 done, skipped
+[14/62] A02023 done, skipped
+[15/62] A02028 done, skipped
+[16/62] A02040 done, skipped
+[17/62] A02053 2023-07-04 13:53:00 files 2 | MESH>=1in 171 km2, covered 58% | peak RSS 426 MB
+[18/62] A02063 2023-07-07 15:20:00 files 2 | MESH>=1in 37 km2, covered 100% | peak RSS 426 MB
+[19/62] A02067 2023-07-08 15:33:00 files 2 | MESH>=1in 54 km2, covered 54% | peak RSS 426 MB
+[20/62] A02068 2023-07-08 16:04:00 files 2 | MESH>=1in 291 km2, covered 56% | peak RSS 426 MB
+[21/62] A02079 2023-07-20 13:23:00 files 3 | MESH>=1in 414 km2, covered 90% | peak RSS 426 MB
+[22/62] A02080 2023-07-20 13:48:00 files 2 | MESH>=1in 140 km2, covered 69% | peak RSS 426 MB
+[23/62] A02094 2023-07-24 18:21:00 files 2 | MESH>=1in 0 km2, covered n/a | peak RSS 426 MB
+  retry MRMS_MESH_Max_60min_00.50_20230804-000000.grib2.gz: <urlopen error [Errno 104] Connection reset by peer>
+[24/62] A02116 2023-08-03 17:05:00 files 1 | MESH>=1in 102 km2, covered 92% | peak RSS 426 MB
+[25/62] A02118 2023-08-03 17:44:00 files 3 | MESH>=1in 42 km2, covered 67% | peak RSS 427 MB
+[26/62] A02122 2023-08-05 14:13:00 files 2 | MESH>=1in 425 km2, covered 68% | peak RSS 427 MB
+[27/62] A02156 2024-05-20 20:25:00 files 2 | MESH>=1in 1253 km2, covered 21% | peak RSS 427 MB
+[28/62] A02164 2024-05-30 20:53:00 files 4 | MESH>=1in 852 km2, covered 81% | peak RSS 427 MB
+[29/62] A02167 2024-05-31 17:54:00 files 3 | MESH>=1in 440 km2, covered 53% | peak RSS 427 MB
+[30/62] A02185 2024-06-09 15:09:00 files 3 | MESH>=1in 174 km2, covered 97% | peak RSS 427 MB
+  retry MRMS_MESH_Max_60min_00.50_20240704-000000.grib2.gz: <urlopen error [Errno 104] Connection reset by peer>
+[31/62] A02196 2024-07-03 16:05:00 files 2 | MESH>=1in 542 km2, covered 51% | peak RSS 427 MB
+[32/62] A02198 2024-07-07 14:26:00 files 2 | MESH>=1in 186 km2, covered 27% | peak RSS 427 MB
+[33/62] A02215 2024-07-20 18:53:00 files 4 | MESH>=1in 179 km2, covered 73% | peak RSS 427 MB
+[34/62] A02224 2024-08-07 15:33:00 files 3 | MESH>=1in 588 km2, covered 48% | peak RSS 427 MB
+[35/62] A02248 2024-08-20 17:36:00 files 2 | MESH>=1in 130 km2, covered 81% | peak RSS 427 MB
+[36/62] A02257 2024-09-17 15:03:00 files 1 | MESH>=1in 0 km2, covered n/a | peak RSS 427 MB
+[37/62] A02261 2025-04-23 17:23:00 files 3 | MESH>=1in 172 km2, covered 53% | peak RSS 427 MB
+[38/62] A02263 2025-04-24 15:28:00 files 2 | MESH>=1in 61 km2, covered 15% | peak RSS 427 MB
+[39/62] A02268 2025-05-14 16:00:00 files 3 | MESH>=1in 0 km2, covered n/a | peak RSS 427 MB
+[40/62] A02271 2025-05-18 13:07:00 files 1 | MESH>=1in 21 km2, covered 41% | peak RSS 427 MB
+[41/62] A02281 2025-05-28 12:45:00 files 2 | MESH>=1in 0 km2, covered n/a | peak RSS 427 MB
+[42/62] A02302 2025-06-17 03:53:00 files 2 | MESH>=1in 171 km2, covered 26% | peak RSS 427 MB
+[43/62] A02313 2025-06-24 13:35:00 files 2 | MESH>=1in 48 km2, covered 44% | peak RSS 428 MB
+[44/62] A02336 2025-07-10 13:46:00 files 2 | MESH>=1in 0 km2, covered n/a | peak RSS 428 MB
+[45/62] A02361 2025-08-04 17:35:00 files 3 | MESH>=1in 266 km2, covered 82% | peak RSS 428 MB
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/urllib/request.py", line 1333, in do_open
+    h.request(req.get_method(), req.selector, req.data, headers,
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              encode_chunked=req.has_header('Transfer-encoding'))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/http/client.py", line 1386, in request
+    self._send_request(method, url, body, headers, encode_chunked)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/http/client.py", line 1432, in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/http/client.py", line 1381, in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/http/client.py", line 1141, in _send_output
+    self.send(msg)
+    ~~~~~~~~~^^^^^
+  File "/usr/lib/python3.14/http/client.py", line 1085, in send
+    self.connect()
+    ~~~~~~~~~~~~^^
+  File "/usr/lib/python3.14/http/client.py", line 1527, in connect
+    self.sock = self._context.wrap_socket(self.sock,
+                ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+                                          server_hostname=server_hostname)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/ssl.py", line 469, in wrap_socket
+    return self.sslsocket_class._create(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        sock=sock,
+        ^^^^^^^^^^
+    ...<5 lines>...
+        session=session
+        ^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/lib/python3.14/ssl.py", line 1087, in _create
+    self.do_handshake()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.14/ssl.py", line 1383, in do_handshake
+    self._sslobj.do_handshake()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+ConnectionResetError: [Errno 104] Connection reset by peer
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/larryman/hail-analysis/mesh60/run_storms.py", line 180, in <module>
+    mx, files = storm_max_grid(c)
+                ~~~~~~~~~~~~~~^^^
+  File "/home/larryman/hail-analysis/mesh60/run_storms.py", line 122, in storm_max_grid
+    day, st, sub = stamp_for(h)
+                   ~~~~~~~~~^^^
+  File "/home/larryman/hail-analysis/mesh60/run_storms.py", line 111, in stamp_for
+    if day not in _listing: _listing[day] = mg.list_day(day)
+                                            ~~~~~~~~~~~^^^^^
+  File "/home/larryman/hail-analysis/mesh60/meshgrid.py", line 50, in list_day
+    x = urllib.request.urlopen(u, timeout=60).read().decode()
+        ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/urllib/request.py", line 187, in urlopen
+    return opener.open(url, data, timeout)
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/urllib/request.py", line 487, in open
+    response = self._open(req, data)
+  File "/usr/lib/python3.14/urllib/request.py", line 504, in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+                              '_open', req)
+  File "/usr/lib/python3.14/urllib/request.py", line 464, in _call_chain
+    result = func(*args)
+  File "/usr/lib/python3.14/urllib/request.py", line 1381, in https_open
+    return self.do_open(http.client.HTTPSConnection, req,
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        context=self._context)
+                        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/urllib/request.py", line 1336, in do_open
+    raise URLError(err)
+urllib.error.URLError: <urlopen error [Errno 104] Connection reset by peer>
+membership rebuilt: 2494 clusters, all match storms_all.csv on n_reports/start/end
+good-fit storms with start_local >= 2020-10-14: 60
+S0025 is A02408 (excluded, fit_weak, R2 0.47); run as reference only
+[1/62] A01808 done, skipped
+[2/62] A01877 done, skipped
+[3/62] A01878 done, skipped
+[4/62] A01915 done, skipped
+[5/62] A01930 done, skipped
+[6/62] A01946 done, skipped
+[7/62] A01947 done, skipped
+[8/62] A01950 done, skipped
+[9/62] A01964 done, skipped
+[10/62] A01973 done, skipped
+[11/62] A01979 done, skipped
+[12/62] A01994 done, skipped
+[13/62] A02001 done, skipped
+[14/62] A02023 done, skipped
+[15/62] A02028 done, skipped
+[16/62] A02040 done, skipped
+[17/62] A02053 done, skipped
+[18/62] A02063 done, skipped
+[19/62] A02067 done, skipped
+[20/62] A02068 done, skipped
+[21/62] A02079 done, skipped
+[22/62] A02080 done, skipped
+[23/62] A02094 done, skipped
+[24/62] A02116 done, skipped
+[25/62] A02118 done, skipped
+[26/62] A02122 done, skipped
+[27/62] A02156 done, skipped
+[28/62] A02164 done, skipped
+[29/62] A02167 done, skipped
+[30/62] A02185 done, skipped
+[31/62] A02196 done, skipped
+[32/62] A02198 done, skipped
+[33/62] A02215 done, skipped
+[34/62] A02224 done, skipped
+[35/62] A02248 done, skipped
+[36/62] A02257 done, skipped
+[37/62] A02261 done, skipped
+[38/62] A02263 done, skipped
+[39/62] A02268 done, skipped
+[40/62] A02271 done, skipped
+[41/62] A02281 done, skipped
+[42/62] A02302 done, skipped
+[43/62] A02313 done, skipped
+[44/62] A02336 done, skipped
+[45/62] A02361 done, skipped
+[46/62] A02363 2025-08-09 14:37:00 files 5 | MESH>=1in 781 km2, covered 74% | peak RSS 427 MB
+[47/62] A02367 2025-08-09 19:42:00 files 3 | MESH>=1in 894 km2, covered 27% | peak RSS 427 MB
+[48/62] A02368 2025-08-09 22:45:00 files 2 | MESH>=1in 127 km2, covered 27% | peak RSS 427 MB
+[49/62] A02396 2026-05-21 16:50:00 files 2 | MESH>=1in 474 km2, covered 83% | peak RSS 427 MB
+[50/62] A02398 2026-06-01 13:05:00 files 3 | MESH>=1in 426 km2, covered 96% | peak RSS 427 MB
+[51/62] A02410 2026-06-08 17:19:00 files 2 | MESH>=1in 1208 km2, covered 33% | peak RSS 427 MB
+[52/62] A02417 2026-06-22 16:45:00 files 2 | MESH>=1in 437 km2, covered 69% | peak RSS 427 MB
+[53/62] A02418 2026-06-23 16:19:00 files 4 | MESH>=1in 382 km2, covered 9% | peak RSS 427 MB
+[54/62] A02419 2026-06-23 17:38:00 files 2 | MESH>=1in 443 km2, covered 22% | peak RSS 427 MB
+  retry 1 : <urlopen error [Errno 104] Connection reset by peer>
+[55/62] A02427 2026-06-24 16:09:00 files 3 | MESH>=1in 855 km2, covered 39% | peak RSS 427 MB
+[56/62] A02429 2026-06-24 20:26:00 files 2 | MESH>=1in 791 km2, covered 53% | peak RSS 427 MB
+[57/62] A02451 2026-07-28 14:05:00 files 2 | MESH>=1in 20 km2, covered 0% | peak RSS 427 MB
+[58/62] A02456 2026-07-29 15:32:00 files 2 | MESH>=1in 73 km2, covered 90% | peak RSS 427 MB
+[59/62] A02466 2026-08-14 15:25:00 files 2 | MESH>=1in 145 km2, covered 39% | peak RSS 427 MB
+[60/62] A02477 2026-08-22 15:44:00 files 2 | MESH>=1in 534 km2, covered 74% | peak RSS 427 MB
+[61/62] REF_S0025_whole34 2026-06-08 15:01:00 files 2 | MESH>=1in 476 km2, covered 31% | peak RSS 427 MB
+[62/62] REF_S0025_piece22 2026-06-08 15:01:00 files 1 | MESH>=1in 24 km2, covered 0% | peak RSS 427 MB
+done; peak RSS 427 MB

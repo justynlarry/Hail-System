@@ -1,0 +1,177 @@
+{
+ "storm_id": "A02063",
+ "start_local": "2023-07-07 15:20:00",
+ "end_local": "2023-07-07 16:18:00",
+ "n_reports": 13,
+ "n_actionable": 13,
+ "n_actionable_hail": 13,
+ "n_hail": 13,
+ "max_hail_reported_in": 1.75,
+ "centroid_lat": 38.85692307692308,
+ "centroid_lon": -104.67461538461541,
+ "share_reports_west_of_cutoff": 0.0,
+ "domain_km2": 4608.555105762093,
+ "domain_max_mesh_mm": 36.70000076293945,
+ "mesh100_km2": 36.59717789525595,
+ "mesh100_in_circles_km2": 36.59717789525595,
+ "mesh100_beyond8mi_km2": 0.0,
+ "share100_covered": 1.0,
+ "share100_beyond8mi": 0.0,
+ "mesh075_km2": 121.34714997924107,
+ "mesh075_in_circles_km2": 94.3894938248286,
+ "mesh075_beyond8mi_km2": 24.06624797093374,
+ "share075_covered": 0.7778468125619421,
+ "share075_beyond8mi": 0.19832561353975572,
+ "circles_km2": 683.6959084991013,
+ "precision100": 0.0535284436257586,
+ "reports": [
+  {
+   "iem_id": 45214,
+   "local": "2023-07-07 15:20:00",
+   "lat": 38.87,
+   "lon": -104.75,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 36.70000076293945,
+   "max_mesh_5km_in": 1.4448819198007659,
+   "foothills": false
+  },
+  {
+   "iem_id": 45215,
+   "local": "2023-07-07 15:21:00",
+   "lat": 38.85,
+   "lon": -104.73,
+   "reported_in": 1.5,
+   "max_mesh_5km_mm": 36.70000076293945,
+   "max_mesh_5km_in": 1.4448819198007659,
+   "foothills": false
+  },
+  {
+   "iem_id": 45217,
+   "local": "2023-07-07 15:23:00",
+   "lat": 38.91,
+   "lon": -104.72,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 30.600000381469727,
+   "max_mesh_5km_in": 1.204724424467312,
+   "foothills": false
+  },
+  {
+   "iem_id": 45216,
+   "local": "2023-07-07 15:23:00",
+   "lat": 38.85,
+   "lon": -104.72,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 36.70000076293945,
+   "max_mesh_5km_in": 1.4448819198007659,
+   "foothills": false
+  },
+  {
+   "iem_id": 45218,
+   "local": "2023-07-07 15:24:00",
+   "lat": 38.85,
+   "lon": -104.7,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 36.70000076293945,
+   "max_mesh_5km_in": 1.4448819198007659,
+   "foothills": false
+  },
+  {
+   "iem_id": 45219,
+   "local": "2023-07-07 15:25:00",
+   "lat": 38.85,
+   "lon": -104.7,
+   "reported_in": 1.25,
+   "max_mesh_5km_mm": 36.70000076293945,
+   "max_mesh_5km_in": 1.4448819198007659,
+   "foothills": false
+  },
+  {
+   "iem_id": 45220,
+   "local": "2023-07-07 15:26:00",
+   "lat": 38.91,
+   "lon": -104.71,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 30.600000381469727,
+   "max_mesh_5km_in": 1.204724424467312,
+   "foothills": false
+  },
+  {
+   "iem_id": 45221,
+   "local": "2023-07-07 15:26:00",
+   "lat": 38.86,
+   "lon": -104.73,
+   "reported_in": 1.75,
+   "max_mesh_5km_mm": 36.70000076293945,
+   "max_mesh_5km_in": 1.4448819198007659,
+   "foothills": false
+  },
+  {
+   "iem_id": 45222,
+   "local": "2023-07-07 15:35:00",
+   "lat": 38.88,
+   "lon": -104.72,
+   "reported_in": 1.25,
+   "max_mesh_5km_mm": 36.70000076293945,
+   "max_mesh_5km_in": 1.4448819198007659,
+   "foothills": false
+  },
+  {
+   "iem_id": 45223,
+   "local": "2023-07-07 15:52:00",
+   "lat": 38.81,
+   "lon": -104.46,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 32.29999923706055,
+   "max_mesh_5km_in": 1.2716535132701003,
+   "foothills": false
+  },
+  {
+   "iem_id": 45224,
+   "local": "2023-07-07 16:01:00",
+   "lat": 38.84,
+   "lon": -104.64,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 23.100000381469727,
+   "max_mesh_5km_in": 0.9094488339161311,
+   "foothills": false
+  },
+  {
+   "iem_id": 45225,
+   "local": "2023-07-07 16:02:00",
+   "lat": 38.84,
+   "lon": -104.64,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 23.100000381469727,
+   "max_mesh_5km_in": 0.9094488339161311,
+   "foothills": false
+  },
+  {
+   "iem_id": 45226,
+   "local": "2023-07-07 16:18:00",
+   "lat": 38.82,
+   "lon": -104.55,
+   "reported_in": 1.25,
+   "max_mesh_5km_mm": 28.0,
+   "max_mesh_5km_in": 1.1023622047244095,
+   "foothills": false
+  }
+ ],
+ "n_act_hail_mesh_ge100": 11,
+ "n_act_hail_mesh_ge075": 13,
+ "report_hit_rate100": 0.8461538461538461,
+ "files": [
+  {
+   "hour": "2023-07-07T22:00:00+00:00",
+   "file": "20230707-220000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2023-07-07T23:00:00+00:00",
+   "file": "20230707-230000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

@@ -1,0 +1,49 @@
+{
+ "no_neighbour": {
+  "storms": 59,
+  "ranked": 51,
+  "mesh100_km2": 18712,
+  "covered_pooled": 0.57,
+  "beyond8_pooled": 0.28,
+  "covered_median": "68%",
+  "beyond8_median": "17%"
+ },
+ "with_neighbour": {
+  "storms": 1,
+  "ranked": 1,
+  "mesh100_km2": 382,
+  "covered_pooled": 0.093,
+  "beyond8_pooled": 0.72,
+  "covered_median": "9%",
+  "beyond8_median": "72%"
+ },
+ "worst5": {
+  "A02451": {
+   "n_other_reports": 0,
+   "other_clusters": [],
+   "n_other_hail_ge100": 0
+  },
+  "A02418": {
+   "n_other_reports": 1,
+   "other_clusters": [
+    "A02420"
+   ],
+   "n_other_hail_ge100": 1
+  },
+  "A02263": {
+   "n_other_reports": 0,
+   "other_clusters": [],
+   "n_other_hail_ge100": 0
+  },
+  "A02156": {
+   "n_other_reports": 0,
+   "other_clusters": [],
+   "n_other_hail_ge100": 0
+  },
+  "A02419": {
+   "n_other_reports": 0,
+   "other_clusters": [],
+   "n_other_hail_ge100": 0
+  }
+ }
+}

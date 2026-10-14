@@ -1,0 +1,97 @@
+{
+ "storm_id": "A01994",
+ "start_local": "2023-05-28 15:33:00",
+ "end_local": "2023-05-28 16:23:00",
+ "n_reports": 5,
+ "n_actionable": 5,
+ "n_actionable_hail": 5,
+ "n_hail": 5,
+ "max_hail_reported_in": 1.5,
+ "centroid_lat": 40.436,
+ "centroid_lon": -104.782,
+ "share_reports_west_of_cutoff": 0.0,
+ "domain_km2": 4135.511571972079,
+ "domain_max_mesh_mm": 39.70000076293945,
+ "mesh100_km2": 31.99173066127255,
+ "mesh100_in_circles_km2": 31.99173066127255,
+ "mesh100_beyond8mi_km2": 0.0,
+ "share100_covered": 1.0,
+ "share100_beyond8mi": 0.0,
+ "mesh075_km2": 71.49631198448981,
+ "mesh075_in_circles_km2": 71.49631198448981,
+ "mesh075_beyond8mi_km2": 0.0,
+ "share075_covered": 1.0,
+ "share075_beyond8mi": 0.0,
+ "circles_km2": 474.2529105807475,
+ "precision100": 0.06745710979843435,
+ "reports": [
+  {
+   "iem_id": 44268,
+   "local": "2023-05-28 15:33:00",
+   "lat": 40.47,
+   "lon": -104.95,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 36.0,
+   "max_mesh_5km_in": 1.4173228346456694,
+   "foothills": false
+  },
+  {
+   "iem_id": 44269,
+   "local": "2023-05-28 16:04:00",
+   "lat": 40.43,
+   "lon": -104.76,
+   "reported_in": 1.25,
+   "max_mesh_5km_mm": 39.70000076293945,
+   "max_mesh_5km_in": 1.5629921560212383,
+   "foothills": false
+  },
+  {
+   "iem_id": 44270,
+   "local": "2023-05-28 16:10:00",
+   "lat": 40.43,
+   "lon": -104.74,
+   "reported_in": 1.25,
+   "max_mesh_5km_mm": 34.0,
+   "max_mesh_5km_in": 1.3385826771653544,
+   "foothills": false
+  },
+  {
+   "iem_id": 44271,
+   "local": "2023-05-28 16:18:00",
+   "lat": 40.43,
+   "lon": -104.76,
+   "reported_in": 1.5,
+   "max_mesh_5km_mm": 39.70000076293945,
+   "max_mesh_5km_in": 1.5629921560212383,
+   "foothills": false
+  },
+  {
+   "iem_id": 44272,
+   "local": "2023-05-28 16:23:00",
+   "lat": 40.42,
+   "lon": -104.7,
+   "reported_in": 1.25,
+   "max_mesh_5km_mm": 24.600000381469727,
+   "max_mesh_5km_in": 0.9685039520263672,
+   "foothills": false
+  }
+ ],
+ "n_act_hail_mesh_ge100": 4,
+ "n_act_hail_mesh_ge075": 5,
+ "report_hit_rate100": 0.8,
+ "files": [
+  {
+   "hour": "2023-05-28T22:00:00+00:00",
+   "file": "20230528-220000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2023-05-28T23:00:00+00:00",
+   "file": "20230528-230000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

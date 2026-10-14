@@ -1,0 +1,73 @@
+{
+ "storm_id": "A01979",
+ "start_local": "2023-05-25 14:48:00",
+ "end_local": "2023-05-25 16:52:00",
+ "n_reports": 10,
+ "n_actionable": 2,
+ "n_actionable_hail": 2,
+ "n_hail": 10,
+ "max_hail_reported_in": 1.0,
+ "centroid_lat": 39.650999999999996,
+ "centroid_lon": -104.92999999999999,
+ "share_reports_west_of_cutoff": 0.1,
+ "domain_km2": 6332.977409665898,
+ "domain_max_mesh_mm": 30.799999237060547,
+ "mesh100_km2": 9.532799461943377,
+ "mesh100_in_circles_km2": 9.532799461943377,
+ "mesh100_beyond8mi_km2": 0.0,
+ "share100_covered": 1.0,
+ "share100_beyond8mi": 0.0,
+ "mesh075_km2": 40.01414691755654,
+ "mesh075_in_circles_km2": 38.11111100469239,
+ "mesh075_beyond8mi_km2": 1.9030359128641472,
+ "share075_covered": 0.9524409225370947,
+ "share075_beyond8mi": 0.047559077462905365,
+ "circles_km2": 340.13432313595996,
+ "precision100": 0.02802657307281772,
+ "reports": [
+  {
+   "iem_id": 44177,
+   "local": "2023-05-25 15:32:00",
+   "lat": 39.57,
+   "lon": -104.89,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 30.799999237060547,
+   "max_mesh_5km_in": 1.2125983951598642,
+   "foothills": false
+  },
+  {
+   "iem_id": 44178,
+   "local": "2023-05-25 15:36:00",
+   "lat": 39.62,
+   "lon": -104.98,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 22.100000381469727,
+   "max_mesh_5km_in": 0.8700787551759736,
+   "foothills": false
+  }
+ ],
+ "n_act_hail_mesh_ge100": 1,
+ "n_act_hail_mesh_ge075": 2,
+ "report_hit_rate100": 0.5,
+ "files": [
+  {
+   "hour": "2023-05-25T21:00:00+00:00",
+   "file": "20230525-210000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2023-05-25T22:00:00+00:00",
+   "file": "20230525-220000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2023-05-25T23:00:00+00:00",
+   "file": "20230525-230000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

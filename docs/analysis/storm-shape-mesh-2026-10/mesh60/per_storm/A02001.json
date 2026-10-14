@@ -1,0 +1,97 @@
+{
+ "storm_id": "A02001",
+ "start_local": "2023-05-31 15:04:00",
+ "end_local": "2023-05-31 16:43:00",
+ "n_reports": 22,
+ "n_actionable": 10,
+ "n_actionable_hail": 5,
+ "n_hail": 13,
+ "max_hail_reported_in": 1.5,
+ "centroid_lat": 40.14772727272728,
+ "centroid_lon": -104.90181818181819,
+ "share_reports_west_of_cutoff": 0.09090909090909091,
+ "domain_km2": 9558.139776453507,
+ "domain_max_mesh_mm": 37.70000076293945,
+ "mesh100_km2": 59.73202608188719,
+ "mesh100_in_circles_km2": 52.157661384541534,
+ "mesh100_beyond8mi_km2": 0.9500009076421987,
+ "share100_covered": 0.8731942444583767,
+ "share100_beyond8mi": 0.01590438111608392,
+ "mesh075_km2": 216.0710095356908,
+ "mesh075_in_circles_km2": 151.67852029442628,
+ "mesh075_beyond8mi_km2": 4.750418855412132,
+ "share075_covered": 0.7019845958065554,
+ "share075_beyond8mi": 0.021985452216010747,
+ "circles_km2": 1341.9505263423894,
+ "precision100": 0.038867052369435766,
+ "reports": [
+  {
+   "iem_id": 44318,
+   "local": "2023-05-31 15:10:00",
+   "lat": 39.91,
+   "lon": -104.99,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 26.200000762939453,
+   "max_mesh_5km_in": 1.0314960930291124,
+   "foothills": false
+  },
+  {
+   "iem_id": 44320,
+   "local": "2023-05-31 15:15:00",
+   "lat": 39.92,
+   "lon": -104.81,
+   "reported_in": 1.5,
+   "max_mesh_5km_mm": 37.70000076293945,
+   "max_mesh_5km_in": 1.4842519985409235,
+   "foothills": false
+  },
+  {
+   "iem_id": 44322,
+   "local": "2023-05-31 15:29:00",
+   "lat": 39.92,
+   "lon": -104.97,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 26.0,
+   "max_mesh_5km_in": 1.0236220472440944,
+   "foothills": false
+  },
+  {
+   "iem_id": 44325,
+   "local": "2023-05-31 15:44:00",
+   "lat": 40.12,
+   "lon": -104.96,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 24.700000762939453,
+   "max_mesh_5km_in": 0.9724409749188762,
+   "foothills": false
+  },
+  {
+   "iem_id": 44327,
+   "local": "2023-05-31 15:48:00",
+   "lat": 40.11,
+   "lon": -104.93,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 24.700000762939453,
+   "max_mesh_5km_in": 0.9724409749188762,
+   "foothills": false
+  }
+ ],
+ "n_act_hail_mesh_ge100": 3,
+ "n_act_hail_mesh_ge075": 5,
+ "report_hit_rate100": 0.6,
+ "files": [
+  {
+   "hour": "2023-05-31T22:00:00+00:00",
+   "file": "20230531-220000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2023-05-31T23:00:00+00:00",
+   "file": "20230531-230000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

@@ -1,0 +1,40 @@
+{
+ "storm_id": "A02257",
+ "start_local": "2024-09-17 15:03:00",
+ "end_local": "2024-09-17 15:37:00",
+ "n_reports": 10,
+ "n_actionable": 10,
+ "n_actionable_hail": 0,
+ "n_hail": 0,
+ "max_hail_reported_in": null,
+ "centroid_lat": 38.90599999999999,
+ "centroid_lon": -104.398,
+ "share_reports_west_of_cutoff": 0.0,
+ "domain_km2": 7632.771454463306,
+ "domain_max_mesh_mm": 9.5,
+ "mesh100_km2": 0.0,
+ "mesh100_in_circles_km2": 0.0,
+ "mesh100_beyond8mi_km2": 0.0,
+ "share100_covered": null,
+ "share100_beyond8mi": null,
+ "mesh075_km2": 0.0,
+ "mesh075_in_circles_km2": 0.0,
+ "mesh075_beyond8mi_km2": 0.0,
+ "share075_covered": null,
+ "share075_beyond8mi": null,
+ "circles_km2": 1439.1861088147732,
+ "precision100": 0.0,
+ "reports": [],
+ "n_act_hail_mesh_ge100": 0,
+ "n_act_hail_mesh_ge075": 0,
+ "report_hit_rate100": null,
+ "files": [
+  {
+   "hour": "2024-09-17T22:00:00+00:00",
+   "file": "20240917-220000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

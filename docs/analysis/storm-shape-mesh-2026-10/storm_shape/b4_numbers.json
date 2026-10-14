@@ -1,0 +1,66 @@
+{
+ "n": 180,
+ "R_m": 8046.72,
+ "corridor_km2": 134145.2,
+ "gap_km2": 36491.8,
+ "gap_act_km2": 47643.7,
+ "circle_km2": 184578.1,
+ "circle_act_km2": 155426.1,
+ "gap_share_median": 0.239,
+ "gap_share_q": [
+  0.113,
+  0.239,
+  0.338
+ ],
+ "props_corridor": 225684,
+ "props_gap": 39585,
+ "props_gap_act": 65816,
+ "props_circle": 317372,
+ "props_circle_act": 257359,
+ "storms_gap_gt0": 136,
+ "storms_gap_act_gt0": 142,
+ "gap_per_storm_median": 37.5,
+ "gap_per_storm_q": [
+  1.0,
+  37.5,
+  215.5
+ ],
+ "gap_act_per_storm_median": 81.0,
+ "gap_vs_circle_ratio_median": 0.07644991212653779,
+ "storms_with_no_props_anywhere": 27,
+ "gap_parts_dist": {
+  "2": 60,
+  "3": 53,
+  "5": 11,
+  "1": 36,
+  "0": 1,
+  "4": 19
+ },
+ "distinct": {
+  "gap": 18867,
+  "gap_never_in_any_circle": 21,
+  "gap_act": 22418,
+  "in_any_circle": 25213,
+  "gap_act_never_in_any_actionable_circle": 39
+ },
+ "by_era": {
+  "2004-2012": {
+   "n": 52,
+   "props_gap": 10229,
+   "props_circle": 80735,
+   "gap_km2": 12358.5
+  },
+  "2013-2019": {
+   "n": 64,
+   "props_gap": 16430,
+   "props_circle": 124010,
+   "gap_km2": 12983.6
+  },
+  "2020-present": {
+   "n": 64,
+   "props_gap": 12926,
+   "props_circle": 112627,
+   "gap_km2": 11149.7
+  }
+ }
+}

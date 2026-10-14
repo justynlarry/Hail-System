@@ -1,0 +1,71 @@
+{
+ "storm_id": "A01950",
+ "start_local": "2022-07-27 23:09:00",
+ "end_local": "2022-07-27 23:44:00",
+ "n_reports": 5,
+ "n_actionable": 5,
+ "n_actionable_hail": 3,
+ "n_hail": 3,
+ "max_hail_reported_in": 1.0,
+ "centroid_lat": 39.523999999999994,
+ "centroid_lon": -104.93400000000001,
+ "share_reports_west_of_cutoff": 0.4,
+ "domain_km2": 4462.955582596022,
+ "domain_max_mesh_mm": 40.599998474121094,
+ "mesh100_km2": 37.190928197617204,
+ "mesh100_in_circles_km2": 34.330738608801475,
+ "mesh100_beyond8mi_km2": 0.9508291078170259,
+ "share100_covered": 0.923094428468742,
+ "share100_beyond8mi": 0.025566156960770473,
+ "mesh075_km2": 116.31538476878409,
+ "mesh075_in_circles_km2": 86.7795382837885,
+ "mesh075_beyond8mi_km2": 18.089846063818186,
+ "share075_covered": 0.7460710245363672,
+ "share075_beyond8mi": 0.15552410456946716,
+ "circles_km2": 634.1804256932855,
+ "precision100": 0.054134024353197495,
+ "reports": [
+  {
+   "iem_id": 26872,
+   "local": "2022-07-27 23:23:00",
+   "lat": 39.56,
+   "lon": -105.01,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 23.799999237060547,
+   "max_mesh_5km_in": 0.9370078439787617,
+   "foothills": true
+  },
+  {
+   "iem_id": 26873,
+   "local": "2022-07-27 23:28:00",
+   "lat": 39.49,
+   "lon": -104.9,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 40.599998474121094,
+   "max_mesh_5km_in": 1.598425136776421,
+   "foothills": false
+  },
+  {
+   "iem_id": 26876,
+   "local": "2022-07-27 23:44:00",
+   "lat": 39.54,
+   "lon": -104.81,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 18.100000381469727,
+   "max_mesh_5km_in": 0.7125984402153436,
+   "foothills": false
+  }
+ ],
+ "n_act_hail_mesh_ge100": 1,
+ "n_act_hail_mesh_ge075": 2,
+ "report_hit_rate100": 0.3333333333333333,
+ "files": [
+  {
+   "hour": "2022-07-28T06:00:00+00:00",
+   "file": "20220728-060000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

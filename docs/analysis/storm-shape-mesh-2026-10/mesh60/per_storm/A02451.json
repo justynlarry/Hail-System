@@ -1,0 +1,46 @@
+{
+ "storm_id": "A02451",
+ "start_local": "2026-07-28 14:05:00",
+ "end_local": "2026-07-28 15:30:00",
+ "n_reports": 8,
+ "n_actionable": 8,
+ "n_actionable_hail": 0,
+ "n_hail": 0,
+ "max_hail_reported_in": null,
+ "centroid_lat": 39.67125,
+ "centroid_lon": -104.46875,
+ "share_reports_west_of_cutoff": 0.0,
+ "domain_km2": 5841.983843807699,
+ "domain_max_mesh_mm": 37.599998474121094,
+ "mesh100_km2": 20.023979180275052,
+ "mesh100_in_circles_km2": 0.0,
+ "mesh100_beyond8mi_km2": 20.023979180275052,
+ "share100_covered": 0.0,
+ "share100_beyond8mi": 1.0,
+ "mesh075_km2": 78.14017685690543,
+ "mesh075_in_circles_km2": 26.644715897566787,
+ "mesh075_beyond8mi_km2": 42.91803776576101,
+ "share075_covered": 0.3409861222397801,
+ "share075_beyond8mi": 0.5492441851565664,
+ "circles_km2": 889.2843822794144,
+ "precision100": 0.0,
+ "reports": [],
+ "n_act_hail_mesh_ge100": 0,
+ "n_act_hail_mesh_ge075": 0,
+ "report_hit_rate100": null,
+ "files": [
+  {
+   "hour": "2026-07-28T21:00:00+00:00",
+   "file": "20260728-210000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2026-07-28T22:00:00+00:00",
+   "file": "20260728-220000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

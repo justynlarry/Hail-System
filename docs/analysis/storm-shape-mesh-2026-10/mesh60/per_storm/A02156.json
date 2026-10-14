@@ -1,0 +1,77 @@
+{
+ "storm_id": "A02156",
+ "start_local": "2024-05-20 20:25:00",
+ "end_local": "2024-05-20 21:43:00",
+ "n_reports": 5,
+ "n_actionable": 4,
+ "n_actionable_hail": 3,
+ "n_hail": 3,
+ "max_hail_reported_in": 2.0,
+ "centroid_lat": 39.760000000000005,
+ "centroid_lon": -103.45,
+ "share_reports_west_of_cutoff": 0.0,
+ "domain_km2": 5171.501427405076,
+ "domain_max_mesh_mm": 83.19999694824219,
+ "mesh100_km2": 1252.7921315429487,
+ "mesh100_in_circles_km2": 268.9616189713605,
+ "mesh100_beyond8mi_km2": 744.466538184368,
+ "share100_covered": 0.21468974157756343,
+ "share100_beyond8mi": 0.5942458604584921,
+ "mesh075_km2": 1949.9636390596033,
+ "mesh075_in_circles_km2": 461.9133640755448,
+ "mesh075_beyond8mi_km2": 1064.245988418006,
+ "share075_covered": 0.23688306531618653,
+ "share075_beyond8mi": 0.5457773504593415,
+ "circles_km2": 537.9806063665413,
+ "precision100": 0.4999466816989856,
+ "reports": [
+  {
+   "iem_id": 59709,
+   "local": "2024-05-20 21:33:00",
+   "lat": 39.8,
+   "lon": -103.33,
+   "reported_in": 2.0,
+   "max_mesh_5km_mm": 51.20000076293945,
+   "max_mesh_5km_in": 2.0157480615330496,
+   "foothills": false
+  },
+  {
+   "iem_id": 59710,
+   "local": "2024-05-20 21:36:00",
+   "lat": 39.74,
+   "lon": -103.31,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 57.20000076293945,
+   "max_mesh_5km_in": 2.2519685339739945,
+   "foothills": false
+  },
+  {
+   "iem_id": 59712,
+   "local": "2024-05-20 21:43:00",
+   "lat": 39.74,
+   "lon": -103.35,
+   "reported_in": 1.75,
+   "max_mesh_5km_mm": 43.20000076293945,
+   "max_mesh_5km_in": 1.7007874316117897,
+   "foothills": false
+  }
+ ],
+ "n_act_hail_mesh_ge100": 3,
+ "n_act_hail_mesh_ge075": 3,
+ "report_hit_rate100": 1.0,
+ "files": [
+  {
+   "hour": "2024-05-21T03:00:00+00:00",
+   "file": "20240521-030000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2024-05-21T04:00:00+00:00",
+   "file": "20240521-040000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

@@ -1,0 +1,369 @@
+{
+ "overall": {
+  "storms": 60,
+  "storms_mesh100_zero": 7,
+  "storms_mesh100_ge10": 52,
+  "mesh100_km2_total": 19094,
+  "covered_pooled": 0.5600010508307725,
+  "beyond8_pooled": 0.28904334356197,
+  "covered_median_iqr": "67% [42, 81]",
+  "beyond8_median_iqr": "20% [6, 38]",
+  "storms_covered_0": 1,
+  "storms_covered_lt25": 5,
+  "storms_beyond8_gt50": 9,
+  "covered075_pooled": 0.5164730532463208,
+  "precision100_median": "14% [4, 32]",
+  "act_hail_reports": 536,
+  "reports_mesh_ge100": 485,
+  "reports_mesh_ge075": 519,
+  "reports_mesh_none": 0,
+  "report_mesh_median_in": 1.76,
+  "report_reported_median_in": 1.25
+ },
+ "by_zone": {
+  "-104.9": {
+   "foothills": {
+    "storms": 13,
+    "storms_mesh100_zero": 2,
+    "storms_mesh100_ge10": 10,
+    "mesh100_km2_total": 3225,
+    "covered_pooled": 0.769401681529331,
+    "beyond8_pooled": 0.13417949396771184,
+    "covered_median_iqr": "78% [72, 81]",
+    "beyond8_median_iqr": "14% [8, 27]",
+    "storms_covered_0": 0,
+    "storms_covered_lt25": 0,
+    "storms_beyond8_gt50": 1,
+    "covered075_pooled": 0.7019327412015167,
+    "precision100_median": "4% [3, 10]",
+    "act_hail_reports": 199,
+    "reports_mesh_ge100": 183,
+    "reports_mesh_ge075": 192,
+    "reports_mesh_none": 0,
+    "report_mesh_median_in": 1.85,
+    "report_reported_median_in": 1.0
+   },
+   "plains": {
+    "storms": 47,
+    "storms_mesh100_zero": 5,
+    "storms_mesh100_ge10": 42,
+    "mesh100_km2_total": 15869,
+    "covered_pooled": 0.5174518162229244,
+    "beyond8_pooled": 0.3205109578030474,
+    "covered_median_iqr": "59% [40, 79]",
+    "beyond8_median_iqr": "22% [6, 38]",
+    "storms_covered_0": 1,
+    "storms_covered_lt25": 5,
+    "storms_beyond8_gt50": 8,
+    "covered075_pooled": 0.4791786127695504,
+    "precision100_median": "19% [6, 32]",
+    "act_hail_reports": 337,
+    "reports_mesh_ge100": 302,
+    "reports_mesh_ge075": 327,
+    "reports_mesh_none": 0,
+    "report_mesh_median_in": 1.76,
+    "report_reported_median_in": 1.5
+   }
+  },
+  "-105.0": {
+   "foothills": {
+    "storms": 3,
+    "storms_mesh100_zero": 0,
+    "storms_mesh100_ge10": 3,
+    "mesh100_km2_total": 226,
+    "covered_pooled": 0.7322561926486075,
+    "beyond8_pooled": 0.1509227608523305,
+    "covered_median_iqr": "73% [72, 75]",
+    "beyond8_median_iqr": "22% [17, 26]",
+    "storms_covered_0": 0,
+    "storms_covered_lt25": 0,
+    "storms_beyond8_gt50": 0,
+    "covered075_pooled": 0.6300408590732237,
+    "precision100_median": "3% [2, 5]",
+    "act_hail_reports": 31,
+    "reports_mesh_ge100": 24,
+    "reports_mesh_ge075": 28,
+    "reports_mesh_none": 0,
+    "report_mesh_median_in": 1.05,
+    "report_reported_median_in": 1.0
+   },
+   "plains": {
+    "storms": 57,
+    "storms_mesh100_zero": 7,
+    "storms_mesh100_ge10": 49,
+    "mesh100_km2_total": 18868,
+    "covered_pooled": 0.5579411922687884,
+    "beyond8_pooled": 0.29069501480892496,
+    "covered_median_iqr": "61% [41, 81]",
+    "beyond8_median_iqr": "17% [6, 38]",
+    "storms_covered_0": 1,
+    "storms_covered_lt25": 5,
+    "storms_beyond8_gt50": 9,
+    "covered075_pooled": 0.513860699570858,
+    "precision100_median": "16% [4, 32]",
+    "act_hail_reports": 505,
+    "reports_mesh_ge100": 461,
+    "reports_mesh_ge075": 491,
+    "reports_mesh_none": 0,
+    "report_mesh_median_in": 1.81,
+    "report_reported_median_in": 1.25
+   }
+  },
+  "-105.1": {
+   "foothills": {
+    "storms": 0,
+    "storms_mesh100_zero": 0,
+    "storms_mesh100_ge10": 0,
+    "mesh100_km2_total": 0,
+    "covered_pooled": null,
+    "beyond8_pooled": null,
+    "covered_median_iqr": "n/a",
+    "beyond8_median_iqr": "n/a",
+    "storms_covered_0": 0,
+    "storms_covered_lt25": 0,
+    "storms_beyond8_gt50": 0,
+    "covered075_pooled": null,
+    "precision100_median": "n/a",
+    "act_hail_reports": 0,
+    "reports_mesh_ge100": 0,
+    "reports_mesh_ge075": 0,
+    "reports_mesh_none": 0,
+    "report_mesh_median_in": null,
+    "report_reported_median_in": null
+   },
+   "plains": {
+    "storms": 60,
+    "storms_mesh100_zero": 7,
+    "storms_mesh100_ge10": 52,
+    "mesh100_km2_total": 19094,
+    "covered_pooled": 0.5600010508307725,
+    "beyond8_pooled": 0.28904334356197,
+    "covered_median_iqr": "67% [42, 81]",
+    "beyond8_median_iqr": "20% [6, 38]",
+    "storms_covered_0": 1,
+    "storms_covered_lt25": 5,
+    "storms_beyond8_gt50": 9,
+    "covered075_pooled": 0.5164730532463208,
+    "precision100_median": "14% [4, 32]",
+    "act_hail_reports": 536,
+    "reports_mesh_ge100": 485,
+    "reports_mesh_ge075": 519,
+    "reports_mesh_none": 0,
+    "report_mesh_median_in": 1.76,
+    "report_reported_median_in": 1.25
+   }
+  }
+ },
+ "by_report_lon": {
+  "-104.9": {
+   "west (foothills)": {
+    "n": 151,
+    "mesh_ge100": 138,
+    "mesh_ge075": 147,
+    "median_mesh_in": 1.66
+   },
+   "east (plains)": {
+    "n": 385,
+    "mesh_ge100": 347,
+    "mesh_ge075": 372,
+    "median_mesh_in": 1.8
+   }
+  },
+  "-105.0": {
+   "west (foothills)": {
+    "n": 89,
+    "mesh_ge100": 81,
+    "mesh_ge075": 87,
+    "median_mesh_in": 1.59
+   },
+   "east (plains)": {
+    "n": 447,
+    "mesh_ge100": 404,
+    "mesh_ge075": 432,
+    "median_mesh_in": 1.81
+   }
+  },
+  "-105.1": {
+   "west (foothills)": {
+    "n": 29,
+    "mesh_ge100": 26,
+    "mesh_ge075": 28,
+    "median_mesh_in": 1.57
+   },
+   "east (plains)": {
+    "n": 507,
+    "mesh_ge100": 459,
+    "mesh_ge075": 491,
+    "median_mesh_in": 1.79
+   }
+  }
+ },
+ "ref": {
+  "REF_S0025_whole34": {
+   "mesh100_km2": 475.7,
+   "covered": 0.3064368014782341,
+   "beyond8": 0.5371107870459115,
+   "n_files": 2,
+   "act_hail": 20,
+   "act_hail_mesh_ge100": 5,
+   "storms_with_lower_or_equal_coverage": 9,
+   "storms_with_higher_or_equal_beyond8": 9,
+   "of": 52
+  },
+  "REF_S0025_piece22": {
+   "mesh100_km2": 23.7,
+   "covered": 0.0,
+   "beyond8": 0.8399242581547076,
+   "n_files": 1,
+   "act_hail": 13,
+   "act_hail_mesh_ge100": 0,
+   "storms_with_lower_or_equal_coverage": 1,
+   "storms_with_higher_or_equal_beyond8": 1,
+   "of": 52
+  }
+ },
+ "worst5": [
+  {
+   "storm_id": "A02451",
+   "start": "2026-07-28 14:05:00",
+   "mesh100_km2": 20,
+   "covered": 0.0,
+   "beyond8": 1.0,
+   "zone": "plains",
+   "centroid": [
+    39.671,
+    -104.469
+   ],
+   "n_act": 8,
+   "n_act_hail": 0,
+   "hail_hits": "0/0"
+  },
+  {
+   "storm_id": "A02418",
+   "start": "2026-06-23 16:19:00",
+   "mesh100_km2": 382,
+   "covered": 0.093,
+   "beyond8": 0.72,
+   "zone": "plains",
+   "centroid": [
+    38.809,
+    -104.749
+   ],
+   "n_act": 20,
+   "n_act_hail": 20,
+   "hail_hits": "17/20"
+  },
+  {
+   "storm_id": "A02263",
+   "start": "2025-04-24 15:28:00",
+   "mesh100_km2": 61,
+   "covered": 0.155,
+   "beyond8": 0.753,
+   "zone": "plains",
+   "centroid": [
+    40.286,
+    -104.674
+   ],
+   "n_act": 3,
+   "n_act_hail": 3,
+   "hail_hits": "1/3"
+  },
+  {
+   "storm_id": "A02156",
+   "start": "2024-05-20 20:25:00",
+   "mesh100_km2": 1253,
+   "covered": 0.215,
+   "beyond8": 0.594,
+   "zone": "plains",
+   "centroid": [
+    39.76,
+    -103.45
+   ],
+   "n_act": 4,
+   "n_act_hail": 3,
+   "hail_hits": "3/3"
+  },
+  {
+   "storm_id": "A02419",
+   "start": "2026-06-23 17:38:00",
+   "mesh100_km2": 443,
+   "covered": 0.217,
+   "beyond8": 0.695,
+   "zone": "plains",
+   "centroid": [
+    39.27,
+    -104.124
+   ],
+   "n_act": 5,
+   "n_act_hail": 5,
+   "hail_hits": "4/5"
+  }
+ ],
+ "zero_mesh_storms": [
+  {
+   "storm_id": "A01808",
+   "start": "2021-05-02 13:14:00",
+   "n_act_hail": 3,
+   "max_hail_in": 1.75,
+   "domain_max_mesh_in": 0.77,
+   "zone": "plains"
+  },
+  {
+   "storm_id": "A01964",
+   "start": "2023-05-04 15:30:00",
+   "n_act_hail": 0,
+   "max_hail_in": null,
+   "domain_max_mesh_in": 0.39,
+   "zone": "plains"
+  },
+  {
+   "storm_id": "A01979",
+   "start": "2023-05-25 14:48:00",
+   "n_act_hail": 2,
+   "max_hail_in": 1.0,
+   "domain_max_mesh_in": 1.21,
+   "zone": "plains"
+  },
+  {
+   "storm_id": "A02094",
+   "start": "2023-07-24 18:21:00",
+   "n_act_hail": 0,
+   "max_hail_in": null,
+   "domain_max_mesh_in": 0.54,
+   "zone": "plains"
+  },
+  {
+   "storm_id": "A02257",
+   "start": "2024-09-17 15:03:00",
+   "n_act_hail": 0,
+   "max_hail_in": null,
+   "domain_max_mesh_in": 0.37,
+   "zone": "plains"
+  },
+  {
+   "storm_id": "A02268",
+   "start": "2025-05-14 16:00:00",
+   "n_act_hail": 0,
+   "max_hail_in": 0.75,
+   "domain_max_mesh_in": 0.82,
+   "zone": "plains"
+  },
+  {
+   "storm_id": "A02281",
+   "start": "2025-05-28 12:45:00",
+   "n_act_hail": 1,
+   "max_hail_in": 1.5,
+   "domain_max_mesh_in": 0.88,
+   "zone": "plains"
+  },
+  {
+   "storm_id": "A02336",
+   "start": "2025-07-10 13:46:00",
+   "n_act_hail": 0,
+   "max_hail_in": null,
+   "domain_max_mesh_in": 0.64,
+   "zone": "plains"
+  }
+ ],
+ "no_actionable_storms": []
+}

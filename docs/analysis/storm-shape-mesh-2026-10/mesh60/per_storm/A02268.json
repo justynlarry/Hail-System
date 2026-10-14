@@ -1,0 +1,52 @@
+{
+ "storm_id": "A02268",
+ "start_local": "2025-05-14 16:00:00",
+ "end_local": "2025-05-14 17:17:00",
+ "n_reports": 15,
+ "n_actionable": 12,
+ "n_actionable_hail": 0,
+ "n_hail": 1,
+ "max_hail_reported_in": 0.75,
+ "centroid_lat": 40.21266666666667,
+ "centroid_lon": -103.94466666666668,
+ "share_reports_west_of_cutoff": 0.0,
+ "domain_km2": 13116.524719115805,
+ "domain_max_mesh_mm": 20.899999618530273,
+ "mesh100_km2": 0.0,
+ "mesh100_in_circles_km2": 0.0,
+ "mesh100_beyond8mi_km2": 0.0,
+ "share100_covered": null,
+ "share100_beyond8mi": null,
+ "mesh075_km2": 4.7387966925691005,
+ "mesh075_in_circles_km2": 0.0,
+ "mesh075_beyond8mi_km2": 1.8941879889200202,
+ "share075_covered": 0.0,
+ "share075_beyond8mi": 0.39971919282595375,
+ "circles_km2": 1860.4677637662605,
+ "precision100": 0.0,
+ "reports": [],
+ "n_act_hail_mesh_ge100": 0,
+ "n_act_hail_mesh_ge075": 0,
+ "report_hit_rate100": null,
+ "files": [
+  {
+   "hour": "2025-05-14T22:00:00+00:00",
+   "file": "20250514-220000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2025-05-14T23:00:00+00:00",
+   "file": "20250514-230000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2025-05-15T00:00:00+00:00",
+   "file": "20250515-000000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

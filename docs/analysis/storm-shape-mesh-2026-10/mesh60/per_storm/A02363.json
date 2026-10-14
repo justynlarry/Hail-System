@@ -1,0 +1,315 @@
+{
+ "storm_id": "A02363",
+ "start_local": "2025-08-09 14:37:00",
+ "end_local": "2025-08-09 18:28:00",
+ "n_reports": 25,
+ "n_actionable": 25,
+ "n_actionable_hail": 25,
+ "n_hail": 25,
+ "max_hail_reported_in": 3.0,
+ "centroid_lat": 39.1544,
+ "centroid_lon": -103.75039999999998,
+ "share_reports_west_of_cutoff": 0.0,
+ "domain_km2": 7830.681690956373,
+ "domain_max_mesh_mm": 76.5,
+ "mesh100_km2": 780.7782801437506,
+ "mesh100_in_circles_km2": 575.0868650872808,
+ "mesh100_beyond8mi_km2": 63.593870138661956,
+ "share100_covered": 0.7365559208196729,
+ "share100_beyond8mi": 0.08144933300008494,
+ "mesh075_km2": 1220.3044480374128,
+ "mesh075_in_circles_km2": 891.6679608485729,
+ "mesh075_beyond8mi_km2": 104.94917545565693,
+ "share075_covered": 0.7306930350722082,
+ "share075_beyond8mi": 0.08600245260471208,
+ "circles_km2": 1748.7595897366946,
+ "precision100": 0.3288541595210751,
+ "reports": [
+  {
+   "iem_id": 74717,
+   "local": "2025-08-09 14:37:00",
+   "lat": 39.36,
+   "lon": -103.87,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 40.400001525878906,
+   "max_mesh_5km_in": 1.590551241176335,
+   "foothills": false
+  },
+  {
+   "iem_id": 74718,
+   "local": "2025-08-09 14:40:00",
+   "lat": 39.35,
+   "lon": -103.96,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 38.29999923706055,
+   "max_mesh_5km_in": 1.5078739857110453,
+   "foothills": false
+  },
+  {
+   "iem_id": 74719,
+   "local": "2025-08-09 15:07:00",
+   "lat": 39.31,
+   "lon": -103.84,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 53.900001525878906,
+   "max_mesh_5km_in": 2.122047304168461,
+   "foothills": false
+  },
+  {
+   "iem_id": 74721,
+   "local": "2025-08-09 15:26:00",
+   "lat": 39.28,
+   "lon": -103.83,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 53.900001525878906,
+   "max_mesh_5km_in": 2.122047304168461,
+   "foothills": false
+  },
+  {
+   "iem_id": 74722,
+   "local": "2025-08-09 15:41:00",
+   "lat": 39.27,
+   "lon": -103.72,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 30.100000381469727,
+   "max_mesh_5km_in": 1.1850393850972334,
+   "foothills": false
+  },
+  {
+   "iem_id": 74724,
+   "local": "2025-08-09 15:59:00",
+   "lat": 39.26,
+   "lon": -103.85,
+   "reported_in": 1.75,
+   "max_mesh_5km_mm": 53.900001525878906,
+   "max_mesh_5km_in": 2.122047304168461,
+   "foothills": false
+  },
+  {
+   "iem_id": 74725,
+   "local": "2025-08-09 16:01:00",
+   "lat": 39.23,
+   "lon": -103.79,
+   "reported_in": 1.5,
+   "max_mesh_5km_mm": 52.20000076293945,
+   "max_mesh_5km_in": 2.055118140273207,
+   "foothills": false
+  },
+  {
+   "iem_id": 74727,
+   "local": "2025-08-09 16:04:00",
+   "lat": 39.26,
+   "lon": -103.85,
+   "reported_in": 2.0,
+   "max_mesh_5km_mm": 53.900001525878906,
+   "max_mesh_5km_in": 2.122047304168461,
+   "foothills": false
+  },
+  {
+   "iem_id": 74728,
+   "local": "2025-08-09 16:08:00",
+   "lat": 39.21,
+   "lon": -103.79,
+   "reported_in": 1.0,
+   "max_mesh_5km_mm": 45.400001525878906,
+   "max_mesh_5km_in": 1.7874016348771224,
+   "foothills": false
+  },
+  {
+   "iem_id": 74729,
+   "local": "2025-08-09 16:09:00",
+   "lat": 39.23,
+   "lon": -103.79,
+   "reported_in": 2.0,
+   "max_mesh_5km_mm": 52.20000076293945,
+   "max_mesh_5km_in": 2.055118140273207,
+   "foothills": false
+  },
+  {
+   "iem_id": 74730,
+   "local": "2025-08-09 16:11:00",
+   "lat": 39.21,
+   "lon": -103.79,
+   "reported_in": 1.5,
+   "max_mesh_5km_mm": 45.400001525878906,
+   "max_mesh_5km_in": 1.7874016348771224,
+   "foothills": false
+  },
+  {
+   "iem_id": 74731,
+   "local": "2025-08-09 16:16:00",
+   "lat": 39.22,
+   "lon": -103.77,
+   "reported_in": 1.5,
+   "max_mesh_5km_mm": 45.400001525878906,
+   "max_mesh_5km_in": 1.7874016348771224,
+   "foothills": false
+  },
+  {
+   "iem_id": 74732,
+   "local": "2025-08-09 16:18:00",
+   "lat": 39.17,
+   "lon": -103.79,
+   "reported_in": 2.0,
+   "max_mesh_5km_mm": 43.099998474121094,
+   "max_mesh_5km_in": 1.6968503336268148,
+   "foothills": false
+  },
+  {
+   "iem_id": 74733,
+   "local": "2025-08-09 16:20:00",
+   "lat": 39.17,
+   "lon": -103.83,
+   "reported_in": 2.5,
+   "max_mesh_5km_mm": 34.0,
+   "max_mesh_5km_in": 1.3385826771653544,
+   "foothills": false
+  },
+  {
+   "iem_id": 74734,
+   "local": "2025-08-09 16:24:00",
+   "lat": 39.17,
+   "lon": -103.76,
+   "reported_in": 2.75,
+   "max_mesh_5km_mm": 43.20000076293945,
+   "max_mesh_5km_in": 1.7007874316117897,
+   "foothills": false
+  },
+  {
+   "iem_id": 74735,
+   "local": "2025-08-09 16:27:00",
+   "lat": 39.11,
+   "lon": -103.72,
+   "reported_in": 2.5,
+   "max_mesh_5km_mm": 55.099998474121094,
+   "max_mesh_5km_in": 2.1692912785087044,
+   "foothills": false
+  },
+  {
+   "iem_id": 74736,
+   "local": "2025-08-09 16:28:00",
+   "lat": 39.11,
+   "lon": -103.71,
+   "reported_in": 2.75,
+   "max_mesh_5km_mm": 55.099998474121094,
+   "max_mesh_5km_in": 2.1692912785087044,
+   "foothills": false
+  },
+  {
+   "iem_id": 74737,
+   "local": "2025-08-09 16:28:00",
+   "lat": 39.17,
+   "lon": -103.75,
+   "reported_in": 3.0,
+   "max_mesh_5km_mm": 55.099998474121094,
+   "max_mesh_5km_in": 2.1692912785087044,
+   "foothills": false
+  },
+  {
+   "iem_id": 74738,
+   "local": "2025-08-09 16:32:00",
+   "lat": 39.13,
+   "lon": -103.7,
+   "reported_in": 2.0,
+   "max_mesh_5km_mm": 55.099998474121094,
+   "max_mesh_5km_in": 2.1692912785087044,
+   "foothills": false
+  },
+  {
+   "iem_id": 74740,
+   "local": "2025-08-09 16:49:00",
+   "lat": 39.07,
+   "lon": -103.61,
+   "reported_in": 2.5,
+   "max_mesh_5km_mm": 33.099998474121094,
+   "max_mesh_5km_in": 1.30314954622524,
+   "foothills": false
+  },
+  {
+   "iem_id": 74745,
+   "local": "2025-08-09 17:12:00",
+   "lat": 39.02,
+   "lon": -103.52,
+   "reported_in": 1.75,
+   "max_mesh_5km_mm": 33.79999923706055,
+   "max_mesh_5km_in": 1.3307086313803365,
+   "foothills": false
+  },
+  {
+   "iem_id": 74757,
+   "local": "2025-08-09 18:01:00",
+   "lat": 38.94,
+   "lon": -103.7,
+   "reported_in": 3.0,
+   "max_mesh_5km_mm": 71.0,
+   "max_mesh_5km_in": 2.7952755905511815,
+   "foothills": false
+  },
+  {
+   "iem_id": 74759,
+   "local": "2025-08-09 18:13:00",
+   "lat": 38.87,
+   "lon": -103.63,
+   "reported_in": 1.75,
+   "max_mesh_5km_mm": 68.30000305175781,
+   "max_mesh_5km_in": 2.6889764981007014,
+   "foothills": false
+  },
+  {
+   "iem_id": 74760,
+   "local": "2025-08-09 18:13:00",
+   "lat": 38.89,
+   "lon": -103.63,
+   "reported_in": 2.75,
+   "max_mesh_5km_mm": 70.0,
+   "max_mesh_5km_in": 2.7559055118110236,
+   "foothills": false
+  },
+  {
+   "iem_id": 74762,
+   "local": "2025-08-09 18:28:00",
+   "lat": 38.85,
+   "lon": -103.56,
+   "reported_in": 2.0,
+   "max_mesh_5km_mm": 76.5,
+   "max_mesh_5km_in": 3.0118110236220472,
+   "foothills": false
+  }
+ ],
+ "n_act_hail_mesh_ge100": 25,
+ "n_act_hail_mesh_ge075": 25,
+ "report_hit_rate100": 1.0,
+ "files": [
+  {
+   "hour": "2025-08-09T21:00:00+00:00",
+   "file": "20250809-210000",
+   "status": "cached",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2025-08-09T22:00:00+00:00",
+   "file": "20250809-220000",
+   "status": "cached",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2025-08-09T23:00:00+00:00",
+   "file": "20250809-230000",
+   "status": "cached",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2025-08-10T00:00:00+00:00",
+   "file": "20250810-000000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2025-08-10T01:00:00+00:00",
+   "file": "20250810-010000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

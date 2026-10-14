@@ -1,0 +1,46 @@
+{
+ "storm_id": "A02336",
+ "start_local": "2025-07-10 13:46:00",
+ "end_local": "2025-07-10 14:42:00",
+ "n_reports": 8,
+ "n_actionable": 7,
+ "n_actionable_hail": 0,
+ "n_hail": 0,
+ "max_hail_reported_in": null,
+ "centroid_lat": 39.81,
+ "centroid_lon": -104.98374999999999,
+ "share_reports_west_of_cutoff": 0.375,
+ "domain_km2": 6549.79950053754,
+ "domain_max_mesh_mm": 16.200000762939453,
+ "mesh100_km2": 0.0,
+ "mesh100_in_circles_km2": 0.0,
+ "mesh100_beyond8mi_km2": 0.0,
+ "share100_covered": null,
+ "share100_beyond8mi": null,
+ "mesh075_km2": 0.0,
+ "mesh075_in_circles_km2": 0.0,
+ "mesh075_beyond8mi_km2": 0.0,
+ "share075_covered": null,
+ "share075_beyond8mi": null,
+ "circles_km2": 947.8861792212969,
+ "precision100": 0.0,
+ "reports": [],
+ "n_act_hail_mesh_ge100": 0,
+ "n_act_hail_mesh_ge075": 0,
+ "report_hit_rate100": null,
+ "files": [
+  {
+   "hour": "2025-07-10T20:00:00+00:00",
+   "file": "20250710-200000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2025-07-10T21:00:00+00:00",
+   "file": "20250710-210000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}

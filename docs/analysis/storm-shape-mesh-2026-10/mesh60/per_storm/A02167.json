@@ -1,0 +1,123 @@
+{
+ "storm_id": "A02167",
+ "start_local": "2024-05-31 17:54:00",
+ "end_local": "2024-05-31 19:04:00",
+ "n_reports": 9,
+ "n_actionable": 7,
+ "n_actionable_hail": 7,
+ "n_hail": 9,
+ "max_hail_reported_in": 2.25,
+ "centroid_lat": 39.22888888888889,
+ "centroid_lon": -103.74777777777778,
+ "share_reports_west_of_cutoff": 0.0,
+ "domain_km2": 4838.002848997934,
+ "domain_max_mesh_mm": 67.5,
+ "mesh100_km2": 440.13760992117045,
+ "mesh100_in_circles_km2": 234.79318157644582,
+ "mesh100_beyond8mi_km2": 143.98840253957104,
+ "share100_covered": 0.5334540295670206,
+ "share100_beyond8mi": 0.3271440551634741,
+ "mesh075_km2": 721.9904004373818,
+ "mesh075_in_circles_km2": 289.4079547852626,
+ "mesh075_beyond8mi_km2": 334.80054443291465,
+ "share075_covered": 0.4008473722225936,
+ "share075_beyond8mi": 0.463718830929182,
+ "circles_km2": 626.4126581760812,
+ "precision100": 0.37482189817187045,
+ "reports": [
+  {
+   "iem_id": 60005,
+   "local": "2024-05-31 18:18:00",
+   "lat": 39.25,
+   "lon": -103.72,
+   "reported_in": 2.0,
+   "max_mesh_5km_mm": 56.79999923706055,
+   "max_mesh_5km_in": 2.2362204424039587,
+   "foothills": false
+  },
+  {
+   "iem_id": 60006,
+   "local": "2024-05-31 18:21:00",
+   "lat": 39.23,
+   "lon": -103.8,
+   "reported_in": 1.5,
+   "max_mesh_5km_mm": 61.400001525878906,
+   "max_mesh_5km_in": 2.417322894719642,
+   "foothills": false
+  },
+  {
+   "iem_id": 60007,
+   "local": "2024-05-31 18:23:00",
+   "lat": 39.32,
+   "lon": -103.76,
+   "reported_in": 1.75,
+   "max_mesh_5km_mm": 23.600000381469727,
+   "max_mesh_5km_in": 0.9291338732862098,
+   "foothills": false
+  },
+  {
+   "iem_id": 60008,
+   "local": "2024-05-31 18:50:00",
+   "lat": 39.17,
+   "lon": -103.73,
+   "reported_in": 1.25,
+   "max_mesh_5km_mm": 67.5,
+   "max_mesh_5km_in": 2.65748031496063,
+   "foothills": false
+  },
+  {
+   "iem_id": 60010,
+   "local": "2024-05-31 18:54:00",
+   "lat": 39.14,
+   "lon": -103.69,
+   "reported_in": 2.25,
+   "max_mesh_5km_mm": 54.400001525878906,
+   "max_mesh_5km_in": 2.1417323435385396,
+   "foothills": false
+  },
+  {
+   "iem_id": 60011,
+   "local": "2024-05-31 19:01:00",
+   "lat": 39.14,
+   "lon": -103.69,
+   "reported_in": 2.25,
+   "max_mesh_5km_mm": 54.400001525878906,
+   "max_mesh_5km_in": 2.1417323435385396,
+   "foothills": false
+  },
+  {
+   "iem_id": 60012,
+   "local": "2024-05-31 19:04:00",
+   "lat": 39.19,
+   "lon": -103.78,
+   "reported_in": 1.25,
+   "max_mesh_5km_mm": 67.5,
+   "max_mesh_5km_in": 2.65748031496063,
+   "foothills": false
+  }
+ ],
+ "n_act_hail_mesh_ge100": 6,
+ "n_act_hail_mesh_ge075": 7,
+ "report_hit_rate100": 0.8571428571428571,
+ "files": [
+  {
+   "hour": "2024-06-01T00:00:00+00:00",
+   "file": "20240601-000000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2024-06-01T01:00:00+00:00",
+   "file": "20240601-010000",
+   "status": "decoded",
+   "substituted_min": 0
+  },
+  {
+   "hour": "2024-06-01T02:00:00+00:00",
+   "file": "20240601-020000",
+   "status": "decoded",
+   "substituted_min": 0
+  }
+ ],
+ "in_selection": true
+}
