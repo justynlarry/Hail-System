@@ -4,13 +4,11 @@
         python -m unittest tests.test_email_render
 """
 
-import os
 import sys
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -110,18 +108,6 @@ class SettingsTest(unittest.TestCase):
         args[3] = "not an email"
         with self.assertRaises(r.SettingsError):
             r.EmailSettings(*args)
-
-    def test_from_env_missing_is_loud(self):
-        with mock.patch.dict(os.environ, {}, clear=True):
-            with self.assertRaises(r.SettingsError) as cm:
-                r.EmailSettings.from_env()
-        self.assertIn("EMAIL_", str(cm.exception))
-
-    def test_from_env(self):
-        env = dict(zip(("EMAIL_LOGO_URL", "EMAIL_BADGE_CRA_URL", "EMAIL_BADGE_BBB_URL",
-                        "EMAIL_CONTACT_EMAIL", "EMAIL_SCHEDULE_URL"), SETTINGS_ARGS))
-        with mock.patch.dict(os.environ, env, clear=True):
-            self.assertEqual(r.EmailSettings.from_env().schedule_url, SETTINGS_ARGS[4])
 
 
 @unittest.skipIf(MISSING, f"missing dependency: {MISSING}")

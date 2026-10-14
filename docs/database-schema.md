@@ -958,6 +958,19 @@ segment only, such as `contacts`, never an id). The daily limit is 10,000 calls 
 plus polling, so the engine counts real calls (`hailsys/constantcontact/budget.py`, item 191). Insert-only.
 The 10,000 is a fixed ceiling in code, not a setting (CLAUDE.md, conventions).
 
+#### `email_images`
+
+`sql/042_email_images_and_settings.sql` (item 203, piece 1). Named images for email templates, managed from
+the Email section of the admin page. Columns: `image_id`, `name` (letters, digits, hyphen, underscore, up to
+40; unique ignoring case), `url` (`CHECK` `https://`, no spaces, up to 500; free-hosting domains are refused
+in the application, `render.check_url`), `alt_text` (1 to 200), `is_active`, `created_by`/`created_at`,
+`updated_by`/`updated_at`. **Edited in place, retired never deleted** (`hail_app` has `SELECT, INSERT,
+UPDATE`); sent emails keep their own HTML, so an edit changes new emails only. There is no history table:
+the row says who changed it last. **`logo`, `badge_cra` and `badge_bbb` are the three images the built-in
+template needs**; the `CHECK` `email_images_required_stay_active` stops them being retired. They were
+the `EMAIL_LOGO_URL`, `EMAIL_BADGE_CRA_URL` and `EMAIL_BADGE_BBB_URL` environment variables, and seed the
+table. The server never fetches an image; the recipient's mail client and the admin's browser do.
+
 ---
 
 ## Address search
@@ -1080,6 +1093,9 @@ invalidation to get wrong across Gunicorn workers.
 | `listing_freshness_days` | `SMALLINT NOT NULL DEFAULT 7`, `CHECK` `BETWEEN 1 AND 90` — added `sql/028_listing_freshness.sql`. A listing RentCast has not seen within this many days is not emailed about, since it may have been sold or withdrawn. 7 assumes a storm is pulled and sent the same or next day, with a week of slack |
 | `match_max_age_days` | `SMALLINT NOT NULL DEFAULT 30`, `CHECK` `BETWEEN 1 AND 90` — added `sql/038_email_settings.sql`. A storm day older than this many days is not emailed about |
 | `email_cap_days` | `SMALLINT NOT NULL DEFAULT 14`, `CHECK` `BETWEEN 1 AND 90` — added `038`. A realtor emailed within this many days is held back from the next send unless the sender overrides it; their matches stay unsent for a later email |
+| `contact_email` | `TEXT NOT NULL`, `CHECK` an address (one `@`, no spaces) — added `sql/042_email_images_and_settings.sql`. The contact line at the foot of the email. Moved from the `EMAIL_CONTACT_EMAIL` environment variable; the column default is the value it had |
+| `schedule_url` | `TEXT NOT NULL`, `CHECK` starts `https://` — added `042`. The "Schedule a new inspection" link. Was `EMAIL_SCHEDULE_URL`. The renderer also refuses free-hosting domains (`render.check_url`) |
+| `from_name`, `from_email`, `reply_to` | `TEXT NOT NULL` — added `042`. The sender identity passed to Constant Contact (`emailconfig.load_sender`). Were `CC_FROM_NAME`, `CC_FROM_EMAIL`, `CC_REPLY_TO`. **`from_email` must be a verified sender in the Constant Contact account**, or its campaigns are refused; the admin page says so beside the field. One sender for everyone; a per-user choice is item 194 |
 | `rentcast_monthly_quota` | `INTEGER NOT NULL DEFAULT 1000`, `CHECK` `> 0` — added `023`. Requests included per billing period. **Warn and allow**: the pull estimate warns when a pull would exceed it, and nothing blocks (decision-log 2026-09-23, "RentCast quota…") |
 
 Plus a table-level `CHECK` `match_within_zip_radius`:
@@ -1123,13 +1139,15 @@ freshness settings, snapshotting all seven values that resulted (five before `03
 | `rentcast_billing_day`, `rentcast_monthly_quota` | Nullable — added `023`. **NULL on rows written before `023`**, not backfilled: a default would assert a value nobody recorded. The admin page shows them as "—" |
 | `listing_freshness_days` | `SMALLINT`, nullable — added `sql/028`. **NULL on rows written before `028`**, not backfilled, for the same reason |
 | `match_max_age_days`, `email_cap_days` | `SMALLINT`, nullable — added `sql/038`. **NULL on rows written before `038`**, not backfilled, for the same reason |
+| `contact_email`, `schedule_url`, `from_name`, `from_email`, `reply_to` | `TEXT`, nullable — added `sql/042`. **NULL on rows written before `042`**, not backfilled, for the same reason |
 
 **Written only by `trg_log_settings_change`**, calling `log_settings_change()`:
 
 ```sql
 AFTER UPDATE OF default_zip_radius_miles, default_match_radius_miles,
                 rentcast_billing_day, rentcast_monthly_quota,
-                listing_freshness_days, match_max_age_days, email_cap_days
+                listing_freshness_days, match_max_age_days, email_cap_days,
+                contact_email, schedule_url, from_name, from_email, reply_to
 ON settings
 FOR EACH ROW
 WHEN (OLD.default_zip_radius_miles    IS DISTINCT FROM NEW.default_zip_radius_miles
@@ -1138,12 +1156,17 @@ WHEN (OLD.default_zip_radius_miles    IS DISTINCT FROM NEW.default_zip_radius_mi
    OR OLD.rentcast_monthly_quota      IS DISTINCT FROM NEW.rentcast_monthly_quota
    OR OLD.listing_freshness_days      IS DISTINCT FROM NEW.listing_freshness_days
    OR OLD.match_max_age_days          IS DISTINCT FROM NEW.match_max_age_days
-   OR OLD.email_cap_days              IS DISTINCT FROM NEW.email_cap_days)
+   OR OLD.email_cap_days              IS DISTINCT FROM NEW.email_cap_days
+   OR OLD.contact_email               IS DISTINCT FROM NEW.contact_email
+   OR OLD.schedule_url                IS DISTINCT FROM NEW.schedule_url
+   OR OLD.from_name                   IS DISTINCT FROM NEW.from_name
+   OR OLD.from_email                  IS DISTINCT FROM NEW.from_email
+   OR OLD.reply_to                    IS DISTINCT FROM NEW.reply_to)
 ```
 
-That is the definition as of `038`. `023` replaced `020`'s two-column version
+That is the definition as of `042`. `023` replaced `020`'s two-column version
 with `CREATE OR REPLACE FUNCTION` plus a drop and recreate of the trigger, and
-`028` did the same to add the fifth column and `038` the sixth and seventh.
+`028` did the same to add the fifth column, `038` the sixth and seventh, and `042` the five email values.
 Scoped to the settings columns, and still **not** `global_sessions_invalidated_at`,
 because the boot-everyone route updates that column on the same row; unscoped, that update fired
 the trigger and demanded attribution it has no reason to set. The `WHEN`

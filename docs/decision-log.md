@@ -6919,3 +6919,29 @@ setting, not a code change.
 (both entries); `phases.md` Phase 5b and "Not on the roadmap".
 
 ---
+
+## 2026-10-14 — Email images and the sender identity move from the environment to the database
+
+Item 203, piece 1, built. This applies the 2026-10-13 rule that anything an operator may need to
+change has a UI access point.
+
+- **`email_images`** (`sql/042`): named images, any `https://` address except free-hosting domains,
+  alt text required, **edited in place** (sent emails keep their own HTML, so no version history), retired
+  never deleted. `logo`, `badge_cra` and `badge_bbb` are fixed slots of the built-in template: they can be
+  edited, but a `CHECK` stops them being retired.
+- **`settings`** now holds the contact email, the schedule link and the sender (`from_name`,
+  `from_email`, `reply_to`). Changes are logged to `settings_history` by the existing trigger.
+- **The sender folds into this piece** (it was left for item 194): one sender for everyone, edited on the
+  admin page. `from_email` must be a verified sender in Constant Contact; the page says so. A per-user
+  or per-send choice stays item 194.
+- **The environment readers are gone** (`EmailSettings.from_env`, `sender_from_env`) so nothing can
+  silently fall back to a stale environment value. The values are read per request by
+  `hailsys/email/emailconfig.py`; a missing required image is a `SettingsError` that names it.
+- `render.py` stays free of the database; `check_url` and `check_email` are public so the admin page
+  applies exactly the rules the renderer applies at load.
+- **Not done:** the `EMAIL_*`, `CC_FROM_*` and `CC_REPLY_TO` lines are removed from `docker-compose.yml`
+  on `hail-dev`; the production box has none of this yet (item 183 and the OptiPlex build).
+
+**Related:** items 192, 194, 203; decision log 2026-10-13.
+
+---

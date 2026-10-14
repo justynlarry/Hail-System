@@ -17,7 +17,6 @@ Rules:
 * Errors name a placeholder or setting.
 """
 
-import os
 import re
 import urllib.parse
 from dataclasses import dataclass
@@ -58,7 +57,7 @@ class SettingsError(RenderError):
     pass
 
 
-def _check_url(name, url):
+def check_url(name, url):
     if not isinstance(url, str) or not re.fullmatch(r"https://\S+", url):
         raise SettingsError(f"{name} must be an https:// address")
     host = urllib.parse.urlsplit(url).hostname or ""
@@ -68,13 +67,9 @@ def _check_url(name, url):
             "Contact will not deliver to a free-hosting domain."
         )
 
-_ENV_NAMES = {
-    "logo_url": "EMAIL_LOGO_URL",
-    "badge_cra_url": "EMAIL_BADGE_CRA_URL",
-    "badge_bbb_url": "EMAIL_BADGE_BBB_URL",
-    "contact_email": "EMAIL_CONTACT_EMAIL",
-    "schedule_url": "EMAIL_SCHEDULE_URL",
-}
+def check_email(name, value):
+    if not isinstance(value, str) or not re.fullmatch(r"[^\s@]+@[^\s@]+", value):
+        raise SettingsError(f"{name} is not an email address")
 
 @dataclass(frozen=True)
 class EmailSettings:
@@ -86,19 +81,9 @@ class EmailSettings:
 
     def __post_init__(self):
         for name in ("logo_url", "badge_cra_url", "badge_bbb_url", "schedule_url"):
-            _check_url(name, getattr(self, name))
-        if "@" not in self.contact_email or re.search(r"\s", self.contact_email):
-            raise SettingsError("contact_email is not an email address")
+            check_url(name, getattr(self, name))
+        check_email("contact_email", self.contact_email)
 
-    @classmethod
-    def from_env(cls):
-        values = {}
-        for field, var in _ENV_NAMES.items():
-            value = (os.environ.get(var) or "").strip()
-            if not value:
-                raise SettingsError(f"{var} is not set in the environment")
-            values[field] = value
-        return cls(**values)
 
 # ------ small formatters ---------------------------------------------------------
 

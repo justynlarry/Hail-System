@@ -122,7 +122,7 @@ def _sample_context(found):
     """(context, where it came from, problem): the first realtor on the send list, or stand-in
     data when no storm day has been previewed.  Never raises."""
     try:
-        email_settings = render.EmailSettings.from_env()
+        email_settings, _ = sendjobs.load_config()
         if found and found["realtors"]:
             first = found["realtors"][0]
             return (render.build_context(first["agent_name"], first["events"], email_settings),

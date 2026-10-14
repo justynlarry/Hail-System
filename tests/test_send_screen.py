@@ -26,6 +26,9 @@ try:
     from hailsys.queries import sendlist
     from hailsys.settings import fetch_settings
     from hailsys.web import create_app, send as screen
+    SETTINGS = render.EmailSettings(
+        "https://x.test/logo.png", "https://x.test/cra.png", "https://x.test/bbb.png",
+        "contact@example.com", "https://x.test/schedule")
     MISSING = None
 except ImportError as exc:
     MISSING = str(exc)
@@ -127,7 +130,7 @@ class SendScreenTest(unittest.TestCase):
         stack.enter_context(mock.patch.object(
             screen.sendjobs, "load_config",
             **({"side_effect": config_error} if config_error
-               else {"return_value": (object(), SENDER)})))
+               else {"return_value": (SETTINGS, SENDER)})))
         stack.enter_context(mock.patch.object(screen.sendjobs, "is_busy", return_value=False))
         return stack.enter_context(mock.patch.object(
             screen.sendjobs, "start_send", side_effect=start_error))
@@ -317,7 +320,7 @@ class SendScreenTest(unittest.TestCase):
         stack.enter_context(mock.patch.object(screen.sendstatus, "fetch_batch",
                                               return_value=found))
         stack.enter_context(mock.patch.object(screen.sendjobs, "load_config",
-                                              return_value=(object(), SENDER)))
+                                              return_value=(SETTINGS, SENDER)))
         stack.enter_context(mock.patch.object(screen.sendjobs, "is_busy", return_value=busy))
         return stack.enter_context(mock.patch.object(screen.sendjobs, "start_resume",
                                                      side_effect=start_error))

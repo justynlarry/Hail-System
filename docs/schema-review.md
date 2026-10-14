@@ -44,8 +44,9 @@ frozen-column trigger (it refuses to run on a non-empty `send_log`); 038
 `settings.match_max_age_days` and `email_cap_days`, the same columns on
 `settings_history`, and a third replacement of the history function and trigger;
 039 `cc_status_runs`; 040 `cc_api_calls`; 041 `email_templates.description` and a
-replacement of `email_templates_guard()`. `sql/guard_test.sql` is **not a migration**:
-it tests the guards from 029 on (029, 030, 033 to 037, and 041's description rule; the
+replacement of `email_templates_guard()`; 042 `email_images` and the five email values on `settings` and
+`settings_history` (a fourth replacement of the history function and trigger). `sql/guard_test.sql` is **not a migration**:
+it tests the guards from 029 on (029, 030, 033 to 037, 041's description rule and 042; the
 guards in 039 and 040 are not covered, item 214) inside a transaction it rolls back, so build with `sql/[0-9]*.sql` and run it
 separately (§1).
 `010_roles.sql` holds the roles and the grants for tables that existed when it

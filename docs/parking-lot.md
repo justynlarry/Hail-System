@@ -2823,7 +2823,10 @@ The three `CC_*` sender variables and the five `EMAIL_*` variables are in the `w
 `environment:` block of `docker-compose.yml` (non-secrets live there, not in `.env`), read by
 `deliver.sender_from_env()` and `render.EmailSettings.from_env()`; both load in the running
 container and the rehearsal send used them. The From address worked as a verified sender on the
-dev trial account. Making the sender a UI choice is item 194. Original finding below.
+dev trial account. Making the sender a UI choice is item 194. **Superseded 2026-10-14:** these
+values are now in the database (`settings`, `email_images`) and edited on the admin page; the
+environment variables and `sender_from_env()` / `from_env()` are gone (item 203 piece 1, decision log
+2026-10-14). Original finding below.
 
 (found 2026-10-09)
 
@@ -2836,7 +2839,10 @@ verified sender in the Constant Contact account (item 183). Neither variable is 
 
 ## 194. The sender identity is hard-coded in `docker-compose.yml`; a user should be able to choose it in the UI
 
-**Status:** open, accepted for now (2026-10-09, by developer decision)
+**Status:** open, **partly done 2026-10-14**: the sender (`from_name`, `from_email`, `reply_to`) and the
+`EMAIL_*` values are no longer in `docker-compose.yml`; they are in `settings`, edited by an admin on the
+admin page with changes in `settings_history` (item 203 piece 1). Still open: a **choice** of sender per
+user or per send, and recording the sender with the send. Original text below.
 
 Item 192 put `CC_FROM_NAME`, `CC_FROM_EMAIL` and `CC_REPLY_TO` (and the `EMAIL_*` asset URLs and
 contact address) in the `web` service's `environment:` block, which is where the repo keeps
@@ -3094,7 +3100,9 @@ version from the UI before then.
 
 ## 203. A template builder in the web UI, and email images managed from the UI
 
-**Status:** open (filed 2026-10-13, by developer request; shape agreed the same day)
+**Status:** open. **Piece 1 done 2026-10-14** (`sql/042`; `email_images` and the Email section of the admin
+page; the contact email, schedule link and sender moved from the environment to `settings`; decision log
+2026-10-14). Pieces 2 to 6 not started. (filed 2026-10-13, by developer request; shape agreed the same day)
 
 Staff should be able to create a template in the UI, with an image that is already in Constant
 Contact, bold, italic and coloured text, and the other parts of the current template.
@@ -3490,7 +3498,7 @@ the layout was not touched, and item numbers never change.
 
 **Status:** open (found 2026-10-14, while updating `docs/schema-review.md`)
 
-`guard_test.sql` covers `029`, `030`, `033` to `037` and the description rule in `041`. It has no check for
+`guard_test.sql` covers `029`, `030`, `033` to `037`, the description rule in `041` and `042` (images and email settings). It has no check for
 `cc_status_runs_guard()` (`039`: refuses `DELETE`, any change to a finished run, and any change to the identifying
 columns of a running one) or `cc_api_calls_guard()` (`040`: refuses every update and delete), and the grant
 revocations on both tables are not tested either. The two guards are the same pattern as the tested ones

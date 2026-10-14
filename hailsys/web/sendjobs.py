@@ -13,7 +13,7 @@ import logging
 import threading
 
 from hailsys.db import get_connection
-from hailsys.email import deliver, render
+from hailsys.email import deliver, emailconfig
 from hailsys.constantcontact import budget
 
 logger = logging.getLogger(__name__)
@@ -34,8 +34,9 @@ RESUME_MAX_DAYS = deliver.RESUME_MAX_DAYS
 BatchBusy = deliver.BatchBusy
 
 def load_config():
-    """(email_settings, sender) from environment, render.SettingsError names variable."""
-    return render.EmailSettings.from_env(), deliver.sender_from_env()
+    """(email_settings, sender) from database, render.SettingsError names problem."""
+    with get_connection() as conn:
+        return emailconfig.load_settings(conn), emailconfig.load_sender(conn)
 
 
 def is_busy():

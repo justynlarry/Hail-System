@@ -68,7 +68,9 @@ addresses.
 - **What gets sent.** `sent_emails` is the email as sent, one per realtor per send, and
   `send_log` keeps one row per match, pointing at it (design: item 180; one email per house:
   item 55). Eligibility is `settings.match_max_age_days`, `email_cap_days` and
-  `listing_freshness_days`. Templates are chosen and described in the UI (item 202).
+  `listing_freshness_days`. Templates are chosen and described in the UI (item 202). The email
+  images, contact email, schedule link and sender identity are edited on the admin page
+  (`email_images`, `settings`; item 203 piece 1), not in `docker-compose.yml`.
 - **Sending and monitoring.** The admin-only `/send` screens (preview, confirm, start,
   batches, resume, discard, bounce check; `cc_status_runs`). A call counter,
   `cc_api_calls`, makes the engine stop at Constant Contact's daily limit (item 191).
@@ -171,7 +173,7 @@ These have already bitten us. Do not re-discover them.
   changes logged to `settings_history`: not a config file, an environment variable or a code
   constant. Fixed ceilings and safety limits stay in code and are documented as such (the
   Constant Contact daily limit and headroom, the suppression rule, `MAX_EMAILS_LIMIT`). Decision
-  log 2026-10-13.
+  log 2026-10-13. Done for the email images and sender (decision log 2026-10-14).
 - `web`, `app` and `loader` bind-mount the repo (edit = deploy). Only `ingest`
   runs image-baked code, on purpose, because the nightly timers should run a
   known artifact -- rebuild it before testing ingest changes, and run

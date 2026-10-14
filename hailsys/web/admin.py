@@ -2,13 +2,13 @@ import psycopg
 
 from flask import Blueprint, flash, g, redirect, render_template, request, url_for
 
-from hailsys.queries import quota, dncimport, ccstate
+from hailsys.queries import quota, dncimport, ccstate, emailadmin
 from hailsys.db import get_connection
 from hailsys.web.auth import MIN_PASSWORD_LENGTH, hash_password, require_role
 from hailsys.tuning import DISPLAY_TZ, denver_day_bounds
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
-
+from hailsys.email import emailconfig
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -81,7 +81,8 @@ def _render_admin(form=None, status=200):
                    global_sessions_invalidated_at,
                    hail_pair_ceiling_m() AS ceiling_m,
                    listing_freshness_days,
-                   match_max_age_days, email_cap_days
+                   match_max_age_days, email_cap_days,
+                   contact_email, schedule_url, from_name, from_email, reply_to
             FROM settings
             """
         )
@@ -99,7 +100,8 @@ def _render_admin(form=None, status=200):
             SELECT h.changed_at, u.user_name,
                    h.default_zip_radius_miles, h.default_match_radius_miles,
                    h.rentcast_billing_day, h.rentcast_monthly_quota, h.listing_freshness_days,
-                   h.match_max_age_days, h.email_cap_days
+                   h.match_max_age_days, h.email_cap_days,
+                   h.contact_email, h.schedule_url, h.from_name, h.from_email, h.reply_to
             FROM settings_history h
             JOIN users u ON u.emp_id = h.changed_by
             ORDER BY h.changed_at DESC
@@ -109,6 +111,7 @@ def _render_admin(form=None, status=200):
         )
         history = cur.fetchall()
         cc = ccstate.fetch_state(conn)
+        images = emailadmin.fetch_images(conn)
 
     return render_template(
         "admin.html",
@@ -122,6 +125,8 @@ def _render_admin(form=None, status=200):
         min_password_length=MIN_PASSWORD_LENGTH,
         usage=usage,
         cc=cc,
+        images=images,
+        required_images=emailconfig.REQUIRED_IMAGES,
     ), status
 
 def _user_action(sql, params, ok_message):
@@ -307,6 +312,60 @@ def update_settings():
               f"Billing day {billing_day}, quota {monthly_quota}, "
               f"listings fresh for {freshness_days} days.")
     return redirect(url_for("admin.index"))
+
+
+def _email_action(write, ok_message):
+    """Run one email write; a refused value is shown as a message, not an error page."""
+    try:
+        with get_connection() as conn:
+            write(conn)
+    except emailadmin.EmailAdminError as exc:
+        flash(str(exc))
+    else:
+        flash(ok_message)
+    return redirect(url_for("admin.index") + "#email")
+
+
+@admin_bp.route("/email-settings", methods=["POST"])
+def update_email_settings():
+    f = request.form
+    return _email_action(
+        lambda conn: emailadmin.save_email_settings(
+            conn, g.user["emp_id"], f.get("contact_email"), f.get("schedule_url"),
+            f.get("from_name"), f.get("from_email"), f.get("reply_to")),
+        "Email settings updated.")
+
+
+@admin_bp.route("/images", methods=["POST"])
+def add_image():
+    f = request.form
+    return _email_action(
+        lambda conn: emailadmin.add_image(
+            conn, g.user["emp_id"], f.get("name"), f.get("url"), f.get("alt_text")),
+        "Image added.")
+
+
+@admin_bp.route("/images/<int:image_id>", methods=["POST"])
+def update_image(image_id):
+    f = request.form
+    return _email_action(
+        lambda conn: emailadmin.update_image(
+            conn, g.user["emp_id"], image_id, f.get("url"), f.get("alt_text")),
+        "Image updated.")
+
+
+@admin_bp.route("/images/<int:image_id>/retire", methods=["POST"])
+def retire_image(image_id):
+    return _email_action(
+        lambda conn: emailadmin.set_image_active(conn, g.user["emp_id"], image_id, False),
+        "Image retired.")
+
+
+@admin_bp.route("/images/<int:image_id>/reactivate", methods=["POST"])
+def reactivate_image(image_id):
+    return _email_action(
+        lambda conn: emailadmin.set_image_active(conn, g.user["emp_id"], image_id, True),
+        "Image reactivated.")
 
 
 @admin_bp.route("/users/<int:emp_id>/password", methods=["POST"])

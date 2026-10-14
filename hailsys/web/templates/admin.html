@@ -175,6 +175,108 @@
   </form>
 </section>
 
+<section id="email">
+  <h2>Email</h2>
+  <form method="post" action="{{ url_for('admin.update_email_settings') }}" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <table class="settings-table">
+      <tbody>
+        <tr><th><label for="contact_email">Contact email</label></th>
+            <td><input id="contact_email" name="contact_email" type="email"
+                       value="{{ settings.contact_email }}" required>
+                <br><small>Shown at the foot of the email.</small></td></tr>
+        <tr><th><label for="schedule_url">Schedule link</label></th>
+            <td><input id="schedule_url" name="schedule_url" type="url" size="50"
+                       value="{{ settings.schedule_url }}" required>
+                <br><small>The "Schedule a new inspection" button. Must start with https://</small></td></tr>
+        <tr><th><label for="from_name">Sender name</label></th>
+            <td><input id="from_name" name="from_name" type="text" maxlength="100"
+                       value="{{ settings.from_name }}" required></td></tr>
+        <tr><th><label for="from_email">Sender email</label></th>
+            <td><input id="from_email" name="from_email" type="email"
+                       value="{{ settings.from_email }}" required>
+                <br><small>Must be a verified sender in Constant Contact, or its
+                campaigns are refused and sends will fail.</small></td></tr>
+        <tr><th><label for="reply_to">Reply-to email</label></th>
+            <td><input id="reply_to" name="reply_to" type="email"
+                       value="{{ settings.reply_to }}" required></td></tr>
+      </tbody>
+    </table>
+    <button type="submit">Save email settings</button>
+  </form>
+
+  <h3>Email images</h3>
+  <p class="note">
+    Images for email templates, by name. Editing an address changes new emails only; sent
+    emails keep the HTML they were sent with. Free-hosting domains are refused. The picture
+    is loaded by your browser from its address; the server never fetches it. Images are
+    retired, never deleted, and the three the built-in template needs cannot be retired.
+  </p>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Name</th><th>Image</th><th>Address (https)</th><th>Alt text</th>
+               <th>Updated</th><th></th></tr></thead>
+    <tbody>
+    {% for i in images %}
+      <tr>
+        <td>{{ i.name }}{% if not i.is_active %} <small>(retired)</small>{% endif %}</td>
+        <td><img src="{{ i.url }}" alt="{{ i.alt_text }}"
+                 style="max-height:40px; max-width:120px;"></td>
+        <td><input type="url" name="url" form="img-{{ i.image_id }}" value="{{ i.url }}"
+                   required maxlength="500" size="50" aria-label="Address of {{ i.name }}"></td>
+        <td><input type="text" name="alt_text" form="img-{{ i.image_id }}"
+                   value="{{ i.alt_text }}" required maxlength="200" size="24"
+                   aria-label="Alt text of {{ i.name }}"></td>
+        <td>{{ ts(i.updated_at) }}<br><small>{{ i.updated_by_name }}</small></td>
+        <td>
+          <button type="submit" form="img-{{ i.image_id }}">Save</button>
+          {% if not i.is_active %}
+          <form method="post" action="{{ url_for('admin.reactivate_image', image_id=i.image_id) }}"
+                style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit">Reactivate</button>
+          </form>
+          {% elif i.name in required_images %}
+          <small>required</small>
+          {% else %}
+          <form method="post" action="{{ url_for('admin.retire_image', image_id=i.image_id) }}"
+                style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit">Retire</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6">No images.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {# An edit is saved by its own small form: it cannot nest inside the table row. #}
+  {% for i in images %}
+  <form id="img-{{ i.image_id }}" method="post"
+        action="{{ url_for('admin.update_image', image_id=i.image_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+  {% endfor %}
+
+  <details>
+    <summary>Add an image</summary>
+    <form method="post" action="{{ url_for('admin.add_image') }}" class="admin-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Name
+        <input name="name" required maxlength="40" pattern="[A-Za-z0-9_\-]+"
+               autocomplete="off"></label>
+      <label>Address (https)
+        <input name="url" type="url" required maxlength="500" size="50"></label>
+      <label>Alt text
+        <input name="alt_text" required maxlength="200"></label>
+      <button type="submit">Add image</button>
+    </form>
+  </details>
+</section>
+
 <section>
   <h2>Sessions</h2>
   <p>Last system-wide sign-out: {{ ts(settings.global_sessions_invalidated_at) }}</p>
@@ -190,7 +292,7 @@
   <div class="table-scroll">
   <table>
     <thead><tr><th>When</th><th>By</th><th>Zip radius</th><th>Match radius</th>
-               <th>Billing day</th><th>Monthly quota</th><th>Freshness (days)</th><th>Storm age</th><th>Email cap</th></tr></thead>
+               <th>Billing day</th><th>Monthly quota</th><th>Freshness (days)</th><th>Storm age</th><th>Email cap</th><th>Email values</th></tr></thead>
     <tbody>
     {% for h in history %}
       <tr>
@@ -205,9 +307,13 @@
         <td>{{ h.listing_freshness_days if h.listing_freshness_days is not none else "—" }}</td>
         <td>{{ h.match_max_age_days if h.match_max_age_days is not none else "—" }}</td>
         <td>{{ h.email_cap_days if h.email_cap_days is not none else "—" }}</td>
+        {# NULL on rows written before sql/042, which added these columns #}
+        <td>{% if h.contact_email %}<small>contact {{ h.contact_email }}; schedule
+            {{ h.schedule_url }}; from {{ h.from_name }} &lt;{{ h.from_email }}&gt;;
+            reply-to {{ h.reply_to }}</small>{% else %}—{% endif %}</td>
       </tr>
     {% else %}
-      <tr><td colspan="9">No changes yet.</td></tr>
+      <tr><td colspan="10">No changes yet.</td></tr>
     {% endfor %}
     </tbody>
   </table>

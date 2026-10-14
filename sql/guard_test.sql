@@ -288,7 +288,33 @@ SELECT pg_temp.expect('sent_emails DELETE blocked',
   $q$DELETE FROM sent_emails
      WHERE recipient_email = 'guard-test-1@example.invalid'$q$, '23001');
 
+-- email_images and the email settings (sql/042)
+SELECT pg_temp.expect('email_images a required image cannot be retired',
+  $q$UPDATE email_images SET is_active = FALSE WHERE name = 'logo'$q$, '23514');
+SELECT pg_temp.expect('email_images name unique ignoring case',
+  $q$INSERT INTO email_images (name, url, alt_text, created_by, updated_by)
+     SELECT 'LOGO', 'https://example.com/x.png', 'x', emp_id, emp_id
+     FROM users WHERE role = 'system'$q$, '23505');
+SELECT pg_temp.expect('email_images url must be https',
+  $q$UPDATE email_images SET url = 'http://example.com/x.png' WHERE name = 'logo'$q$, '23514');
+SELECT pg_temp.expect('email_images a new image can be added',
+  $q$INSERT INTO email_images (name, url, alt_text, created_by, updated_by)
+     SELECT 'guard-extra', 'https://example.com/x.png', 'x', emp_id, emp_id
+     FROM users WHERE role = 'system'$q$, 'ok');
+SELECT pg_temp.expect('email_images an optional image can be retired',
+  $q$UPDATE email_images SET is_active = FALSE WHERE name = 'guard-extra'$q$, 'ok');
+SELECT pg_temp.expect('settings contact_email must look like an address',
+  $q$UPDATE settings SET contact_email = 'not an address'$q$, '23514');
 
+-- The history trigger reads the acting user from this setting (transaction-local).
+SELECT set_config('app.current_emp_id',
+                  (SELECT emp_id FROM users ORDER BY emp_id LIMIT 1)::text, true);
+SELECT pg_temp.expect('settings an email value change is allowed',
+  $q$UPDATE settings SET contact_email = 'guard-test@example.invalid'$q$, 'ok');
+-- 1/count(*) fails with division by zero when no history row was written.
+SELECT pg_temp.expect('settings that change was logged to settings_history',
+  $q$SELECT 1 / count(*) FROM settings_history
+     WHERE contact_email = 'guard-test@example.invalid'$q$, 'ok');
 
 ROLLBACK;
 

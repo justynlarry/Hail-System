@@ -9,7 +9,7 @@ import sys
 from datetime import date, datetime, timezone
 
 from hailsys.db import get_connection
-from hailsys.email import deliver, render
+from hailsys.email import deliver, emailconfig
 from hailsys.queries import sendlist
 
 DAY = date(2026, 9, 19)
@@ -22,10 +22,10 @@ def main():
     send_n = None
     if "--send" in sys.argv:
         send_n = int(sys.argv[sys.argv.index("--send") + 1])
-    settings = render.EmailSettings.from_env()
-    sender = deliver.sender_from_env()
     now = datetime.now(timezone.utc)
     with get_connection() as conn:
+        settings = emailconfig.load_settings(conn)
+        sender = emailconfig.load_sender(conn)
         user_id = conn.execute(
             "SELECT emp_id FROM users WHERE role = 'system'").fetchone()["emp_id"]
         found = sendlist.build_send_list(conn, [DAY], now=now)
