@@ -36,7 +36,7 @@ was pulled for, `properties.geom`, match attribution, an `ingested_at` index,
 and `report_zip_distances`); `hailsys/matching/matcher.py` writing
 `storm_listing_matches`; and the UI for it — `/pull/estimate`, `/pull`,
 `/match`, `/storms/matches` and the activity feed. A pull runs in a background
-thread and matches automatically when it finishes. No sending path exists.
+thread and matches automatically when it finishes. (No sending path existed then.)
 
 What Phase 4 delivered: roles enforced server-side —
 `role_required("sender", "admin")` on `/pull/estimate`, `/pull` and `/match`,
@@ -54,19 +54,31 @@ POST (a failure returns a 400 page). `sql/021` (`municipal_boundaries`) is
 from the parked permits research, not Phase 4. `scripts/create_user.py`
 stays as a bootstrap-only path (`docs/parking-lot.md` item 65, closed 2026-10-01).
 
-What exists for Phase 5 so far: `send_log`, `email_templates` and `dnc_list`
-from `sql/007`, and `workstate.py` reading `send_log` for the "Sent" state.
-`send_log` and `email_templates` are empty. `sql/029` and `sql/030` enforce
-append-only on both with triggers (applied to `hail-dev` 2026-09-30, not
-checked on the production box; `sql/guard_test.sql` tests them). The table
-owner can still `TRUNCATE` — accepted, decision log 2026-09-30. `dnc_list`
-holds 759 suppressions,
-imported 2026-09-29 through the admin upload (`/admin`, `sql/026`,
-`hailsys/queries/dncimport.py`) from the Constant Contact export plus the
-Airtable-only entries. That union may still be incomplete (`docs/parking-lot.md`
-item 129: the Constant Contact export may be missing ~9 months of
-unsubscribes) — settle it before the first send. No sending code. Provider chosen 2026-10-06:
-Constant Contact (decision log, item 119).
+What exists for Phase 5 so far, as of 2026-10-14, on `hail-dev` only (the production
+box has none of it): a Constant Contact send path, **built and rehearsed but never used
+to send to a real recipient**. The seven `sent_emails` rows are rehearsal sends to test
+addresses.
+- **Provider access and suppression.** OAuth grants in `oauth_tokens`, and the
+  unsubscribe sync into `dnc_list` (`cc_sync_runs`, `cc_sync_conflicts`, admin `/cc`).
+  `dnc_list` holds 760 suppressions (the 759 imported 2026-09-29 through the admin upload,
+  `/admin`, `sql/026`, `hailsys/queries/dncimport.py`, from the Constant Contact export plus
+  the Airtable-only entries, and one more since). That union may still be incomplete
+  (`docs/parking-lot.md` item 129: the Constant Contact export may be missing ~9 months of
+  unsubscribes), so settle it before the first send.
+- **What gets sent.** `sent_emails` is the email as sent, one per realtor per send, and
+  `send_log` keeps one row per match, pointing at it (design: item 180; one email per house:
+  item 55). Eligibility is `settings.match_max_age_days`, `email_cap_days` and
+  `listing_freshness_days`. Templates are chosen and described in the UI (item 202).
+- **Sending and monitoring.** The admin-only `/send` screens (preview, confirm, start,
+  batches, resume, discard, bounce check; `cc_status_runs`). A call counter,
+  `cc_api_calls`, makes the engine stop at Constant Contact's daily limit (item 191).
+- **Append-only in the database.** `send_log`, `email_templates`, `sent_emails` and the
+  Constant Contact log tables, by triggers (`sql/029`, `030`, `034` to `040`; applied to
+  `hail-dev`, not checked on the production box; `sql/guard_test.sql` tests them). The
+  table owner can still `TRUNCATE`, accepted (decision log 2026-09-30).
+- **Before a production send.** Items 129, 183 (the paid account), 189 (the eligibility
+  gate) and 96 (the sending domain), and a production box that has the code. Provider
+  chosen 2026-10-06: Constant Contact (decision log, item 119).
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
 with CSV export → 3 RentCast listings → 4 accounts → 5 email → 6 pilot →
@@ -100,7 +112,7 @@ row is committed first. See decision log 2026-10-06.
 time.** Full lat/lon fidelity in, zips derived on read. The buffer radius is a
 tuning parameter.
 
-**`send_log` and `email_templates` are append-only.** Templates are superseded,
+**`send_log`, `email_templates` and `sent_emails` are append-only.** Templates are superseded,
 never edited. Sends are inserted, and only their provider status is updated
 afterward.
 

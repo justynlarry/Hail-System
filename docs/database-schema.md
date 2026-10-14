@@ -756,7 +756,8 @@ That is correct — two outreach opportunities with different pitches.
 
 ### `send_log`
 
-One row per email to one agent. Append-only except for provider status updates.
+One row per match: one listing in one email to one agent. The rows of one email share an
+`email_id` pointing at `sent_emails` (below). Append-only except for provider status updates.
 
 | Field | Purpose |
 |---|---|
@@ -772,6 +773,7 @@ One row per email to one agent. Append-only except for provider status updates.
 | `provider_message_id` | The ESP's id. **How a bounce finds its way home** |
 | `status_updated_at` | When a bounce or complaint arrived |
 | `error_detail` | Provider error text |
+| `email_id` | FK → `sent_emails`, `NOT NULL`, indexed (`send_log_email_id_idx`). Added `sql/037_sent_emails.sql` (the migration refuses to run on a non-empty `send_log`). **Frozen:** `trg_send_log_email_frozen` (`send_log_email_guard()`) refuses any update that changes it. `send_log_guard()` was deliberately left alone (decision log 2026-10-07, "`sent_emails`: the email as sent") |
 
 `CHECK (send_status = 'queued' OR send_status = 'failed' OR sent_at IS NOT NULL)`
 — constraint `sent_has_timestamp`. A row cannot claim `sent`, `bounced`, or
@@ -820,11 +822,12 @@ Message text, versioned. Never edited in place.
 | `is_active` | Available for sending |
 | `created_at`, `created_by` | FK → `users` |
 | `supersedes_id` | Self-FK to the prior version |
+| `description` | `TEXT`, nullable, `CHECK` `email_templates_description_length`: at most 300 characters. Added `sql/041_email_template_description.sql`. A note shown in the template list on the send page, not part of what is sent. **The one text column that can change in place, and only until the template has been used in an email**: `sent_emails` is the record of use, and a queued, sent or discarded email counts. After that the guard refuses a change, and a new version is needed |
 
 **Editing in place is refused by the database**, `sql/030_email_templates_immutable.sql`
 (same status as `sql/029` above). `email_templates_guard()` refuses `DELETE`,
-refuses any change to every column except `is_active`, and refuses
-reactivating a retired template (`false` → `true`). `DELETE` and `TRUNCATE` are
+refuses any change to every column except `is_active` and, until the template has been used,
+`description` (`041`), and refuses reactivating a retired template (`false` → `true`). `DELETE` and `TRUNCATE` are
 revoked from `hail_app`.
 
 **Editing in place is forbidden.** Changing a body would make every historical
@@ -852,6 +855,108 @@ Rules:
 3. The substitution vocabulary is reference data, not a hardcoded list.
 4. Templates are validated against the vocabulary **when saved**, so an unknown
    placeholder is caught by the person writing copy, not at 6am in a batch.
+
+---
+
+### `sent_emails`
+
+Added `sql/037_sent_emails.sql`, 2026-10-07. **The email as it was actually sent**: one row per
+realtor per send click, however many properties it lists. `send_log` keeps one row per match and
+points here through `email_id`. Constant Contact will not return the HTML of a sent campaign, and a
+campaign can be deleted on its side, so this table is the only record of what a person was sent.
+
+| Field | Purpose |
+|---|---|
+| `email_id` | `BIGINT GENERATED ALWAYS AS IDENTITY` PK |
+| `batch_id` | `UUID NOT NULL`. One send click. `UNIQUE (batch_id, realtor_id)` (`sent_emails_one_per_batch`): a realtor appears once in a batch |
+| `realtor_id` | FK → `realtors`, `NOT NULL` |
+| `recipient_email` | **Snapshot of the address used**, `CHECK <> ''`, same reason as `send_log.recipient_email` |
+| `template_id` | FK → `email_templates`, `NOT NULL` |
+| `sync_run_id` | FK → `cc_sync_runs`, `NOT NULL`. The unsubscribe sync that cleared this send, so the record says how fresh the suppression check was |
+| `permission_asserted` | `implicit`, `explicit` or `none` (`CHECK`). The Constant Contact permission the contact had; `none` is an existing active contact |
+| `created_by`, `created_at` | FK → `users`; row created, before anything is sent |
+| `subject`, `html_body` | The rendered text, both `CHECK <> ''` |
+| `cc_contact_id`, `cc_list_id`, `cc_campaign_id`, `cc_activity_id` | Constant Contact's ids, filled in as the send moves along. `cc_campaign_id` and `cc_activity_id` are each unique where not null |
+| `scheduled_at` | Progress marker, write-once. `CHECK`: only with an activity id |
+| `list_deleted_at` | Progress marker, write-once. `CHECK`: only with a list id |
+| `error_detail` | Failure text |
+
+**Append-only and frozen by the database.** `trg_sent_emails_guard` refuses `DELETE`; refuses any change to
+the identity, recipient, template, sync run, permission, creator, subject or body; and makes the
+Constant Contact ids, `scheduled_at`, `list_deleted_at` and `error_detail` **write-once** (NULL → value is
+the normal life; writing the same value again, a retry, is allowed). `hail_app` has `SELECT, INSERT, UPDATE`;
+`DELETE` and `TRUNCATE` are revoked. Same status as `sql/029`: applied to `hail-dev`, not checked on the
+production box.
+
+---
+
+### Constant Contact: tokens, sync and call logs
+
+Five tables for the provider integration (decision log 2026-10-06 and 2026-10-07). All are
+log-shaped, enforced by triggers, and revoke `TRUNCATE` from `hail_app`. Applied to `hail-dev` only.
+
+#### `oauth_tokens`
+
+`sql/034_oauth_tokens.sql`. One row per token issue: the first authorization and every refresh insert a
+new row, and the **latest row by `token_id`** per provider and account is the current grant (order by
+`token_id`, not `created_at`: two refreshes in one transaction share a timestamp).
+
+| Field | Purpose |
+|---|---|
+| `token_id` | PK |
+| `provider` | `CHECK` `= 'constant_contact'` |
+| `account_id` | The provider's own account id, `CHECK <> ''` |
+| `access_token_enc`, `refresh_token_enc` | `BYTEA`. **Encrypted in Python before insert**; the database never sees plaintext. If the key is lost the grant is lost and authorization is rerun by hand |
+| `key_version` | `SMALLINT DEFAULT 1`, `CHECK > 0`. Which key sealed the row, so a key can be rotated |
+| `scope`, `access_expires_at`, `created_at` | `access_expires_at` is stored so it can be compared rather than decoded |
+
+Insert-only: `UPDATE` is refused. `DELETE` is a retention purge: allowed only for a row older than
+30 days **and** with a newer row for the same account (rotating refresh tokens make older rows dead
+credentials, but the current grant can never be deleted). `hail_app` has `SELECT, INSERT, DELETE`.
+
+#### `cc_sync_runs`
+
+`sql/035_cc_sync_runs.sql`. One row per run of the unsubscribe sync, which copies Constant Contact's
+unsubscribed contacts into `dnc_list`. The newest `ok` row is the "last good sync", and the send gate
+requires one within 15 minutes (item 180).
+
+| Field | Purpose |
+|---|---|
+| `run_id`, `started_at`, `finished_at` | `CHECK` `(status = 'running') = (finished_at IS NULL)` |
+| `status` | `running`, `ok` or `failed` |
+| `triggered_by` | FK → `users` |
+| `watermark` | The `updated_after` value used; NULL for a full pull |
+| `fetched`, `inserted`, `already_present`, `conflicts` | Counts, each `CHECK >= 0` |
+| `error_detail` | Fixed text |
+
+Inserted as `running` and committed before any work, so a crash leaves a visible row. Python holds an
+advisory lock for the whole run, so a `running` row seen at the start of a new run belongs to a dead process
+and is closed as `failed`. The guard refuses `DELETE`, any change to a finished run, and any change to
+`run_id`, `started_at`, `triggered_by` or `watermark`. `hail_app` has `SELECT, INSERT, UPDATE`.
+
+#### `cc_sync_conflicts`
+
+`sql/036_cc_sync_conflicts.sql`. An address Constant Contact has unsubscribed, **whose `dnc_list` row an admin
+had removed**. The sync counts it and leaves `dnc_list` alone (decision log 2026-10-07, "Unsubscribe sync:
+conflicts"); this table keeps which rows, per run, for an admin to review. Columns: `conflict_id`, `run_id`
+(FK → `cc_sync_runs`), `dnc_id` (FK → `dnc_list`; **the id, not the address**), `seen_at`;
+`UNIQUE (run_id, dnc_id)`. Insert-only: update and delete are refused, and `hail_app` has `SELECT, INSERT`.
+
+#### `cc_status_runs`
+
+`sql/039_cc_status_runs.sql`. One row per run of the **bounce check**, which asks Constant Contact about
+recent sends and records bounces in `send_log`. Same shape and rules as `cc_sync_runs`: columns `run_id`,
+`started_at`, `finished_at`, `status`, `triggered_by`, and the counts `checked`, `bounced`, `suppressed`
+(each `CHECK >= 0`), `error_detail`.
+
+#### `cc_api_calls`
+
+`sql/040_cc_api_calls.sql`. One row per HTTP **attempt** to the Constant Contact API, written by `api.request`
+before each attempt, retries, 429s and polls included (a failed insert means no call is made). Columns:
+`call_id`, `called_at` (indexed), `method` (`GET`, `POST`, `PUT` or `DELETE`), `endpoint` (the first path
+segment only, such as `contacts`, never an id). The daily limit is 10,000 calls and one email costs about 10
+plus polling, so the engine counts real calls (`hailsys/constantcontact/budget.py`, item 191). Insert-only.
+The 10,000 is a fixed ceiling in code, not a setting (CLAUDE.md, conventions).
 
 ---
 
@@ -973,6 +1078,8 @@ invalidation to get wrong across Gunicorn workers.
 | `default_match_radius_miles` | `NUMERIC(4,1) NOT NULL DEFAULT 5.0`, same range CHECK. What we *claim* in an email. Changing it hides existing matches until storms are re-matched |
 | `rentcast_billing_day` | `SMALLINT NOT NULL DEFAULT 9`, `CHECK` `BETWEEN 1 AND 28` — added `sql/023_rentcast_quota.sql`, 2026-09-23. Day of month the RentCast plan resets. Capped at 28 because a 29th–31st has no February equivalent and no fallback rule has been chosen. The period rolls over at **Denver** midnight in `hailsys/queries/quota.py`; RentCast's own rollover timezone is unconfirmed |
 | `listing_freshness_days` | `SMALLINT NOT NULL DEFAULT 7`, `CHECK` `BETWEEN 1 AND 90` — added `sql/028_listing_freshness.sql`. A listing RentCast has not seen within this many days is not emailed about, since it may have been sold or withdrawn. 7 assumes a storm is pulled and sent the same or next day, with a week of slack |
+| `match_max_age_days` | `SMALLINT NOT NULL DEFAULT 30`, `CHECK` `BETWEEN 1 AND 90` — added `sql/038_email_settings.sql`. A storm day older than this many days is not emailed about |
+| `email_cap_days` | `SMALLINT NOT NULL DEFAULT 14`, `CHECK` `BETWEEN 1 AND 90` — added `038`. A realtor emailed within this many days is held back from the next send unless the sender overrides it; their matches stay unsent for a later email |
 | `rentcast_monthly_quota` | `INTEGER NOT NULL DEFAULT 1000`, `CHECK` `> 0` — added `023`. Requests included per billing period. **Warn and allow**: the pull estimate warns when a pull would exceed it, and nothing blocks (decision-log 2026-09-23, "RentCast quota…") |
 
 Plus a table-level `CHECK` `match_within_zip_radius`:
@@ -1005,7 +1112,7 @@ admins.
 
 Added `sql/020_settings_radii.sql`, 2026-09-22; extended by
 `sql/023_rentcast_quota.sql`, 2026-09-23. One row per change to the radius, quota or
-freshness settings, snapshotting all five values that resulted (four before `028`).
+freshness settings, snapshotting all seven values that resulted (five before `038`, four before `028`).
 
 | Field | Purpose |
 |---|---|
@@ -1015,25 +1122,28 @@ freshness settings, snapshotting all five values that resulted (four before `028
 | `default_zip_radius_miles`, `default_match_radius_miles` | `NUMERIC(4,1) NOT NULL` — the values after the change |
 | `rentcast_billing_day`, `rentcast_monthly_quota` | Nullable — added `023`. **NULL on rows written before `023`**, not backfilled: a default would assert a value nobody recorded. The admin page shows them as "—" |
 | `listing_freshness_days` | `SMALLINT`, nullable — added `sql/028`. **NULL on rows written before `028`**, not backfilled, for the same reason |
+| `match_max_age_days`, `email_cap_days` | `SMALLINT`, nullable — added `sql/038`. **NULL on rows written before `038`**, not backfilled, for the same reason |
 
 **Written only by `trg_log_settings_change`**, calling `log_settings_change()`:
 
 ```sql
 AFTER UPDATE OF default_zip_radius_miles, default_match_radius_miles,
                 rentcast_billing_day, rentcast_monthly_quota,
-                listing_freshness_days
+                listing_freshness_days, match_max_age_days, email_cap_days
 ON settings
 FOR EACH ROW
 WHEN (OLD.default_zip_radius_miles    IS DISTINCT FROM NEW.default_zip_radius_miles
    OR OLD.default_match_radius_miles  IS DISTINCT FROM NEW.default_match_radius_miles
    OR OLD.rentcast_billing_day        IS DISTINCT FROM NEW.rentcast_billing_day
    OR OLD.rentcast_monthly_quota      IS DISTINCT FROM NEW.rentcast_monthly_quota
-   OR OLD.listing_freshness_days      IS DISTINCT FROM NEW.listing_freshness_days)
+   OR OLD.listing_freshness_days      IS DISTINCT FROM NEW.listing_freshness_days
+   OR OLD.match_max_age_days          IS DISTINCT FROM NEW.match_max_age_days
+   OR OLD.email_cap_days              IS DISTINCT FROM NEW.email_cap_days)
 ```
 
-That is the definition as of `028`. `023` replaced `020`'s two-column version
+That is the definition as of `038`. `023` replaced `020`'s two-column version
 with `CREATE OR REPLACE FUNCTION` plus a drop and recreate of the trigger, and
-`028` did the same to add the fifth column.
+`028` did the same to add the fifth column and `038` the sixth and seventh.
 Scoped to the settings columns, and still **not** `global_sessions_invalidated_at`,
 because the boot-everyone route updates that column on the same row; unscoped, that update fired
 the trigger and demanded attribution it has no reason to set. The `WHEN`

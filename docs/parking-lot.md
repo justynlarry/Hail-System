@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*49 items: `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`.*
+*50 items (counted 2026-10-14 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -3368,6 +3368,68 @@ not confirm that a file stamped H covers exactly the hour before it.
 `mesh60` is rerun.
 
 **Related:** items 205, 206; `docs/analysis/storm-shape-mesh-2026-10/mesh60/summary.md`.
+
+## 212. Documents drifted behind the Constant Contact send-path build
+
+**Status:** open; partly fixed 2026-10-14 (found and checked 2026-10-14, after the user asked whether all `.md` files were up to date)
+
+Nothing updates the documents when a migration or a feature lands (item 154 is the same
+problem for parking-lot items). The send path was built between 2026-10-05 and 2026-10-13 and most
+documents last moved on or before 2026-10-05.
+
+**Fixed 2026-10-14, in the commit that files this item.**
+- `CLAUDE.md`: the Phase 5 paragraph said "No sending code", "`send_log` and `email_templates` are
+  empty" and 759 suppressions. Rewritten (the send path, 760 suppressions, 7 rehearsal `sent_emails`
+  rows to test addresses); `sent_emails` added to the append-only rule.
+- `docs/database-schema.md`: lacked six of the 36 tables (`sent_emails`, `cc_sync_runs`,
+  `cc_sync_conflicts`, `cc_status_runs`, `cc_api_calls`, `oauth_tokens`) and `send_log.email_id`,
+  `email_templates.description`, `settings.match_max_age_days` and `email_cap_days`. Added.
+
+**Still stale (checked 2026-10-14, not edited).**
+- `README.md`: says "no sending path exists yet" and "100" tests with nothing under `hailsys/web/`
+  tested. There are 25 test files and about 557 test methods, including send-screen and Constant Contact
+  route tests.
+- `docs/phases.md`: the Phase 5 section stops at 2026-10-05. Its "Not started" list now holds built work
+  (provider, token table and OAuth, suppression sync, per-realtor frequency cap, send queue,
+  bounce handling, template choice in the UI). Warm-up, template CRUD beyond the description editor
+  (item 203) and the production account (item 183) are not built.
+- `docs/hail-consolidated.md`: last synced 2026-10-05 (`191a7e0`), counts 27 tables (36 now), file
+  layout through `sql/033` (now `041`). It says of itself that it is the last file to update.
+- `docs/data-sources.md`: section 4, "Email provider — TBD", says unselected (Constant Contact was chosen
+  2026-10-06). It has no section for the MRMS MESH archives (decision log 2026-10-13: Iowa State from
+  2019-08-20, NOAA AWS from 2020-10-14, PNG-packed GRIB2, `-1` means no hail).
+- `docs/db-schema-diagram.md`: draws `send_log` and `email_templates` guards only; none of the
+  newer tables.
+- `docs/schema-review.md`: a re-usable review prompt that says migrations "001 through 033"; there are
+  41 numbered files.
+
+**Checked and current enough:** `docs/command-ref.md`, `docs/server-setup.md`, `config/README.md`, the
+analysis READMEs.
+
+**An idea, not decided:** a test that fails when a table in the database is not named in
+`database-schema.md`, like the `tests/test_workstate.py` checks (item 48).
+
+**When:** the rest, before the next phase's work relies on them; `hail-consolidated.md` last, by its own rule.
+
+**Related:** items 154, 180, 191, 199, 202; decision log 2026-10-06 to 2026-10-13.
+
+## 213. The parking lot's layout does not match its own header
+
+**Status:** open (found 2026-10-14)
+
+The header says items are grouped by status: Open, Watch list, the permits workstream, then Closed. In
+fact:
+- The block under "Open" holds 19 resolved items (16, 19 and 29 among them), 4 dropped, 1 built and 1 closed by decision,
+  and the count line under it (49) counted headings, not the statuses it names.
+- Items filed after 153 (154 to 212) sit after the permits section, mixing open, built and resolved items.
+- The Watch list says "30 items, all `open (watch)`" and has 30, but item 102, also `open (watch)`, sits in the Open block.
+
+The count line was corrected on 2026-10-14 to count by status across the whole file (50, with 212 and 213);
+the layout was not touched, and item numbers never change.
+
+**When:** the next parking-lot pass: regroup by status, or change the header to say what the layout is.
+
+**Related:** items 154, 212.
 
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
