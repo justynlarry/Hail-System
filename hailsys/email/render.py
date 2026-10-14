@@ -38,7 +38,7 @@ FREE_HOSTS = ("azurewebsites.net",)
 ALLOWED_VARS = frozenset({
     "logo_url", "badge_cra_url", "badge_bbb_url", "contact_email", "schedule_url",
     "agent_first_name", "storm_count", "storm_dates_label", "largest_hail",
-    "nearest_miles", "properties", "more_count", "total",
+    "nearest_miles", "properties", "more_count", "total", "images",
 })
 
 _BODY_ENV = SandboxedEnvironment(autoescape=True, undefined=StrictUndefined)
@@ -157,7 +157,7 @@ def _largest(events):
     return max(values) if values else None
 
 
-def build_context(agent_name, matches, settings, max_listings=MAX_LISTINGS):
+def build_context(agent_name, matches, settings, max_listings=MAX_LISTINGS, images=None):
     """Template variables for on realtor's eligible matches.
     
     `matches`: dicst with listing_id, address (one display line), utc_datetime
@@ -207,6 +207,7 @@ def build_context(agent_name, matches, settings, max_listings=MAX_LISTINGS):
         "properties": shown,
         "more_count": len(listings) - len(shown),
         "total": len(listings),
+        "images": dict(images or {}),
     }
 
 
