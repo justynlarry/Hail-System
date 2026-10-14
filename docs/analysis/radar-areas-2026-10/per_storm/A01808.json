@@ -1,0 +1,341 @@
+{
+ "storm_id": "A01808",
+ "start_local": "2021-05-02 13:14:00",
+ "mesh100_components": 0,
+ "core_components": 0,
+ "mesh100_km2": 0.0,
+ "circle_km2": 495.61281662008173,
+ "domain_km2": 5149.188668210339,
+ "margins": {
+  "1.0": {
+   "core": {
+    "km2": 0.0,
+    "circle_km2": 0.0,
+    "mesh100_km2": 0.0,
+    "ground_ge1": 0,
+    "ground_lt075": 0,
+    "ground_all": 0,
+    "by_src": {
+     "cocorahs": {
+      "ge1": 0,
+      "lt075": 0,
+      "all": 0
+     },
+     "mping": {
+      "ge1": 0,
+      "lt075": 0,
+      "all": 0
+     }
+    },
+    "act_reports": 0
+   },
+   "margin": {
+    "km2": 0.0,
+    "circle_km2": 0.0,
+    "mesh100_km2": 0.0,
+    "ground_ge1": 0,
+    "ground_lt075": 0,
+    "ground_all": 0,
+    "by_src": {
+     "cocorahs": {
+      "ge1": 0,
+      "lt075": 0,
+      "all": 0
+     },
+     "mping": {
+      "ge1": 0,
+      "lt075": 0,
+      "all": 0
+     }
+    },
+    "act_reports": 0
+   },
+   "outer": {
+    "km2": 1392.3981901947177,
+    "circle_km2": 255.32178166974126,
+    "mesh100_km2": 0.0,
+    "ground_ge1": 1,
+    "ground_lt075": 2,
+    "ground_all": 3,
+    "by_src": {
+     "cocorahs": {
+      "ge1": 0,
+      "lt075": 1,
+      "all": 1
+     },
+     "mping": {
+      "ge1": 1,
+      "lt075": 1,
+      "all": 2
+     }
+    },
+    "act_reports": 2
+   },
+   "rest": {
+    "km2": 3756.790478015621,
+    "circle_km2": 240.29103495034045,
+    "mesh100_km2": 0.0,
+    "ground_ge1": 1,
+    "ground_lt075": 9,
+    "ground_all": 12,
+    "by_src": {
+     "cocorahs": {
+      "ge1": 0,
+      "lt075": 2,
+      "all": 3
+     },
+     "mping": {
+      "ge1": 1,
+      "lt075": 7,
+      "all": 9
+     }
+    },
+    "act_reports": 1
+   }
+  },
+  "3.0": {
+   "core": {
+    "km2": 0.0,
+    "circle_km2": 0.0,
+    "mesh100_km2": 0.0,
+    "ground_ge1": 0,
+    "ground_lt075": 0,
+    "ground_all": 0,
+    "by_src": {
+     "cocorahs": {
+      "ge1": 0,
+      "lt075": 0,
+      "all": 0
+     },
+     "mping": {
+      "ge1": 0,
+      "lt075": 0,
+      "all": 0
+     }
+    },
+    "act_reports": 0
+   },
+   "margin": {
+    "km2": 0.0,
+    "circle_km2": 0.0,
+    "mesh100_km2": 0.0,
+    "ground_ge1": 0,
+    "ground_lt075": 0,
+    "ground_all": 0,
+    "by_src": {
+     "cocorahs": {
+      "ge1": 0,
+      "lt075": 0,
+      "all": 0
+     },
+     "mping": {
+      "ge1": 0,
+      "lt075": 0,
+      "all": 0
+     }
+    },
+    "act_reports": 0
+   },
+   "outer": {
+    "km2": 1392.3981901947177,
+    "circle_km2": 255.32178166974126,
+    "mesh100_km2": 0.0,
+    "ground_ge1": 1,
+    "ground_lt075": 2,
+    "ground_all": 3,
+    "by_src": {
+     "cocorahs": {
+      "ge1": 0,
+      "lt075": 1,
+      "all": 1
+     },
+     "mping": {
+      "ge1": 1,
+      "lt075": 1,
+      "all": 2
+     }
+    },
+    "act_reports": 2
+   },
+   "rest": {
+    "km2": 3756.790478015621,
+    "circle_km2": 240.29103495034045,
+    "mesh100_km2": 0.0,
+    "ground_ge1": 1,
+    "ground_lt075": 9,
+    "ground_all": 12,
+    "by_src": {
+     "cocorahs": {
+      "ge1": 0,
+      "lt075": 2,
+      "all": 3
+     },
+     "mping": {
+      "ge1": 1,
+      "lt075": 7,
+      "all": 9
+     }
+    },
+    "act_reports": 1
+   }
+  },
+  "5.0": {
+   "core": {
+    "km2": 0.0,
+    "circle_km2": 0.0,
+    "mesh100_km2": 0.0,
+    "ground_ge1": 0,
+    "ground_lt075": 0,
+    "ground_all": 0,
+    "by_src": {
+     "cocorahs": {
+      "ge1": 0,
+      "lt075": 0,
+      "all": 0
+     },
+     "mping": {
+      "ge1": 0,
+      "lt075": 0,
+      "all": 0
+     }
+    },
+    "act_reports": 0
+   },
+   "margin": {
+    "km2": 0.0,
+    "circle_km2": 0.0,
+    "mesh100_km2": 0.0,
+    "ground_ge1": 0,
+    "ground_lt075": 0,
+    "ground_all": 0,
+    "by_src": {
+     "cocorahs": {
+      "ge1": 0,
+      "lt075": 0,
+      "all": 0
+     },
+     "mping": {
+      "ge1": 0,
+      "lt075": 0,
+      "all": 0
+     }
+    },
+    "act_reports": 0
+   },
+   "outer": {
+    "km2": 1392.3981901947177,
+    "circle_km2": 255.32178166974126,
+    "mesh100_km2": 0.0,
+    "ground_ge1": 1,
+    "ground_lt075": 2,
+    "ground_all": 3,
+    "by_src": {
+     "cocorahs": {
+      "ge1": 0,
+      "lt075": 1,
+      "all": 1
+     },
+     "mping": {
+      "ge1": 1,
+      "lt075": 1,
+      "all": 2
+     }
+    },
+    "act_reports": 2
+   },
+   "rest": {
+    "km2": 3756.790478015621,
+    "circle_km2": 240.29103495034045,
+    "mesh100_km2": 0.0,
+    "ground_ge1": 1,
+    "ground_lt075": 9,
+    "ground_all": 12,
+    "by_src": {
+     "cocorahs": {
+      "ge1": 0,
+      "lt075": 2,
+      "all": 3
+     },
+     "mping": {
+      "ge1": 1,
+      "lt075": 7,
+      "all": 9
+     }
+    },
+    "act_reports": 1
+   }
+  }
+ },
+ "five_tier_3km": {
+  "core": {
+   "km2": 0.0,
+   "circle_km2": 0.0,
+   "by_src": {
+    "cocorahs": {
+     "ge1": 0,
+     "all": 0
+    },
+    "mping": {
+     "ge1": 0,
+     "all": 0
+    }
+   }
+  },
+  "margin": {
+   "km2": 0.0,
+   "circle_km2": 0.0,
+   "by_src": {
+    "cocorahs": {
+     "ge1": 0,
+     "all": 0
+    },
+    "mping": {
+     "ge1": 0,
+     "all": 0
+    }
+   }
+  },
+  "radar_unanchored": {
+   "km2": 0.0,
+   "circle_km2": 0.0,
+   "by_src": {
+    "cocorahs": {
+     "ge1": 0,
+     "all": 0
+    },
+    "mping": {
+     "ge1": 0,
+     "all": 0
+    }
+   }
+  },
+  "outer": {
+   "km2": 1392.3981901947177,
+   "circle_km2": 255.32178166974126,
+   "by_src": {
+    "cocorahs": {
+     "ge1": 0,
+     "all": 1
+    },
+    "mping": {
+     "ge1": 1,
+     "all": 2
+    }
+   }
+  },
+  "rest": {
+   "km2": 3756.790478015621,
+   "circle_km2": 240.29103495034045,
+   "by_src": {
+    "cocorahs": {
+     "ge1": 0,
+     "all": 3
+    },
+    "mping": {
+     "ge1": 1,
+     "all": 9
+    }
+   }
+  }
+ }
+}

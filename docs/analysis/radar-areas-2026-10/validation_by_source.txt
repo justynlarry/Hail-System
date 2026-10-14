@@ -1,0 +1,52 @@
+
+== mPING + CoCoRaHS, margin 3.0 km
+  core    area    15743 | >=1in 148 (44.4%) | per 100 km2 0.940 | >=1in share of all points here 51.7% (n=286)
+  margin  area    19334 | >=1in 112 (33.6%) | per 100 km2 0.579 | >=1in share of all points here 33.8% (n=331)
+  outer   area   137748 | >=1in  65 (19.5%) | per 100 km2 0.047 | >=1in share of all points here 13.1% (n=497)
+  rest    area   202054 | >=1in   8 ( 2.4%) | per 100 km2 0.004 | >=1in share of all points here  5.8% (n=138)
+
+== mPING + CoCoRaHS, margin 1.0 km
+  core    area    15743 | >=1in 148 (44.4%) | per 100 km2 0.940 | >=1in share of all points here 51.7% (n=286)
+  margin  area     3519 | >=1in  32 ( 9.6%) | per 100 km2 0.909 | >=1in share of all points here 47.1% (n=68)
+  outer   area   152788 | >=1in 145 (43.5%) | per 100 km2 0.095 | >=1in share of all points here 19.4% (n=749)
+  rest    area   202828 | >=1in   8 ( 2.4%) | per 100 km2 0.004 | >=1in share of all points here  5.4% (n=149)
+
+== mPING + CoCoRaHS, margin 5.0 km
+  core    area    15743 | >=1in 148 (44.4%) | per 100 km2 0.940 | >=1in share of all points here 51.7% (n=286)
+  margin  area    34593 | >=1in 145 (43.5%) | per 100 km2 0.419 | >=1in share of all points here 30.0% (n=484)
+  outer   area   123992 | >=1in  32 ( 9.6%) | per 100 km2 0.026 | >=1in share of all points here  9.2% (n=346)
+  rest    area   200552 | >=1in   8 ( 2.4%) | per 100 km2 0.004 | >=1in share of all points here  5.9% (n=136)
+
+== CoCoRaHS only, margin 3.0 km
+  core    area    15743 | >=1in  25 (37.3%) | per 100 km2 0.159 | >=1in share of all points here 59.5% (n=42)
+  margin  area    19334 | >=1in  22 (32.8%) | per 100 km2 0.114 | >=1in share of all points here 33.3% (n=66)
+  outer   area   137748 | >=1in  16 (23.9%) | per 100 km2 0.012 | >=1in share of all points here 19.5% (n=82)
+  rest    area   202054 | >=1in   4 ( 6.0%) | per 100 km2 0.002 | >=1in share of all points here  9.5% (n=42)
+
+== CoCoRaHS only, margin 1.0 km
+  core    area    15743 | >=1in  25 (37.3%) | per 100 km2 0.159 | >=1in share of all points here 59.5% (n=42)
+  margin  area     3519 | >=1in   8 (11.9%) | per 100 km2 0.227 | >=1in share of all points here 53.3% (n=15)
+  outer   area   152788 | >=1in  30 (44.8%) | per 100 km2 0.020 | >=1in share of all points here 23.1% (n=130)
+  rest    area   202828 | >=1in   4 ( 6.0%) | per 100 km2 0.002 | >=1in share of all points here  8.9% (n=45)
+
+== CoCoRaHS only, margin 5.0 km
+  core    area    15743 | >=1in  25 (37.3%) | per 100 km2 0.159 | >=1in share of all points here 59.5% (n=42)
+  margin  area    34593 | >=1in  29 (43.3%) | per 100 km2 0.084 | >=1in share of all points here 34.5% (n=84)
+  outer   area   123992 | >=1in   9 (13.4%) | per 100 km2 0.007 | >=1in share of all points here 14.1% (n=64)
+  rest    area   200552 | >=1in   4 ( 6.0%) | per 100 km2 0.002 | >=1in share of all points here  9.5% (n=42)
+
+== five tiers (3 km margin, unanchored swaths split out), mPING + CoCoRaHS
+  core             area    15743 | >=1in 148 (44.4%) | per 100 km2 0.940 | >=1in share of all points here 51.7% (n=286)
+  margin           area    19334 | >=1in 112 (33.6%) | per 100 km2 0.579 | >=1in share of all points here 33.8% (n=331)
+  radar_unanchored area     3285 | >=1in   0 ( 0.0%) | per 100 km2 0.000 | >=1in share of all points here  0.0% (n=7)
+  outer            area   134608 | >=1in  65 (19.5%) | per 100 km2 0.048 | >=1in share of all points here 13.3% (n=490)
+  rest             area   201909 | >=1in   8 ( 2.4%) | per 100 km2 0.004 | >=1in share of all points here  5.8% (n=138)
+
+== five tiers (3 km margin, unanchored swaths split out), CoCoRaHS only
+  core             area    15743 | >=1in  25 (37.3%) | per 100 km2 0.159 | >=1in share of all points here 59.5% (n=42)
+  margin           area    19334 | >=1in  22 (32.8%) | per 100 km2 0.114 | >=1in share of all points here 33.3% (n=66)
+  radar_unanchored area     3285 | >=1in   0 ( 0.0%) | per 100 km2 0.000 | >=1in share of all points here  nan% (n=0)
+  outer            area   134608 | >=1in  16 (23.9%) | per 100 km2 0.012 | >=1in share of all points here 19.5% (n=82)
+  rest             area   201909 | >=1in   4 ( 6.0%) | per 100 km2 0.002 | >=1in share of all points here  9.5% (n=42)
+
+unanchored radar tier: circle area inside it 80 km2 (0.2% of circles)

@@ -3269,6 +3269,52 @@ margin. Phase 5 sending works on the circle as it is.
 
 **Related:** items 205, 207, 208, 210; decision log 2026-09-16 and 2026-10-13.
 
+**Addendum 2026-10-14: prototype run on the 60 storms.** Analysis only; no matcher change. Evidence
+is in `docs/analysis/radar-areas-2026-10/` (`summary.md`, `validation_by_source.txt`, maps).
+Placeholders throughout:
+- core = MESH ≥ 1.00 in patches with an actionable report within 5 km (presence, not value);
+- margin = 3 km;
+- outer = the warning polygons (decision log 2026-10-14).
+
+*Tiers, checked against independent ground reports* (not used by MESH or the reports). These are
+large-hail (≥ 1 in) points per 100 km², and the large-hail share of all ground points in the tier:
+
+| Tier | Area km² | mPING + CoCoRaHS: per 100 km² / share | CoCoRaHS only: per 100 km² / share |
+|---|---|---|---|
+| Core | 15,743 | 0.94 / 52% | 0.159 / 60% |
+| Margin (3 km) | 19,334 | 0.58 / 34% | 0.114 / 33% |
+| Outer (warnings) | 137,748 | 0.05 / 13% | 0.012 / 20% |
+| Rest of the 30 km domain | 202,054 | 0.004 / 6% | 0.002 / 10% |
+
+- **The ranking holds with CoCoRaHS alone, so the validation does not depend on mPING's
+  research-licensed data (item 215).** The CoCoRaHS sample is small: 232 points, 67 of them ≥ 1 in.
+- **Margin width:** with a 1 km margin, CoCoRaHS-only density is higher in the margin than the core
+  (8 points), but the size share still ranks correctly.
+- **Core coverage:** core plus margin (35,077 km²) hold 78% of the independent large-hail points.
+- **Today's circles:** they hold 95%, partly by co-location, since ground reporters cluster where the
+  reports are. 58% of circle area lies outside core and margin, which measures item 205's Tier 3.
+- **Narrow margin:** density falls fast past 1–3 km (per 100 km²: 0.91 at 1 km, 0.58 at 3 km, 0.42
+  at 5 km), so the margin should be narrow.
+
+*Decided 2026-10-14 (developer): unanchored swaths become their own tier.* The 17.5% of MESH
+≥ 1 in area with no report within 5 km is kept as a separate tier, provisionally worded "radar-indicated
+hail in your area". The claim wording follows item 205, point 2. It is refined once inspection data
+exists (item 208).
+- At a 3 km margin the tier is 3,285 km², with 0 large-hail ground points (7 small mPING points;
+  no CoCoRaHS).
+- Only 0.2% of today's circle area falls in it.
+- **Ground reports cannot validate it,** because nobody reported there; inspections can.
+
+*Fallback shape: the circle, stretched along the HRRR direction when widening.* This replaces "plain
+circle" as the fallback for pre-2020 storms and radar gaps.
+- At equal area, a capsule along the HRRR right-mover does not beat the circle: 57% vs 56% of MESH
+  hail. It does beat a perpendicular control (48%), on 38 of 52 storms.
+- When outreach goes wider, stretching each circle ± L along the HRRR right-mover gains 20–25% more
+  MESH hail per km² added than enlarging the radius: 82 / 70 / 57 vs 69 / 57 / 46 km² per 1,000 km²
+  at L = 4 / 8 / 16 km. That is close to the fitted direction (84 / 72 / 59).
+- With L = 8 km, recall rises from 56% to 72%.
+- The pre-2020 benefit is inferred, not tested: there is no MESH before 2020-10-14.
+
 ## 207. Inspection export from RBI
 
 **Status:** open (not requested yet; filed 2026-10-14)
@@ -3308,10 +3354,16 @@ answer:
   swath?
 - Is the circle's outer part (Tier 3) worth reaching at all?
 - Does the relationship differ in the foothills?
+- **The "radar-indicated hail" tier (item 206 addendum, decided 2026-10-14):** what damage rate do
+  unreported MESH swaths carry, and does it justify the tier, its place in the order and its wording?
+  Ground reports cannot answer this: nobody reported there.
+- **The warning-polygon outer tier and the HRRR-stretched fallback:** do they pay off in damage rates,
+  or only in radar hail? Inspections outside core and margin, but inside a warning polygon or the
+  stretched capsule, answer it.
 
 **When:** the export arrives. Not before.
 
-**Related:** items 205, 206, 207; decision log 2026-10-13, point 6.
+**Related:** items 205, 206, 207; decision log 2026-10-13, point 6; decision log 2026-10-14.
 
 ## 209. Structured inspection capture going forward
 

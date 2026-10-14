@@ -1,0 +1,60 @@
+{
+ "storm_id": "A02419",
+ "start_local": "2026-06-23 17:38:00",
+ "n_act": 5,
+ "mesh100_km2": 442.5122890459225,
+ "ground_ge1": 2,
+ "directions": {
+  "hrrr_right_mover": 146.2,
+  "hrrr_500mb": 98.9,
+  "fitted": 61.0,
+  "control_perpendicular": 236.2
+ },
+ "circle": {
+  "km2": 725.4687030902676,
+  "mesh_in": 95.84223243021306,
+  "ground_ge1_in": 2
+ },
+ "capsules": {
+  "b4|hrrr_right_mover": {
+   "km2": 820.2283324464041,
+   "mesh_in": 67.08288936441213,
+   "ground_ge1_in": 2
+  },
+  "b4|hrrr_500mb": {
+   "km2": 701.5972017594532,
+   "mesh_in": 66.11538494513853,
+   "ground_ge1_in": 2
+  },
+  "b4|fitted": {
+   "km2": 706.245598959981,
+   "mesh_in": 111.18790719101773,
+   "ground_ge1_in": 2
+  },
+  "b4|control_perpendicular": {
+   "km2": 729.2119434602525,
+   "mesh_in": 119.81993403376207,
+   "ground_ge1_in": 2
+  },
+  "b3|hrrr_right_mover": {
+   "km2": 865.1900916209163,
+   "mesh_in": 51.74853142528847,
+   "ground_ge1_in": 2
+  },
+  "b3|hrrr_500mb": {
+   "km2": 715.033429010927,
+   "mesh_in": 57.48730850471209,
+   "ground_ge1_in": 2
+  },
+  "b3|fitted": {
+   "km2": 706.212278075733,
+   "mesh_in": 100.64458464144536,
+   "ground_ge1_in": 2
+  },
+  "b3|control_perpendicular": {
+   "km2": 718.6725305850811,
+   "mesh_in": 119.82387624183472,
+   "ground_ge1_in": 2
+  }
+ }
+}
