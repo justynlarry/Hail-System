@@ -1,0 +1,67 @@
+{
+ "storm_id": "A01878",
+ "start_local": "2021-08-19 14:30:00",
+ "mid_utc": "2021-08-19 21:10:30",
+ "storm_toward": 37.0,
+ "speed_kmh": 15.6,
+ "r2": 0.81,
+ "chain_suspect": "False",
+ "centroid": [
+  39.417500000000004,
+  -104.80499999999999
+ ],
+ "hrrr": {
+  "hour": "2021-08-19 21:00:00",
+  "rotation_deg": -4.55,
+  "levels": [
+   "10 m above ground",
+   "300 mb",
+   "400 mb",
+   "450 mb",
+   "500 mb",
+   "550 mb",
+   "600 mb",
+   "650 mb",
+   "700 mb",
+   "750 mb",
+   "800 mb"
+  ],
+  "toward": {
+   "700 mb": 338.9,
+   "500 mb": 39.6,
+   "300 mb": 53.4,
+   "mean 700-300": 43.7,
+   "mean 0-6 km (approx)": 31.2,
+   "Bunkers right (approx)": 76.9
+  },
+  "err": {
+   "700 mb": -58.1,
+   "500 mb": 2.6,
+   "300 mb": 16.4,
+   "mean 700-300": 6.7,
+   "mean 0-6 km (approx)": -5.8,
+   "Bunkers right (approx)": 39.9
+  },
+  "speed500_ms": 16.1
+ },
+ "sounding": {
+  "launch": "2021-08-20 00:00:00",
+  "dt_h": 2.8,
+  "toward": {
+   "700 mb": 26.0,
+   "500 mb": 44.0,
+   "300 mb": 44.0,
+   "mean 700-300": 38.6,
+   "mean 0-6 km (approx)": 36.2,
+   "Bunkers right (approx)": 64.2
+  },
+  "err": {
+   "700 mb": -11.0,
+   "500 mb": 7.0,
+   "300 mb": 7.0,
+   "mean 700-300": 1.6,
+   "mean 0-6 km (approx)": -0.8,
+   "Bunkers right (approx)": 27.2
+  }
+ }
+}

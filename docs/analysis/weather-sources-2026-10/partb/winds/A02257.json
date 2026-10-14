@@ -1,0 +1,48 @@
+{
+ "storm_id": "A02257",
+ "start_local": "2024-09-17 15:03:00",
+ "mid_utc": "2024-09-17 21:20:00",
+ "storm_toward": 85.0,
+ "speed_kmh": 82.9,
+ "r2": 0.63,
+ "chain_suspect": "False",
+ "centroid": [
+  38.90599999999999,
+  -104.398
+ ],
+ "hrrr": {
+  "hour": "2024-09-17 21:00:00",
+  "rotation_deg": -4.3,
+  "levels": [
+   "10 m above ground",
+   "300 mb",
+   "400 mb",
+   "450 mb",
+   "500 mb",
+   "550 mb",
+   "600 mb",
+   "650 mb",
+   "700 mb",
+   "750 mb",
+   "800 mb"
+  ],
+  "toward": {
+   "700 mb": 12.8,
+   "500 mb": 34.4,
+   "300 mb": 41.4,
+   "mean 700-300": 28.9,
+   "mean 0-6 km (approx)": 19.3,
+   "Bunkers right (approx)": 45.8
+  },
+  "err": {
+   "700 mb": -72.2,
+   "500 mb": -50.6,
+   "300 mb": -43.6,
+   "mean 700-300": -56.1,
+   "mean 0-6 km (approx)": -65.7,
+   "Bunkers right (approx)": -39.2
+  },
+  "speed500_ms": 21.4
+ },
+ "sounding": null
+}

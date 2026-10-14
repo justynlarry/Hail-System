@@ -1,0 +1,48 @@
+{
+ "storm_id": "A02410",
+ "start_local": "2026-06-08 17:19:00",
+ "mid_utc": "2026-06-08 23:57:00",
+ "storm_toward": 79.0,
+ "speed_kmh": 49.4,
+ "r2": 0.92,
+ "chain_suspect": "False",
+ "centroid": [
+  39.35142857142858,
+  -103.80142857142859
+ ],
+ "hrrr": {
+  "hour": "2026-06-09 00:00:00",
+  "rotation_deg": -3.92,
+  "levels": [
+   "10 m above ground",
+   "300 mb",
+   "400 mb",
+   "450 mb",
+   "500 mb",
+   "550 mb",
+   "600 mb",
+   "650 mb",
+   "700 mb",
+   "750 mb",
+   "800 mb"
+  ],
+  "toward": {
+   "700 mb": 334.8,
+   "500 mb": 56.8,
+   "300 mb": 66.5,
+   "mean 700-300": 58.2,
+   "mean 0-6 km (approx)": 43.1,
+   "Bunkers right (approx)": 90.2
+  },
+  "err": {
+   "700 mb": -104.2,
+   "500 mb": -22.2,
+   "300 mb": -12.5,
+   "mean 700-300": -20.8,
+   "mean 0-6 km (approx)": -35.9,
+   "Bunkers right (approx)": 11.2
+  },
+  "speed500_ms": 21.4
+ },
+ "sounding": null
+}

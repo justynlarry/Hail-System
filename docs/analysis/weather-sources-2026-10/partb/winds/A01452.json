@@ -1,0 +1,63 @@
+{
+ "storm_id": "A01452",
+ "start_local": "2018-05-18 14:33:00",
+ "mid_utc": "2018-05-18 21:46:30",
+ "storm_toward": 116.0,
+ "speed_kmh": 12.1,
+ "r2": 0.68,
+ "chain_suspect": "False",
+ "centroid": [
+  38.88388888888889,
+  -104.78888888888889
+ ],
+ "hrrr": {
+  "hour": "2018-05-18 22:00:00",
+  "rotation_deg": -4.54,
+  "levels": [
+   "10 m above ground",
+   "300 mb",
+   "400 mb",
+   "450 mb",
+   "500 mb",
+   "550 mb",
+   "600 mb",
+   "650 mb",
+   "700 mb",
+   "750 mb",
+   "800 mb"
+  ],
+  "toward": {
+   "700 mb": 282.5,
+   "500 mb": 9.8,
+   "300 mb": 53.8,
+   "mean 700-300": 28.5,
+   "mean 0-6 km (approx)": 351.8,
+   "Bunkers right (approx)": 98.4
+  },
+  "err": {
+   "700 mb": 166.5,
+   "500 mb": -106.2,
+   "300 mb": -62.2,
+   "mean 700-300": -87.5,
+   "mean 0-6 km (approx)": -124.2,
+   "Bunkers right (approx)": -17.6
+  },
+  "speed500_ms": 10.1
+ },
+ "sounding": {
+  "launch": "2018-05-19 00:00:00",
+  "dt_h": 2.2,
+  "toward": {
+   "700 mb": 322.0,
+   "500 mb": 25.0,
+   "mean 0-6 km (approx)": 355.6,
+   "Bunkers right (approx)": 89.9
+  },
+  "err": {
+   "700 mb": -154.0,
+   "500 mb": -91.0,
+   "mean 0-6 km (approx)": -120.4,
+   "Bunkers right (approx)": -26.1
+  }
+ }
+}

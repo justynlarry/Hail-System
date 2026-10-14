@@ -1,0 +1,48 @@
+{
+ "storm_id": "A01994",
+ "start_local": "2023-05-28 15:33:00",
+ "mid_utc": "2023-05-28 21:58:00",
+ "storm_toward": 105.0,
+ "speed_kmh": 25.0,
+ "r2": 0.92,
+ "chain_suspect": "False",
+ "centroid": [
+  40.436,
+  -104.782
+ ],
+ "hrrr": {
+  "hour": "2023-05-28 22:00:00",
+  "rotation_deg": -4.53,
+  "levels": [
+   "10 m above ground",
+   "300 mb",
+   "400 mb",
+   "450 mb",
+   "500 mb",
+   "550 mb",
+   "600 mb",
+   "650 mb",
+   "700 mb",
+   "750 mb",
+   "800 mb"
+  ],
+  "toward": {
+   "700 mb": 17.7,
+   "500 mb": 90.2,
+   "300 mb": 95.0,
+   "mean 700-300": 90.7,
+   "mean 0-6 km (approx)": 87.9,
+   "Bunkers right (approx)": 136.5
+  },
+  "err": {
+   "700 mb": -87.3,
+   "500 mb": -14.8,
+   "300 mb": -10.0,
+   "mean 700-300": -14.3,
+   "mean 0-6 km (approx)": -17.1,
+   "Bunkers right (approx)": 31.5
+  },
+  "speed500_ms": 11.2
+ },
+ "sounding": null
+}

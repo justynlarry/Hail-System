@@ -6812,3 +6812,60 @@ anything changeable); parking lot items 35 and 205, and the "Radar-derived hail 
 section.
 
 ---
+
+## 2026-10-14 — Findings, not a decision: extra weather sources on top of reports and MESH (item 210)
+
+**This entry records findings. It changes nothing.** No source is adopted, no matcher change.
+It is filed so item 206's prototype and any later footprint decision can cite it.
+
+**Evidence:** `docs/analysis/weather-sources-2026-10/` (`summary.md`, per-source `notes/`, scripts,
+`partb_numbers.json`, maps). Raw samples, the HRRR cache (1.6 GB) and the mPING points are not in git;
+see its README. Storms are the same 60 MESH storms as 2026-10-13 (and the 180 good-fit storms for
+winds).
+
+**Roles found for each source.**
+- **HRRR winds: direction.** The Bunkers right-mover (approximate) predicts a storm's fitted direction
+  to a median of **19°** (HRRR, 110 storms, 66% within 30°) and **23°** (Denver soundings, 123 storms).
+  The plain 500 mb wind is off by 42–46°, almost always to the left (storms move right of the mean
+  wind); 700 mb is useless on the Front Range. HRRR and soundings agree to 11–13° where both exist
+  (55 storms). HRRR is on AWS from 2014-07-30 and usable live.
+- **Warning polygons: outer bound and storm-level severity, not a shape.** They contain **98%** of
+  MESH ≥ 1.00 in area (circles: 56%), but are 3.2× the circles' area with about half their precision
+  (11% vs 20%) and Jaccard (0.09 vs 0.18). 44% of polygon area has neither radar hail nor a report.
+  The forecaster's hail tag correlates 0.77 with the storm's maximum MESH. Polygons exist from 2004 and
+  hail tags from 2010-04-13 (Boulder and Pueblo), so they are the only footprint bound before MESH.
+  Live via the NWS API.
+- **mPING and CoCoRaHS: confirmation, very little new information.** 90% (mPING) and 79% (CoCoRaHS)
+  of their ≥ 1.00 in points have MESH ≥ 1.00 in within 5 km. Across the 60 storms they add only
+  9 large-hail points that reports and MESH both missed, and 7 mPING points confirming MESH hail
+  beyond today's circles. Whether their small-hail reports can lower confidence was not settled (the
+  5 km test is too coarse).
+- **No value:** MRMS SHI and POSH are MESH in another form (MESH = 2.54 × √SHI to within 0.2 mm;
+  POSH tracks SHI at 0.94). NCEI Storm Events duplicates 99% of our IEM hail reports in the territory,
+  carries no hail damage figures, and lags 3–4 months.
+
+**Denver soundings ended 2022-07-09.** Both NOAA's IGRA2 (file updated 2026-10-13) and IEM end there for
+USM00072469 / KDNR. The nearest active launch sites are Grand Junction and North Platte, which do not
+represent Front Range flow. Why Denver stopped, or whether it continues under another ID, is
+unverified. HRRR replaces it from 2014; soundings still cover 2004–2014.
+
+**Data traps found** (worth keeping if any of these is ever ingested):
+- IEM's warning export (`cgi-bin/request/gis/watchwarn.py`) with `limitps=1` and no explicit
+  `phenomena=` list silently returns **tornado warnings only**. Pass `phenomena=SV,TO&significance=W,W`.
+  The shapefile's attribute table truncates field names to 10 characters (`PRODUCT_ID` → `PROD_ID`,
+  `POLYBEGIN` → `POLY_BEG`).
+- NCEI Storm Events times are local **standard** time all year (`CZ_TIMEZONE` `MST-7`), an hour off
+  Denver summer time if read as local.
+- HRRR u/v are grid-relative: rotate to true north (about −4° near 104 °W). eccodes names the 10 m wind
+  `10u`/`10v`, not `u`/`v`.
+
+**mPING is research-licence only.** Registration offers a single licence type, "Research". Using mPING
+in anything RBI sends needs mPING's agreement first (item 215). The key is in `.env`
+(`MPING_API_KEY`, `MPING_USER_NAME`) and is not logged anywhere.
+
+**What this does not decide.** Nothing is adopted. Radar value as a severity signal stays ruled out
+(2026-09-16); the hail-tag correlation is storm-level and does not change that.
+
+**Related:** items 7, 205, 206, 210, 215; decision log 2026-09-16, 2026-10-13.
+
+---

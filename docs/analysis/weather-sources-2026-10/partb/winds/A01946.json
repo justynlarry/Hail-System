@@ -1,0 +1,48 @@
+{
+ "storm_id": "A01946",
+ "start_local": "2022-07-27 16:41:00",
+ "mid_utc": "2022-07-27 23:24:30",
+ "storm_toward": 163.0,
+ "speed_kmh": 36.0,
+ "r2": 0.99,
+ "chain_suspect": "False",
+ "centroid": [
+  40.708000000000006,
+  -104.66400000000002
+ ],
+ "hrrr": {
+  "hour": "2022-07-27 23:00:00",
+  "rotation_deg": -4.46,
+  "levels": [
+   "10 m above ground",
+   "300 mb",
+   "400 mb",
+   "450 mb",
+   "500 mb",
+   "550 mb",
+   "600 mb",
+   "650 mb",
+   "700 mb",
+   "750 mb",
+   "800 mb"
+  ],
+  "toward": {
+   "700 mb": 9.3,
+   "500 mb": 107.6,
+   "300 mb": 100.9,
+   "mean 700-300": 104.8,
+   "mean 0-6 km (approx)": 108.3,
+   "Bunkers right (approx)": 162.5
+  },
+  "err": {
+   "700 mb": -153.7,
+   "500 mb": -55.4,
+   "300 mb": -62.1,
+   "mean 700-300": -58.2,
+   "mean 0-6 km (approx)": -54.7,
+   "Bunkers right (approx)": -0.5
+  },
+  "speed500_ms": 14.8
+ },
+ "sounding": null
+}

@@ -1,0 +1,181 @@
+{
+ "storm_id": "A02040",
+ "start_local": "2023-06-22 14:17:00",
+ "window_utc": [
+  "2023-06-22 20:00:00",
+  "2023-06-23 00:00:00"
+ ],
+ "n_polygons": 15,
+ "n_sv": 12,
+ "n_to": 3,
+ "wfos": [
+  "BOU",
+  "PUB"
+ ],
+ "domain_km2": 9786.1444058509,
+ "poly_km2": 4726.299822418296,
+ "circle_km2": 2484.131894892143,
+ "mesh100_km2": 1424.307341979815,
+ "mesh075_km2": 1938.9979411489858,
+ "mesh100_in_poly_km2": 1398.5077422823858,
+ "mesh100_in_circle_km2": 1151.6125600277928,
+ "mesh100_in_either_km2": 1409.953053729513,
+ "poly_no_mesh075_far_km2": 1435.2640894970411,
+ "mesh100_outside_poly_km2": 25.799599697429212,
+ "max_hailtag_in": 2.75,
+ "max_mesh_domain_in": 3.0157480239868164,
+ "max_mesh_in_poly_in": 3.0157480239868164,
+ "max_reported_hail_in": 2.5,
+ "polygons": [
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 22:26:00",
+   "end": "2023-06-22 23:15:00",
+   "hailtag": "2.500000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306222226-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 22:04:00",
+   "end": "2023-06-22 22:29:00",
+   "hailtag": "2.000000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306222204-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 23:11:00",
+   "end": "2023-06-23 00:00:00",
+   "hailtag": "2.500000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306222311-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 21:15:00",
+   "end": "2023-06-22 22:00:00",
+   "hailtag": "2.500000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306222115-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-06-22 23:46:00",
+   "end": "2023-06-23 00:04:00",
+   "hailtag": "1.250000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306222346-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 22:50:00",
+   "end": "2023-06-22 23:30:00",
+   "hailtag": "1.750000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306222250-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 22:10:00",
+   "end": "2023-06-22 22:35:00",
+   "hailtag": "2.000000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306222210-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 21:40:00",
+   "end": "2023-06-22 22:30:00",
+   "hailtag": "1.750000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306222140-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 23:58:00",
+   "end": "2023-06-23 00:25:00",
+   "hailtag": "1.750000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306222358-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 20:15:00",
+   "end": "2023-06-22 20:21:00",
+   "hailtag": "1.000000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306222015-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "TO",
+   "wfo": "BOU",
+   "begin": "2023-06-22 21:22:00",
+   "end": "2023-06-22 21:45:00",
+   "hailtag": "0.750000000000000",
+   "windtag": "************************",
+   "status": "NEW",
+   "product": "202306222122-KBOU-WFUS55-TORBOU"
+  },
+  {
+   "phenom": "TO",
+   "wfo": "BOU",
+   "begin": "2023-06-22 21:49:00",
+   "end": "2023-06-22 21:55:00",
+   "hailtag": "1.750000000000000",
+   "windtag": "************************",
+   "status": "NEW",
+   "product": "202306222149-KBOU-WFUS55-TORBOU"
+  },
+  {
+   "phenom": "TO",
+   "wfo": "BOU",
+   "begin": "2023-06-22 21:22:00",
+   "end": "2023-06-22 21:31:00",
+   "hailtag": "0.750000000000000",
+   "windtag": "************************",
+   "status": "NEW",
+   "product": "202306222122-KBOU-WFUS55-TORBOU-RRA"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 21:01:00",
+   "end": "2023-06-22 21:45:00",
+   "hailtag": "2.750000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306222101-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 20:45:00",
+   "end": "2023-06-22 20:53:00",
+   "hailtag": "2.000000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306222045-KBOU-WUUS55-SVRBOU"
+  }
+ ]
+}

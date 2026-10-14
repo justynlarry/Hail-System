@@ -1,0 +1,48 @@
+{
+ "storm_id": "A02116",
+ "start_local": "2023-08-03 17:05:00",
+ "mid_utc": "2023-08-03 23:27:30",
+ "storm_toward": 104.0,
+ "speed_kmh": 26.8,
+ "r2": 0.94,
+ "chain_suspect": "False",
+ "centroid": [
+  39.236666666666665,
+  -104.01166666666667
+ ],
+ "hrrr": {
+  "hour": "2023-08-03 23:00:00",
+  "rotation_deg": -4.06,
+  "levels": [
+   "10 m above ground",
+   "300 mb",
+   "400 mb",
+   "450 mb",
+   "500 mb",
+   "550 mb",
+   "600 mb",
+   "650 mb",
+   "700 mb",
+   "750 mb",
+   "800 mb"
+  ],
+  "toward": {
+   "700 mb": 278.7,
+   "500 mb": 83.4,
+   "300 mb": 71.4,
+   "mean 700-300": 76.5,
+   "mean 0-6 km (approx)": 86.1,
+   "Bunkers right (approx)": 123.3
+  },
+  "err": {
+   "700 mb": 174.7,
+   "500 mb": -20.6,
+   "300 mb": -32.6,
+   "mean 700-300": -27.5,
+   "mean 0-6 km (approx)": -17.9,
+   "Bunkers right (approx)": 19.3
+  },
+  "speed500_ms": 14.2
+ },
+ "sounding": null
+}

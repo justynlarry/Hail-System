@@ -3332,23 +3332,32 @@ nothing now and makes item 208 repeatable later.
 
 ## 210. Extra weather sources for the storm footprint
 
-**Status:** open (parked on item 206's prototype; every source below is **unverified**)
+**Status:** assessed 2026-10-14 (decision log 2026-10-14). Findings recorded; nothing adopted.
 
-Not checked: coverage, history, terms, format or cost for any of them. Listed so that the question
-is recorded.
-1. **NWS warning polygons** (Iowa State IEM archive). The shape fallback for storms before the MESH
-   archives start. **Highest priority.**
-2. **MRMS rotation tracks and probability of severe hail.** Related products on the same archives.
-3. **CoCoRaHS hail pads.** Ground truth; CoCoRaHS is already discussed in the decision log
-   (report-source confidence).
-4. **mPING public reports.** See item 7, dropped 2026-09-30: today mPING arrives as `PUBLIC`.
-5. **NCEI Storm Events Database.**
-6. **Upper-level winds or HRRR,** for a live storm direction.
-7. **Commercial hail maps,** only as a paid benchmark to compare against, not a source.
+**Result, per source** (detail in `docs/analysis/weather-sources-2026-10/summary.md`):
+1. **NWS warning polygons:** an outer bound (98% of MESH hail inside) and a storm-level severity tag;
+   not a shape (Jaccard 0.09). From 2004, hail tags from 2010-04; live. The outer tier in item 206's
+   prototype.
+2. **MRMS rotation tracks, POSH, SHI:** SHI and POSH are MESH in another form and add nothing.
+   Rotation tracks are partly independent (velocity, not reflectivity) and **not tested in Part B**.
+   RadarQualityIndex (not in the original list) is the candidate for the mountains question; also
+   not tested.
+3. **CoCoRaHS:** 79% agreement; 6 large-hail points that reports and MESH both missed across 60 storms;
+   thinner in 2025–2026.
+4. **mPING:** 90% agreement; 3 missed points, 7 confirmations beyond the circles. **Research licence
+   only** (item 215).
+5. **NCEI Storm Events:** a 99% duplicate of our IEM hail reports; no value.
+6. **HRRR winds (and Denver soundings to 2022-07-09):** direction to a median of 19–23° with the
+   right-mover. The basis for item 206's fallback capsule.
+7. **Commercial hail maps:** out of scope, not assessed.
 
-**When:** after the prototype in item 206 shows what a radar footprint can and cannot do.
+**Still open:** rotation tracks; RadarQualityIndex for the mountains; a 1 km small-hail test for
+lowering confidence; terms of use for every source (none read).
 
-**Related:** items 206, 7.
+**When:** reopen for any of the open points above if item 206's prototype or item 208's calibration
+needs it.
+
+**Related:** items 7, 205, 206, 208, 215; decision log 2026-10-14.
 
 ## 211. The 60-minute MESH check: 27 cells are unexplained
 
@@ -3438,6 +3447,23 @@ revocations on both tables are not tested either. The two guards are the same pa
 **When:** with the next edit to `guard_test.sql`, and before `039` and `040` are applied to the production box.
 
 **Related:** items 180, 191, 212; `docs/schema-review.md`.
+
+## 215. mPING is research-licence only; ask before any product use
+
+**Status:** open (filed 2026-10-14)
+
+mPING's API registration offers one licence type, "Research". The licence text was not read.
+This system's use would be commercial (RBI's outreach). The 2026-10-14 assessment used mPING as
+research only, and its raw points are kept out of git (`docs/analysis/weather-sources-2026-10/`
+README). The five maps in that folder do plot mPING points; including the images was decided
+2026-10-14.
+
+The key is in `.env` as `MPING_API_KEY` and `MPING_USER_NAME`. `.env.example` does not list them.
+
+**When:** before mPING enters any product code path, ask mPING (their Contact page) whether
+commercial use is allowed, and on what terms. If it is research only, mPING stays a research input.
+
+**Related:** items 7, 210; decision log 2026-10-14.
 
 ## 181. Constant Contact behaviours to verify before the send design is locked
 

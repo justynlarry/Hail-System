@@ -1,0 +1,67 @@
+{
+ "storm_id": "A01791",
+ "start_local": "2020-08-15 15:48:00",
+ "mid_utc": "2020-08-15 22:28:00",
+ "storm_toward": 157.0,
+ "speed_kmh": 22.0,
+ "r2": 0.87,
+ "chain_suspect": "True",
+ "centroid": [
+  38.91166666666666,
+  -104.73166666666668
+ ],
+ "hrrr": {
+  "hour": "2020-08-15 22:00:00",
+  "rotation_deg": -4.5,
+  "levels": [
+   "10 m above ground",
+   "300 mb",
+   "400 mb",
+   "450 mb",
+   "500 mb",
+   "550 mb",
+   "600 mb",
+   "650 mb",
+   "700 mb",
+   "750 mb",
+   "800 mb"
+  ],
+  "toward": {
+   "700 mb": 295.6,
+   "500 mb": 107.8,
+   "300 mb": 140.3,
+   "mean 700-300": 129.2,
+   "mean 0-6 km (approx)": 117.3,
+   "Bunkers right (approx)": 209.5
+  },
+  "err": {
+   "700 mb": 138.6,
+   "500 mb": -49.2,
+   "300 mb": -16.7,
+   "mean 700-300": -27.8,
+   "mean 0-6 km (approx)": -39.7,
+   "Bunkers right (approx)": 52.5
+  },
+  "speed500_ms": 12.3
+ },
+ "sounding": {
+  "launch": "2020-08-16 00:00:00",
+  "dt_h": 1.5,
+  "toward": {
+   "700 mb": 215.0,
+   "500 mb": 85.0,
+   "300 mb": 135.0,
+   "mean 700-300": 125.5,
+   "mean 0-6 km (approx)": 125.4,
+   "Bunkers right (approx)": 169.8
+  },
+  "err": {
+   "700 mb": 58.0,
+   "500 mb": -72.0,
+   "300 mb": -22.0,
+   "mean 700-300": -31.5,
+   "mean 0-6 km (approx)": -31.6,
+   "Bunkers right (approx)": 12.8
+  }
+ }
+}

@@ -1,0 +1,40 @@
+{
+ "storm_id": "A01964",
+ "start_local": "2023-05-04 15:30:00",
+ "window_utc": [
+  "2023-05-04 21:00:00",
+  "2023-05-04 23:00:00"
+ ],
+ "n_polygons": 1,
+ "n_sv": 1,
+ "n_to": 0,
+ "wfos": [
+  "BOU"
+ ],
+ "domain_km2": 5933.159970488954,
+ "poly_km2": 1384.0731060645733,
+ "circle_km2": 198.24502721576647,
+ "mesh100_km2": 0.0,
+ "mesh075_km2": 0.0,
+ "mesh100_in_poly_km2": 0.0,
+ "mesh100_in_circle_km2": 0.0,
+ "mesh100_in_either_km2": 0.0,
+ "poly_no_mesh075_far_km2": 1148.834073899515,
+ "mesh100_outside_poly_km2": 0.0,
+ "max_hailtag_in": 0.75,
+ "max_mesh_domain_in": 0.3937007784843445,
+ "max_mesh_in_poly_in": 0.3425196707248688,
+ "max_reported_hail_in": null,
+ "polygons": [
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-05-04 21:46:00",
+   "end": "2023-05-04 22:07:00",
+   "hailtag": "0.750000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202305042146-KBOU-WUUS55-SVRBOU"
+  }
+ ]
+}

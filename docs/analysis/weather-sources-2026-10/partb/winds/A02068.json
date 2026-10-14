@@ -1,0 +1,48 @@
+{
+ "storm_id": "A02068",
+ "start_local": "2023-07-08 16:04:00",
+ "mid_utc": "2023-07-08 22:40:30",
+ "storm_toward": 133.0,
+ "speed_kmh": 37.5,
+ "r2": 0.95,
+ "chain_suspect": "False",
+ "centroid": [
+  38.86333333333334,
+  -104.58999999999999
+ ],
+ "hrrr": {
+  "hour": "2023-07-08 23:00:00",
+  "rotation_deg": -4.41,
+  "levels": [
+   "10 m above ground",
+   "300 mb",
+   "400 mb",
+   "450 mb",
+   "500 mb",
+   "550 mb",
+   "600 mb",
+   "650 mb",
+   "700 mb",
+   "750 mb",
+   "800 mb"
+  ],
+  "toward": {
+   "700 mb": 357.8,
+   "500 mb": 94.1,
+   "300 mb": 122.6,
+   "mean 700-300": 112.9,
+   "mean 0-6 km (approx)": 85.5,
+   "Bunkers right (approx)": 145.3
+  },
+  "err": {
+   "700 mb": -135.2,
+   "500 mb": -38.9,
+   "300 mb": -10.4,
+   "mean 700-300": -20.1,
+   "mean 0-6 km (approx)": -47.5,
+   "Bunkers right (approx)": 12.3
+  },
+  "speed500_ms": 17.4
+ },
+ "sounding": null
+}

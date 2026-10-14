@@ -1,0 +1,90 @@
+{
+ "storm_id": "A02028",
+ "start_local": "2023-06-21 18:11:00",
+ "window_utc": [
+  "2023-06-22 00:00:00",
+  "2023-06-22 02:00:00"
+ ],
+ "n_polygons": 6,
+ "n_sv": 6,
+ "n_to": 0,
+ "wfos": [
+  "BOU"
+ ],
+ "domain_km2": 5545.53915582639,
+ "poly_km2": 1935.1202562476024,
+ "circle_km2": 682.4955012608596,
+ "mesh100_km2": 29.36917951998183,
+ "mesh075_km2": 125.05018092211192,
+ "mesh100_in_poly_km2": 29.36917951998183,
+ "mesh100_in_circle_km2": 20.84965616795611,
+ "mesh100_in_either_km2": 29.36917951998183,
+ "poly_no_mesh075_far_km2": 875.5529829611029,
+ "mesh100_outside_poly_km2": 0.0,
+ "max_hailtag_in": 1.5,
+ "max_mesh_domain_in": 1.5078740119934082,
+ "max_mesh_in_poly_in": 1.5078740119934082,
+ "max_reported_hail_in": 1.0,
+ "polygons": [
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 00:47:00",
+   "end": "2023-06-22 01:30:00",
+   "hailtag": "1.250000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306220047-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 01:21:00",
+   "end": "2023-06-22 01:45:00",
+   "hailtag": "1.500000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306220121-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 01:46:00",
+   "end": "2023-06-22 02:28:00",
+   "hailtag": "1.250000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306220146-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 00:54:00",
+   "end": "2023-06-22 01:30:00",
+   "hailtag": "1.500000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306220054-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-22 01:18:00",
+   "end": "2023-06-22 01:45:00",
+   "hailtag": "1.250000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306220118-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-06-21 23:54:00",
+   "end": "2023-06-22 00:28:00",
+   "hailtag": "1.000000000000000",
+   "windtag": "50.000000000000000",
+   "status": "NEW",
+   "product": "202306212354-KBOU-WUUS55-SVRBOU-RRA"
+  }
+ ]
+}

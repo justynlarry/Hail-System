@@ -1,0 +1,48 @@
+{
+ "storm_id": "A02336",
+ "start_local": "2025-07-10 13:46:00",
+ "mid_utc": "2025-07-10 20:14:00",
+ "storm_toward": 101.0,
+ "speed_kmh": 56.8,
+ "r2": 0.77,
+ "chain_suspect": "False",
+ "centroid": [
+  39.81,
+  -104.98374999999999
+ ],
+ "hrrr": {
+  "hour": "2025-07-10 20:00:00",
+  "rotation_deg": -4.66,
+  "levels": [
+   "10 m above ground",
+   "300 mb",
+   "400 mb",
+   "450 mb",
+   "500 mb",
+   "550 mb",
+   "600 mb",
+   "650 mb",
+   "700 mb",
+   "750 mb",
+   "800 mb"
+  ],
+  "toward": {
+   "700 mb": 197.8,
+   "500 mb": 91.5,
+   "300 mb": 77.9,
+   "mean 700-300": 90.6,
+   "mean 0-6 km (approx)": 110.5,
+   "Bunkers right (approx)": 143.2
+  },
+  "err": {
+   "700 mb": 96.8,
+   "500 mb": -9.5,
+   "300 mb": -23.1,
+   "mean 700-300": -10.4,
+   "mean 0-6 km (approx)": 9.5,
+   "Bunkers right (approx)": 42.2
+  },
+  "speed500_ms": 15.3
+ },
+ "sounding": null
+}

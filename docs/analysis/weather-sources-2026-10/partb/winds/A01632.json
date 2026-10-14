@@ -1,0 +1,59 @@
+{
+ "storm_id": "A01632",
+ "start_local": "2019-06-21 15:06:00",
+ "mid_utc": "2019-06-21 21:48:00",
+ "storm_toward": 101.0,
+ "speed_kmh": 61.6,
+ "r2": 0.89,
+ "chain_suspect": "False",
+ "centroid": [
+  39.20833333333333,
+  -104.09833333333334
+ ],
+ "hrrr": {
+  "hour": "2019-06-21 22:00:00",
+  "rotation_deg": -4.1,
+  "levels": [
+   "10 m above ground",
+   "300 mb",
+   "400 mb",
+   "450 mb",
+   "500 mb",
+   "550 mb",
+   "600 mb",
+   "650 mb",
+   "700 mb",
+   "750 mb",
+   "800 mb"
+  ],
+  "toward": {
+   "700 mb": 260.1,
+   "500 mb": 57.9,
+   "300 mb": 58.8,
+   "mean 700-300": 57.1,
+   "mean 0-6 km (approx)": 51.7,
+   "Bunkers right (approx)": 93.3
+  },
+  "err": {
+   "700 mb": 159.1,
+   "500 mb": -43.1,
+   "300 mb": -42.2,
+   "mean 700-300": -43.9,
+   "mean 0-6 km (approx)": -49.3,
+   "Bunkers right (approx)": -7.7
+  },
+  "speed500_ms": 22.3
+ },
+ "sounding": {
+  "launch": "2019-06-22 00:00:00",
+  "dt_h": 2.2,
+  "toward": {
+   "700 mb": 275.0,
+   "500 mb": 55.0
+  },
+  "err": {
+   "700 mb": 174.0,
+   "500 mb": -46.0
+  }
+ }
+}

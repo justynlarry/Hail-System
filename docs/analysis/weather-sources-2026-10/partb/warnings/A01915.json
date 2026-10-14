@@ -1,0 +1,61 @@
+{
+ "storm_id": "A01915",
+ "start_local": "2022-06-07 13:25:00",
+ "window_utc": [
+  "2022-06-07 19:00:00",
+  "2022-06-07 21:00:00"
+ ],
+ "n_polygons": 3,
+ "n_sv": 3,
+ "n_to": 0,
+ "wfos": [
+  "BOU",
+  "PUB"
+ ],
+ "domain_km2": 4109.512507318853,
+ "poly_km2": 1639.1065861899137,
+ "circle_km2": 510.66603657279586,
+ "mesh100_km2": 195.3786994686056,
+ "mesh075_km2": 287.7757156731436,
+ "mesh100_in_poly_km2": 195.3786994686056,
+ "mesh100_in_circle_km2": 115.46249562393405,
+ "mesh100_in_either_km2": 195.3786994686056,
+ "poly_no_mesh075_far_km2": 720.2063783309704,
+ "mesh100_outside_poly_km2": 0.0,
+ "max_hailtag_in": 1.75,
+ "max_mesh_domain_in": 2.25984263420105,
+ "max_mesh_in_poly_in": 2.25984263420105,
+ "max_reported_hail_in": 2.0,
+ "polygons": [
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2022-06-07 20:39:00",
+   "end": "2022-06-07 21:07:00",
+   "hailtag": "1.500000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202206072039-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2022-06-07 19:57:00",
+   "end": "2022-06-07 20:12:00",
+   "hailtag": "1.750000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202206071957-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2022-06-07 19:22:00",
+   "end": "2022-06-07 19:38:00",
+   "hailtag": "1.000000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202206071922-KPUB-WUUS55-SVRPUB"
+  }
+ ]
+}

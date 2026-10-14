@@ -1,0 +1,61 @@
+{
+ "storm_id": "A01673",
+ "start_local": "2019-07-29 16:16:00",
+ "mid_utc": "2019-07-29 22:48:00",
+ "storm_toward": 150.0,
+ "speed_kmh": 29.2,
+ "r2": 0.73,
+ "chain_suspect": "False",
+ "centroid": [
+  38.95625,
+  -104.71375
+ ],
+ "hrrr": {
+  "hour": "2019-07-29 23:00:00",
+  "rotation_deg": -4.5,
+  "levels": [
+   "10 m above ground",
+   "300 mb",
+   "400 mb",
+   "450 mb",
+   "500 mb",
+   "550 mb",
+   "600 mb",
+   "650 mb",
+   "700 mb",
+   "750 mb",
+   "800 mb"
+  ],
+  "toward": {
+   "700 mb": 354.3,
+   "500 mb": 79.1,
+   "300 mb": 120.6,
+   "mean 700-300": 104.7,
+   "mean 0-6 km (approx)": 81.5,
+   "Bunkers right (approx)": 142.5
+  },
+  "err": {
+   "700 mb": -155.7,
+   "500 mb": -70.9,
+   "300 mb": -29.4,
+   "mean 700-300": -45.3,
+   "mean 0-6 km (approx)": -68.5,
+   "Bunkers right (approx)": -7.5
+  },
+  "speed500_ms": 7.4
+ },
+ "sounding": {
+  "launch": "2019-07-30 00:00:00",
+  "dt_h": 1.2,
+  "toward": {
+   "500 mb": 100.0,
+   "mean 0-6 km (approx)": 89.9,
+   "Bunkers right (approx)": 170.6
+  },
+  "err": {
+   "500 mb": -50.0,
+   "mean 0-6 km (approx)": -60.1,
+   "Bunkers right (approx)": 20.6
+  }
+ }
+}

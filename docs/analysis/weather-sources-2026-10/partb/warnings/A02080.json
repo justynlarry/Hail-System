@@ -1,0 +1,80 @@
+{
+ "storm_id": "A02080",
+ "start_local": "2023-07-20 13:48:00",
+ "window_utc": [
+  "2023-07-20 19:00:00",
+  "2023-07-20 21:00:00"
+ ],
+ "n_polygons": 5,
+ "n_sv": 4,
+ "n_to": 1,
+ "wfos": [
+  "PUB"
+ ],
+ "domain_km2": 5538.5163037493285,
+ "poly_km2": 1833.802287935819,
+ "circle_km2": 811.3846117648304,
+ "mesh100_km2": 139.59619932074904,
+ "mesh075_km2": 229.04316590552605,
+ "mesh100_in_poly_km2": 132.87520338035415,
+ "mesh100_in_circle_km2": 96.3108777483016,
+ "mesh100_in_either_km2": 132.87520338035415,
+ "poly_no_mesh075_far_km2": 521.1586251140602,
+ "mesh100_outside_poly_km2": 6.720995940394892,
+ "max_hailtag_in": 1.75,
+ "max_mesh_domain_in": 2.5590550899505615,
+ "max_mesh_in_poly_in": 2.5590550899505615,
+ "max_reported_hail_in": 2.5,
+ "polygons": [
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-07-20 19:12:00",
+   "end": "2023-07-20 19:25:00",
+   "hailtag": "1.000000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202307201912-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-07-20 20:14:00",
+   "end": "2023-07-20 20:21:00",
+   "hailtag": "1.250000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202307202014-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-07-20 20:40:00",
+   "end": "2023-07-20 20:51:00",
+   "hailtag": "1.750000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202307202040-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "TO",
+   "wfo": "PUB",
+   "begin": "2023-07-20 19:58:00",
+   "end": "2023-07-20 20:10:00",
+   "hailtag": "1.000000000000000",
+   "windtag": "************************",
+   "status": "NEW",
+   "product": "202307201958-KPUB-WFUS55-TORPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-07-20 19:47:00",
+   "end": "2023-07-20 19:54:00",
+   "hailtag": "1.000000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202307201947-KPUB-WUUS55-SVRPUB"
+  }
+ ]
+}

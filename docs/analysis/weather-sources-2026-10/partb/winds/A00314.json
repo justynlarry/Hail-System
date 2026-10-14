@@ -1,0 +1,15 @@
+{
+ "storm_id": "A00314",
+ "start_local": "2007-07-01 19:04:00",
+ "mid_utc": "2007-07-02 01:24:30",
+ "storm_toward": 239.0,
+ "speed_kmh": 33.8,
+ "r2": 0.88,
+ "chain_suspect": "False",
+ "centroid": [
+  40.445,
+  -104.69874999999999
+ ],
+ "hrrr": null,
+ "sounding": null
+}

@@ -1,0 +1,63 @@
+{
+ "storm_id": "A01930",
+ "start_local": "2022-07-06 14:20:00",
+ "mid_utc": "2022-07-06 21:04:00",
+ "storm_toward": 18.0,
+ "speed_kmh": 31.4,
+ "r2": 0.96,
+ "chain_suspect": "False",
+ "centroid": [
+  39.57285714285714,
+  -104.3885714285714
+ ],
+ "hrrr": {
+  "hour": "2022-07-06 21:00:00",
+  "rotation_deg": -4.28,
+  "levels": [
+   "10 m above ground",
+   "300 mb",
+   "400 mb",
+   "450 mb",
+   "500 mb",
+   "550 mb",
+   "600 mb",
+   "650 mb",
+   "700 mb",
+   "750 mb",
+   "800 mb"
+  ],
+  "toward": {
+   "700 mb": 205.5,
+   "500 mb": 59.1,
+   "300 mb": 27.4,
+   "mean 700-300": 39.2,
+   "mean 0-6 km (approx)": 42.4,
+   "Bunkers right (approx)": 121.2
+  },
+  "err": {
+   "700 mb": -172.5,
+   "500 mb": 41.1,
+   "300 mb": 9.4,
+   "mean 700-300": 21.2,
+   "mean 0-6 km (approx)": 24.4,
+   "Bunkers right (approx)": 103.2
+  },
+  "speed500_ms": 11.6
+ },
+ "sounding": {
+  "launch": "2022-07-07 00:00:00",
+  "dt_h": 2.9,
+  "toward": {
+   "700 mb": 167.0,
+   "300 mb": 30.0,
+   "mean 0-6 km (approx)": 74.9,
+   "Bunkers right (approx)": 125.6
+  },
+  "err": {
+   "700 mb": 149.0,
+   "300 mb": 12.0,
+   "mean 0-6 km (approx)": 56.9,
+   "Bunkers right (approx)": 107.6
+  }
+ }
+}

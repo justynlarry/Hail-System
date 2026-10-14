@@ -1,0 +1,34 @@
+{
+ "storm_id": "A00658",
+ "start_local": "2010-05-26 20:10:00",
+ "mid_utc": "2010-05-27 02:57:30",
+ "storm_toward": 104.0,
+ "speed_kmh": 17.1,
+ "r2": 0.88,
+ "chain_suspect": "False",
+ "centroid": [
+  38.87571428571429,
+  -104.57285714285715
+ ],
+ "hrrr": null,
+ "sounding": {
+  "launch": "2010-05-27 00:00:00",
+  "dt_h": -3.0,
+  "toward": {
+   "700 mb": 357.0,
+   "500 mb": 45.0,
+   "300 mb": 75.0,
+   "mean 700-300": 49.6,
+   "mean 0-6 km (approx)": 30.8,
+   "Bunkers right (approx)": 66.8
+  },
+  "err": {
+   "700 mb": -107.0,
+   "500 mb": -59.0,
+   "300 mb": -29.0,
+   "mean 700-300": -54.4,
+   "mean 0-6 km (approx)": -73.2,
+   "Bunkers right (approx)": -37.2
+  }
+ }
+}

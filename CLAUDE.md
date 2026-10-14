@@ -152,6 +152,13 @@ These have already bitten us. Do not re-discover them.
   Reproject at load. Mixing them fails silently.
 - RentCast `id` is a **property** id, not a listing id. A relisted house reuses it.
 - RentCast agent email is **frequently missing**. Handle null.
+- IEM's warning export (`cgi-bin/request/gis/watchwarn.py`) with `limitps=1` and **no explicit
+  `phenomena=` list returns tornado warnings only**, silently. Pass `phenomena=SV,TO&significance=W,W`.
+  Its shapefile truncates field names to 10 characters (`PRODUCT_ID` arrives as `PROD_ID`).
+- NCEI Storm Events times are local **standard** time all year (`CZ_TIMEZONE` `MST-7`): an hour off
+  Denver summer time if read as local.
+- HRRR u/v winds are **grid-relative**: rotate to true north (about -4 degrees near 104 W). eccodes names
+  the 10 m wind `10u`/`10v`, not `u`/`v`, so a lookup on `u` silently drops it.
 
 ## Conventions
 

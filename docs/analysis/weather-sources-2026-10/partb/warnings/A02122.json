@@ -1,0 +1,221 @@
+{
+ "storm_id": "A02122",
+ "start_local": "2023-08-05 14:13:00",
+ "window_utc": [
+  "2023-08-05 20:00:00",
+  "2023-08-05 22:00:00"
+ ],
+ "n_polygons": 19,
+ "n_sv": 10,
+ "n_to": 9,
+ "wfos": [
+  "BOU",
+  "PUB"
+ ],
+ "domain_km2": 7999.552372040007,
+ "poly_km2": 5583.951635246093,
+ "circle_km2": 1824.4245507520977,
+ "mesh100_km2": 425.2855343465452,
+ "mesh075_km2": 751.0753880543049,
+ "mesh100_in_poly_km2": 425.2855343465452,
+ "mesh100_in_circle_km2": 288.37925927687263,
+ "mesh100_in_either_km2": 425.2855343465452,
+ "poly_no_mesh075_far_km2": 2514.4111063965,
+ "mesh100_outside_poly_km2": 0.0,
+ "max_hailtag_in": 2.0,
+ "max_mesh_domain_in": 2.303149700164795,
+ "max_mesh_in_poly_in": 2.303149700164795,
+ "max_reported_hail_in": 4.0,
+ "polygons": [
+  {
+   "phenom": "TO",
+   "wfo": "PUB",
+   "begin": "2023-08-05 19:43:00",
+   "end": "2023-08-05 20:30:00",
+   "hailtag": "0.750000000000000",
+   "windtag": "************************",
+   "status": "NEW",
+   "product": "202308051943-KPUB-WFUS55-TORPUB"
+  },
+  {
+   "phenom": "TO",
+   "wfo": "PUB",
+   "begin": "2023-08-05 21:08:00",
+   "end": "2023-08-05 21:45:00",
+   "hailtag": "2.000000000000000",
+   "windtag": "************************",
+   "status": "NEW",
+   "product": "202308052108-KPUB-WFUS55-TORPUB"
+  },
+  {
+   "phenom": "TO",
+   "wfo": "PUB",
+   "begin": "2023-08-05 19:49:00",
+   "end": "2023-08-05 20:15:00",
+   "hailtag": "0.750000000000000",
+   "windtag": "************************",
+   "status": "NEW",
+   "product": "202308051949-KPUB-WFUS55-TORPUB"
+  },
+  {
+   "phenom": "TO",
+   "wfo": "PUB",
+   "begin": "2023-08-05 21:14:00",
+   "end": "2023-08-05 21:45:00",
+   "hailtag": "2.000000000000000",
+   "windtag": "************************",
+   "status": "NEW",
+   "product": "202308052114-KPUB-WFUS55-TORPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-08-05 20:27:00",
+   "end": "2023-08-05 20:45:00",
+   "hailtag": "1.250000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202308052027-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-08-05 21:14:00",
+   "end": "2023-08-05 21:24:00",
+   "hailtag": "1.500000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202308052114-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-08-05 19:29:00",
+   "end": "2023-08-05 20:15:00",
+   "hailtag": "1.250000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202308051929-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "TO",
+   "wfo": "PUB",
+   "begin": "2023-08-05 21:49:00",
+   "end": "2023-08-05 22:15:00",
+   "hailtag": "2.000000000000000",
+   "windtag": "************************",
+   "status": "NEW",
+   "product": "202308052149-KPUB-WFUS55-TORPUB"
+  },
+  {
+   "phenom": "TO",
+   "wfo": "PUB",
+   "begin": "2023-08-05 20:36:00",
+   "end": "2023-08-05 20:49:00",
+   "hailtag": "1.500000000000000",
+   "windtag": "************************",
+   "status": "NEW",
+   "product": "202308052036-KPUB-WFUS55-TORPUB"
+  },
+  {
+   "phenom": "TO",
+   "wfo": "PUB",
+   "begin": "2023-08-05 21:27:00",
+   "end": "2023-08-05 21:36:00",
+   "hailtag": "0.750000000000000",
+   "windtag": "************************",
+   "status": "NEW",
+   "product": "202308052127-KPUB-WFUS55-TORPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-08-05 20:59:00",
+   "end": "2023-08-05 21:30:00",
+   "hailtag": "2.000000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202308052059-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-08-05 20:18:00",
+   "end": "2023-08-05 20:47:00",
+   "hailtag": "1.000000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202308052018-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-08-05 21:44:00",
+   "end": "2023-08-05 21:54:00",
+   "hailtag": "1.250000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202308052144-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-08-05 20:30:00",
+   "end": "2023-08-05 20:56:00",
+   "hailtag": "1.250000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202308052030-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-08-05 21:14:00",
+   "end": "2023-08-05 21:21:00",
+   "hailtag": "1.500000000000000",
+   "windtag": "70.000000000000000",
+   "status": "NEW",
+   "product": "202308052114-KPUB-WUUS55-SVRPUB-RRA"
+  },
+  {
+   "phenom": "TO",
+   "wfo": "PUB",
+   "begin": "2023-08-05 20:04:00",
+   "end": "2023-08-05 20:15:00",
+   "hailtag": "0.750000000000000",
+   "windtag": "************************",
+   "status": "NEW",
+   "product": "202308052004-KPUB-WFUS55-TORPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2023-08-05 19:53:00",
+   "end": "2023-08-05 20:45:00",
+   "hailtag": "1.500000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202308051953-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "BOU",
+   "begin": "2023-08-05 21:50:00",
+   "end": "2023-08-05 22:08:00",
+   "hailtag": "1.250000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202308052150-KBOU-WUUS55-SVRBOU"
+  },
+  {
+   "phenom": "TO",
+   "wfo": "PUB",
+   "begin": "2023-08-05 21:59:00",
+   "end": "2023-08-05 22:15:00",
+   "hailtag": "0.750000000000000",
+   "windtag": "************************",
+   "status": "NEW",
+   "product": "202308052159-KPUB-WFUS55-TORPUB"
+  }
+ ]
+}

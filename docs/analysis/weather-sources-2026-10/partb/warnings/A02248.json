@@ -1,0 +1,70 @@
+{
+ "storm_id": "A02248",
+ "start_local": "2024-08-20 17:36:00",
+ "window_utc": [
+  "2024-08-20 23:00:00",
+  "2024-08-21 01:00:00"
+ ],
+ "n_polygons": 4,
+ "n_sv": 4,
+ "n_to": 0,
+ "wfos": [
+  "PUB"
+ ],
+ "domain_km2": 3959.561974588994,
+ "poly_km2": 1788.702262934944,
+ "circle_km2": 450.81175899183,
+ "mesh100_km2": 129.83736873085022,
+ "mesh075_km2": 245.2349830570295,
+ "mesh100_in_poly_km2": 127.91179257473532,
+ "mesh100_in_circle_km2": 104.81571775186993,
+ "mesh100_in_either_km2": 128.87451295470964,
+ "poly_no_mesh075_far_km2": 1144.6457161963485,
+ "mesh100_outside_poly_km2": 1.9255761561149014,
+ "max_hailtag_in": 1.5,
+ "max_mesh_domain_in": 2.8700788021087646,
+ "max_mesh_in_poly_in": 2.8700788021087646,
+ "max_reported_hail_in": 1.0,
+ "polygons": [
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2024-08-20 23:47:00",
+   "end": "2024-08-21 00:01:00",
+   "hailtag": "1.000000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202408202347-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2024-08-20 23:39:00",
+   "end": "2024-08-20 23:52:00",
+   "hailtag": "1.000000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202408202339-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2024-08-21 00:26:00",
+   "end": "2024-08-21 00:43:00",
+   "hailtag": "1.250000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202408210026-KPUB-WUUS55-SVRPUB"
+  },
+  {
+   "phenom": "SV",
+   "wfo": "PUB",
+   "begin": "2024-08-21 00:12:00",
+   "end": "2024-08-21 00:24:00",
+   "hailtag": "1.500000000000000",
+   "windtag": "60.000000000000000",
+   "status": "NEW",
+   "product": "202408210012-KPUB-WUUS55-SVRPUB"
+  }
+ ]
+}
