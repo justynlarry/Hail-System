@@ -49,8 +49,9 @@ for k in ("A02164", "A02418", "A02156"):
     for r in act: ax.add_patch(Circle((r["x"] / 1000, r["y"] / 1000), C.R_M / 1000, fill=False, ec="#1b1b1b", lw=0.7, alpha=0.6, zorder=2))
     g = json.load(open(os.path.join(C.HERE, "partb", "ground", f"{k}.json")))["points"]
     for p in g:
+        if p["src"] != "cocorahs": continue      # mPING is research-licensed (item 215): validation only, never mapped
         X, Y = tr.transform(p["lon"], p["lat"]); big = (p["size_in"] or 0) >= 1
-        ax.plot(X / 1000, Y / 1000, "D", ms=4.5 if big else 3.2, mfc="#7a3db8" if big else "white", mec="#7a3db8", mew=0.9, zorder=5)
+        ax.plot(X / 1000, Y / 1000, "s", ms=4.5 if big else 3.2, mfc="#7a3db8" if big else "white", mec="#7a3db8", mew=0.9, zorder=5)
     for r in c:
         if r["type"] == "HAIL": ax.plot(r["x"] / 1000, r["y"] / 1000, "o", ms=5, mfc="#1b1b1b" if r["act"] else "white", mec="#1b1b1b", zorder=6)
     cx, cy = np.mean(xs), np.mean(ys)
@@ -66,6 +67,6 @@ for k in ("A02164", "A02418", "A02156"):
          Line2D([], [], color="#1b1b1b", lw=0.7, label="today's 5 mi circles"), Line2D([], [], color="#2e8b57", lw=1.3, ls="--", label="fallback: circles stretched ±8 km along HRRR"),
          Line2D([], [], color="#2e8b57", lw=2, label="HRRR right-mover direction"),
          Line2D([], [], marker="o", ls="", mfc="#1b1b1b", mec="#1b1b1b", ms=5, label="LSR hail ≥1 in"), Line2D([], [], marker="o", ls="", mfc="white", mec="#1b1b1b", ms=5, label="LSR hail <1 in"),
-         Line2D([], [], marker="D", ls="", mfc="#7a3db8", mec="#7a3db8", ms=4.5, label="mPING/CoCoRaHS ≥1 in"), Line2D([], [], marker="D", ls="", mfc="white", mec="#7a3db8", ms=3.5, label="mPING/CoCoRaHS <1 in")]
+         Line2D([], [], marker="s", ls="", mfc="#7a3db8", mec="#7a3db8", ms=4.5, label="CoCoRaHS ≥1 in"), Line2D([], [], marker="s", ls="", mfc="white", mec="#7a3db8", ms=3.5, label="CoCoRaHS <1 in")]
     ax.legend(handles=h, loc="upper center", bbox_to_anchor=(0.5, -0.07), ncol=3, fontsize=7, frameon=False)
     fig.tight_layout(); p = os.path.join(HERE, "maps", f"{k}.png"); fig.savefig(p, facecolor="white"); plt.close(fig); print("map", p)

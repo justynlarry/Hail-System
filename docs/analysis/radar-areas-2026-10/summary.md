@@ -3,6 +3,9 @@
 Analysis only (2026-10-14). Work is in `~/hail-analysis/radar_areas/`. No database, no git, no matcher
 change.
 
+**mPING was used for internal validation only, under its research licence (item 215).** It is not shown
+on any map, and its raw points are not in the repo. Every map shows LSR and CoCoRaHS points only.
+
 **Inputs** are the same 60 MESH storms, hourly MESH windows and 30 km domains as `mesh60`:
 - warning polygons and HRRR winds from `weather_sources/partb/`;
 - independent ground points (mPING + CoCoRaHS) from `weather_sources/partb/ground/`.
@@ -146,7 +149,7 @@ radius to the same total area.
 - core / margin / outer fill (darker = more likely);
 - today's circles, and the HRRR-stretched fallback (± 8 km, dashed);
 - the HRRR right-mover arrow;
-- LSR, mPING and CoCoRaHS points.
+- LSR and CoCoRaHS points (mPING is not mapped: item 215).
 
 ## Unverified and limits
 

@@ -121,6 +121,7 @@ for k in ["A01973", "A02418", "A02164", "A02156", "A02215"]:
         if r["type"] == "HAIL": ax.plot(X, Y, "o", ms=5.5, mfc="#1b1b1b" if r["act"] else "white", mec="#1b1b1b", mew=1, zorder=6)
         else: ax.plot(X, Y, "^", ms=6, mfc="#1b1b1b" if r["act"] else "white", mec="#1b1b1b", mew=1, zorder=6)
     for p in G[k]["points"]:
+        if p["src"] != "cocorahs": continue      # mPING is research-licensed (item 215): validation only, never mapped
         X, Y = tr.transform(p["lon"], p["lat"]); big = (p["size_in"] or 0) >= 1.0
         mk = "s" if p["src"] == "cocorahs" else "D"
         ax.plot(X / 1000, Y / 1000, mk, ms=5 if big else 3.6, mfc="#7a3db8" if big else "white", mec="#7a3db8", mew=1, zorder=5)
@@ -141,7 +142,7 @@ for k in ["A01973", "A02418", "A02164", "A02156", "A02215"]:
     ax.set_title(f"{k}  {d['start_local'][:16]} to {d['end_local'][11:16]} MT\n"
                  f"MESH ≥1 in: {w['mesh100_km2']:.0f} km² — in warnings {100 * w['mesh100_in_poly_km2'] / max(w['mesh100_km2'], 1e-9):.0f}%, in circles {100 * w['mesh100_in_circle_km2'] / max(w['mesh100_km2'], 1e-9):.0f}%   "
                  f"warnings {w['n_polygons']} (hail tag max {w['max_hailtag_in']} in)\n"
-                 f"CoCoRaHS {g['n_cocorahs']}, mPING {g['n_mping']} points   storm → {v['storm_toward']:.0f}°, HRRR 500 mb error {e.get('500 mb', 'n/a')}°, Bunkers error {e.get('Bunkers right (approx)', 'n/a')}°",
+                 f"CoCoRaHS {g['n_cocorahs']} points   storm → {v['storm_toward']:.0f}°, HRRR 500 mb error {e.get('500 mb', 'n/a')}°, Bunkers error {e.get('Bunkers right (approx)', 'n/a')}°",
                  fontsize=8.2, loc="left", color="#1b1b1b")
     h = [Patch(fc="#b7d3f6", label="MESH 0.75–1.00 in"), Patch(fc="#6da7ec", label="1.00–1.50"), Patch(fc="#2a78d6", label="1.50–2.00"), Patch(fc="#104281", label="> 2.00"),
          Line2D([], [], color=POLY_C, lw=1, label="SVR warning"), Line2D([], [], color=POLY_C, lw=1, ls=(0, (2, 2)), label="TOR warning"),
@@ -151,8 +152,6 @@ for k in ["A01973", "A02418", "A02164", "A02156", "A02215"]:
          Line2D([], [], marker="^", ls="", mfc="#1b1b1b", mec="#1b1b1b", ms=5, label="LSR wind (filled = actionable)"),
          Line2D([], [], marker="s", ls="", mfc="#7a3db8", mec="#7a3db8", ms=5, label="CoCoRaHS ≥1 in"),
          Line2D([], [], marker="s", ls="", mfc="white", mec="#7a3db8", ms=4, label="CoCoRaHS <1 in"),
-         Line2D([], [], marker="D", ls="", mfc="#7a3db8", mec="#7a3db8", ms=5, label="mPING ≥1 in"),
-         Line2D([], [], marker="D", ls="", mfc="white", mec="#7a3db8", ms=4, label="mPING <1 in"),
          Line2D([], [], color="#1b1b1b", lw=2, label="storm motion (fit)"), Line2D([], [], color="#2e8b57", lw=2, ls="--", label="HRRR 500 mb"),
          Line2D([], [], color="#2e8b57", lw=2, ls=":", label="Bunkers right (approx)")]
     ax.legend(handles=h, loc="upper center", bbox_to_anchor=(0.5, -0.07), ncol=4, fontsize=7, frameon=False)

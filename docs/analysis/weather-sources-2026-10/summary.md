@@ -3,6 +3,9 @@
 Analysis only. Work is in `~/hail-analysis/weather_sources/`. `/tmp/hail-dev` is superseded and was
 not used. No git.
 
+**mPING was used for internal validation only, under its research licence (item 215).** It is not shown
+on any map, and its raw points are not in the repo. Every map shows LSR and CoCoRaHS points only.
+
 **Status:** Parts A, B and C are done (2026-10-14). mPING was completed once the key arrived; the core set was approved for Part B 2026-10-14. Part B covers warning polygons,
 CoCoRaHS and steering winds, plus mPING under its research licence. The maps for 3–5 storms belong
 to Part B.
@@ -176,11 +179,12 @@ centroid, rotated to true north. The sounding is the Denver launch nearest the s
 ### Maps
 
 `maps/A01973.png`, `A02418.png`, `A02164.png`, `A02156.png`, `A02215.png` each show:
-- MESH, today's circles, SVR/TOR polygons, LSR, CoCoRaHS and mPING points;
+- MESH, today's circles, SVR/TOR polygons, LSR and CoCoRaHS points (mPING is not mapped: item 215);
 - arrows for the fitted motion, HRRR 500 mb and the right-mover.
 
 **A02418** shows the warning problem: the polygons blanket the whole domain while the swaths are
-narrow, and mPING and CoCoRaHS cluster where the reports already are. **A02156** (eastern plains)
+narrow, and CoCoRaHS points cluster where the reports already are (mPING, used in the counts above, does
+the same). **A02156** (eastern plains)
 shows MESH finding a large swath with almost no ground reports of any kind.
 
 ## Part C: recommendation

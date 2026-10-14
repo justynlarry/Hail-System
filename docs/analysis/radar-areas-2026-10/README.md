@@ -19,7 +19,7 @@ CoCoRaHS only) at 1, 3 and 5 km margins is in `validation_by_source.txt`.
 - `docs/analysis/storm-shape-mesh-2026-10` (mesh60) and `docs/analysis/weather-sources-2026-10`:
   warning polygons, HRRR winds and the ground points.
 - The raw mPING points are not in git (item 215). The checkpoints here hold only counts per tier and
-  source. The maps plot mPING points, as with the 2026-10-14 weather-sources maps.
+  source. mPING was used for internal validation only; the maps show LSR and CoCoRaHS points only.
 
 **Rerunning:** the scripts expect the `~/hail-analysis` layout (`mesh60/`, `storm_shape/`,
 `weather_sources/` next to this folder) and the environment in

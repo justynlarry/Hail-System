@@ -3507,8 +3507,8 @@ revocations on both tables are not tested either. The two guards are the same pa
 mPING's API registration offers one licence type, "Research". The licence text was not read.
 This system's use would be commercial (RBI's outreach). The 2026-10-14 assessment used mPING as
 research only, and its raw points are kept out of git (`docs/analysis/weather-sources-2026-10/`
-README). The five maps in that folder do plot mPING points; including the images was decided
-2026-10-14.
+README). The maps in that folder and in `docs/analysis/radar-areas-2026-10/` were regenerated without
+mPING on 2026-10-14: mPING is used for internal validation only.
 
 The key is in `.env` as `MPING_API_KEY` and `MPING_USER_NAME`. `.env.example` does not list them.
 

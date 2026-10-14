@@ -23,8 +23,8 @@ detail is in `notes/`.
 - **`samples/`**: raw downloads and extracts, about 1.7 GB. Most of it is HRRR wind fields; all of it
   can be fetched again.
 - **`partb/ground/`**: the per-storm CoCoRaHS and **mPING** points. mPING is licensed for research
-  only (item 215), so its raw points stay out of this public repo. The five maps *do* plot mPING
-  points; including the images was decided 2026-10-14.
+  only (item 215), so its raw points stay out of this public repo. mPING was used for internal
+  validation only; the maps show LSR and CoCoRaHS points only (regenerated without mPING 2026-10-14).
 - **Every `*.csv`** (the repo-wide rule).
 
 A full copy, including the above, is on the workstation in `~/hail-analysis/weather_sources/`.
