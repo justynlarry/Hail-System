@@ -48,3 +48,4 @@ spatial_ref_sys
 .vscode/
 cloudflared/*.json
 claude-resume.txt
+scratchpad/
