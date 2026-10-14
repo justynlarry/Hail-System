@@ -6869,3 +6869,53 @@ in anything RBI sends needs mPING's agreement first (item 215). The key is in `.
 **Related:** items 7, 205, 206, 210, 215; decision log 2026-09-16, 2026-10-13.
 
 ---
+
+## 2026-10-14 — Radar layers on the territory page: internal display only, built after Phase 5
+
+**Decision: show the radar-shaped storm areas on the territory page, for RBI staff only, as a new
+Phase 5b that starts once Phase 5's done condition is met and before Phase 6.** Nothing is built
+before then.
+
+**What gets built (scope):** four map layers for the selected date window, built per Denver day
+(the system's existing storm unit, `(storm_date, report_text)`), with a legend and toggles:
+- **core:** MRMS MESH ≥ 1.00 in patches within 5 km of that day's actionable reports;
+- **margin:** 3 km around the core;
+- **radar-indicated:** swaths with no report within 5 km (item 206 addendum, decided 2026-10-14);
+- **outer:** NWS SVR/TOR warning polygons.
+
+Data comes from one `MESH_Max_1440min` file per day from NOAA's open archive (from 2020-10-14), and
+the IEM warning export. Thresholds and widths are `settings` rows on the admin page, with history
+(decision log 2026-10-13). They are not code constants, because inspections will change them
+(item 208).
+
+**What it does not do:**
+- **No matcher change.** `storm_listing_matches` and the 5-mile circle stay as they are (item 206).
+- **Nothing radar-derived leaves RBI.** No email, export or template carries a radar layer or a
+  radar hail size. The claim to anyone outside RBI is still "a report was filed" (item 205, point 2).
+- **Radar size is not shown as a per-address severity** (2026-09-16 stands). The layers mark where
+  radar shows hail, not how big it was at a house.
+
+**This narrows, for internal display only, `phases.md` "Not on the roadmap: Radar-derived hail size".**
+That entry required a decision-log entry before MESH is adopted, because MESH changes the product's
+claim. This entry adopts MESH for staff eyes only, where no claim is made. Adopting it for anything
+sent outside RBI still needs its own entry.
+
+**Why after Phase 5:** CLAUDE.md says do not build ahead of the current phase. The email path is not
+yet sending to real recipients (items 129, 183, 189 and 96 remain). The analysis behind this is done
+(decision log 2026-10-13 and 2026-10-14; items 206 and 210), so nothing is lost by waiting.
+
+**How it will be built** (detail when Phase 5b starts):
+- **No new Python dependency.** The standard-library GRIB2 decoder from the analysis matched pygrib
+  on every cell. PostGIS does the projection and turns cells into polygons.
+- The radar ingest runs on the existing nightly timer, so the ingest image is rebuilt.
+- A one-off backfill from 2020-10-14 (about 2,200 small files).
+- The first step is to verify that the `MESH_Max_1440min` file chosen for a day covers exactly that
+  Denver day. That is unverified, the same kind of question as item 211.
+
+**Reversal condition:** if the layers mislead staff in the pilot (Phase 6), turn them off with a
+setting, not a code change.
+
+**Related:** items 205, 206, 208, 210, 211, 216; decision log 2026-09-16, 2026-10-13, 2026-10-14
+(both entries); `phases.md` Phase 5b and "Not on the roadmap".
+
+---

@@ -3517,6 +3517,29 @@ commercial use is allowed, and on what terms. If it is research only, mPING stay
 
 **Related:** items 7, 210; decision log 2026-10-14.
 
+
+## 216. The territory map draws a fixed 5-mile circle, not the configured radius
+
+**Status:** open (filed 2026-10-14)
+
+`hailsys/web/static/map.js:85` draws every report's circle with a hard-coded `radius: 8046.72` (5 miles).
+Both radii are admin settings (`settings.default_zip_radius_miles` and `default_match_radius_miles`,
+`sql/020`, each up to 10 miles, match ≤ zip):
+- the page fetches its points with `zip_radius_miles` (`views.py`, `map_points`);
+- the matcher uses `match_radius_miles` (`matcher.py:100`).
+
+Today all three agree at 5.0, so nothing is wrong yet. **If an admin changes either radius, the map
+still shows 5-mile circles**, and a staff member reading the map is told the wrong reach. The code
+comment on that line says a pixel-sized marker "would be a lie about how far 5 miles is"; the
+hard-coded radius is the same lie in a different form.
+
+**Fix (not applied):** send the radius with the points from the server (the match radius is the one the
+circle claims to show) and draw it in metres. No hard-coded radius in the page.
+
+**When:** the next edit to `map.js` (the radar layers planned after Phase 5 will touch it), or before
+anyone changes a radius on the admin page, whichever comes first.
+
+**Related:** `sql/020`; decision log 2026-10-13 (UI access point rule).
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
 **Status:** spike done 2026-10-07; paid-account checks remain (item 183)

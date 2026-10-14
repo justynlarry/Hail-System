@@ -81,8 +81,8 @@ addresses.
   chosen 2026-10-06: Constant Contact (decision log, item 119).
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
-with CSV export → 3 RentCast listings → 4 accounts → 5 email → 6 pilot →
-7 rollout.
+with CSV export → 3 RentCast listings → 4 accounts → 5 email → 5b radar layers
+on the territory page (internal) → 6 pilot → 7 rollout.
 
 Do not build ahead of the current phase.
 

@@ -296,6 +296,24 @@ sending modest volume over consecutive days.
 
 ---
 
+## Phase 5b — Radar layers on the territory page (internal)
+**Starts after Phase 5 is done. Estimate: several sessions.**
+
+Decision log 2026-10-14 ("Radar layers on the territory page").
+- Verify which `MESH_Max_1440min` file covers a Denver day (item 211's kind of question)
+- Schema: daily radar-hail polygons, warning polygons with hail tags, tier settings on the admin page
+- Nightly ingest of both (ingest image rebuilt); backfill from 2020-10-14
+- Tiers as a per-day view: core, margin, radar-indicated, outer
+- `/map/radar.geojson` and four layers in `map.js`, with legend and toggles; fix item 216 in the same
+  edit
+- Staff only: no matcher change, nothing radar-derived in email or exports
+
+**Done when:** for a historical storm day, the four layers draw on the territory page and agree with
+the 2026-10 analysis for that day (`docs/analysis/radar-areas-2026-10/`). The tier settings change the
+layers from the admin page. Nothing radar-derived reaches an email or an export.
+
+---
+
 ## Phase 6 — Pilot
 **~10–15 hrs · 2–4 weeks**
 
@@ -363,6 +381,9 @@ are parking-lot items 205 (ranking by radar) and 206 (a radar-shaped area); the 
 pilot — storms RBI knows happened that the browse cannot show — rather than a
 known property of the data we have already accounted for. Phase 6 at the
 earliest.
+
+**Narrowed 2026-10-14:** adopted for internal display only, as Phase 5b (decision log 2026-10-14,
+"Radar layers on the territory page"). Anything sent outside RBI still needs its own decision.
 
 ### Building permits and jurisdiction
 
