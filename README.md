@@ -23,7 +23,10 @@ Phases 0–4 are closed:
 - 3: RentCast listings and matching
 - 4: accounts and roles
 
-**Phase 5, email sending, is current**, and no sending path exists yet.
+**Phase 5, email sending, is current.** A Constant Contact send path (admin-only `/send`
+screens, an unsubscribe sync, a send queue and a bounce check) is built and rehearsed on the
+`hail-dev` VM, but it has never sent to a real recipient, and the production box has none of it.
+`CLAUDE.md` lists what is built and what is still needed before a production send, and
 `docs/phases.md` has each phase's "done when" condition.
 
 ## Stack
@@ -62,9 +65,9 @@ After that:
 - **Load the reference data** with `scripts/load_reference.sh`.
 - **Load the service territory** with `scripts/load_coverage.sh`.
 
-The `app` and `ingest` services bake their code into the image, so rebuild
-them after a code change. `web` sees edits at its next restart
-(`docs/command-ref.md`).
+Only `ingest` bakes its code into the image, on purpose, so the nightly timers run a known
+artifact: rebuild it after a change to anything it imports. `web`, `app` and `loader` bind-mount
+the repo, so an edit is a deploy (`web` at its next restart; `docs/command-ref.md`).
 
 ## Tests
 
@@ -72,6 +75,15 @@ them after a code change. `web` sees edits at its next restart
 python3 -m unittest discover -s tests
 ```
 
-This runs 100 stdlib `unittest` cases, covering the ingest parser and the
-magnitude formatter. Nothing under `hailsys/web/` has tests yet
-(`docs/parking-lot.md` item 53).
+The suite is about 500 stdlib `unittest` tests (493 on 2026-10-13, `docs/parking-lot.md` item 53): the
+ingest parser, the formatters, work states, the Constant Contact client, sync and call budget, the send
+queue and engine, and the send and Constant Contact screens. The host run **stops with an error at
+`tests/test_cc_tokens.py`**, because that file needs `cryptography`, which only the `web` and `app` images
+have (item 171). Run that file in a container:
+
+```bash
+docker compose run --rm --no-deps -v ./tests:/app/tests:ro web python -m unittest tests.test_cc_tokens
+```
+
+Some tests skip when a package or the database is missing. Still without tests that reach them: `/admin`,
+`/pull`, `/match`, `/search`, the exports, `/territory`, `/activity` and the storm pages (item 53).

@@ -172,10 +172,12 @@ relied on.
 **Current phase** (Phase 4 closed 2026-09-24). **Begun 2026-09-23.**
 
 Starting point: `send_log`, `email_templates` and `dnc_list` exist from
-`sql/007`. `send_log` and `email_templates` are still empty. `dnc_list` was
-empty at the start and holds 759 suppressions since 2026-09-29. No sending code
-and no sending identity yet. Provider chosen 2026-10-06: Constant Contact (decision
-log; item 119 closed by decision, not yet confirmed in writing).
+`sql/007`. At the start `send_log` and `email_templates` were empty, `dnc_list` was
+empty, and there was no sending code and no sending identity. Provider chosen
+2026-10-06: Constant Contact (decision log; item 119 closed by decision, not yet
+confirmed in writing). **State on 2026-10-14:** `dnc_list` holds 760 suppressions;
+a send path is built and rehearsed on `hail-dev` but has never sent to a real
+recipient (see the 2026-10-06 to 2026-10-13 progress below).
 
 **Progress, as of 2026-10-05 — groundwork only, nothing sends** (bullets are in the order they landed; later ones follow the 09-28 items):
 - **CSV exports built** (parking-lot item 92): the matched listings for one
@@ -239,23 +241,52 @@ log; item 119 closed by decision, not yet confirmed in writing).
   default; CSV formula injection and export filenames fixed; one running pull
   per storm (`sql/033`); `tiger` off the application roles' `search_path`
   (`sql/032`); dark mode.
-- **Not started, and still the work of this phase:** the sending identity and
+- **Not started as of 2026-10-05 (the list that was still to do then; most of it is now built, see below):** the sending identity and
   provider, template CRUD, the suppression check in the send transaction, the
   frequency cap, the send queue, bounce handling and warmup. Before the first
   send: settle whether the Constant Contact export is missing about nine months
   of unsubscribes (item 129) and final email copy (item 135). The provider is
-  chosen (Constant Contact, 2026-10-06); its token table and OAuth flow are the
+  chosen (Constant Contact, 2026-10-06); its token table and OAuth flow were the
   next build (items 168, 169, 170).
 
-- Sending identity: subdomain, SPF/DKIM/DMARC
+**Progress, 2026-10-06 to 2026-10-13 — the Constant Contact send path, built and rehearsed on
+`hail-dev`. Nothing has sent to a real recipient:** every `sent_emails` row (7) is a rehearsal to a test
+address, and the production box has none of this.
+- **Provider access** (items 168 to 170, 181, 182): the OAuth flow and encrypted token table (`sql/034`,
+  admin `/cc`), and a spike on the free trial that established how contacts are added and that the API will
+  silently re-subscribe an unsubscribed contact, so the code reads before it writes.
+- **The unsubscribe sync** into `dnc_list` (`sql/035`, `036`; `POST /cc/sync`), with a log of runs and a
+  list of conflicts, meaning an address Constant Contact has unsubscribed whose `dnc_list` row an admin
+  removed. Built and wired; only an optional nightly timer is not.
+- **The send design** (item 180): one email per realtor per send listing every affected property;
+  `sent_emails` holds the email as sent (`sql/037`) and `send_log` one row per match, pointing at it.
+  The send needs a good sync within 15 minutes, re-checks `dnc_list` immediately before each call, and commits
+  the `send_log` row first. One email per house, not per property record (item 55, 2026-10-13).
+- **Eligibility and the cap** (`sql/038`): a storm older than `match_max_age_days` is not emailed about, and a
+  realtor emailed within `email_cap_days` is held back unless the sender overrides it. Both are settings
+  on the admin page.
+- **The `/send` screens**, admin only: preview, confirm and start, recent sends and per-send progress, resume
+  and discard of a queued remainder (item 199), and a bounce check (`sql/039`) that records bounces in
+  `send_log` and writes hard bounces to `dnc_list`.
+- **A call counter** (`sql/040`, item 191): the engine counts every Constant Contact request and stops at the
+  10,000-a-day limit, and the send screens show the count.
+- **Templates in the UI** (item 202, `sql/041`): a list and a choice on the send page, with a description
+  that can be edited until the template has been used.
+- **Rehearsals** on `hail-dev` with a mandatory allow-list of test addresses (items 180, 198, 199).
+- **Not built, and still the work of this phase:** the production account and sending identity (items 96,
+  183), the eligibility gate (item 189), the template builder (item 203), drip campaigns (item 204), a warm-up
+  schedule and the first real batch. Before the first send: settle whether the Constant Contact export is
+  missing about nine months of unsubscribes (item 129) and final email copy (item 135).
+
+- Sending identity: subdomain, SPF/DKIM/DMARC — **trial account only, self-authenticated; production identity open** (items 96, 183)
 - Provider selected (Constant Contact, 2026-10-06) and verified as permitting this kind of outreach (still unconfirmed in writing; item 119)
-- Template CRUD, versioning, merge-field validation on save
+- Template CRUD, versioning, merge-field validation on save — **partly**: versioning and merge-field validation exist; the UI has a list, a choice and a description editor, not a builder (items 202, 203)
 - DNC import (legacy lists) — **done 2026-09-29, 759 suppressions**; completeness is item 129, **settle it before any send**
-- Suppression check in the send transaction
-- Frequency cap with a hard floor in the database
-- Send queue with throttling
-- Bounce and complaint handling → automatic DNC writes
-- Warmup schedule: deliberately low volume, ramping
+- Suppression check in the send transaction — **built** (re-checked before each call; the provider call cannot share a transaction, decision log 2026-10-06)
+- Frequency cap with a hard floor in the database — **partly**: `email_cap_days` (1 to 90, a `CHECK`) is applied when the send list is built, with a sender override; no database constraint stops a send inside the window
+- Send queue with throttling — **built** (queue, resume, discard; the daily Constant Contact limit); the warm-up ramp is not
+- Bounce and complaint handling → automatic DNC writes — **bounces built** (hard bounces write to `dnc_list`); the bounce check does not handle complaints
+- Warmup schedule: deliberately low volume, ramping — **not built**
 
 **Done when:** a small real batch sends, bounces are captured and suppressed
 automatically, and a suppressed address cannot be sent to by any path.
@@ -320,6 +351,13 @@ would reach for. Adopting MESH is therefore a change to the product's claim
 first and an ingest problem second. It would need its own decision-log entry
 on that point alone, and the tiered confidence label would need somewhere
 honest to put an estimate alongside human reports without the two blurring.
+
+**Update 2026-10-14.** The question has moved. A 60-storm test (decision log 2026-10-13, *Findings, not a
+decision*) found that 90% of actionable hail reports sit on radar hail, and that today's 5-mile circles hold
+only 56 to 67% of the radar hail area, with a median of 14% of each circle showing any. Those are findings, not
+a decision to adopt MESH: the claim problem above still needs its own decision-log entry first. The proposals
+are parking-lot items 205 (ranking by radar) and 206 (a radar-shaped area); the free archives start at
+2019-08-20 (Iowa State) and 2020-10-14 (NOAA).
 
 **Trigger:** sparse coverage turning out to be a real operational limit in the
 pilot — storms RBI knows happened that the browse cannot show — rather than a

@@ -3371,37 +3371,31 @@ not confirm that a file stamped H covers exactly the hour before it.
 
 ## 212. Documents drifted behind the Constant Contact send-path build
 
-**Status:** open; partly fixed 2026-10-14 (found and checked 2026-10-14, after the user asked whether all `.md` files were up to date)
+**Status:** resolved 2026-10-14 (found and checked 2026-10-14, after the user asked whether all `.md` files were up to date)
 
 Nothing updates the documents when a migration or a feature lands (item 154 is the same
 problem for parking-lot items). The send path was built between 2026-10-05 and 2026-10-13 and most
 documents last moved on or before 2026-10-05.
 
-**Fixed 2026-10-14, in the commit that files this item.**
+**Fixed 2026-10-14** (`CLAUDE.md` and `database-schema.md` in `081dc39`; the rest in the commit after it).
 - `CLAUDE.md`: the Phase 5 paragraph said "No sending code", "`send_log` and `email_templates` are
-  empty" and 759 suppressions. Rewritten (the send path, 760 suppressions, 7 rehearsal `sent_emails`
-  rows to test addresses); `sent_emails` added to the append-only rule.
-- `docs/database-schema.md`: lacked six of the 36 tables (`sent_emails`, `cc_sync_runs`,
-  `cc_sync_conflicts`, `cc_status_runs`, `cc_api_calls`, `oauth_tokens`) and `send_log.email_id`,
-  `email_templates.description`, `settings.match_max_age_days` and `email_cap_days`. Added.
-
-**Still stale (checked 2026-10-14, not edited).**
-- `README.md`: says "no sending path exists yet" and "100" tests with nothing under `hailsys/web/`
-  tested. There are 25 test files and about 557 test methods, including send-screen and Constant Contact
-  route tests.
-- `docs/phases.md`: the Phase 5 section stops at 2026-10-05. Its "Not started" list now holds built work
-  (provider, token table and OAuth, suppression sync, per-realtor frequency cap, send queue,
-  bounce handling, template choice in the UI). Warm-up, template CRUD beyond the description editor
-  (item 203) and the production account (item 183) are not built.
-- `docs/hail-consolidated.md`: last synced 2026-10-05 (`191a7e0`), counts 27 tables (36 now), file
-  layout through `sql/033` (now `041`). It says of itself that it is the last file to update.
-- `docs/data-sources.md`: section 4, "Email provider — TBD", says unselected (Constant Contact was chosen
-  2026-10-06). It has no section for the MRMS MESH archives (decision log 2026-10-13: Iowa State from
-  2019-08-20, NOAA AWS from 2020-10-14, PNG-packed GRIB2, `-1` means no hail).
-- `docs/db-schema-diagram.md`: draws `send_log` and `email_templates` guards only; none of the
-  newer tables.
-- `docs/schema-review.md`: a re-usable review prompt that says migrations "001 through 033"; there are
-  41 numbered files.
+  empty" and 759 suppressions. Rewritten (the send path, 760 suppressions, 7 rehearsal `sent_emails` rows to test
+  addresses); `sent_emails` added to the append-only rule.
+- `docs/database-schema.md`: lacked six of the 36 tables (`sent_emails`, `cc_sync_runs`, `cc_sync_conflicts`,
+  `cc_status_runs`, `cc_api_calls`, `oauth_tokens`) and `send_log.email_id`, `email_templates.description`,
+  `settings.match_max_age_days` and `email_cap_days`. Added.
+- `README.md`: said "no sending path exists yet", "100" tests, and that `app` bakes its code into the image (only
+  `ingest` does). Corrected, with the test-run instructions (item 171).
+- `docs/phases.md`: the Phase 5 section stopped at 2026-10-05; progress to 2026-10-13 added, the old "Not started"
+  list marked as of 2026-10-05, and the checklist annotated built, partly built or not built. The MESH note under
+  "Not on the roadmap" now cites the 2026-10-13 findings.
+- `docs/data-sources.md`: section 4 said the provider was TBD. Rewritten for Constant Contact; section 7 (MRMS
+  MESH) added.
+- `docs/db-schema-diagram.md`: a send-path section added (`sent_emails` and the Constant Contact tables).
+- `docs/schema-review.md`: migrations now listed through 041; table counts and guard-test coverage updated; 034 to
+  041 marked as not yet reviewed.
+- `docs/hail-consolidated.md`: synced to 2026-10-14 (36 tables, the send path, decisions, traps, sources, file
+  layout through `sql/041`). Sections 4, 9 and 12 to 13 were not re-checked.
 
 **Checked and current enough:** `docs/command-ref.md`, `docs/server-setup.md`, `config/README.md`, the
 analysis READMEs.
@@ -3409,7 +3403,7 @@ analysis READMEs.
 **An idea, not decided:** a test that fails when a table in the database is not named in
 `database-schema.md`, like the `tests/test_workstate.py` checks (item 48).
 
-**When:** the rest, before the next phase's work relies on them; `hail-consolidated.md` last, by its own rule.
+**When:** done; the recurring risk is the idea above, or a sweep after each phase.
 
 **Related:** items 154, 180, 191, 199, 202; decision log 2026-10-06 to 2026-10-13.
 
@@ -3424,12 +3418,26 @@ fact:
 - Items filed after 153 (154 to 212) sit after the permits section, mixing open, built and resolved items.
 - The Watch list says "30 items, all `open (watch)`" and has 30, but item 102, also `open (watch)`, sits in the Open block.
 
-The count line was corrected on 2026-10-14 to count by status across the whole file (50, with 212 and 213);
+The count line was corrected on 2026-10-14 to count by status across the whole file (50, with 213 and 214);
 the layout was not touched, and item numbers never change.
 
 **When:** the next parking-lot pass: regroup by status, or change the header to say what the layout is.
 
 **Related:** items 154, 212.
+
+## 214. `sql/guard_test.sql` does not test the guards in `sql/039` and `sql/040`
+
+**Status:** open (found 2026-10-14, while updating `docs/schema-review.md`)
+
+`guard_test.sql` covers `029`, `030`, `033` to `037` and the description rule in `041`. It has no check for
+`cc_status_runs_guard()` (`039`: refuses `DELETE`, any change to a finished run, and any change to the identifying
+columns of a running one) or `cc_api_calls_guard()` (`040`: refuses every update and delete), and the grant
+revocations on both tables are not tested either. The two guards are the same pattern as the tested ones
+(`cc_sync_runs`, `cc_sync_conflicts`), so the risk is low, but an untested guard is an unverified claim.
+
+**When:** with the next edit to `guard_test.sql`, and before `039` and `040` are applied to the production box.
+
+**Related:** items 180, 191, 212; `docs/schema-review.md`.
 
 ## 181. Constant Contact behaviours to verify before the send design is locked
 

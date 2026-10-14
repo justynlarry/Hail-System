@@ -11,7 +11,7 @@ Read `CLAUDE.md` and `docs/database-schema.md` first. Do not skim them; the
 non-obvious reasoning behind several tables is documented there and the DDL is
 supposed to match it.
 
-Review every migration in `sql/` (001 through 033) plus `scripts/load_reference.sh`
+Review every migration in `sql/` (001 through 041) plus `scripts/load_reference.sh`
 and `scripts/load_municipal.sh`.
 This is a **review, not a rewrite** — report findings and wait for my go-ahead
 before changing anything. Do not refactor working code, and do not add anything
@@ -38,12 +38,19 @@ which replaces 023's history function and trigger again; 029 and 030 the
 append-only guard functions and triggers on `send_log` and `email_templates`;
 031 `geocode_cache` and `address_searches`; 032 `ALTER ROLE ... SET
 search_path` for `hail_app` and `hail_ingest`; 033 a partial unique index on
-`api_pulls`. `sql/guard_test.sql` is **not a migration**: it tests 029 and 030
-inside a transaction it rolls back, so build with `sql/[0-9]*.sql` and run it
+`api_pulls`; 034 `oauth_tokens` (insert-only, encrypted tokens); 035 `cc_sync_runs`;
+036 `cc_sync_conflicts`; 037 `sent_emails`, the `send_log.email_id` column and its
+frozen-column trigger (it refuses to run on a non-empty `send_log`); 038
+`settings.match_max_age_days` and `email_cap_days`, the same columns on
+`settings_history`, and a third replacement of the history function and trigger;
+039 `cc_status_runs`; 040 `cc_api_calls`; 041 `email_templates.description` and a
+replacement of `email_templates_guard()`. `sql/guard_test.sql` is **not a migration**:
+it tests the guards from 029 on (029, 030, 033 to 037, and 041's description rule; the
+guards in 039 and 040 are not covered, item 214) inside a transaction it rolls back, so build with `sql/[0-9]*.sql` and run it
 separately (§1).
 `010_roles.sql` holds the roles and the grants for tables that existed when it
 was written; every later file that creates a table (012, 017, 018, 020, 021,
-022, 026, 031) carries its own grants.
+022, 026, 031, 034 to 037, 039, 040) carries its own grants.
 
 **A reconciliation pass has already run.** Documentation and DDL now agree on
 table count, `api_pulls` naming, `send_log` naming, the `system` role, email
@@ -74,8 +81,8 @@ for f in sql/[0-9]*.sql; do   # not guard_test.sql, which is a test
 done
 ```
 
-Then confirm with `\dt` and `\d <table>` on each. Expect **30 tables in
-`public` plus PostGIS's `spatial_ref_sys`**: the project's 27, and `us_gaz`,
+Then confirm with `\dt` and `\d <table>` on each. Expect **36 tables in
+`public` plus PostGIS's `spatial_ref_sys`** (checked on `hail-dev`, 2026-10-14): the project's 33, and `us_gaz`,
 `us_lex` and `us_rules`, which `address_standardizer_data_us` creates (`sql/024`).
 
 **`guard_test.sql` needs data and fails on an empty build.** It takes its test
@@ -100,7 +107,7 @@ INSERT INTO storm_listing_matches (iem_id, listing_id, distance_miles, radius_us
 ```
 
 `psql -d hail_scratch -f sql/guard_test.sql` should then print a `PASS` notice for
-every check and no `FAIL`: 24 on 2026-10-05, run against a throwaway
+every check and no `FAIL`: 24 on 2026-10-05 (29 on 2026-10-13, item 202), run against a throwaway
 `postgis/postgis:16-3.4` container (it was 18 when it covered only `029` and
 `030`). The test ends in `ROLLBACK`. Drop the scratch database, or the
 container, when done.
@@ -155,6 +162,9 @@ itself was not run.
 and `guard_test.sql` passed 24 of 24 once seeded. Findings are filed as
 parking-lot items 164–167; the four foreign keys with default names (`020`, `022`,
 `026`) are item 167.
+
+**Not reviewed:** `034` to `041` were written after the 2026-10-05 build and review above, and
+have not been through this prompt. The build was last run through `033`.
 
 **Things to check in 024–033, from reading them 2026-10-05, not yet triaged:**
 

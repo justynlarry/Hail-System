@@ -214,6 +214,8 @@
                                          NULL when there is no house number
    Settings.LISTING_FRESHNESS_DAYS (028) and the same column on Settings_History;
                                          the history trigger now watches 5 columns
+   Settings.MATCH_MAX_AGE_DAYS and EMAIL_CAP_DAYS (038) and the same columns on
+                                         Settings_History; the history trigger now watches 7 columns
 
  ┌──────────────────────────┐          ┌──────────────────────────┐
  │ DNC_Import_Batches       │   1      │ DNC_Import_Rows          │  026
@@ -257,3 +259,65 @@
  Indexes and roles, not tables:
    API_Pulls: partial unique index (STORM_DATE, REPORT_TEXT) WHERE running (033)
    hail_app, hail_ingest: search_path is "$user", public (032)
+
+
+ SEND PATH  (added 2026-10-14; sql/034 to 040, 037's send_log change, 041's description)
+ ═══════════════════════════════════════════════════════════════════════
+
+ The Send_Log box above is also joined to Sent_Emails: SEND_LOG.EMAIL_ID is a
+ NOT NULL FK (sql/037), frozen by trigger. Send_Log is one row per match;
+ Sent_Emails is one row per email (one realtor, one send click).
+
+  ┌──────────────────────┐ N                     1 ┌──────────────────────────┐
+  │ Send_Log             │────────────────────────►│ Sent_Emails              │
+  │ (one row per match)  │                         │──────────────────────────│
+  └──────────────────────┘                         │ PK EMAIL_ID              │
+                                                   │ UQ (BATCH_ID, REALTOR_ID)│
+                                                   │ FK REALTOR_ID ──► Realtors
+                                                   │ FK TEMPLATE_ID ─► Email_Templates
+                                                   │ FK CREATED_BY ──► Users  │
+                                                   │ FK SYNC_RUN_ID ───┐      │
+                                                   │    PERMISSION_ASSERTED   │
+                                                   │    SUBJECT, HTML_BODY    │
+                                                   │    CC_*_ID (write-once)  │
+                                                   └───────────────────┼──────┘
+                                                                       │ N
+                                                                       │
+                                                                       │ 1
+  ┌──────────────────────┐ 1                     N ┌───────────────────▼──────┐
+  │ DNC_List             │◄────────────────────────│ CC_Sync_Conflicts        │
+  │ (above)              │      FK DNC_ID          │──────────────────────────│
+  └──────────────────────┘                         │ PK CONFLICT_ID           │
+                                                   │ FK RUN_ID ──┐            │
+                                                   │ FK DNC_ID   │            │
+                                                   │ UQ (RUN_ID, DNC_ID)      │
+                                                   └─────────────┼────────────┘
+                                                                 │ N
+                                                                 │ 1
+                                                   ┌─────────────▼────────────┐
+                                                   │ CC_Sync_Runs             │
+                                                   │──────────────────────────│
+                                                   │ PK RUN_ID                │
+                                                   │ FK TRIGGERED_BY ► Users  │
+                                                   │    STATUS, WATERMARK     │
+                                                   │    FETCHED, INSERTED,    │
+                                                   │    CONFLICTS             │
+                                                   └──────────────────────────┘
+
+ Free-standing logs, each with only a TRIGGERED_BY/FK to Users or nothing at all:
+
+  CC_Status_Runs   one row per bounce check (FK TRIGGERED_BY ► Users;
+                   CHECKED, BOUNCED, SUPPRESSED)
+  CC_API_Calls     one row per HTTP attempt to Constant Contact (METHOD,
+                   ENDPOINT, CALLED_AT); no FK
+  OAuth_Tokens     one row per token issue, tokens encrypted; no FK
+                   (PROVIDER, ACCOUNT_ID, KEY_VERSION)
+
+ Guards (database-enforced, same pattern as Send_Log above): Sent_Emails
+ refuses DELETE, freezes the email as sent, and makes the CC ids write-once;
+ CC_Sync_Runs and CC_Status_Runs refuse DELETE and any change to a finished
+ run; CC_Sync_Conflicts and CC_API_Calls are insert-only; OAuth_Tokens refuses
+ UPDATE and allows DELETE only of a row older than 30 days with a newer
+ sibling. Email_Templates.DESCRIPTION (sql/041) is the one text column that may
+ change, and only until the template has been used in an email.
+

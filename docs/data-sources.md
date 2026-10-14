@@ -339,21 +339,44 @@ listings.
 
 ---
 
-## 4. Email provider — TBD
+## 4. Email provider — Constant Contact (chosen 2026-10-06)
 
-Unselected. Requirements:
+Chosen 2026-10-06 (decision log; item 119, closed by decision, qualified 2026-10-07: valid only for the warm
+pools and not yet confirmed in writing, item 179). The requirements it was chosen against still stand:
 
 - Must **explicitly permit** outreach to recipients who did not opt in. Several
-  providers terminate accounts for this — a worse failure than a slow ramp.
-- Webhook or API for bounce and complaint notifications, returning a message id
+  providers terminate accounts for this: a worse failure than a slow ramp.
+- Webhook or API for bounce and complaint notifications, returning an id
   matchable to `send_log.provider_message_id`.
 - Throttling or scheduled send support for warmup.
 - Separate sending identity (subdomain), not RBI's primary domain.
 
 **Prior history:** a contractor-built system used Mailchimp and led to
-blacklisting. Confirm during Phase 0 whether the main company domain took
-reputation damage — if so, remediation is its own line item, not something to
-absorb silently.
+blacklisting. Confirm whether the main company domain took reputation damage; if
+so, remediation is its own line item, not something to absorb silently.
+
+**What the API is, as found in the spike** (2026-10-07, free trial, `scripts/cc_spike.py`; detail in
+parking-lot items 180 to 183):
+- **There is no single-recipient send.** The API is contacts, lists and campaigns. One email is a campaign:
+  `POST /emails`, then `PUT /emails/activities/{id}` with `contact_list_ids`, then
+  `POST .../schedules` with `"scheduled_date": "0"`. `POST /emails` answers with two activities
+  (`primary_email` and `permalink`): select by `role`, never by position. `GET` on an activity does not return
+  its HTML, so we keep what we rendered (`sent_emails`).
+- **Limits:** 4 requests per second and 10,000 a day. One email costs about 10 calls plus polling, so
+  the engine counts every attempt (`cc_api_calls`, item 191).
+- **The trap: `POST /contacts/sign_up_form` re-subscribes.** For an address that had unsubscribed it answered 200
+  "updated" and the contact was `explicit` again, with nothing asked of the person. It also stamps `explicit`
+  on every new contact it creates, which is an attestation by us. So: read a contact's state before any write
+  (item 182).
+- **Constant Contact adds the footer itself** to custom HTML (the account's physical address, Unsubscribe, Update
+  Profile, and on the trial a "Trusted Email from Constant Contact" badge).
+- **Authorization:** OAuth with **rotating refresh tokens**, so every older token row is a dead credential;
+  tokens are stored encrypted (`oauth_tokens`).
+- **Unsubscribes** come back through `GET /contacts` with `permission_to_send: "unsubscribed"`; the sync copies
+  them into `dnc_list`.
+
+**Not known yet:** the paid account (about 100 recipients and the badge are trial facts), bulk-activity timing
+at real volume, and the production sending domain's authentication (items 96, 183).
 
 ---
 
@@ -554,3 +577,43 @@ As stated by the developer on 2026-10-09, not checked against invoices:
 
 These four total $314.88 a month. Constant Contact's cost is not recorded here: the
 dev account is a trial, and the paid plan has not been priced (parking-lot item 183).
+
+---
+
+## 7. NOAA MRMS MESH: radar hail size (research only; nothing in the system reads it)
+
+A gridded radar estimate of the maximum size of hail, free. **It is not used by the ingest, the matcher or the
+UI.** It is here because the 2026-10-13 study compared it with the report-based circles (decision log
+2026-10-13; `docs/analysis/storm-shape-mesh-2026-10/`). The claim question is in `docs/phases.md`, "Not on the
+roadmap".
+
+**Two free archives, both whole-CONUS GRIB2, gzip, 7000 x 3500 cells at 0.01 degrees (about 1 km):**
+
+| | Iowa State MTArchive | NOAA Open Data on AWS |
+|---|---|---|
+| Pattern | `https://mtarchive.geol.iastate.edu/YYYY/MM/DD/mrms/ncep/MESH/MESH_00.50_YYYYMMDD-HHMM00.grib2.gz` | `https://noaa-mrms-pds.s3.amazonaws.com/CONUS/MESH_00.50/YYYYMMDD/MRMS_MESH_00.50_YYYYMMDD-HHMMSS.grib2.gz` |
+| Instantaneous, every 2 minutes | from **2019-08-20** (2019-08-19 is a 404) | from **2020-10-14** |
+| Maximum products | `MESH_Max_1440min` only (2 files a day in the days checked in 2019 to 2021, 48 a day by 2022) | `MESH_Max_30min`, `_60min`, `_120min`, `_240min`, `_360min`, `_1440min` |
+| Size | about 35 to 40 MB a day for MESH (720 files of about 55 KB) | MESH about 50 MB a day; `Max_60min` about 120 to 180 KB a file |
+| Terms | "no usage restrictions" (the site); the data is NOAA's | open, attribution requested, do not imply NOAA endorsement |
+
+There is no Colorado-only download. Neither archive was read for completeness beyond the dates and days checked.
+NOAA's registry warns to be careful with MRMS version 11 data before **2020-10-14**, the day of the version 12
+upgrade.
+
+**Traps found:**
+- **The encoding is PNG packing** (GRIB2 data template 5.41): a 16-bit grayscale PNG inside section 7, value in
+  **millimetres** = (X - 30) / 10.
+- **`-1` means no hail.** There are no 0.0 values; the smallest positive value seen was 0.8 mm.
+- **pygrib reports `name`, `units` and `shortName` as "unknown"**, because these are MRMS local parameter
+  tables. Millimetres were taken from the values and the earlier work, not from the file.
+- **1.00 in is 25.4 mm**, and 0.75 in is 19.05 mm.
+- **MESH read high against reports** in the 60-storm test (median 1.76 in against 1.25 in reported) and low in one
+  storm (S0025's west piece), so it is not calibrated.
+- **Unexplained:** a 60-minute maximum built from 30 two-minute Iowa State files disagreed with NOAA's
+  `MESH_Max_60min` on 27 of 276 cells at or above 0.75 in. The decoder is not the cause (item 211).
+  Whether the file stamped H covers exactly the hour before H was not checked.
+
+**Reading it in Python:** `pygrib` 2.1.8 installs from binary wheels with eccodes bundled (no system packages)
+and reads these files. A short stdlib decoder in the analysis folder (`storm_shape/mesh/mesh_lib.py`) agrees
+with it on every cell tested (0 of 402,290 differ).

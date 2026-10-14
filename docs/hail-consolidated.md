@@ -19,6 +19,16 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
+Last synced against the repo: **2026-10-14**, the working tree after commit `081dc39`. The
+sync before it was **2026-10-05** (`191a7e0`). In the nine days between, the Constant Contact send path
+was built and rehearsed, and the documents behind this one drifted again (parking-lot item 212). What
+this sync adds: §2 gains "The send path, the radar study and the documents, 2026-10-05 to 2026-10-14";
+§3 notes how rules 2 and 4 changed; §5 counts 36 tables and lists the six tables and three columns added since 2026-10-05;
+§6 the decisions of 2026-10-06 to 2026-10-13, condensed; §7 two traps (Constant Contact's sign-up
+endpoint, the MESH encoding); §8 the provider and MRMS; §10 the file layout through `sql/041`.
+**§4, §9 and §12 to §13 were not re-checked**, and §11's open questions only where they named the
+provider. As before, where an older paragraph below is now wrong it is marked **Superseded** inline.
+
 Last synced against the repo: **2026-10-05**, commit `191a7e0`. The previous
 sync was **2026-09-24** (commit `0f628f4`), at the end of Phase 4. What this
 sync adds: §2 gains a Phase 5 groundwork section (2026-09-25 to 2026-10-02:
@@ -132,6 +142,13 @@ estimated, 4 used (`api_pulls` row 12), 231 listings stored and matched. No
 sending path exists yet. See "The web app" below for what Phase 2 shipped,
 "Phase 3 begins" for how Phase 3 started, and `docs/phases.md` and the decision
 log for the rest.
+
+**Superseded 2026-10-14, for the paragraph above (the 2026-10-05 state).** A Constant Contact send path
+is now built and rehearsed on `hail-dev`, but **it has never sent to a real recipient**: all seven
+`sent_emails` rows are rehearsals to test addresses. There is sending code, a provider (Constant Contact,
+chosen 2026-10-06) and, on the trial account only, a self-authenticated sending identity. `dnc_list` holds
+760 suppressions. "No sending path exists yet" is no longer true; the production box has none of it. See
+"The send path, the radar study and the documents" below.
 
 **On "closed":** this is Justyn's call, recorded here, not a re-verification
 against the phase's own "done when" bar. The gaps this file had flagged as of
@@ -850,6 +867,43 @@ the problems found are in `docs/parking-lot.md`.
   only `ingest` runs image-baked code, on purpose. `scripts/status.sh images`
   shows whether it is behind (items 30, 45).
 
+### The send path, the radar study and the documents — 2026-10-05 through 2026-10-14
+
+**The Constant Contact send path** (decision log 2026-10-06 and 2026-10-07; items 168 to 170, 179 to 183,
+191, 198, 199, 202). Built and rehearsed on `hail-dev`; nothing has gone to a real recipient.
+- **Provider access.** Constant Contact chosen 2026-10-06, on a trial account at first. OAuth with encrypted
+  rotating tokens (`oauth_tokens`, `sql/034`, admin `/cc`). A spike (`scripts/cc_spike.py`) established that the
+  API has no single-recipient send and that its sign-up endpoint re-subscribes unsubscribed contacts (§7).
+- **Suppression, relaxed for an external provider.** The `dnc_list` check cannot share a transaction with an HTTP
+  call. What holds instead: the send list excludes `dnc_list`, `dnc_list` is checked again immediately before each
+  call, and the `send_log` row is committed first. The unsubscribe sync (`sql/035`, `036`) runs inside every send
+  click and a failed sync stops the send; a conflict (an address Constant Contact has unsubscribed whose
+  `dnc_list` row an admin removed) is counted and left alone.
+- **One email per realtor per send**, listing every affected property: `sent_emails` (`sql/037`) holds the email
+  as sent, `send_log` one row per match, linked by `email_id`. A sender can combine several storm days in one email.
+  One agent per house is chosen after every other rule (item 55, 2026-10-13).
+- **Eligibility** (`sql/038`): a storm older than `match_max_age_days` (30) is not emailed about, and a realtor
+  emailed within `email_cap_days` (14) is held back unless the sender overrides it. Both are admin-page settings.
+- **Screens and jobs.** The admin-only `/send` screens: preview, confirm and start, recent sends, per-send
+  progress, resume and discard of a queued remainder (item 199), and a bounce check (`sql/039`) that writes hard
+  bounces to `dnc_list`. A call counter (`sql/040`) stops the engine at the daily limit (item 191).
+- **Templates** are chosen and described in the UI (`sql/041`, item 202); a block builder and drip campaigns are
+  filed (items 203, 204).
+- **Audience: the warm pools only** (decision log 2026-10-07): realtors from RBI's in-house database and the
+  Constant Contact list, each with a recorded basis. Item 189 (the eligibility gate) is parked.
+- **Still open before a production send:** items 129 (is the unsubscribe export complete), 183 (the paid
+  account), 189, 96 (the sending domain) and a production box that has the code.
+
+**The radar study** (decision log 2026-10-13, *Findings, not a decision*; items 205, 206, 211; the files are in
+`docs/analysis/storm-shape-mesh-2026-10/`). Across 60 good-fit storms since 2020-10-14, 90% of actionable hail
+reports have radar hail (MRMS MESH) of at least 1.00 in within 5 km. Today's 5-mile circles hold about 56 to 67%
+of the radar hail area, and a median of 14% of each circle has any. One storm (S0025) is an outlier. **Nothing
+changed:** the radius, the floors and one circle per report stay as they are. The proposals are item 205 (rank
+by radar) and 206 (a radar-shaped area); both wait for inspection data (items 207 to 209) and a decision-log entry.
+
+**The documents.** `CLAUDE.md`, `database-schema.md`, `README.md`, `phases.md`, `data-sources.md`, the diagram,
+`schema-review.md` and this file were brought up to date 2026-10-14 (item 212).
+
 ### Permits and jurisdiction research — parked, 2026-09-23 / 2026-09-24
 
 Groundwork for building-permit data as a future source, allowed as a
@@ -867,7 +921,7 @@ which is gitignored: 3 A, 7 B, 59 C, 13 D.
 ### Still open against closed phases, as of this sync
 
 - **Phase 2:** item 63 (a reachable path to `hail-dev`) was resolved 2026-10-02 by the Cloudflare Tunnel; this file does not record whether anyone else has logged in.
-- **Almost nothing under `hailsys/web/` has tests** (item 53, still open). `tests/test_workstate.py` and `tests/test_activity_csv.py` are the exceptions.
+- **Almost nothing under `hailsys/web/` has tests** (item 53, still open). **Superseded 2026-10-14:** the send and Constant Contact screens are now tested (`test_send_screen`, `test_send_jobs`, `test_cc_sync_route`); `/admin`, `/pull`, `/match`, `/search`, the exports and the storm pages are not. The suite is about 500 tests (493 on 2026-10-13).
 - **Stale pulls:** a pull left `running` by a restart is swept at startup
   after 10 minutes, and stops reading "Pulling..." after 10 minutes without
   waiting for the sweep (item 47, 2026-09-25); stale match runs are swept the
@@ -899,9 +953,12 @@ say so rather than implementing it.
 2. **The suppression check runs against `dnc_list` at send time, inside the same
    transaction as the send.** Not in the UI, not from a cached list, not from a
    flag on the realtor row. If a rule must hold, it holds in the database.
+   **Relaxed 2026-10-06 for an external provider** (`CLAUDE.md`, decision log 2026-10-06): an HTTP call
+   cannot sit inside a Postgres transaction, so the send list excludes `dnc_list`, the check runs again
+   immediately before each call, and the `send_log` row is committed first.
 3. **Storm reports are never deleted and never collapsed to zip codes at write
    time.** Full lat/lon in; zips derived on read. The radius is a tuning knob.
-4. **`send_log` and `email_templates` are append-only.** Templates are
+4. **`send_log`, `email_templates` and `sent_emails` are append-only** (2026-10-14: `sent_emails` added). Templates are
    superseded, never edited. Sends are inserted; only provider status is updated
    afterward.
 5. **All timestamps are `TIMESTAMPTZ` in UTC.** Convert to `America/Denver` at
@@ -967,7 +1024,7 @@ privilege list can be read against this diagram.
 
 ## 5. The data model
 
-**Twenty-three tables** as of 2026-09-24, counted against `hail-dev` (**27 on 2026-10-05**, counted from `sql/`: the four added since are in the tables below, marked 2026-10-05). That's
+**Twenty-three tables** as of 2026-09-24, counted against `hail-dev` (**36 on 2026-10-14**, of which three, `us_gaz`, `us_lex` and `us_rules`, come from the `address_standardizer` extension, so 33 are the project's; **27 on 2026-10-05**, counted from `sql/`: the four added since are in the tables below, marked 2026-10-05). That's
 seventeen from `sql/001`–`009`, plus `county_boundaries` (`sql/012`,
 2026-09-14), `report_zip_distances` (`sql/017`, 2026-09-21), `settings`
 (`sql/018`) and `settings_history` (`sql/020`, both 2026-09-22),
@@ -1035,6 +1092,17 @@ misses. Field detail is in `docs/database-schema.md`.
 | `api_call_log` | One row per zip within a pull. Powers the "this zip was pulled recently" warning, and since 2026-09-23 **the RentCast usage figure**: every zip that makes a request gets a row, including one that ends the pull. A NULL `http_status` means no usable status was ever received. |
 | `ingest_runs` | One row per execution of an IEM ingest script (`nightly` / `backfill` / `replay`). Records the UTC window actually requested plus `rows_seen` / `rows_inserted` / `rows_skipped`. No `emp_id` — system-initiated. Written before the work starts, like `api_pulls`. **The alert that matters is the absence of a row**, which is why it is a table and not log output. |
 | `iem_ingest_rejects` | One row per input line the parser refused. FK → `ingest_runs`. `raw_row` holds the line verbatim (TEXT, not JSONB — it is here because it did not parse), so rejecting is not lossy. `reason` is a closed **five**-value CHECK; anything outside it must terminate the run rather than be skipped. |
+
+**Added 2026-10-05 to 2026-10-14** (all Sending or Constant Contact tables; field detail in
+`docs/database-schema.md`, which now has every one):
+- `sent_emails` (`sql/037`): the email as sent, one row per realtor per send click. `send_log` is therefore **one
+  row per match** since 2026-10-07, linked by a NOT NULL `email_id` (the row above says "per email": superseded).
+- `oauth_tokens` (`sql/034`), `cc_sync_runs` (`035`), `cc_sync_conflicts` (`036`), `cc_status_runs` (`039`),
+  `cc_api_calls` (`040`): the Constant Contact grant, the unsubscribe-sync log and its conflicts, the bounce-check
+  log, and one row per API attempt. All are append-only or log-shaped, enforced by triggers.
+- New columns: `settings.match_max_age_days` and `email_cap_days` (`038`, also on `settings_history`, whose
+  trigger now watches seven columns) and `email_templates.description` (`041`, editable only until the template
+  has been used in an email).
 
 ### Key strategy
 
@@ -1406,6 +1474,23 @@ reasoning):
 - **The application roles do not search `tiger`**, so a typo'd table name fails
   instead of querying an empty NAD83 table.
 - **Dark mode is a browser preference** in `localStorage`, not a database column.
+- **Constant Contact is the provider** (2026-10-06), on a separate account from RBI's newsletter. Audience is the
+  warm pools only, each with a recorded basis (2026-10-07). The suppression rule is relaxed for an HTTP provider
+  (§3, rule 2).
+- **Read before write.** Constant Contact's sign-up endpoint re-subscribes, so a contact's state is read first,
+  new addresses are created with `POST /contacts`, and an unsubscribed address is never added.
+- **`send_log_guard()` was left alone** when `sent_emails` arrived: a second small trigger freezes `email_id`,
+  because re-typing a working guard to add one column was the likelier way to break it.
+- **One email may carry several storm days**, chosen by the sender. A realtor is emailed at most once in 14 days
+  unless overridden; a storm older than 30 days is not emailed about. Both numbers are settings.
+- **One agent per house is chosen after every other rule**, from the agents who can actually be emailed (item 55,
+  2026-10-13), so an agent on the DNC list or in the cap window cannot take a house from one who can be emailed.
+- **Anything an operator may need to change has an admin-page access point**, logged to `settings_history`; fixed
+  ceilings and safety limits (the Constant Contact daily limit, the suppression rule) stay in code (2026-10-13).
+- **Templates will be built in the UI as blocks**, not free HTML and not Constant Contact's editor, because
+  `sent_emails` must hold the exact HTML; images are a named table; drip campaigns start as one-click steps
+  (items 202 to 204).
+- **The radar study is findings, not a decision.** Nothing about the radius or the circle changed (2026-10-13).
 - **Review findings are filed in the parking lot in the same session.**
 
 ---
@@ -1698,6 +1783,26 @@ These are newer and cost real time on 2026-09-08.
   then treats as live. `start_pull()` cancels stale rows in the same
   transaction as the insert.
 
+### Constant Contact (2026-10-06 to 2026-10-13)
+- **`POST /contacts/sign_up_form` re-subscribes an unsubscribed contact** and stamps `explicit` on every contact
+  it creates. Read a contact's state before any write (item 182).
+- **There is no single-recipient send.** One email is a campaign: `POST /emails`, `PUT /emails/activities/{id}`
+  with `contact_list_ids`, then `POST .../schedules`. `POST /emails` returns two activities; pick by `role`, never
+  by position. An activity's HTML cannot be read back, so keep what was rendered (`sent_emails`).
+- **Limits:** 4 requests a second and 10,000 a day; one email costs about 10 calls. Every attempt, retries and
+  polls included, is counted in `cc_api_calls`.
+- **Rotating refresh tokens**: every older token row is a dead credential. Store each issue as a new row.
+- **A preview link on an `azurewebsites.net` host** made a test email be accepted but not delivered; the same
+  message linking to the production site arrived (decision log 2026-10-07).
+
+### MRMS MESH (2026-10-13; research only, nothing reads it)
+- **The files are PNG-packed GRIB2** (template 5.41); value in millimetres is (X - 30) / 10, and **`-1` means
+  no hail**. pygrib labels the parameter "unknown".
+- **The archives start at different dates:** Iowa State from 2019-08-20, NOAA AWS from 2020-10-14 (the day MRMS
+  version 12 began; take care with earlier data). Details in `docs/data-sources.md` §7.
+- **Hail near the Front Range was low in one storm** (S0025 west piece) and high against reports in the 60-storm
+  test; MESH is not calibrated.
+
 ---
 
 ## 8. External sources
@@ -1708,7 +1813,8 @@ These are newer and cost real time on 2026-09-08.
 | **Census TIGER/Line 2025** | Free | National ZCTA (`tl_2025_us_zcta520.zip`, 33,791 rows) and county (`tl_2025_us_county.zip`, ~3.2k rows) files. No state split exists for ZCTA. |
 | **RentCast** | **Paid**, monthly lookup allowance | `GET /listings/sale`, paginated to 500, sorted by `lastSeenDate` desc. Docs: `https://developers.rentcast.io/reference/property-listings-schema` (append `.md` for markdown). |
 | **Census Geocoder** | Free, no key | One-line address lookup behind `/search`, US street addresses only, cannot match by city and state alone. Results cached in `geocode_cache`. Client: `hailsys/geocode.py`. |
-| **Email provider** | TBD | Must *explicitly permit* outreach to non-opt-in recipients — several providers terminate for it. Needs bounce/complaint webhooks returning a matchable message id, plus throttling for warmup, on a separate sending subdomain. **Checked 2026-09-28:** SendGrid, Postmark, Mailgun, Resend and Amazon SES all prohibit this in their current AUPs, no B2B exception (item 119). Cold-outreach platforms (Instantly and similar) don't require opt-in, but they want to own the campaign, which is an architecture mismatch (confirmed). Amazon SES's gate is a production-access request judged on outcomes, and is worth a direct conversation; self-hosting on the `send.` subdomain is real but moves the reputation-building onto us. Constant Contact's "implied consent" standard fits RBI's clients. **Still no decision as of 2026-10-05** (items 96, 119, 122). |
+| **Email provider** | Constant Contact, chosen 2026-10-06; paid plan not yet priced | A campaign per email through contacts, lists and campaigns; OAuth with rotating tokens; 4 requests a second and 10,000 a day. Trial account only so far. Detail in `docs/data-sources.md` §4 and §7 here. |
+| **NOAA MRMS MESH** | Free | Radar hail size, whole-CONUS GRIB2 from Iowa State (from 2019-08-20) and NOAA AWS (from 2020-10-14). Research only; nothing in the system reads it. `docs/data-sources.md` §7. |
 
 **Prior history worth knowing:** a contractor-built predecessor used Mailchimp
 and led to blacklisting. Whether RBI's main domain took reputation damage is an
@@ -1843,7 +1949,7 @@ docker-compose.yml            postgis + ingest + loader + app + web on hailnet
 requirements.txt              psycopg[binary]==3.2.3, flask==3.1.3, gunicorn, Flask-WTF==1.3.0 (CSRF, 2026-09-22)
 docs/
   hail-consolidated.md        this file
-  database-schema.md          field-level data model, 27 tables, open questions
+  database-schema.md          field-level data model, 36 tables (2026-10-14), open questions
   db-schema-diagram.md        ASCII ER diagram
   decision-log.md             dated, append-only; supersede, never rewrite
   data-sources.md             IEM / TIGER / RentCast endpoints and traps
@@ -1852,13 +1958,16 @@ docs/
   command-ref.md              Justyn's own Docker/Postgres notes, including which services
                                see your edits (2026-09-24)
   schema-review.md            re-runnable review prompt for sql/ + the loader, written against 001-023
-                               (2026-09-24; not re-run against 024-033)
-  parking-lot.md              numbered items (160 on 2026-10-05), many resolved and resolution-tracked
+                               (2026-09-24; migration list brought to 041 on 2026-10-14; the build was last run through 033)
+  parking-lot.md              numbered items (214 on 2026-10-14), many resolved and resolution-tracked
   analysis/
     radar-verification-2026-09.md   NEXRAD corroboration study behind the
                                confidence_tier / map-color decisions (§2, §6)
     radar-verification-2026-09/     its five scripts (paths/coverage_bbox/
                                match/reduce/by_day_density/checks.py)
+    storm-shape-mesh-2026-10/       the 2026-10-13 radar study: storm_tracks/, storm_shape/ and mesh60/
+                               scripts and write-ups, its README, JSON results and maps; CSVs and download
+                               caches are not in git (2026-10-13)
 sql/                          apply in order; 010 after 001-009 (it grants on their tables)
                                and before 012/017 (they grant to its roles)
   001_extensions.sql          postgis
@@ -1909,7 +2018,16 @@ sql/                          apply in order; 010 after 001-009 (it grants on th
   032_search_path_no_tiger.sql  tiger and topology off hail_app's and hail_ingest's search_path
   033_one_running_pull_per_storm.sql  partial unique index on api_pulls: one running pull
                                per (storm_date, report_text)
-  guard_test.sql              tests the 029/030 triggers; not a migration
+  034_oauth_tokens.sql        oauth_tokens: insert-only, encrypted tokens (2026-10-06)
+  035_cc_sync_runs.sql        cc_sync_runs: log of the unsubscribe sync
+  036_cc_sync_conflicts.sql   cc_sync_conflicts: unsubscribed addresses whose dnc_list row was removed
+  037_sent_emails.sql         sent_emails, send_log.email_id (NOT NULL) and its frozen-column trigger
+  038_email_settings.sql      settings.match_max_age_days, email_cap_days; history trigger widened to seven columns
+  039_cc_status_runs.sql      cc_status_runs: log of the bounce check
+  040_cc_api_calls.sql        cc_api_calls: one row per Constant Contact request
+  041_email_template_description.sql  email_templates.description; guard lets it change until first use
+  dev_rehearsal_seed*.sql     hail-dev only: seeds for send rehearsals (not migrations)
+  guard_test.sql              tests the guards from 029 on (029, 030, 033-037, 041's description rule; 039 and 040 not covered, item 214); not a migration
 hailsys/                      importable package, moved out of scripts/ (2026-09-14)
   __init__.py                 empty
   tuning.py                   tuning constants and denver_day_bounds; the radius constants
@@ -1954,11 +2072,30 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                local storm day and type) and the realtor list, each with a
                                count and a suppression LEFT JOIN on dnc_list; imports
                                LOCAL_TIME_EXPR from storms.py (2026-09-24)
+    sendlist.py                 which listing agents get an email for the selected storm days: eligibility,
+                               the cap, the DNC exclusion and one agent per house (items 55, 180)
+    sendstatus.py               one state per email for the send history pages, derived, never stored
+    ccstate.py                  Constant Contact connection state from the database only (no API call on page load)
+    templatelist.py             the template list on the send page (item 202)
   matching/                   no __init__.py — implicit namespace package
     matcher.py                  storm-to-listing matching, writes storm_listing_matches;
                                excludes New Construction and Land; run by the /match POST and
                                automatically at the end of a pull by web/jobs.py (2026-09-18;
                                automatic run and Land exclusion since)
+  constantcontact/            Constant Contact integration (2026-10-06 to 2026-10-13)
+    api.py                      the one request function: throttled, retried, counted in cc_api_calls
+    oauth.py                    OAuth2 calls and refresh discipline
+    tokens.py                   token encryption and the oauth_tokens table
+    unsubs.py                   the unsubscribe sync into dnc_list (cc_sync_runs, cc_sync_conflicts)
+    campaigns.py                the calls behind one realtor-send (create, set recipients, schedule)
+    statuses.py                 the bounce check: bounces into send_log, hard bounces into dnc_list
+    budget.py                   the 10,000-a-day call budget the engine stops at (item 191)
+  email/                      building and sending one email (2026-10-07 to 2026-10-13)
+    render.py                   renders the hail alert: no database, no network
+    templatestore.py            the saved version of the template (email_templates is append-only)
+    send.py                     phase A: from selected storm days to queued sent_emails/send_log rows
+    deliver.py                  phase B: from queued rows to a finished Constant Contact campaign
+    templates/                  hail_alert.html, hail_alert_subject.txt
   web/
     __init__.py                Flask app factory (create_app); imports views inside the
                                factory, not at module scope, so the package stays importable
@@ -1970,6 +2107,10 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                before_request admin check (2026-09-22; DNC 2026-09-28)
     search.py                  the /search blueprint: address to nearby reports, geocoded and
                                cached; informational only (2026-10-01)
+    cc.py                      the /cc blueprint: connect, OAuth callback, refresh, unsubscribe sync; admin only
+    send.py                    the /send blueprint, admin only: preview, confirm, start, batches, resume,
+                               discard, bounce check, template description (items 180, 199, 202)
+    sendjobs.py                background execution of a send; the only place the web app reaches the engine
     jobs.py                     background thread for a RentCast pull + its automatic match
                                run; daemon=True, so a thread dies with its process.
                                sweep_stale_pulls(), called from create_app(), cancels pulls
@@ -1984,6 +2125,8 @@ hailsys/                      importable package, moved out of scripts/ (2026-09
                                /account/password (2026-09-14 through 2026-09-24; the
                                storm list pages at 50 days)
     templates/
+      cc.html, _cc_status.html, _budget.html   the Constant Contact page, its status and call-count fragments
+      send.html, send_confirm.html, send_batches.html, send_batch.html   the /send screens (2026-10-09 to 2026-10-13)
       base.html                 single header bar (brand + nav + signed-in-as + Sign Out) and
                                the global flash-message panel; pulls in vendored Leaflet
                                (2026-09-17 through 2026-09-21)
@@ -2078,6 +2221,8 @@ scripts/
                                (all four: manual probes, not under tests/; --emp-id is
                                required, and only test_rentcast_pull.py's example still
                                shows the system account's 1 — parking-lot item 43)
+  cc_spike.py                 throwaway Constant Contact exploration, one call per subcommand (2026-10-07)
+  rehearse_send.py            one rehearsal send on hail-dev (run from the host)
 tests/
   __init__.py                 empty; makes unittest discovery work
   test_iem_parse.py           stdlib unittest cases against hailsys/iem/parse.py
@@ -2087,6 +2232,9 @@ tests/
   test_formatting.py          against hailsys/formatting.py (2026-09-21), incl. csv_safe
   test_workstate.py           work-state keys, labels and CSS classes agree (item 48)
   test_activity_csv.py        feed_rows() flattening, no Flask or DB
+  test_cc_*.py (ten)          the Constant Contact client, OAuth, tokens, sync, campaigns, call budget and state
+  test_send_*.py, test_sendlist.py, test_email_render.py, test_templatestore.py, test_templatelist.py
+                              the send queue, engine, screens, list, rendering and templates (2026-10)
                                (128 cases total, run 2026-10-05 with
                                `python3 -m unittest discover -s tests`; almost nothing
                                under hailsys/web/ is covered, §2)
@@ -2122,6 +2270,11 @@ first four, the last three import
 `iem_backfill`/`iem_ingest` from `scripts/` directly (not a package, so via a
 `sys.path.insert`) while those modules import `hailsys` at the repo root —
 each of those three test files inserts *both* paths.
+
+**Superseded 2026-10-14, for the `tests/` paragraph above.** `tests/` now holds 25 files and about 500 tests (493 on
+2026-10-13). The host run `python3 -m unittest discover -s tests` stops at `tests/test_cc_tokens.py`, which needs
+`cryptography` (in the `web` and `app` images only; item 171). Some tests skip when a package or the database is
+missing.
 
 **The `hailsys/` package move (§6) is done and verified, 2026-09-14.** The
 tree above reflects the actual layout: `hailsys/tuning.py` and
@@ -2311,7 +2464,7 @@ says whether RBI has answered. The 2026-09-28 research narrowed the ask to two
 NS records delegating `send.roofbrokersinc.com` to a Cloudflare zone. Phase 5
 is current, so this is the item most likely to be waiting on someone else. Also
 open before the first send: whether the Constant Contact export is missing
-unsubscribes (item 129), final email copy (item 135) and a provider (item 119).
+unsubscribes (item 129), final email copy (item 135) and a provider (item 119). **Superseded 2026-10-14:** the provider is chosen (Constant Contact, 2026-10-06); still open are items 129, 135, 183 (the paid account), 189 and 96.
 
 ---
 
