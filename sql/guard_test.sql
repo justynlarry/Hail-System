@@ -336,6 +336,73 @@ SELECT pg_temp.expect('settings that change was logged to settings_history',
   $q$SELECT 1 / count(*) FROM settings_history
      WHERE contact_email = 'guard-test@example.invalid'$q$, 'ok');
 
+-- email_test_sends (sql/044)
+SELECT pg_temp.expect('email_test_sends a good row can be written',
+  $q$INSERT INTO email_test_sends (sent_by, recipient, template_name, situation, subject,
+                                   html_bytes, cc_campaign_id, cc_activity_id, outcome,
+                                   campaign_cleanup)
+     SELECT emp_id, 'guard-test@example.invalid', 'guard-test', 'one', 'A subject', 1234,
+            'camp-1', 'act-1', 'accepted', 'deleted' FROM users ORDER BY emp_id LIMIT 1$q$, 'ok');
+SELECT pg_temp.expect('email_test_sends a failed attempt with no campaign can be written',
+  $q$INSERT INTO email_test_sends (sent_by, recipient, situation, subject, html_bytes, outcome,
+                                   campaign_cleanup, detail)
+     SELECT emp_id, 'guard-test@example.invalid', 'one', 'A subject', 99, 'failed', 'none',
+            'refused (401)' FROM users ORDER BY emp_id LIMIT 1$q$, 'ok');
+SELECT pg_temp.expect('email_test_sends recipient must look like an address',
+  $q$INSERT INTO email_test_sends (sent_by, recipient, situation, subject, html_bytes, outcome,
+                                   campaign_cleanup)
+     SELECT emp_id, 'not an address', 'one', 's', 1, 'failed', 'none'
+     FROM users ORDER BY emp_id LIMIT 1$q$, '23514');
+SELECT pg_temp.expect('email_test_sends accepted needs both Constant Contact ids',
+  $q$INSERT INTO email_test_sends (sent_by, recipient, situation, subject, html_bytes,
+                                   cc_campaign_id, outcome, campaign_cleanup)
+     SELECT emp_id, 'a@example.invalid', 'one', 's', 1, 'camp-1', 'accepted', 'deleted'
+     FROM users ORDER BY emp_id LIMIT 1$q$, '23514');
+SELECT pg_temp.expect('email_test_sends cleanup none needs no campaign',
+  $q$INSERT INTO email_test_sends (sent_by, recipient, situation, subject, html_bytes,
+                                   cc_campaign_id, outcome, campaign_cleanup)
+     SELECT emp_id, 'a@example.invalid', 'one', 's', 1, 'camp-1', 'failed', 'none'
+     FROM users ORDER BY emp_id LIMIT 1$q$, '23514');
+SELECT pg_temp.expect('email_test_sends a campaign needs a cleanup result',
+  $q$INSERT INTO email_test_sends (sent_by, recipient, situation, subject, html_bytes,
+                                   outcome, campaign_cleanup)
+     SELECT emp_id, 'a@example.invalid', 'one', 's', 1, 'failed', 'deleted'
+     FROM users ORDER BY emp_id LIMIT 1$q$, '23514');
+SELECT pg_temp.expect('email_test_sends unknown outcome refused',
+  $q$INSERT INTO email_test_sends (sent_by, recipient, situation, subject, html_bytes, outcome,
+                                   campaign_cleanup)
+     SELECT emp_id, 'a@example.invalid', 'one', 's', 1, 'sent', 'none'
+     FROM users ORDER BY emp_id LIMIT 1$q$, '23514');
+SELECT pg_temp.expect('email_test_sends unknown cleanup value refused',
+  $q$INSERT INTO email_test_sends (sent_by, recipient, situation, subject, html_bytes, outcome,
+                                   campaign_cleanup)
+     SELECT emp_id, 'a@example.invalid', 'one', 's', 1, 'failed', 'maybe'
+     FROM users ORDER BY emp_id LIMIT 1$q$, '23514');
+SELECT pg_temp.expect('email_test_sends html size must be positive',
+  $q$INSERT INTO email_test_sends (sent_by, recipient, situation, subject, html_bytes, outcome,
+                                   campaign_cleanup)
+     SELECT emp_id, 'a@example.invalid', 'one', 's', 0, 'failed', 'none'
+     FROM users ORDER BY emp_id LIMIT 1$q$, '23514');
+SELECT pg_temp.expect('email_test_sends detail limited to 300 characters',
+  $q$INSERT INTO email_test_sends (sent_by, recipient, situation, subject, html_bytes, outcome,
+                                   campaign_cleanup, detail)
+     SELECT emp_id, 'a@example.invalid', 'one', 's', 1, 'failed', 'none', repeat('x', 301)
+     FROM users ORDER BY emp_id LIMIT 1$q$, '23514');
+SELECT pg_temp.expect('email_test_sends situation must be named and short',
+  $q$INSERT INTO email_test_sends (sent_by, recipient, situation, subject, html_bytes, outcome,
+                                   campaign_cleanup)
+     SELECT emp_id, 'a@example.invalid', '', 's', 1, 'failed', 'none'
+     FROM users ORDER BY emp_id LIMIT 1$q$, '23514');
+SELECT pg_temp.expect('email_test_sends sent_by must be a real user',
+  $q$INSERT INTO email_test_sends (sent_by, recipient, situation, subject, html_bytes, outcome,
+                                   campaign_cleanup)
+     VALUES (-1, 'a@example.invalid', 'one', 's', 1, 'failed', 'none')$q$, '23503');
+SELECT pg_temp.expect('email_test_sends UPDATE blocked',
+  $q$UPDATE email_test_sends SET detail = 'changed'
+     WHERE recipient = 'guard-test@example.invalid'$q$, '23001');
+SELECT pg_temp.expect('email_test_sends DELETE blocked',
+  $q$DELETE FROM email_test_sends WHERE recipient = 'guard-test@example.invalid'$q$, '23001');
+
 ROLLBACK;
 
 -- Nothing should have survived.
@@ -343,4 +410,5 @@ SELECT (SELECT count(*) FROM email_templates) AS templates,
        (SELECT count(*) FROM send_log)        AS send_log_rows,
        (SELECT count(*) FROM oauth_tokens WHERE account_id = 'guard-test') AS oauth_token_rows,
        (SELECT count(*) FROM sent_emails WHERE recipient_email LIKE 'guard-test-%') AS sent_email_rows,
-       (SELECT count(*) FROM cc_sync_runs WHERE watermark IN ('1999-01-01', '1999-01-02', '1999-01-04', '1999-01-05')) AS sync_test_rows;
+       (SELECT count(*) FROM cc_sync_runs WHERE watermark IN ('1999-01-01', '1999-01-02', '1999-01-04', '1999-01-05')) AS sync_test_rows,
+       (SELECT count(*) FROM email_test_sends) AS test_send_rows;
