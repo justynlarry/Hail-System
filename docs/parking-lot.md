@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*56 items (counted 2026-10-15 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
+*58 items (counted 2026-10-15 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -3105,8 +3105,10 @@ page; the contact email, schedule link and sender moved from the environment to 
 2026-10-14). **Pieces 2 and 3 done 2026-10-15** (`hailsys/email/blocks.py`, `sql/043`,
 `templatestore.save_blocks`; decision log 2026-10-15). **Piece 4 done 2026-10-15** (the admin-only
 `/templates` editor: list, new, edit, preview, save, retire; `hailsys/web/emailtpl.py`, `blockform.py`,
-`preview.py`, `templates.js`; cosmetics in item 221). Pieces 5 and 6 not started. (filed 2026-10-13, by
-developer request; shape agreed the same day)
+`preview.py`, `templates.js`; cosmetics in item 221). **Piece 6 done 2026-10-15** (`sql/044`,
+`hailsys/email/testsend.py`: "Send a test to <your address>" in the editor; one live test on the dev
+trial: accepted, inbox, campaign deleted; decision log 2026-10-15). Only piece 5 (formatting help)
+remains. (filed 2026-10-13, by developer request; shape agreed the same day)
 
 Staff should be able to create a template in the UI, with an image that is already in Constant
 Contact, bold, italic and coloured text, and the other parts of the current template.
@@ -3661,6 +3663,37 @@ and run the JS check from the normal suite.
 
 **Related:** items 203, 221; decision log 2026-10-15 (piece 4).
 
+## 223. The test send's hourly limit can be passed by two clicks in the same instant
+
+**Status:** open (accepted 2026-10-15)
+
+`testsend.send_test` counts an admin's tests in the last hour, commits (so no transaction stays open
+across the Constant Contact calls), and only then makes them. Two requests at the same instant can both
+read a count of four and both go on, so six tests are possible instead of five. Closing it needs a lock
+held across the check and the log row, which would mean holding a transaction open over HTTP calls.
+Accepted: the recipient is always the clicker's own address, so the cap guards against a stuck button
+or a loop, not against abuse of someone else's inbox.
+
+**When:** if the cap ever protects anything other than the admin's own inbox (for instance, if a typed
+recipient is ever allowed), or the call budget is found to be spent by test sends.
+
+**Related:** item 203; decision log 2026-10-15 (piece 6).
+
+## 224. An old git stash is the only record of two backfill fixes
+
+**Status:** open (found 2026-10-15)
+
+`git stash list` holds `stash@{0}: On main: pre-merge 2026-09-09: dup backfill fixes + test typo fix`:
+changes to `scripts/iem_backfill.py` (about 20 lines) and `tests/test_iem_parse.py` (one line). Nothing
+in the parking lot or the decision log mentions it, and a stash is not part of the repository's
+history. It was noticed on 2026-10-15 and mentioned in chat twice before this entry, which is not a
+record. Whether the fixes were later made another way is not known.
+
+**When:** at the next work on the IEM ingest or backfill: read `git stash show -p stash@{0}`, apply the
+parts still wanted as a commit, then drop the stash.
+
+**Related:** `scripts/iem_backfill.py`, `tests/test_iem_parse.py`.
+
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
 **Status:** spike done 2026-10-07; paid-account checks remain (item 183)
@@ -3866,6 +3899,12 @@ in dev and production alike. A 204 from a test send means accepted, not delivere
 
 **When:** before the first real send, send one message containing every link in the final
 template to a Gmail inbox and confirm it arrives.
+
+**Update 2026-10-15.** The editor's test send (item 203, piece 6) now does this in one click. A test of
+the built-in template's content reached a Gmail inbox the same day (accepted by Constant Contact at
+22:10 UTC, in the inbox, not spam). **Not yet done:** following each link in that message (the
+inspection button, "Schedule a new inspection", the review link, the phone and email links). Do that,
+and repeat for any new template, before the first real send.
 
 ## 187. The send list ignored `listing_freshness_days`; a send needs a fresh RentCast pull first
 

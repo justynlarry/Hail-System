@@ -7018,3 +7018,40 @@ template appears in the Send list like any other.
 **Related:** items 203, 218, 221, 222; decision log 2026-10-15 (pieces 2 and 3).
 
 ---
+
+## 2026-10-15 — Template editor: send a test to yourself (item 203, piece 6)
+
+Built and tried once on the dev trial. A "Send a test to <your address>" button in the template editor
+emails the draft on screen, rendered with the chosen sample storm, to the signed-in admin and nobody else.
+
+- **Own address only.** The recipient is read from the `users` row inside `testsend.send_test`; nothing
+  posted can choose it (a test posts a hostile `recipient`, `email`, `to`, `email_addresses` and `user_id`
+  and none reaches the sender). A typed recipient would make this a general mailer and open the
+  suppression and consent questions again; it stays out.
+- **It is not a send.** No `sent_emails` or `send_log` row, nothing scheduled. It fits the rule "nothing
+  sends automatically": one click, one email, to the clicker. The live preview and every other editor
+  action never call it.
+- **Three Constant Contact calls**: create a temporary campaign (the subject and HTML go in with the
+  create), post the test, delete the campaign. **No contact list is needed** (confirmed live). The
+  temporary campaign is deleted even when the test fails; a delete that fails is recorded as
+  `left_behind` and shown with the campaign's name.
+- **Guards, all before any call:** the address must be usable and not on `dnc_list` (the same
+  `deliver._on_dnc` as a send); at most **5 tests an hour per admin**, counted from `email_test_sends`
+  (failed and unknown attempts count; a fixed ceiling in code); the daily call budget must have the
+  headroom plus 3; the draft must build (the preview's code, so a missing image is named). A refusal
+  makes no call and writes no row.
+- **Accepted is not delivered** (item 186): the page says Constant Contact accepted it and to check the
+  inbox and spam. An ambiguous failure (no answer, a 5xx) is `unknown`, says so, and is **never retried**.
+- **`email_test_sends`** (`sql/044`): one row per attempt, written once at the end, never changed; no
+  email content, only the subject and its size.
+- **Live result, 2026-10-15 22:10 UTC**: one test of the new-template starter, "one storm": `accepted`,
+  `deleted`, three calls in about 2.8 seconds (`cc_api_calls` 0 to 3), in the Gmail inbox, looked right,
+  no `TEST` campaign left. The developer found the trial's counter on the billing page afterward: 9 emails
+  sent, which matches the 7 rehearsal sends plus the spike's. **No "before" figure was taken, so the
+  test's own effect on the counter was not measured**; the spike's note that test sends do not move it is
+  unconfirmed here. The links in the message were not followed (item 186 stays open for that).
+- Accepted: item 223 (two clicks in one instant can pass the hourly check).
+
+**Related:** items 183, 186, 203, 223; decision log 2026-10-07, 2026-10-15 (pieces 2 to 4).
+
+---

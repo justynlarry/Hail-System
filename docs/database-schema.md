@@ -972,6 +972,23 @@ template needs**; the `CHECK` `email_images_required_stay_active` stops them bei
 the `EMAIL_LOGO_URL`, `EMAIL_BADGE_CRA_URL` and `EMAIL_BADGE_BBB_URL` environment variables, and seed the
 table. The server never fetches an image; the recipient's mail client and the admin's browser do.
 
+#### `email_test_sends`
+
+`sql/044_email_test_sends.sql` (item 203, piece 6). One row per **test send** from the template editor
+(`hailsys/email/testsend.py`): the draft on screen, rendered with sample storm data, emailed to the admin
+who clicked, through a temporary Constant Contact campaign (create, test, delete). **Not a send**: no
+`sent_emails` or `send_log` row. Columns: `test_id`, `sent_by` (FK `users`), `created_at`, `recipient`
+(`CHECK` an address), `template_name` (nullable: an unsaved new template; up to 100), `situation` (which
+sample storm; 1 to 40), `subject`, `html_bytes` (`CHECK` > 0), `cc_campaign_id`, `cc_activity_id`,
+`outcome` (`accepted`, `failed` or `unknown`), `campaign_cleanup` (`deleted`, `left_behind` or `none`)
+and `detail` (up to 300). Two cross-column `CHECK`s: `accepted` needs both Constant Contact ids, and
+`campaign_cleanup = 'none'` exactly when there is no campaign id. **Written once, at the end of the
+attempt; never changed or deleted** (`email_test_sends_guard()` and `REVOKE`; `hail_app` has `SELECT,
+INSERT`; `sql/guard_test.sql` tests it). `unknown` means the POST may have taken effect and is never
+retried. An admin's tests in the last hour are counted from this table (the cap of 5 is a fixed ceiling
+in code); failed and unknown attempts count. No email content is kept, only the subject and its size.
+`accepted` is Constant Contact taking the test, not delivery (item 186).
+
 ---
 
 ## Address search
