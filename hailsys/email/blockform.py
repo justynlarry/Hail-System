@@ -13,7 +13,7 @@ n_blocks, and for block i (counted from 0) b<i>_kind and b<i>_<setting>.
 import copy
 import re
 
-from hailsys.email import blocks
+from hailsys.email import blocks, render, samples
 
 # One more than allowed, so a form that's too long is reported.
 MAX_FORM_BLOCKS = blocks.MAX_BLOCKS + 1
@@ -30,10 +30,7 @@ KIND_LABELS = {
 # Wording fixed in code, filled in from the storm data.
 SYSTEM_KINDS = {"headline", "greeting", "storm_panel", "listings"}
 
-FORMAT_HELP = ("Formatting: [b]bold[/b], [i]italic[/i], [b=navy]bold in a colour[/b], "
-               "[color=red]a colour[/color], [link=https://...]a link[/link], "
-               "[link={schedule_url}]the schedule link[/link].  Merge fields: "
-               + ", ".join("{" + t + "}" for t in sorted(blocks.TEXT_TOKENS)) + ".")
+RICH_HELP = "Formatting and merge fields: see the guide at the top of the page."
 _SPACE = "Pixels, 0 to 40, in steps of 2"
 
 PRESET_LABELS = {
@@ -41,13 +38,53 @@ PRESET_LABELS = {
 }
 
 
-def _f(key, label, widget, choices=None, help=""):
-    return {"key": key, "label": label, "widget": widget, "choices": choices, "help": help}
+# The guide at the top of the editor.  The tag examples are compiled by a test, so the guide
+# cannot describe a tag the compiler would refuse.
+TAG_GUIDE = [
+    ("[b]text[/b]", "Bold"),
+    ("[i]text[/i]", "Italic"),
+    ("[b=navy]text[/b]", "Bold, in a colour from the list"),
+    ("[color=red]text[/color]", "A colour from the list"),
+    ("[link=https://example.com]text[/link]", "A link; the address must start with https://"),
+    ("[link={schedule_url}]text[/link]", "A link to the schedule address set on the admin page"),
+]
+
+# One entry for every merge field blocks.TEXT_TOKENS allows (a test keeps the two in step).
+MERGE_MEANINGS = {
+    "total": "How many of the agent's listings were hit",
+    "storm_dates_label": "The storm date, or dates, in words",
+    "largest_hail": "The largest hail size reported",
+    "nearest_miles": "How far the nearest report was",
+}
+
+_LEGEND_SETTINGS = render.EmailSettings(
+    "https://example.test/logo.png", "https://example.test/cra.png",
+    "https://example.test/bbb.png", "legend@example.test", "https://example.test/schedule")
+
+
+def legend(situation=samples.DEFAULT):
+    """What the guide shows: the tags, the palette, and each merge field with the value it takes
+    in the chosen sample storm."""
+    agent, matches = samples.situation(situation)
+    context = render.build_context(agent, matches, _LEGEND_SETTINGS)
+    return {
+        "tags": [{"code": code, "meaning": meaning} for code, meaning in TAG_GUIDE],
+        "colours": [{"name": name, "hex": code} for name, code in blocks.PALETTE.items()],
+        "merge_fields": [{"token": "{" + name + "}", "meaning": MERGE_MEANINGS[name],
+                          "example": str(context[name])}
+                         for name in sorted(blocks.TEXT_TOKENS)]}
+
+
+def _f(key, label, widget, choices=None, help="", rich=False):
+    """One setting as the form shows it.  'rich' marks text that takes the inline formatting
+    tags (the editor puts a toolbar on it)."""
+    return {"key": key, "label": label, "widget": widget, "choices": choices, "help": help,
+            "rich": rich}
 
 
 FIELDS = {
     "text": [
-        _f("text", "Text", "textarea", help=FORMAT_HELP),
+        _f("text", "Text", "textarea", help=RICH_HELP, rich=True),
         _f("size", "Size", "select", list(blocks.SIZES)),
         _f("color", "Colour", "select", list(blocks.PALETTE)),
         _f("bold", "Bold", "checkbox"),
@@ -57,7 +94,7 @@ FIELDS = {
         _f("space_after", "Space below", "number", help=_SPACE),
     ],
     "heading": [
-        _f("text", "Text", "text", help=FORMAT_HELP),
+        _f("text", "Text", "text", help=RICH_HELP, rich=True),
         _f("size", "Size", "select", list(blocks.HEADING_SIZES)),
         _f("color", "Colour", "select", list(blocks.PALETTE)),
         _f("align", "Align", "select", ["left", "center"]),
@@ -79,8 +116,8 @@ FIELDS = {
     "divider": [],
     "band": [
         _f("title", "Title", "text"),
-        _f("intro", "Introduction", "textarea", help=FORMAT_HELP),
-        _f("items", "Checklist, one item per line", "lines", help="1 to 10 items"),
+        _f("intro", "Introduction", "textarea", help=RICH_HELP, rich=True),
+        _f("items", "Checklist, one item per line", "lines", help="1 to 10 items; formatting works on each line", rich=True),
     ],
     "testimonial": [
         _f("quote", "Quote", "textarea"),

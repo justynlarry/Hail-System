@@ -407,5 +407,107 @@ class DescribeTest(unittest.TestCase):
             self.assertIn(preset, shown["labels"])
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+class RichFieldsAndLegendTest(unittest.TestCase):
+    def rich_fields(self):
+        return sorted((kind, x["key"]) for kind, fields in f.FIELDS.items()
+                      for x in fields if x["rich"])
+
+    def test_exactly_the_four_fields_that_take_formatting_are_marked(self):
+        self.assertEqual(self.rich_fields(), [("band", "intro"), ("band", "items"),
+                                              ("heading", "text"), ("text", "text")])
+
+    def test_every_marked_field_really_takes_formatting(self):
+        samples = {("text", "text"): {"kind": "text", "text": "a [b]b[/b] [i]i[/i] {total}"},
+                   ("heading", "text"): {"kind": "heading", "text": "a [b=navy]b[/b] {total}"},
+                   ("band", "intro"): {"kind": "band", "title": "t", "items": ["x"],
+                                       "intro": "[color=red]c[/color] {largest_hail}"},
+                   ("band", "items"): {"kind": "band", "title": "t", "intro": "i",
+                                       "items": ["[b]one[/b]", "{nearest_miles} away"]}}
+        for key, block in samples.items():
+            self.assertIn(key, self.rich_fields())
+            self.assertTrue(b.clean_block(block), key)
+
+    def test_the_unmarked_text_fields_really_do_not(self):
+        for kind, key, block in (
+                ("button", "label", {"kind": "button", "url": "https://x.test/", "label": "[b]x[/b]"}),
+                ("band", "title", {"kind": "band", "intro": "i", "items": ["x"], "title": "[b]x[/b]"}),
+                ("testimonial", "quote", {"kind": "testimonial", "who": "w", "quote": "[b]x[/b]"}),
+                ("testimonial", "who", {"kind": "testimonial", "quote": "q", "who": "[b]x[/b]"})):
+            marked = next(x for x in f.FIELDS[kind] if x["key"] == key)["rich"]
+            self.assertFalse(marked, (kind, key))
+            self.assertIn("[b]x[/b]", b.compile_blocks(tpl(block))[1], (kind, key))   # shown as typed
+
+    def test_a_rich_field_points_at_the_guide_and_other_fields_do_not(self):
+        for kind, fields in f.FIELDS.items():
+            for x in fields:
+                if x["rich"] and x["key"] != "items":
+                    self.assertEqual(x["help"], f.RICH_HELP)
+        self.assertIn("guide at the top of the page", f.RICH_HELP)      # the legend's place on the page
+        items = next(x for x in f.FIELDS["band"] if x["key"] == "items")
+        self.assertIn("formatting works on each line", items["help"])
+
+    def test_fields_for_carries_the_flag_to_the_page(self):
+        shown = {x["key"]: x["rich"] for x in f.fields_for({"kind": "text", "text": "x"}, 0)}
+        self.assertEqual((shown["text"], shown["size"], shown["bold"]), (True, False, False))
+
+    # ---- the guide ----
+
+    def test_every_tag_example_compiles(self):
+        for code, meaning in f.TAG_GUIDE:
+            self.assertTrue(meaning)
+            self.assertTrue(b.rich(code, "guide"), code)
+
+    def test_every_colour_the_guide_names_is_in_the_palette(self):
+        import re
+        for code, _ in f.TAG_GUIDE:
+            for name in re.findall(r"=([a-z]+)\]", code):
+                if not name.startswith("http"):
+                    self.assertIn(name, b.PALETTE, code)
+
+    def test_the_guide_covers_every_kind_of_tag(self):
+        import re
+        kinds = {re.search(r"\[(b|i|color|link)", code).group(1) for code, _ in f.TAG_GUIDE}
+        self.assertEqual(kinds, {"b", "i", "color", "link"})
+        self.assertTrue(any("{schedule_url}" in code for code, _ in f.TAG_GUIDE))
+
+    def test_every_merge_field_has_a_meaning_and_no_extras(self):
+        self.assertEqual(set(f.MERGE_MEANINGS), set(b.TEXT_TOKENS))
+        self.assertTrue(all(f.MERGE_MEANINGS.values()))
+
+    def test_every_merge_field_in_the_legend_is_accepted_by_the_compiler(self):
+        for item in f.legend()["merge_fields"]:
+            self.assertTrue(b.rich("x " + item["token"], "guide"), item["token"])
+
+    def test_the_legend_lists_the_palette_with_its_colours(self):
+        colours = f.legend()["colours"]
+        self.assertEqual([c["name"] for c in colours], list(b.PALETTE))
+        self.assertEqual({c["name"]: c["hex"] for c in colours}, b.PALETTE)
+
+    def test_the_legend_shows_the_values_of_the_chosen_sample(self):
+        values = {x["token"]: x["example"] for x in f.legend("one")["merge_fields"]}
+        self.assertEqual(values["{total}"], "1")
+        self.assertEqual(values["{storm_dates_label}"], "August 15, 2026")
+        self.assertEqual(values["{largest_hail}"], '1.75"')
+        values = {x["token"]: x["example"] for x in f.legend("more")["merge_fields"]}
+        self.assertEqual(values["{total}"], "18")
+        values = {x["token"]: x["example"] for x in f.legend("several")["merge_fields"]}
+        self.assertEqual(values["{storm_dates_label}"], "August 15 and August 21, 2026")
+
+    def test_the_legend_works_for_every_situation_and_falls_back_for_a_bad_one(self):
+        from hailsys.email import samples
+        for key in list(samples.SITUATIONS) + ["nope", None, 5, ["one"]]:
+            self.assertEqual(len(f.legend(key)["merge_fields"]), len(b.TEXT_TOKENS), repr(key))
+        self.assertEqual(f.legend("nope"), f.legend("one"))
+
+    def test_the_legend_is_in_a_fixed_order_and_does_not_change_between_calls(self):
+        first = f.legend()
+        self.assertEqual(first, f.legend())
+        self.assertEqual([x["token"] for x in first["merge_fields"]],
+                         sorted(x["token"] for x in first["merge_fields"]))
+        first["tags"].clear()
+        self.assertTrue(f.legend()["tags"])
+
+
 if __name__ == "__main__":
     unittest.main()

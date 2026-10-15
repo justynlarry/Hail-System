@@ -103,12 +103,11 @@ class SendTestTest(unittest.TestCase):
         self.addCleanup(real.rollback)
         self.events = []
         self.conn = NoCommit(real, self.events)
-        row = real.execute("SELECT emp_id, emp_email FROM users WHERE role = 'admin' AND "
-                           "is_active ORDER BY emp_id LIMIT 1").fetchone()
-        self.user, self.address = row["emp_id"], row["emp_email"]
-        self.other = real.execute("SELECT emp_id FROM users WHERE role <> 'system' AND "
-                                  "emp_id <> %s ORDER BY emp_id LIMIT 1",
-                                  (self.user,)).fetchone()["emp_id"]
+        # Throwaway users, made inside this rolled-back transaction: a real test send by a real
+        # admin leaves a real row in email_test_sends, and these tests count rows and the
+        # hourly limit, so they must never share a user with real use.
+        self.user, self.address = self.make_user(real, "a")
+        self.other, _ = self.make_user(real, "b")
         self.system = real.execute("SELECT emp_id FROM users WHERE role = 'system'"
                                    ).fetchone()["emp_id"]
         self.cc = FakeCC(self.events)
@@ -117,6 +116,15 @@ class SendTestTest(unittest.TestCase):
         patcher = mock.patch.object(testsend, "budget", self.budget)
         patcher.start()
         self.addCleanup(patcher.stop)
+
+    @staticmethod
+    def make_user(real, tag):
+        token = uuid.uuid4().hex[:10]
+        row = real.execute(
+            "INSERT INTO users (user_name, emp_fname, emp_lname, emp_email, password_hash, role) "
+            "VALUES (%s, 'Test', 'User', %s, 'x', 'admin') RETURNING emp_id, emp_email",
+            (f"zz-test-{tag}-{token}", f"zz-test-{tag}-{token}@example.test")).fetchone()
+        return row["emp_id"], row["emp_email"]
 
     def go(self, **over):
         args = dict(user_id=self.user, template=self.template, template_name="spring",
