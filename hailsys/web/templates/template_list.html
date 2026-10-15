@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Templates{% endblock %}
+{% block heading %}Email templates{% endblock %}
+
+{% block content %}
+<div class="page">
+<p class="note">
+    A template is built from blocks. Saving makes a new version, and an email already sent keeps
+    the exact text it was sent with. The Send page lists every active template.
+    <a href="{{ url_for('emailtpl.new') }}">New template</a>
+</p>
+<div class="table-scroll">
+<table>
+    <thead>
+        <tr><th>Template</th><th>Built from</th><th>Description</th><th>Version</th>
+            <th>Created</th><th>Last used</th><th>Sends</th><th></th></tr>
+    </thead>
+    <tbody>
+        {% for r in rows %}
+        <tr>
+            <td>{{ r.template_name }}</td>
+            <td>{% if r.template_name == builtin_name %}Files (the built-in){% elif r.has_blocks %}Blocks{% else %}Text only{% endif %}</td>
+            <td>{{ r.description or '' }}</td>
+            <td>{% if r.versions %}v{{ r.versions }}{% else %}not saved yet{% endif %}</td>
+            <td>{% if r.created_at %}{{ r.emp_fname }} {{ r.emp_lname }},
+                {{ r.created_at.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</td>
+            <td>{% if r.last_used %}{{ r.last_used.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</td>
+            <td>{{ r.sends }}</td>
+            <td>{% if r.has_blocks and r.template_name != builtin_name %}<a href="{{ url_for('emailtpl.edit', name=r.template_name) }}">Edit</a>{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+</div>
+{% endblock %}

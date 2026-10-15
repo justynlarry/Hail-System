@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ name }}{% endblock %}
+{% block heading %}Template: {{ name }}{% endblock %}
+
+{% block content %}
+<div class="page">
+<p class="note warning">
+    This template was not built from blocks, so it cannot be edited here.
+    <a href="{{ url_for('emailtpl.new') }}">Start a new template</a> from the built-in one, or go
+    <a href="{{ url_for('emailtpl.index') }}">back to the list</a>.
+</p>
+</div>
+{% endblock %}

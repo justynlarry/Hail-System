@@ -10,6 +10,7 @@ PAGE_SIZE = 10
 
 _SELECT = """
 SELECT t.template_id, t.template_name, t.description, t.subject, t.body,
+       (t.blocks IS NOT NULL) AS has_blocks,
        t.report_type, t.report_text, t.created_at,
        u.emp_fname, u.emp_lname,
        (SELECT count(*) FROM email_templates v
@@ -40,3 +41,8 @@ def fetch_page(conn, page, per_page=PAGE_SIZE):
 def fetch_one(conn, name):
     """The active version of one template name, or None."""
     return conn.execute(_SELECT + "AND t.template_name = %s", (name,)).fetchone()
+
+
+def fetch_all(conn):
+    """Every active template, one row per name (the editor's list, there are few)."""
+    return conn.execute(_SELECT + "ORDER BY t.template_name").fetchall()

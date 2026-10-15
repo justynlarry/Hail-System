@@ -63,6 +63,9 @@ def create_app():
     from . import cc
     app.register_blueprint(cc.cc_bp)
 
+    from . import emailtpl
+    app.register_blueprint(emailtpl.emailtpl_bp)
+
     from . import send
     app.register_blueprint(send.send_bp)
 

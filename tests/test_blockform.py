@@ -358,5 +358,54 @@ class DraftOperationsTest(unittest.TestCase):
         self.assertTrue(b.compile_blocks(draft))
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+class DescribeTest(unittest.TestCase):
+    def draft(self):
+        return tpl({"kind": "text", "text": "a"}, {"kind": "headline"}, {"kind": "divider"})
+
+    def test_each_block_is_described_in_order(self):
+        shown = f.describe(self.draft())
+        self.assertEqual([x["kind"] for x in shown], ["text", "headline", "divider", "footer"])
+        self.assertEqual([x["number"] for x in shown], [1, 2, 3, 4])
+        self.assertEqual([x["index"] for x in shown], [0, 1, 2, 3])
+        self.assertEqual(shown[0]["label"], "Paragraph")
+        self.assertEqual(shown[0]["fields"][0]["name"], "b0_text")
+
+    def test_system_and_footer_flags(self):
+        shown = f.describe(self.draft())
+        self.assertEqual([x["system"] for x in shown], [False, True, False, False])
+        self.assertEqual([x["footer"] for x in shown], [False, False, False, True])
+
+    def test_move_buttons_follow_the_move_rules(self):
+        shown = f.describe(self.draft())
+        self.assertEqual([x["can_up"] for x in shown], [False, True, True, False])
+        self.assertEqual([x["can_down"] for x in shown], [True, True, False, False])
+
+    def test_every_button_agrees_with_what_move_block_really_does(self):
+        draft = self.draft()
+        for x in f.describe(draft):
+            for step, key in ((-1, "can_up"), (1, "can_down")):
+                moved = f.move_block(draft, x["index"], step) != draft
+                self.assertEqual(moved, x[key], (x["index"], step))
+
+    def test_problems_attach_to_their_block(self):
+        shown = f.describe(self.draft(), [(2, "bad two"), (None, "general"), (2, "also two"),
+                                          (9, "nowhere")])
+        self.assertEqual(shown[1]["problems"], ["bad two", "also two"])
+        self.assertEqual([x["problems"] for x in shown if x["index"] != 1], [[], [], []])
+
+    def test_junk_drafts_describe_as_nothing_or_unknown(self):
+        for junk in (None, [], "x", {}, {"blocks": None}, {"blocks": "x"}):
+            self.assertEqual(f.describe(junk), [], repr(junk))
+        shown = f.describe({"blocks": [None, 5, {"kind": "zzz"}, {}]})
+        self.assertEqual([x["label"] for x in shown], ["Unknown block"] * 4)
+        self.assertTrue(all(x["fields"] == [] for x in shown))
+
+    def test_the_subject_labels_cover_every_preset(self):
+        shown = f.subject_form(tpl())
+        for preset in shown["presets"]:
+            self.assertIn(preset, shown["labels"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -36,6 +36,10 @@ FORMAT_HELP = ("Formatting: [b]bold[/b], [i]italic[/i], [b=navy]bold in a colour
                + ", ".join("{" + t + "}" for t in sorted(blocks.TEXT_TOKENS)) + ".")
 _SPACE = "Pixels, 0 to 40, in steps of 2"
 
+PRESET_LABELS = {
+    "hail_alert": "Hail alert (the wording follows the number of storms and listings)",
+}
+
 
 def _f(key, label, widget, choices=None, help=""):
     return {"key": key, "label": label, "widget": widget, "choices": choices, "help": help}
@@ -191,7 +195,8 @@ def subject_form(template):
     subject = subject if isinstance(subject, dict) else {}
     return {"mode": "preset" if "preset" in subject else "text",
             "preset": subject.get("preset", next(iter(blocks.SUBJECT_PRESETS))),
-            "text": subject.get("text", ""), "presets": list(blocks.SUBJECT_PRESETS)}
+            "text": subject.get("text", ""), "presets": list(blocks.SUBJECT_PRESETS),
+            "labels": PRESET_LABELS}
 
 
 # ------ changing a draft --------------------------------------------------------------
@@ -212,13 +217,18 @@ def add_block(template, kind):
     return done
 
 
+def _can_move(block_list, index, step):
+    other = index + step
+    return (step in (-1, 1) and 0 <= index < len(block_list) and 0 <= other < len(block_list)
+            and not _is_footer(block_list[index]) and not _is_footer(block_list[other]))
+
+
 def move_block(template, index, step):
     """Move the block at 'index' (from 0) one place: step -1 up, +1 down."""
     done = copy.deepcopy(template)
     block_list = done["blocks"]
-    other = index + step
-    if (step in (-1, 1) and 0 <= index < len(block_list) and 0 <= other < len(block_list)
-            and not _is_footer(block_list[index]) and not _is_footer(block_list[other])):
+    if _can_move(block_list, index, step):
+        other = index + step
         block_list[index], block_list[other] = block_list[other], block_list[index]
     return done
 
@@ -229,3 +239,24 @@ def remove_block(template, index):
     if 0 <= index < len(block_list) and not _is_footer(block_list[index]):
         del block_list[index]
     return done
+
+
+def describe(template, problems=()):
+    """The blocks as the page shows them, in order: label, fields, the problems that belong
+    to the block ('problems' is a list of (block number, message)) and whether it can move."""
+    by_number = {}
+    for number, message in problems:
+        by_number.setdefault(number, []).append(message)
+    block_list = template.get("blocks") if isinstance(template, dict) else None
+    block_list = block_list if isinstance(block_list, list) else []
+    shown = []
+    for i, block in enumerate(block_list):
+        block = block if isinstance(block, dict) else {}
+        kind = block.get("kind")
+        shown.append({
+            "index": i, "number": i + 1, "kind": kind or "",
+            "label": KIND_LABELS.get(kind, "Unknown block"),
+            "system": kind in SYSTEM_KINDS, "footer": kind == "footer",
+            "fields": fields_for(block, i), "problems": by_number.get(i + 1, []),
+            "can_up": _can_move(block_list, i, -1), "can_down": _can_move(block_list, i, 1)})
+    return shown

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{% if is_new %}New template{% else %}{{ name }}{% endif %}{% endblock %}
+{% block heading %}{% if is_new %}New template{% else %}Template: {{ name }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page">
+<p class="note">
+    <a href="{{ url_for('emailtpl.index') }}">All templates</a>. Saving always makes a new
+    version; nothing here changes an email that was already sent. Nothing is saved until you
+    press Save.
+</p>
+
+<form id="editor" method="post" action="{{ url_for('emailtpl.act') }}">
+    {# Enter in a text box presses the first submit button in the form.  This one comes first so
+       that it is the preview, not some block's Remove. #}
+    <button type="submit" name="action" value="preview" class="tpl-default" tabindex="-1"
+            aria-hidden="true">Show preview</button>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="mode" value="{{ 'new' if is_new else 'edit' }}">
+    {% if not is_new %}<input type="hidden" name="name" value="{{ name }}">{% endif %}
+
+    <p class="tpl-field">
+        <label for="name">Name</label>
+        {% if is_new %}
+        <input type="text" id="name" name="name" size="30" maxlength="40" value="{{ name }}">
+        <small>Letters, digits, hyphens and underscores, up to 40. It cannot be changed later.</small>
+        {% else %}
+        <strong>{{ name }}</strong>
+        {% endif %}
+    </p>
+
+    <h3>Subject and preview text</h3>
+    <p class="tpl-field">
+        <label><input type="radio" name="subject_mode" value="preset"{% if subject.mode == 'preset' %} checked{% endif %}> A standard subject</label>
+        <select name="subject_preset" aria-label="Standard subject">
+            {% for p in subject.presets %}<option value="{{ p }}"{% if p == subject.preset %} selected{% endif %}>{{ subject.labels.get(p, p) }}</option>{% endfor %}
+        </select>
+    </p>
+    <p class="tpl-field">
+        <label><input type="radio" name="subject_mode" value="text"{% if subject.mode == 'text' %} checked{% endif %}> Your own text</label>
+        <input type="text" name="subject_text" size="60" value="{{ subject.text }}" aria-label="Subject text">
+        <small>Merge fields: {total}, {storm_dates_label}, {largest_hail}, {nearest_miles}</small>
+    </p>
+    <p class="tpl-field">
+        <label for="title">Page title</label>
+        <input type="text" id="title" name="title" size="60" value="{{ title }}">
+        <small>Shown in the browser tab when the email is opened on the web.</small>
+    </p>
+    <p class="tpl-field">
+        <label for="preheader">Preview line</label>
+        <input type="text" id="preheader" name="preheader" size="60" value="{{ preheader }}">
+        <small>The grey text beside the subject in the inbox. Merge fields work here too.</small>
+    </p>
+
+    <h3>Blocks</h3>
+    <div id="blocks">{% include "_editor_blocks.html" %}</div>
+
+    <p class="tpl-field" id="add-block">
+        <label for="add_kind">Add a block</label>
+        <select id="add_kind" name="add_kind">
+            {% for kind, label in addable %}<option value="{{ kind }}">{{ label }}</option>{% endfor %}
+        </select>
+        <button type="submit" name="action" value="add"
+                formaction="{{ url_for('emailtpl.act') }}#add-block">Add</button>
+        <small>New blocks go above the footer.</small>
+    </p>
+
+    <h3>Preview</h3>
+    <p class="tpl-field">
+        <label for="situation">Storm situation</label>
+        <select id="situation" name="situation">
+            {% for key, s in situations.items() %}<option value="{{ key }}"{% if key == situation %} selected{% endif %}>{{ s.label }}</option>{% endfor %}
+        </select>
+        <button type="submit" name="action" value="preview"
+                formaction="{{ url_for('emailtpl.act') }}#preview">Show preview</button>
+        <small>Stand-in data. No real recipient is read.</small>
+    </p>
+</form>
+<div id="preview">{% include "_editor_preview.html" %}</div>
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% if notice %}<p class="note warning">{{ notice }}</p>{% endif %}
+<input type="hidden" name="n_blocks" value="{{ block_views | length }}">
+{% for bl in block_views %}
+<fieldset class="tpl-block{% if bl.system %} tpl-system{% endif %}" id="b{{ bl.index }}">
+    <legend>{{ bl.number }}. {{ bl.label }}{% if bl.system %} <small>(wording fixed, filled in from the storm data)</small>{% endif %}</legend>
+    <input type="hidden" name="b{{ bl.index }}_kind" value="{{ bl.kind }}">
+    {% for f in bl.fields %}
+    <p class="tpl-field">
+        <label for="{{ f.name }}">{{ f.label }}</label>
+        {% if f.widget == 'textarea' %}
+        <textarea id="{{ f.name }}" name="{{ f.name }}" rows="4" cols="70">{{ f.value }}</textarea>
+        {% elif f.widget == 'lines' %}
+        <textarea id="{{ f.name }}" name="{{ f.name }}" rows="5" cols="40">{{ f.value }}</textarea>
+        {% elif f.widget == 'select' %}
+        <select id="{{ f.name }}" name="{{ f.name }}">
+            {% for c in f.choices %}<option value="{{ c }}"{% if c | string == f.value %} selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+        {% elif f.widget == 'checkbox' %}
+        <input type="checkbox" id="{{ f.name }}" name="{{ f.name }}"{% if f.checked %} checked{% endif %}>
+        {% elif f.widget == 'number' %}
+        <input type="number" id="{{ f.name }}" name="{{ f.name }}" value="{{ f.value }}" step="1">
+        {% else %}
+        <input type="text" id="{{ f.name }}" name="{{ f.name }}" value="{{ f.value }}" size="60">
+        {% endif %}
+        {% if f.help %}<small>{{ f.help }}</small>{% endif %}
+    </p>
+    {% endfor %}
+    {% for message in bl.problems %}<p class="error">{{ message }}</p>{% endfor %}
+    <div class="block-errors" data-block="{{ bl.index }}"></div>
+    <div class="tpl-actions">
+        {% if bl.footer %}
+        <small>The footer is required and stays last.</small>
+        {% else %}
+        <button type="submit" name="action" value="up:{{ bl.index }}"
+                formaction="{{ url_for('emailtpl.act') }}#b{{ bl.index - 1 }}"{% if not bl.can_up %} disabled{% endif %}>Move up</button>
+        <button type="submit" name="action" value="down:{{ bl.index }}"
+                formaction="{{ url_for('emailtpl.act') }}#b{{ bl.index + 1 }}"{% if not bl.can_down %} disabled{% endif %}>Move down</button>
+        <button type="submit" name="action" value="remove:{{ bl.index }}"
+                formaction="{{ url_for('emailtpl.act') }}#b{{ bl.index }}">Remove</button>
+        {% endif %}
+    </div>
+</fieldset>
+{% endfor %}

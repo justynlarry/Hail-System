@@ -1008,3 +1008,14 @@ path.map-county { fill: var(--map-county-fill); }
 @media (prefers-reduced-motion: reduce) {
   .theme-switch::after { transition: none; }
 }
+
+/* Template editor (item 203, piece 4) */
+.tpl-block { margin: 0 0 1rem; padding: 0.5rem 1rem 0.75rem; border: 1px solid var(--border); border-radius: 4px; }
+.tpl-system { border-style: dashed; }
+.tpl-block legend { font-weight: 600; padding: 0 0.4rem; }
+.tpl-field { margin: 0.4rem 0; }
+.tpl-field label { display: inline-block; min-width: 9rem; vertical-align: top; }
+.tpl-field small { display: block; margin-left: 9rem; color: var(--muted); }
+.tpl-default { position: absolute; left: -9999px; }
+.tpl-actions { margin-top: 0.5rem; }
+.tpl-actions button { margin-right: 0.4rem; }

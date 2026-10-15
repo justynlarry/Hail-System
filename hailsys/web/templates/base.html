@@ -37,6 +37,8 @@
                 {% if session.role == 'admin' %}
                 <a href="{{ url_for('send.index') }}"
                    class="{% if request.endpoint == 'send.index' %}active{% endif %}">Send</a>
+                <a href="{{ url_for('emailtpl.index') }}"
+                   class="{% if request.endpoint and request.endpoint.startswith('emailtpl.') %}active{% endif %}">Templates</a>
                 {% endif %}
             </nav>
         </div>
