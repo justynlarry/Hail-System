@@ -19,7 +19,7 @@ Rules:
 
 import re
 import urllib.parse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 
 from jinja2 import StrictUndefined, TemplateError, TemplateSyntaxError, meta
@@ -78,6 +78,7 @@ class EmailSettings:
     badge_bbb_url: str
     contact_email: str
     schedule_url: str
+    images: dict = field(default_factory=dict)      # name -> {"url", "alt"}, every active image
 
     def __post_init__(self):
         for name in ("logo_url", "badge_cra_url", "badge_bbb_url", "schedule_url"):
@@ -157,7 +158,7 @@ def _largest(events):
     return max(values) if values else None
 
 
-def build_context(agent_name, matches, settings, max_listings=MAX_LISTINGS, images=None):
+def build_context(agent_name, matches, settings, max_listings=MAX_LISTINGS):
     """Template variables for on realtor's eligible matches.
     
     `matches`: dicst with listing_id, address (one display line), utc_datetime
@@ -207,7 +208,7 @@ def build_context(agent_name, matches, settings, max_listings=MAX_LISTINGS, imag
         "properties": shown,
         "more_count": len(listings) - len(shown),
         "total": len(listings),
-        "images": dict(images or {}),
+        "images": {name: dict(image) for name, image in settings.images.items()},
     }
 
 

@@ -10,7 +10,7 @@ import re
 
 import psycopg
 
-from hailsys.email import render
+from hailsys.email import blocks, emailconfig, render
 
 MAX_URL = 500
 MAX_ALT = 200
@@ -27,6 +27,12 @@ _FETCH_IMAGES = """
     FROM email_images i
     JOIN users u ON u.emp_id = i.updated_by
     ORDER BY i.is_active DESC, lower(i.name)
+"""
+
+_ACTIVE_BLOCK_TEMPLATES = """
+    SELECT template_name, blocks FROM email_templates
+    WHERE is_active AND blocks IS NOT NULL
+    ORDER BY template_name
 """
 
 
@@ -78,7 +84,26 @@ def update_image(conn, user_id, image_id, url, alt_text):
         raise EmailAdminError("That image does not exist.")
 
 
+def _check_unused(conn, image_id):
+    """Refuse to retire an image that a block template in use still refers to.
+
+    Only the active version of each template counts.  The three images the built-in
+    template needs are left to the database, which refuses to retire them."""
+    row = conn.execute("SELECT name FROM email_images WHERE image_id = %s",
+                       (image_id,)).fetchone()
+    if row is None or row["name"] in emailconfig.REQUIRED_IMAGES:
+        return              # the UPDATE below reports it, or the database refuses
+    users = [t["template_name"] for t in conn.execute(_ACTIVE_BLOCK_TEMPLATES).fetchall()
+            if row["name"] in blocks.images_used(t["blocks"])]
+    if users:
+        raise EmailAdminError(
+            f"The image {row['name']} is used by {', '.join(users)}.  Change those templates "
+            "so they stop using it, then retire it.")
+
+
 def set_image_active(conn, user_id, image_id, active):
+    if not active:
+        _check_unused(conn, image_id)
     try:
         cur = conn.execute(
             "UPDATE email_images SET is_active = %s, updated_by = %s, updated_at = now() "

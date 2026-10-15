@@ -19,13 +19,14 @@ sys.path.insert(0, str(ROOT))
 try:
     import psycopg
     from psycopg.rows import dict_row
-    from hailsys.email import render, templatestore as ts
+    from hailsys.email import blocks, emailconfig, render, templatestore as ts
     MISSING = None
 except ImportError as exc:
     MISSING = str(exc)
 
 SUBJECT = "Hail near {{ total }} of your listings"
 BODY = "<p>Hello {{ agent_first_name }}</p>[[trackingImage]]"
+UNSET = object()        # "use the test's own name"; None and "" are values to test
 
 
 @unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
@@ -199,6 +200,214 @@ class EnsureCurrentTest(unittest.TestCase):
         row = self.conn.execute("SELECT subject, body FROM email_templates "
                                 "WHERE template_id = %s", (template_id,)).fetchone()
         self.assertEqual((row["subject"], row["body"]), (subject, body))
+
+
+def block_template(text="Hello", **over):
+    t = {"title": "Test", "subject": {"text": "Storms near {total} homes"},
+         "blocks": [{"kind": "image", "image": "logo", "placement": "header"},
+                    {"kind": "text", "text": text}, {"kind": "footer"}]}
+    t.update(over)
+    return t
+
+
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+@unittest.skipUnless(os.environ.get("PGHOST"), "no database (PGHOST unset)")
+class SaveBlocksTest(unittest.TestCase):
+    def setUp(self):
+        self.conn = psycopg.connect(row_factory=dict_row)
+        self.addCleanup(self.conn.close)
+        self.addCleanup(self.conn.rollback)
+        self.user = self.conn.execute(
+            "SELECT emp_id FROM users WHERE role = 'system'").fetchone()["emp_id"]
+        self.name = f"t-{uuid.uuid4().hex[:12]}"
+
+    def save(self, template=None, name=UNSET, conn=None):
+        return ts.save_blocks(conn or self.conn, created_by=self.user,
+                              name=self.name if name is UNSET else name,
+                              template=template or block_template())
+
+    def rows(self, name=None):
+        return self.conn.execute(
+            "SELECT * FROM email_templates WHERE lower(template_name) = lower(%s) "
+            "ORDER BY template_id", (name or self.name,)).fetchall()
+
+    def refused(self, template=None, name=UNSET, *words):
+        with self.assertRaises(ts.TemplateRefused) as ctx:
+            self.save(template, name)
+        for w in words:
+            self.assertIn(w, str(ctx.exception))
+        return ctx.exception
+
+    # ---- saving and versioning ----
+
+    def test_the_first_save_stores_the_cleaned_blocks_and_their_compiled_text(self):
+        template_id = self.save()
+        (row,) = self.rows()
+        cleaned = blocks.clean_template(block_template())
+        self.assertEqual(row["template_id"], template_id)
+        self.assertEqual(row["blocks"], cleaned)
+        self.assertEqual((row["subject"], row["body"]), blocks.compile_blocks(cleaned))
+        self.assertTrue(row["is_active"])
+        self.assertIsNone(row["supersedes_id"])
+        self.assertEqual(row["created_by"], self.user)
+
+    def test_saving_the_same_template_again_changes_nothing(self):
+        first = self.save()
+        self.assertEqual(self.save(), first)
+        self.assertEqual(self.save(blocks.clean_template(block_template())), first)
+        self.assertEqual(len(self.rows()), 1)
+
+    def test_a_changed_block_supersedes_and_retires_the_old_version(self):
+        first = self.save()
+        second = self.save(block_template("Different words"))
+        self.assertNotEqual(first, second)
+        old, new = self.rows()
+        self.assertEqual(new["supersedes_id"], first)
+        self.assertFalse(old["is_active"])
+        self.assertTrue(new["is_active"])
+        self.assertEqual(old["blocks"]["blocks"][1]["text"], "Hello")      # old source untouched
+        self.assertIn("Hello", old["body"])
+        self.assertIn("Different words", new["body"])
+        self.assertEqual(len([r for r in self.rows() if r["is_active"]]), 1)
+
+    def test_the_description_is_carried_to_the_new_version(self):
+        first = self.save()
+        ts.set_description(self.conn, first, "A note")
+        self.save(block_template("Different words"))
+        self.assertEqual(self.rows()[-1]["description"], "A note")
+
+    def test_a_change_to_the_blocks_alone_is_a_new_version(self):
+        subject, body = blocks.compile_blocks(block_template())
+        first = ts.ensure_current(self.conn, created_by=self.user, name=self.name,
+                                  subject_src=subject, body_src=body, blocks={"a": 1})
+        again = ts.ensure_current(self.conn, created_by=self.user, name=self.name,
+                                  subject_src=subject, body_src=body, blocks={"a": 1})
+        other = ts.ensure_current(self.conn, created_by=self.user, name=self.name,
+                                  subject_src=subject, body_src=body, blocks={"a": 2})
+        self.assertEqual(first, again)
+        self.assertNotEqual(first, other)
+
+    def test_the_built_in_path_still_stores_no_blocks(self):
+        template_id = ts.ensure_current(self.conn, created_by=self.user, name=self.name)
+        row = self.conn.execute("SELECT blocks FROM email_templates WHERE template_id = %s",
+                                (template_id,)).fetchone()
+        self.assertIsNone(row["blocks"])
+
+    # ---- names ----
+
+    def test_bad_names_are_refused_and_nothing_is_saved(self):
+        for bad in ("", "two words", "a/b", "x" * 41, "café", None, 5, "a'b"):
+            self.refused(None, bad)
+        self.assertEqual(self.rows(), [])
+
+    def test_the_built_in_name_is_reserved_in_any_case(self):
+        for name in ("hail_alert", "HAIL_ALERT", "Hail_Alert"):
+            self.refused(None, name, "built-in")
+
+    def test_a_forty_character_name_is_allowed(self):
+        name = uuid.uuid4().hex + "-" * 8                # 40 characters
+        self.assertEqual(len(name), 40)
+        self.save(name=name)
+        self.assertEqual(len(self.rows(name)), 1)
+
+    def test_a_name_differing_only_in_case_is_refused_naming_the_existing_one(self):
+        self.save(name=f"Zz-{self.name}")
+        err = self.refused(None, f"zz-{self.name}")
+        self.assertIn(f"Zz-{self.name}", str(err))
+        self.assertEqual(len(self.rows(f"Zz-{self.name}")), 1)
+        self.save(block_template("Different words"), name=f"Zz-{self.name}")   # the exact name edits
+        self.assertEqual(len(self.rows(f"Zz-{self.name}")), 2)
+
+    # ---- images ----
+
+    def test_a_missing_image_is_refused_by_name(self):
+        t = block_template()
+        t["blocks"].insert(0, {"kind": "image", "image": "no-such-image"})
+        self.refused(t, UNSET, "no-such-image")
+        self.assertEqual(self.rows(), [])
+
+    def test_a_retired_image_is_refused(self):
+        self.conn.execute(
+            "INSERT INTO email_images (name, url, alt_text, created_by, updated_by) "
+            "SELECT 'zz-gone', 'https://x.example.test/g.png', 'g', emp_id, emp_id "
+            "FROM users WHERE role = 'system'")
+        t = block_template()
+        t["blocks"].insert(0, {"kind": "image", "image": "zz-gone"})
+        self.save(t)                                     # fine while active
+        self.conn.execute("UPDATE email_images SET is_active = FALSE WHERE name = 'zz-gone'")
+        self.refused(block_template("Different words", blocks=t["blocks"]), UNSET, "zz-gone")
+
+    def test_every_missing_image_is_listed(self):
+        t = block_template()
+        t["blocks"][1:1] = [{"kind": "image", "image": "gone-a"},
+                            {"kind": "badges", "images": ["gone-b", "badge_cra"]}]
+        err = str(self.refused(t))
+        self.assertIn("gone-a", err)
+        self.assertIn("gone-b", err)
+        self.assertNotIn("badge_cra", err)
+
+    # ---- invalid templates ----
+
+    def test_an_invalid_template_is_refused_with_the_reason_and_nothing_is_saved(self):
+        for bad, word in ((block_template(blocks=[{"kind": "text", "text": "x"}]), "footer"),
+                          (block_template("{{ 7*7 }}"), "curly braces"),
+                          (block_template("[b]open"), "never closed"),
+                          (block_template(subject={"text": "{nope}"}), "merge field"),
+                          ("not a template", "settings")):
+            self.refused(bad, UNSET, word)
+        self.assertEqual(self.rows(), [])
+
+    # ---- loading ----
+
+    def test_load_blocks_returns_what_was_saved(self):
+        self.save()
+        self.assertEqual(ts.load_blocks(self.conn, self.name),
+                         blocks.clean_template(block_template()))
+
+    def test_load_blocks_follows_the_active_version(self):
+        self.save()
+        self.save(block_template("Different words"))
+        self.assertEqual(ts.load_blocks(self.conn, self.name)["blocks"][1]["text"],
+                         "Different words")
+
+    def test_load_blocks_is_none_for_a_template_not_built_from_blocks(self):
+        ts.ensure_current(self.conn, created_by=self.user, name=self.name,
+                          subject_src=SUBJECT, body_src=BODY)
+        self.assertIsNone(ts.load_blocks(self.conn, self.name))
+
+    def test_load_blocks_for_an_unknown_name(self):
+        with self.assertRaises(ts.TemplateNotFound):
+            ts.load_blocks(self.conn, "no-such-template-" + uuid.uuid4().hex)
+
+    def test_a_saved_block_template_loads_and_renders_for_a_send(self):
+        from datetime import datetime, timezone
+        from decimal import Decimal
+        template_id = self.save()
+        subject_src, body_src, saved_id = ts.load(self.conn, self.name)
+        self.assertEqual(saved_id, template_id)
+        matches = [{"listing_id": 1, "address": "1 Main St", "magnitude": Decimal("1.5"),
+                    "utc_datetime": datetime(2026, 8, 15, 20, 0, tzinfo=timezone.utc),
+                    "distance_miles": Decimal("1")}]
+        context = render.build_context("Pat Jones", matches,
+                                       emailconfig.load_settings(self.conn))
+        subject, html = render.render(subject_src, body_src, context)
+        self.assertEqual(subject, "Storms near 1 homes")
+        self.assertIn(context["logo_url"], html)
+        self.assertIn("Hello", html)
+
+    # ---- the name lock ----
+
+    def test_two_saves_of_a_name_in_different_case_cannot_run_at_once(self):
+        other = psycopg.connect(row_factory=dict_row)
+        self.addCleanup(other.close)
+        self.addCleanup(other.rollback)
+        self.save(name=f"Zz-{self.name}")                # holds the lowercased lock until rollback
+        other.execute("SET lock_timeout = '300ms'")
+        for name in (f"Zz-{self.name}", f"zz-{self.name}"):
+            with self.assertRaises(psycopg.errors.LockNotAvailable, msg=name):
+                self.save(name=name, conn=other)
+            other.rollback()
+            other.execute("SET lock_timeout = '300ms'")
 
 
 if __name__ == "__main__":

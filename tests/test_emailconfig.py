@@ -44,7 +44,8 @@ class _FakeConn:
 
     def execute(self, sql, params=None):
         if "email_images" in sql:
-            return _Result([{"name": n, "url": u} for n, u in self.images.items()])
+            return _Result([{"name": n, "url": u, "alt_text": f"Alt {n}"}
+                            for n, u in self.images.items()])
         return _Result([{"contact_email": "c@example.com", "schedule_url": "https://x.test/s",
                          "from_name": "N", "from_email": "f@example.com",
                          "reply_to": "r@example.com"}])
@@ -61,6 +62,13 @@ class FakeConnTest(unittest.TestCase):
                          ("https://x.test/l.png", "https://x.test/c.png", "https://x.test/b.png"))
         self.assertEqual((got.contact_email, got.schedule_url),
                          ("c@example.com", "https://x.test/s"))
+
+    def test_every_active_image_is_carried_with_its_alt_text(self):
+        urls = {**self.URLS, "spring": "https://x.test/spring.png"}
+        got = emailconfig.load_settings(_FakeConn(urls))
+        self.assertEqual(got.images["spring"], {"url": "https://x.test/spring.png",
+                                                "alt": "Alt spring"})
+        self.assertEqual(set(got.images), set(urls))
 
     def test_a_missing_image_is_loud_and_named(self):
         for gone in self.URLS:
@@ -123,13 +131,67 @@ class DatabaseTest(unittest.TestCase):
                          {"from_name": "Edited Name", "from_email": "from-edited@example.test",
                           "reply_to": "reply-edited@example.test"})
 
-    def test_an_extra_image_is_not_mixed_into_the_required_ones(self):
+    def add_image(self, name, url="https://extra.example.test/x.png", alt="Extra alt"):
         self.conn.execute(
             "INSERT INTO email_images (name, url, alt_text, created_by, updated_by) "
-            "SELECT 'zz-extra', 'https://extra.example.test/x.png', 'x', emp_id, emp_id "
-            "FROM users WHERE role = 'system'")
-        before = emailconfig.load_settings(self.conn)
-        self.assertNotIn("extra.example.test", str(before))
+            "SELECT %s, %s, %s, emp_id, emp_id FROM users WHERE role = 'system'",
+            (name, url, alt))
+
+    def test_an_extra_image_is_available_to_templates_but_not_a_required_field(self):
+        self.add_image("zz-extra")
+        got = emailconfig.load_settings(self.conn)
+        self.assertEqual(got.images["zz-extra"],
+                         {"url": "https://extra.example.test/x.png", "alt": "Extra alt"})
+        for field in ("logo_url", "badge_cra_url", "badge_bbb_url"):
+            self.assertNotIn("extra.example.test", getattr(got, field))
+
+    def test_a_retired_image_is_not_loaded(self):
+        self.add_image("zz-retired")
+        self.conn.execute("UPDATE email_images SET is_active = FALSE WHERE name = 'zz-retired'")
+        self.assertNotIn("zz-retired", emailconfig.load_settings(self.conn).images)
+        self.assertNotIn("zz-retired", emailconfig.load_images(self.conn))
+
+    def test_the_required_images_carry_the_seeded_alt_text(self):
+        images = emailconfig.load_images(self.conn)
+        self.assertEqual(images["logo"]["alt"], "Roof Brokers Inc.")
+        self.assertEqual(images["badge_cra"]["alt"], "CRA Member")
+        self.assertEqual(images["badge_bbb"]["alt"], "BBB Accredited")
+
+    def test_the_block_built_email_renders_from_the_database_images(self):
+        # the whole path: database images -> settings -> context -> compiled blocks -> HTML
+        from datetime import datetime, timezone
+        from decimal import Decimal
+        from hailsys.email import blocks
+        self.add_image("zz-promo", "https://extra.example.test/promo.png", 'Promo "A"')
+        settings = emailconfig.load_settings(self.conn)
+        matches = [{"listing_id": 1, "address": "1 Main St, Denver, CO",
+                    "utc_datetime": datetime(2026, 8, 15, 20, 19, tzinfo=timezone.utc),
+                    "magnitude": Decimal("1.75"), "distance_miles": Decimal("0.4")}]
+        context = render.build_context("Pat Jones", matches, settings)
+        template = {**blocks.HAIL_ALERT_BLOCKS,
+                    "blocks": [{"kind": "image", "image": "zz-promo"}]
+                              + blocks.HAIL_ALERT_BLOCKS["blocks"]}
+        subject, html = blocks.compile_blocks(template)
+        out_subject, out_html = render.render(subject, html, context)
+        self.assertIn(f'src="{settings.logo_url}"', out_html)
+        self.assertIn(f'src="{settings.badge_cra_url}"', out_html)
+        self.assertIn('src="https://extra.example.test/promo.png"', out_html)
+        self.assertIn('alt="Promo &#34;A&#34;"', out_html)
+        self.assertIn("Pat,", out_html)
+        self.assertIn("1 Main St", out_subject)
+
+    def test_an_address_changed_on_the_admin_page_reaches_the_email(self):
+        from datetime import datetime, timezone
+        from decimal import Decimal
+        from hailsys.email import blocks
+        self.set_image("logo", "https://images.example.test/changed-logo.png")
+        context = render.build_context(
+            "Pat", [{"listing_id": 1, "address": "1 Main St", "magnitude": Decimal("1"),
+                     "utc_datetime": datetime(2026, 8, 15, 20, 19, tzinfo=timezone.utc),
+                     "distance_miles": Decimal("1")}], emailconfig.load_settings(self.conn))
+        subject, html = blocks.compile_blocks(blocks.HAIL_ALERT_BLOCKS)
+        self.assertIn('src="https://images.example.test/changed-logo.png"',
+                      render.render(subject, html, context)[1])
 
     def test_a_free_hosting_address_is_refused_on_load(self):
         # The database accepts any https address; the renderer's rule refuses this one.

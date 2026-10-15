@@ -7,6 +7,8 @@
 import re
 import sys
 import unittest
+from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -801,6 +803,64 @@ class GoldenTest(unittest.TestCase):
             if x["kind"] == "badges":
                 used.update(x.get("images", ["badge_cra", "badge_bbb"]))
         self.assertEqual(used, {"logo", "badge_cra", "badge_bbb"})
+
+
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+class ImagesUsedTest(unittest.TestCase):
+    def test_names_from_image_and_badges_blocks(self):
+        t = {"blocks": [{"kind": "image", "image": "logo"}, {"kind": "text", "text": "x"},
+                        {"kind": "badges", "images": ["a", "b"]},
+                        {"kind": "image", "image": "logo"}]}
+        self.assertEqual(b.images_used(t), {"logo", "a", "b"})
+
+    def test_a_badges_block_without_images_uses_the_default_pair(self):
+        self.assertEqual(b.images_used({"blocks": [{"kind": "badges"}]}),
+                         {"badge_cra", "badge_bbb"})
+
+    def test_the_built_in_seed_uses_exactly_its_three(self):
+        self.assertEqual(b.images_used(b.HAIL_ALERT_BLOCKS),
+                         {"logo", "badge_cra", "badge_bbb"})
+
+    def test_a_template_with_no_images(self):
+        self.assertEqual(b.images_used({"blocks": [{"kind": "divider"}]}), set())
+
+    def test_malformed_input_is_tolerated(self):
+        for bad in (None, [], "x", {}, {"blocks": None}, {"blocks": "x"},
+                    {"blocks": [None, 5, "x", {"kind": "image"}, {"kind": "image", "image": 5},
+                                {"kind": "badges", "images": "badge_cra"},
+                                {"kind": "badges", "images": [5, None]}]}):
+            self.assertEqual(b.images_used(bad), set(), repr(bad))
+
+
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+class ContextImagesTest(unittest.TestCase):
+    def settings(self, images):
+        return r.EmailSettings("https://x.test/l.png", "https://x.test/c.png",
+                               "https://x.test/b.png", "e@x.test", "https://x.test/s",
+                               images=images)
+
+    MATCH = [{"listing_id": 1, "address": "1 Main", "magnitude": None,
+              "utc_datetime": datetime(2026, 8, 15, 20, 0, tzinfo=timezone.utc),
+              "distance_miles": Decimal("1")}]
+
+    def test_the_context_carries_the_settings_images(self):
+        images = {"logo": {"url": "https://x.test/l.png", "alt": "L"}}
+        ctx = r.build_context("Pat", self.MATCH, self.settings(images))
+        self.assertEqual(ctx["images"], images)
+
+    def test_settings_without_images_give_an_empty_map(self):
+        self.assertEqual(r.build_context("Pat", self.MATCH, self.settings({}))["images"], {})
+        plain = r.EmailSettings("https://x.test/l.png", "https://x.test/c.png",
+                                "https://x.test/b.png", "e@x.test", "https://x.test/s")
+        self.assertEqual(r.build_context("Pat", self.MATCH, plain)["images"], {})
+
+    def test_the_context_gets_a_copy_so_one_email_cannot_change_the_next(self):
+        images = {"logo": {"url": "https://x.test/l.png", "alt": "L"}}
+        settings = self.settings(images)
+        ctx = r.build_context("Pat", self.MATCH, settings)
+        ctx["images"]["logo"]["alt"] = "changed"
+        ctx["images"]["new"] = {}
+        self.assertEqual(settings.images, {"logo": {"url": "https://x.test/l.png", "alt": "L"}})
 
 
 if __name__ == "__main__":

@@ -623,6 +623,26 @@ def clean_template(template):
     out["blocks"] = cleaned
     return out
 
+
+def images_used(template):
+    """The names of the email images a block template refers to, as a set.
+
+    Reads a template as saved, so it tolerates anything:  used to stop an image being
+    retired while a template needs it."""
+    used = set()
+    blocks = template.get("blocks") if isinstance(template, dict) else None
+    for block in blocks if isinstance(blocks, list) else []:
+        if not isinstance(block, dict):
+            continue
+        if block.get("kind") == "image" and isinstance(block.get("image"), str):
+            used.add(block["image"])
+        elif block.get("kind") == "badges":
+            names = block.get("images", SPECS["badges"]["images"][0])
+            if isinstance(names, list):
+                used.update(n for n in names if isinstance(n, str))
+    return used
+
+
 def compile_blocks(template):
     """(subject_src, body_src) for templatestore and render.  BlockError if anything is wrong,
     including anything render.validate_template refuses."""

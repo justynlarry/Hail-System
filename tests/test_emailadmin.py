@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 try:
     import psycopg
     from psycopg.rows import dict_row
-    from hailsys.email import emailconfig
+    from hailsys.email import emailconfig, templatestore
     from hailsys.queries import emailadmin as ea
     MISSING = None
 except ImportError as exc:
@@ -170,6 +170,96 @@ class EmailAdminTest(unittest.TestCase):
             self.assertTrue(self.image(name)["is_active"])
 
     def test_retiring_an_unknown_image_is_refused(self):
+        with self.assertRaises(ea.EmailAdminError) as ctx:
+            ea.set_image_active(self.conn, self.admin, -1, False)
+        self.assertIn("does not exist", str(ctx.exception))
+
+    # ---- the retire guard (a block template in use keeps its images) ----
+
+    def use_image(self, image_name, template_name=None, kind="image"):
+        """Save an active block template that uses the image.  Returns its name."""
+        template_name = template_name or f"t-{uuid.uuid4().hex[:12]}"
+        use = ({"kind": "image", "image": image_name} if kind == "image"
+               else {"kind": "badges", "images": [image_name]})
+        templatestore.save_blocks(
+            self.conn, created_by=self.system, name=template_name,
+            template={"title": "T", "subject": {"text": "Storms near {total} homes"},
+                      "blocks": [use, {"kind": "text", "text": "Hello"}, {"kind": "footer"}]})
+        return template_name
+
+    def retire(self, row):
+        ea.set_image_active(self.conn, self.admin, row["image_id"], False)
+
+    def test_an_image_an_active_template_uses_cannot_be_retired(self):
+        row = self.add()
+        template = self.use_image(self.name)
+        with self.assertRaises(ea.EmailAdminError) as ctx:
+            self.retire(row)
+        self.assertIn(template, str(ctx.exception))
+        self.assertIn(self.name, str(ctx.exception))
+        self.assertTrue(self.image(self.name)["is_active"])
+        self.assertTrue(ea.fetch_images(self.conn))      # connection still usable
+
+    def test_a_badges_block_counts_as_use(self):
+        row = self.add()
+        template = self.use_image(self.name, kind="badges")
+        with self.assertRaises(ea.EmailAdminError) as ctx:
+            self.retire(row)
+        self.assertIn(template, str(ctx.exception))
+
+    def test_every_template_using_it_is_named(self):
+        row = self.add()
+        first, second = self.use_image(self.name), self.use_image(self.name)
+        with self.assertRaises(ea.EmailAdminError) as ctx:
+            self.retire(row)
+        self.assertIn(first, str(ctx.exception))
+        self.assertIn(second, str(ctx.exception))
+
+    def test_it_can_be_retired_once_the_new_version_stops_using_it(self):
+        row = self.add()
+        template = self.use_image(self.name)
+        self.use_image("logo", template)                  # next version: a different image
+        self.retire(row)
+        self.assertFalse(self.image(self.name)["is_active"])
+
+    def test_an_old_superseded_version_does_not_block(self):
+        row = self.add()
+        template = self.use_image(self.name)
+        templatestore.save_blocks(
+            self.conn, created_by=self.system, name=template,
+            template={"title": "T", "subject": {"text": "Storms near {total} homes"},
+                      "blocks": [{"kind": "text", "text": "No image now"}, {"kind": "footer"}]})
+        self.retire(row)
+        self.assertFalse(self.image(self.name)["is_active"])
+
+    def test_a_template_not_built_from_blocks_does_not_block(self):
+        row = self.add()
+        templatestore.ensure_current(
+            self.conn, created_by=self.system, name=f"t-{uuid.uuid4().hex[:12]}",
+            subject_src="s {{ total }}", body_src=f"<p>{self.name}</p>[[trackingImage]]")
+        self.retire(row)
+        self.assertFalse(self.image(self.name)["is_active"])
+
+    def test_another_templates_image_does_not_block(self):
+        row = self.add()
+        self.use_image("logo")
+        self.retire(row)
+        self.assertFalse(self.image(self.name)["is_active"])
+
+    def test_reactivating_is_never_restricted(self):
+        row = self.add()
+        self.retire(row)
+        ea.set_image_active(self.conn, self.admin, row["image_id"], True)
+        self.assertTrue(self.image(self.name)["is_active"])
+
+    def test_a_required_image_keeps_the_built_in_message_even_when_a_template_uses_it(self):
+        self.use_image("logo")
+        with self.assertRaises(ea.EmailAdminError) as ctx:
+            ea.set_image_active(self.conn, self.admin, self.image("logo")["image_id"], False)
+        self.assertIn("built-in", str(ctx.exception))
+
+    def test_an_unknown_image_still_says_it_does_not_exist(self):
+        self.use_image("logo")
         with self.assertRaises(ea.EmailAdminError) as ctx:
             ea.set_image_active(self.conn, self.admin, -1, False)
         self.assertIn("does not exist", str(ctx.exception))

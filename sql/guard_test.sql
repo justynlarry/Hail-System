@@ -129,6 +129,26 @@ SELECT pg_temp.expect('description over 300 characters refused',
 SELECT pg_temp.expect('body still frozen on an unused template',
   $q$UPDATE email_templates SET body = 'changed'
      WHERE template_name = 'guard-test-unused'$q$, '23001');
+-- blocks (sql/043)
+INSERT INTO email_templates (template_name, subject, body, blocks, created_by)
+VALUES ('guard-test-blocks', 's', 'b', '{"blocks": []}',
+        (SELECT emp_id FROM users ORDER BY emp_id LIMIT 1));
+SELECT pg_temp.expect('blocks must be a JSON object (an array is refused)',
+  $q$INSERT INTO email_templates (template_name, subject, body, blocks, created_by)
+     SELECT 'guard-test-blocks-bad', 's', 'b', '[]', emp_id FROM users
+     ORDER BY emp_id LIMIT 1$q$, '23514');
+SELECT pg_temp.expect('blocks frozen on an existing row',
+  $q$UPDATE email_templates SET blocks = '{"blocks": [1]}'
+     WHERE template_name = 'guard-test-blocks'$q$, '23001');
+SELECT pg_temp.expect('blocks cannot be added to a row that had none',
+  $q$UPDATE email_templates SET blocks = '{}'
+     WHERE template_name = 'guard-test-unused'$q$, '23001');
+SELECT pg_temp.expect('blocks cannot be cleared',
+  $q$UPDATE email_templates SET blocks = NULL
+     WHERE template_name = 'guard-test-blocks'$q$, '23001');
+SELECT pg_temp.expect('a block template can be retired',
+  $q$UPDATE email_templates SET is_active = FALSE
+     WHERE template_name = 'guard-test-blocks'$q$, 'ok');
 SELECT pg_temp.expect('template retire (is_active true -> false)',
   $q$UPDATE email_templates SET is_active = FALSE
      WHERE template_name = 'guard-test'$q$, 'ok');

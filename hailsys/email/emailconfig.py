@@ -12,24 +12,29 @@ from hailsys.email import render
 # Built-in template's fixed image slots: image name -> EmailSettings field.
 REQUIRED_IMAGES = {"logo": "logo_url", "badge_cra": "badge_cra_url", "badge_bbb": "badge_bbb_url"}
 
-_IMAGES_SQL = "SELECT name, url FROM email_images WHERE is_active AND name = ANY(%s)"
+_IMAGES_SQL = "SELECT name, url, alt_text FROM email_images WHERE is_active"
 _SETTINGS_SQL = ("SELECT contact_email, schedule_url, from_name, from_email, reply_to "
                  "FROM settings")
 
 
+def load_images(conn):
+    """{name: {"url", "alt"}} for every active image, for templates built from blocks."""
+    return {r["name"]: {"url": r["url"], "alt": r["alt_text"]}
+            for r in conn.execute(_IMAGES_SQL).fetchall()}
+
+
 def load_settings(conn):
     """The EmailSettings the renderer wants."""
-    urls = {r["name"]: r["url"]
-            for r in conn.execute(_IMAGES_SQL, (list(REQUIRED_IMAGES),)).fetchall()}
-    missing = [name for name in REQUIRED_IMAGES if name not in urls]
+    images = load_images(conn)
+    missing = [name for name in REQUIRED_IMAGES if name not in images]
     if missing:
         raise render.SettingsError(
             f"The email image {', '.join(missing)} is not set up (see Email images on the "
             "admin page)")
     row = conn.execute(_SETTINGS_SQL).fetchone()
-    values = {field: urls[name] for name, field in REQUIRED_IMAGES.items()}
+    values = {field: images[name]["url"] for name, field in REQUIRED_IMAGES.items()}
     return render.EmailSettings(contact_email=row["contact_email"],
-                                schedule_url=row["schedule_url"], **values)
+                                schedule_url=row["schedule_url"], images=images, **values)
 
 
 def load_sender(conn):

@@ -12,15 +12,20 @@ released at commit or rollback, so two sends starting together can't
 each insert a version.
 """
 
+import re
 from pathlib import Path
-import psycopg
 
-from hailsys.email import render
+import psycopg
+from psycopg.types.json import Jsonb
+
+from hailsys.email import blocks as blocklib, emailconfig, render
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 TEMPLATE_NAME = "hail_alert"
 
 MAX_DESCRIPTION = 300
+NAME_RE = re.compile(r"[A-Za-z0-9_-]{1,40}")
+
 
 class TemplateNotFound(LookupError):
     """No active template has this name."""
@@ -29,8 +34,12 @@ class DescriptionFrozen(Exception):
     """The template has been used in an email, so its description can no longer change."""
 
 
+class TemplateRefused(ValueError):
+    """A block template or its name was refused, message states the reason, fit to show."""
+
+
 _ACTIVE_SQL = """
-    SELECT template_id, subject, body, description
+    SELECT template_id, subject, body, blocks, description
       FROM email_templates
     WHERE template_name = %s AND is_active
     ORDER BY template_id DESC
@@ -44,22 +53,27 @@ def load_files():
             (TEMPLATE_DIR / "hail_alert.html").read_text(encoding="utf-8"))
 
 
-def ensure_current(conn, *, created_by, name=TEMPLATE_NAME, subject_src=None, body_src=None):
-    """template_id to put on a send, saving a new version if the text changed."""
+def ensure_current(conn, *, created_by, name=TEMPLATE_NAME, subject_src=None, body_src=None,
+                   blocks=None):
+    """template_id to put on a send, saving a new version if the text changed.
+
+    'blocks' is the block list subject_src and body_src were compiled from (save_blocks passes
+    it).  A change to the blocks alone is also a new version."""
     if subject_src is None or body_src is None:
         subject_src, body_src = load_files()
     render.validate_template(subject_src, body_src)     # refuse to save broken template
 
     conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"email_template:{name}",))
     active = conn.execute(_ACTIVE_SQL, (name,)).fetchone()
-    if active and active["subject"] == subject_src and active["body"] == body_src:
+    if (active and active["subject"] == subject_src and active["body"] == body_src
+            and active["blocks"] == blocks):
         return active["template_id"]
 
     new_id = conn.execute(
-        "INSERT INTO email_templates (template_name, subject, body, created_by, supersedes_id," \
-        "description) "
-        "VALUES(%s, %s, %s, %s, %s, %s) RETURNING template_id",
-        (name, subject_src, body_src, created_by,
+        "INSERT INTO email_templates (template_name, subject, body, blocks, created_by, "
+        "supersedes_id, description) "
+        "VALUES(%s, %s, %s, %s, %s, %s, %s) RETURNING template_id",
+        (name, subject_src, body_src, None if blocks is None else Jsonb(blocks), created_by,
          active["template_id"] if active else None,
          active["description"] if active else None)).fetchone()["template_id"]
         # One activer version per name.  Retiring is one-way.
@@ -67,6 +81,47 @@ def ensure_current(conn, *, created_by, name=TEMPLATE_NAME, subject_src=None, bo
         "UPDATE email_templates SET is_active = FALSE "
         "WHERE template_name = %s AND is_active AND template_id <> %s", (name, new_id))
     return new_id
+
+
+def save_blocks(conn, *, created_by, name, template):
+    """template_id of a saved block template.  A new version if anything changed.  Doesn't commit.
+
+    Stores the cleaned template (every default filled in), so the same template always saves
+    the same row.  Raises TemplateRefused, with a message for a bad or reserved name, a
+    template that does not validate, or an image that is not available."""
+    if not isinstance(name, str) or not NAME_RE.fullmatch(name):
+        raise TemplateRefused("The template name may use letters, digits, hyphens and "
+                              "underscores, up to 40 characters.")
+    if name.lower() == TEMPLATE_NAME:
+        raise TemplateRefused(f"{TEMPLATE_NAME} is the built-in template's name.  Pick another.")
+    try:
+        cleaned = blocklib.clean_template(template)
+        subject_src, body_src = blocklib.compile_blocks(cleaned)
+    except blocklib.BlockError as exc:
+        raise TemplateRefused(str(exc)) from None
+    gone = sorted(blocklib.images_used(cleaned) - set(emailconfig.load_images(conn)))
+    if gone:
+        raise TemplateRefused(f"These images are not available: {', '.join(gone)}.  Add them "
+                              "under Email images on the admin page, or they have been retired.")
+    # Locked on the lowercased name, so "Spring" and "spring" cannot both start a template at
+    # the same moment.  ensure_current takes its own lock on the exact name.
+    conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))",
+                 (f"email_template_name:{name.lower()}",))
+    same = conn.execute("SELECT template_name FROM email_templates "
+                        "WHERE lower(template_name) = lower(%s) LIMIT 1", (name,)).fetchone()
+    if same and same["template_name"] != name:
+        raise TemplateRefused(f"There is already a template named {same['template_name']}. "
+                              "Names ignore upper and lower case.")
+    return ensure_current(conn, created_by=created_by, name=name, subject_src=subject_src,
+                          body_src=body_src, blocks=cleaned)
+
+def load_blocks(conn, name):
+    """The block list the active version of 'name' was built from, or None if it was not built
+    from blocks.  Raises TemplateNotFound for an unknown or retired name."""
+    row = conn.execute(_ACTIVE_SQL, (name,)).fetchone()
+    if row is None:
+        raise TemplateNotFound(name)
+    return row["blocks"]
 
 
 def load(conn, name=TEMPLATE_NAME):
