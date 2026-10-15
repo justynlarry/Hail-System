@@ -395,6 +395,95 @@ class SaveBlocksTest(unittest.TestCase):
         self.assertIn(context["logo_url"], html)
         self.assertIn("Hello", html)
 
+    # ---- a new template must not quietly replace another ----
+
+    def test_must_be_new_refuses_a_name_that_is_active(self):
+        self.save()
+        with self.assertRaises(ts.TemplateRefused) as ctx:
+            ts.save_blocks(self.conn, created_by=self.user, name=self.name,
+                           template=block_template("Different"), must_be_new=True)
+        self.assertIn("already a template named", str(ctx.exception))
+        self.assertIn("make a new version", str(ctx.exception))
+        self.assertEqual(len(self.rows()), 1)
+
+    def test_must_be_new_allows_a_name_nobody_has_and_a_normal_save_still_versions(self):
+        ts.save_blocks(self.conn, created_by=self.user, name=self.name, template=block_template(),
+                       must_be_new=True)
+        self.assertEqual(len(self.rows()), 1)
+        self.save(block_template("Different"))                       # without it: a new version
+        self.assertEqual(len(self.rows()), 2)
+
+    def test_must_be_new_on_a_name_differing_in_case_gives_the_case_message(self):
+        self.save(name=f"Zz-{self.name}")
+        with self.assertRaises(ts.TemplateRefused) as ctx:
+            ts.save_blocks(self.conn, created_by=self.user, name=f"zz-{self.name}",
+                           template=block_template(), must_be_new=True)
+        self.assertIn("ignore upper and lower case", str(ctx.exception))
+
+    def test_a_retired_name_can_be_used_again(self):
+        first = self.save()
+        ts.retire(self.conn, self.name)
+        again = ts.save_blocks(self.conn, created_by=self.user, name=self.name,
+                               template=block_template("Second life"), must_be_new=True)
+        self.assertNotEqual(first, again)
+        old, new = self.rows()
+        self.assertFalse(old["is_active"])
+        self.assertTrue(new["is_active"])
+        self.assertIsNone(new["supersedes_id"])                       # nothing was active to replace
+
+    # ---- active_id and retire ----
+
+    def test_active_id_follows_the_active_version(self):
+        self.assertIsNone(ts.active_id(self.conn, self.name))
+        first = self.save()
+        self.assertEqual(ts.active_id(self.conn, self.name), first)
+        second = self.save(block_template("Different"))
+        self.assertEqual(ts.active_id(self.conn, self.name), second)
+        ts.retire(self.conn, self.name)
+        self.assertIsNone(ts.active_id(self.conn, self.name))
+
+    def test_retiring_makes_the_active_version_inactive_and_nothing_else_changes(self):
+        first = self.save()
+        other = self.save(name=f"{self.name}-b")
+        ts.retire(self.conn, self.name)
+        (row,) = self.rows()
+        self.assertEqual(row["template_id"], first)
+        self.assertFalse(row["is_active"])
+        self.assertEqual(row["blocks"], blocks.clean_template(block_template()))
+        self.assertEqual(ts.active_id(self.conn, f"{self.name}-b"), other)
+
+    def test_a_retired_template_can_no_longer_be_loaded_for_a_send(self):
+        self.save()
+        ts.retire(self.conn, self.name)
+        with self.assertRaises(ts.TemplateNotFound):
+            ts.load(self.conn, self.name)
+        with self.assertRaises(ts.TemplateNotFound):
+            ts.load_blocks(self.conn, self.name)
+
+    def test_retiring_an_unknown_or_already_retired_template(self):
+        with self.assertRaises(ts.TemplateNotFound):
+            ts.retire(self.conn, "no-such-template-" + uuid.uuid4().hex)
+        self.save()
+        ts.retire(self.conn, self.name)
+        with self.assertRaises(ts.TemplateNotFound):
+            ts.retire(self.conn, self.name)
+        for junk in (None, 5, ["a"]):
+            with self.assertRaises(ts.TemplateNotFound):
+                ts.retire(self.conn, junk)
+
+    def test_the_built_in_cannot_be_retired_in_any_case(self):
+        for name in ("hail_alert", "HAIL_ALERT", "Hail_Alert"):
+            with self.assertRaises(ts.TemplateRefused) as ctx:
+                ts.retire(self.conn, name)
+            self.assertIn("built-in", str(ctx.exception))
+
+    def test_a_retired_template_cannot_be_revived_by_the_database(self):
+        self.save()
+        ts.retire(self.conn, self.name)
+        with self.assertRaises(psycopg.errors.RestrictViolation):
+            self.conn.execute("UPDATE email_templates SET is_active = TRUE "
+                              "WHERE template_name = %s", (self.name,))
+
     # ---- the name lock ----
 
     def test_two_saves_of_a_name_in_different_case_cannot_run_at_once(self):

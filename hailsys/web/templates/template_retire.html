@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Retire {{ row.template_name }}{% endblock %}
+{% block heading %}Retire {{ row.template_name }}?{% endblock %}
+
+{% block content %}
+<div class="page">
+<p>
+    <strong>{{ row.template_name }}</strong>{% if row.description %} &mdash; {{ row.description }}{% endif %}<br>
+    {{ row.versions }} version{{ '' if row.versions == 1 else 's' }}, sent in {{ row.sends }}
+    send{{ '' if row.sends == 1 else 's' }}{% if row.last_used %}, last on
+    {{ row.last_used.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}.
+</p>
+<p class="note warning">
+    Retiring removes it from the Send page, so it can no longer be chosen. It cannot be undone
+    here: the way back is a new template with the same name, which starts a new version.
+    Emails already sent keep their exact text and are not affected.
+</p>
+<form method="post" action="{{ url_for('emailtpl.retire', name=row.template_name) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit">Retire {{ row.template_name }}</button>
+    <a href="{{ url_for('emailtpl.index') }}">Cancel</a>
+</form>
+</div>
+{% endblock %}

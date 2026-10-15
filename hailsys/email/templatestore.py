@@ -83,12 +83,14 @@ def ensure_current(conn, *, created_by, name=TEMPLATE_NAME, subject_src=None, bo
     return new_id
 
 
-def save_blocks(conn, *, created_by, name, template):
+def save_blocks(conn, *, created_by, name, template, must_be_new=False):
     """template_id of a saved block template.  A new version if anything changed.  Doesn't commit.
 
     Stores the cleaned template (every default filled in), so the same template always saves
     the same row.  Raises TemplateRefused, with a message for a bad or reserved name, a
-    template that does not validate, or an image that is not available."""
+    template that does not validate, or an image that is not available.
+    With must_be_new, an active template of that name is refused, a new template must not
+    quietly become a new version of another."""
     if not isinstance(name, str) or not NAME_RE.fullmatch(name):
         raise TemplateRefused("The template name may use letters, digits, hyphens and "
                               "underscores, up to 40 characters.")
@@ -112,6 +114,11 @@ def save_blocks(conn, *, created_by, name, template):
     if same and same["template_name"] != name:
         raise TemplateRefused(f"There is already a template named {same['template_name']}. "
                               "Names ignore upper and lower case.")
+    if must_be_new and conn.execute(
+        "SELECT 1 FROM email_templates WHERE lower(template_name) = lower(%s) AND is_active",
+        (name,)).fetchone():
+        raise TemplateRefused(f"There is already a template named {name}.  Open it from the "
+                              "list to make a new version.")
     return ensure_current(conn, created_by=created_by, name=name, subject_src=subject_src,
                           body_src=body_src, blocks=cleaned)
 
@@ -122,6 +129,26 @@ def load_blocks(conn, name):
     if row is None:
         raise TemplateNotFound(name)
     return row["blocks"]
+
+
+def active_id(conn, name):
+    """template_id of the active version of 'name', or None."""
+    row = conn.execute(_ACTIVE_SQL, (name,)).fetchone()
+    return row["template_id"] if row else None
+
+
+def retire(conn, name):
+    """Retire the active version of 'name'.  One-way.  Never commits.  Raises TemplateRefused
+    for the built-in, TemplateNotFound if nothing is active."""
+    if not isinstance(name, str):
+        raise TemplateNotFound(name)
+    if name.lower() == TEMPLATE_NAME:
+        raise TemplateRefused(f"{TEMPLATE_NAME} is the built-in template and cannot be retired.")
+    conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"email_template:{name}",))
+    cur = conn.execute("UPDATE email_templates SET is_active = FALSE "
+                       "WHERE template_name = %s AND is_active", (name,))
+    if cur.rowcount == 0:
+        raise TemplateNotFound(name)
 
 
 def load(conn, name=TEMPLATE_NAME):

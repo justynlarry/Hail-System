@@ -26,7 +26,10 @@
                 {{ r.created_at.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</td>
             <td>{% if r.last_used %}{{ r.last_used.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</td>
             <td>{{ r.sends }}</td>
-            <td>{% if r.has_blocks and r.template_name != builtin_name %}<a href="{{ url_for('emailtpl.edit', name=r.template_name) }}">Edit</a>{% endif %}</td>
+            <td>
+                {% if r.has_blocks and r.template_name != builtin_name %}<a href="{{ url_for('emailtpl.edit', name=r.template_name) }}">Edit</a>{% endif %}
+                {% if r.template_name != builtin_name and r.versions %}<a href="{{ url_for('emailtpl.retire_confirm', name=r.template_name) }}">Retire</a>{% endif %}
+            </td>
         </tr>
         {% endfor %}
     </tbody>

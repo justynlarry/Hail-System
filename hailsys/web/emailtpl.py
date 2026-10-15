@@ -6,7 +6,8 @@ action (add, move, remove, preview) to the draft in the form and shows the resul
 saved here.
 """
 
-from flask import Blueprint, abort, jsonify, render_template, request
+from flask import (Blueprint, abort, flash, jsonify, redirect, render_template, request, session,
+                   url_for)
 
 from hailsys.db import get_connection
 from hailsys.email import (blockform, blocks, emailconfig, preview, render, samples,
@@ -76,6 +77,29 @@ def _apply(draft, action, add_kind):
         return blockform.move_block(draft, index, -1 if verb == "up" else 1), None
     return draft, None
 
+def _save(draft, name, is_new):
+    """(a redirect, None) after a save that worked, or (None, a notice) when it was refused."""
+    try:
+        blocks.clean_template(draft)
+    except blocks.BlockError:
+        return None, "Not saved.  Fix the problems marked below."
+    with get_connection() as conn:
+        try:
+            before = None if is_new else templatestore.active_id(conn, name)
+            saved = templatestore.save_blocks(conn, created_by=session["emp_id"], name=name,
+                                              template=draft, must_be_new=is_new)
+        except templatestore.TemplateRefused as exc:
+            conn.rollback()
+            return None, str(exc)
+        conn.commit()
+    if is_new:
+        flash(f"Created {name}.")
+    elif saved == before:
+        flash(f"No changes: {name} is already saved as it is.")
+    else:
+        flash(f"Saved {name} as a new version.")
+    return redirect(url_for("emailtpl.edit", name=name)), None
+
 
 @emailtpl_bp.route("/")
 def index():
@@ -113,15 +137,52 @@ def edit(name):
 @emailtpl_bp.route("/edit", methods=["POST"])
 def act():
     """One editor action on the draft in the form.  A page for a plain request; for a `fetch`
-    request, JSON with the new block list, the new preview and the problems."""
+    request, JSON with the new block list, the new preview and the problems (or, after a save
+    that worked, where to go)."""
     draft = blockform.parse_form(request.form)
-    done, notice = _apply(draft, request.form.get("action", ""), request.form.get("add_kind", ""))
-    context = _context(done, request.form.get("name", ""), request.form.get("mode") == "new",
-                       _situation(request.form.get("situation")), notice)
-    if request.headers.get("X-Requested-With") == "fetch":
+    action = request.form.get("action", "")
+    name = request.form.get("name", "")
+    is_new = request.form.get("mode") == "new"
+    fetch = request.headers.get("X-Requested-With") == "fetch"
+    done, notice = draft, None
+    if action == "save":
+        saved, notice = _save(draft, name, is_new)
+        if saved is not None:
+            return jsonify(redirect=saved.location) if fetch else saved
+    else:
+        done, notice = _apply(draft, action, request.form.get("add_kind", ""))
+    context = _context(done, name, is_new, _situation(request.form.get("situation")), notice)
+    if fetch:
         return jsonify(blocks=render_template("_editor_blocks.html", **context),
                        preview=render_template("_editor_preview.html", **context),
                        problems=[[number, message] for number, message in
                                  context["preview"]["problems"]])
     return render_template("template_edit.html", **context)
 
+
+@emailtpl_bp.route("/retire/<name>")
+def retire_confirm(name):
+    with get_connection() as conn:
+        row = templatelist.fetch_one(conn, name)
+        conn.rollback()
+    if row is None or name.lower() == templatestore.TEMPLATE_NAME:
+        abort(404)
+    return render_template("template_retire.html", row=row, display_tz=DISPLAY_TZ)
+
+
+@emailtpl_bp.route("/retire/<name>", methods=["POST"])
+def retire(name):
+    with get_connection() as conn:
+        try:
+            templatestore.retire(conn, name)
+        except templatestore.TemplateNotFound:
+            conn.rollback()
+            abort(404)
+        except templatestore.TemplateRefused as exc:
+            conn.rollback()
+            flash(str(exc))
+            return redirect(url_for("emailtpl.index"))
+        conn.commit()
+    flash(f"Retired {name}.  It is no longer on the Send page; emails already sent are "
+          "unchanged.")
+    return redirect(url_for("emailtpl.index"))

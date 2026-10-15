@@ -64,6 +64,10 @@
                 formaction="{{ url_for('emailtpl.act') }}#add-block">Add</button>
         <small>New blocks go above the footer.</small>
     </p>
+    <p class="tpl-save">
+        <button type="submit" name="action" value="save"
+                formaction="{{ url_for('emailtpl.act') }}">{% if is_new %}Create template{% else %}Save as a new version{% endif %}</button>
+    </p>
 
     <h3>Preview</h3>
     <p class="tpl-field">
@@ -75,7 +79,12 @@
                 formaction="{{ url_for('emailtpl.act') }}#preview">Show preview</button>
         <small>Stand-in data. No real recipient is read.</small>
     </p>
+    <p class="tpl-save">
+        <button type="submit" name="action" value="save"
+                formaction="{{ url_for('emailtpl.act') }}">{% if is_new %}Create template{% else %}Save as a new version{% endif %}</button>
+    </p>
 </form>
 <div id="preview">{% include "_editor_preview.html" %}</div>
 </div>
+<script src="{{ url_for('static', filename='templates.js') }}" defer></script>
 {% endblock %}

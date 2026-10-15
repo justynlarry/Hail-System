@@ -452,7 +452,7 @@ class EmailTplActionsTest(unittest.TestCase):
             self.assertEqual(self.kinds_in(got["blocks"]), original, repr(action))
 
     def test_preview_and_an_unknown_action_just_show_the_preview(self):
-        for action in ("preview", "", "save", "zzz"):
+        for action in ("preview", "", "zzz", "SAVE", "save "):
             got = self.act(action)
             self.assertIn("<iframe", got["preview"], action)
             self.assertEqual(got["problems"], [])
@@ -561,7 +561,7 @@ class EmailTplActionsTest(unittest.TestCase):
     # ---- safety ----
 
     def test_nothing_is_saved_by_any_action(self):
-        for action in ("add", "up:3", "down:3", "remove:3", "preview", "save"):
+        for action in ("add", "up:3", "down:3", "remove:3", "preview", "zzz"):
             self.act(action, add_kind="text")
         self.save.assert_not_called()
         self.ensure.assert_not_called()
@@ -583,6 +583,301 @@ class EmailTplActionsTest(unittest.TestCase):
                      {"action": "remove:0", "n_blocks": "1", "b0_kind": "zzz"}):
             self.assertEqual(self.post(data).status_code, 200, data)
             self.assertEqual(self.post(data, fetch=True).status_code, 200, data)
+
+
+class FakeConn:
+    """Stands in for the database connection: records commits, so a save can be checked
+    without leaving a row behind (templates can never be deleted)."""
+    def __init__(self):
+        self.commits = 0
+        self.rollbacks = 0
+
+    def commit(self):
+        self.commits += 1
+
+    def rollback(self):
+        self.rollbacks += 1
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+@unittest.skipUnless(os.environ.get("PGHOST") and os.environ.get("FLASK_SECRET_KEY"),
+                     "no database or secret key")
+class EmailTplSaveRetireTest(unittest.TestCase):
+    def setUp(self):
+        with mock.patch("hailsys.web.jobs.sweep_stale_pulls"):
+            self.app = create_app()
+        conn = psycopg.connect(row_factory=dict_row)
+        self.addCleanup(conn.close)
+        self.users = {}
+        for r in conn.execute("SELECT emp_id, role FROM users WHERE is_active "
+                              "AND role IN ('admin', 'sender', 'viewer') ORDER BY emp_id"):
+            self.users.setdefault(r["role"], r["emp_id"])
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        self.fake = FakeConn()
+        stack.enter_context(mock.patch.object(emailtpl, "get_connection", return_value=self.fake))
+        stack.enter_context(mock.patch.object(emailtpl.emailconfig, "load_settings",
+                                              return_value=settings()))
+        stack.enter_context(mock.patch.object(emailtpl.templatestore, "load_blocks",
+                                              return_value=blockform.starter()))
+        self.save = stack.enter_context(mock.patch.object(
+            emailtpl.templatestore, "save_blocks", return_value=11))
+        self.active = stack.enter_context(mock.patch.object(
+            emailtpl.templatestore, "active_id", return_value=10))
+        self.retire = stack.enter_context(mock.patch.object(emailtpl.templatestore, "retire"))
+        self.fetch_one = stack.enter_context(mock.patch.object(
+            emailtpl.templatelist, "fetch_one", return_value=row("spring")))
+        self.fetch_all = stack.enter_context(mock.patch.object(
+            emailtpl.templatelist, "fetch_all",
+            return_value=[row("hail_alert", has_blocks=False), row("spring"), row("fresh", versions=0)]))
+        self.draft = blockform.starter()
+
+    def client_as(self, role="admin"):
+        if role not in self.users:
+            self.skipTest(f"no active {role} user in this database")
+        client = self.app.test_client()
+        with client.session_transaction() as s:
+            s["emp_id"] = self.users[role]
+            s["role"] = role
+            s["user_name"] = "test"
+            s["issued_at"] = datetime.now(timezone.utc).isoformat()
+        return client
+
+    def form(self, draft=None, **over):
+        values = {"mode": "new", "name": "spring", "situation": "one", "action": "save"}
+        values.update(blockform_form(draft or self.draft))
+        values.update(over)
+        return values
+
+    def post(self, path, data=None, role="admin", fetch=False, csrf=False, follow=False):
+        self.app.config["WTF_CSRF_ENABLED"] = csrf
+        headers = {"X-Requested-With": "fetch"} if fetch else {}
+        return self.client_as(role).post(path, data=data or {}, headers=headers,
+                                         follow_redirects=follow)
+
+    # ---- save ----
+
+    def test_a_new_template_is_saved_committed_and_the_user_is_sent_to_it(self):
+        resp = self.post("/templates/edit", self.form())
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp.headers["Location"].endswith("/templates/edit/spring"))
+        self.save.assert_called_once()
+        kwargs = self.save.call_args.kwargs
+        self.assertEqual((kwargs["name"], kwargs["must_be_new"]), ("spring", True))
+        self.assertEqual(kwargs["created_by"], self.users["admin"])
+        self.assertEqual(kwargs["template"], blockform.parse_form(self.form()))
+        self.assertEqual(self.fake.commits, 1)
+
+    def test_the_outcome_is_flashed_on_the_next_page(self):
+        text = self.post("/templates/edit", self.form(), follow=True).get_data(as_text=True)
+        self.assertIn("Created spring.", text)
+        self.assertIn("Template: spring", text)
+
+    def test_saving_an_existing_template_says_new_version_or_no_changes(self):
+        values = self.form(mode="edit")
+        text = self.post("/templates/edit", values, follow=True).get_data(as_text=True)
+        self.assertIn("Saved spring as a new version.", text)
+        self.assertFalse(self.save.call_args.kwargs["must_be_new"])
+        self.save.return_value = 10                                   # same as the active one
+        text = self.post("/templates/edit", values, follow=True).get_data(as_text=True)
+        self.assertIn("No changes: spring is already saved as it is.", text)
+
+    def test_a_refused_save_is_shown_with_the_draft_and_is_not_committed(self):
+        self.save.side_effect = emailtpl.templatestore.TemplateRefused("Names ignore case.")
+        values = self.form(title="Kept title")
+        values["b6_text"] = "kept words"
+        resp = self.post("/templates/edit", values)
+        self.assertEqual(resp.status_code, 200)
+        text = resp.get_data(as_text=True)
+        self.assertIn("Names ignore case.", text)
+        self.assertIn('value="Kept title"', text)
+        self.assertIn(">kept words</textarea>", text)
+        self.assertEqual(self.fake.commits, 0)
+
+    def test_an_invalid_draft_is_not_sent_to_the_store_at_all(self):
+        values = self.form()
+        values["b6_text"] = "[b]never closed"
+        text = self.post("/templates/edit", values).get_data(as_text=True)
+        self.save.assert_not_called()
+        self.assertEqual(self.fake.commits, 0)
+        self.assertIn("Not saved.  Fix the problems marked below.", text)
+        block = text[text.index('id="b6"'):text.index('id="b7"')]
+        self.assertIn("never closed", block)
+
+    def test_a_save_by_fetch_answers_with_where_to_go_or_with_the_page_parts(self):
+        got = self.post("/templates/edit", self.form(), fetch=True)
+        self.assertEqual(got.get_json(), {"redirect": "/templates/edit/spring"})
+        self.save.side_effect = emailtpl.templatestore.TemplateRefused("Refused for a reason.")
+        got = self.post("/templates/edit", self.form(), fetch=True).get_json()
+        self.assertIn("Refused for a reason.", got["blocks"])
+        self.assertIn("<iframe", got["preview"])
+
+    def test_save_needs_a_token_and_an_admin(self):
+        self.assertEqual(self.post("/templates/edit", self.form(), csrf=True).status_code, 400)
+        for role in ("viewer", "sender"):
+            if role in self.users:
+                self.assertEqual(self.post("/templates/edit", self.form(), role).status_code, 403)
+        self.save.assert_not_called()
+
+    def test_the_editor_offers_save_at_both_ends_with_the_right_label(self):
+        client = self.client_as()
+        text = client.get("/templates/new").get_data(as_text=True)
+        self.assertEqual(text.count('value="save"'), 2)
+        self.assertEqual(text.count(">Create template<"), 2)
+        text = client.get("/templates/edit/spring").get_data(as_text=True)
+        self.assertEqual(text.count(">Save as a new version<"), 2)
+
+    # ---- retire ----
+
+    def test_the_list_offers_retire_for_saved_templates_except_the_built_in(self):
+        text = self.client_as().get("/templates/").get_data(as_text=True)
+        self.assertIn('href="/templates/retire/spring"', text)
+        self.assertNotIn('href="/templates/retire/hail_alert"', text)
+        self.assertNotIn('href="/templates/retire/fresh"', text)        # never saved: no versions
+
+    def test_the_confirmation_page_says_what_retiring_does(self):
+        text = self.client_as().get("/templates/retire/spring").get_data(as_text=True)
+        self.assertIn("Retire spring?", text)
+        self.assertRegex(text, r"2 versions, sent in 3\s+sends")
+        self.assertIn("2026-10-14", text)
+        self.assertIn("Emails already sent keep their exact text", text)
+        self.assertIn('action="/templates/retire/spring"', text)
+        self.assertIn('name="csrf_token"', text)
+        self.retire.assert_not_called()
+
+    def test_the_retire_form_itself_carries_the_token(self):
+        text = self.client_as().get("/templates/retire/spring").get_data(as_text=True)
+        start = text.index('<form method="post" action="/templates/retire/spring"')
+        form = text[start:text.index("</form>", start)]
+        self.assertIn('name="csrf_token"', form)             # inside this form, not the header's
+        self.assertIn("Retire spring</button>", form)
+
+    def test_the_confirmation_page_is_404_for_the_built_in_or_an_unknown_name(self):
+        self.assertEqual(self.client_as().get("/templates/retire/hail_alert").status_code, 404)
+        self.assertEqual(self.client_as().get("/templates/retire/HAIL_ALERT").status_code, 404)
+        self.fetch_one.return_value = None
+        self.assertEqual(self.client_as().get("/templates/retire/nope").status_code, 404)
+
+    def test_retiring_commits_flashes_and_goes_back_to_the_list(self):
+        resp = self.post("/templates/retire/spring")
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp.headers["Location"].endswith("/templates/"))
+        self.retire.assert_called_once()
+        self.assertEqual(self.retire.call_args.args[1], "spring")
+        self.assertEqual(self.fake.commits, 1)
+        text = self.post("/templates/retire/spring", follow=True).get_data(as_text=True)
+        self.assertIn("Retired spring.", text)
+
+    def test_retiring_an_unknown_template_is_a_404_and_commits_nothing(self):
+        self.retire.side_effect = emailtpl.templatestore.TemplateNotFound("nope")
+        self.assertEqual(self.post("/templates/retire/nope").status_code, 404)
+        self.assertEqual(self.fake.commits, 0)
+
+    def test_retiring_the_built_in_is_refused_with_a_message(self):
+        self.retire.side_effect = emailtpl.templatestore.TemplateRefused("It is the built-in.")
+        resp = self.post("/templates/retire/hail_alert", follow=True)
+        self.assertIn("It is the built-in.", resp.get_data(as_text=True))
+        self.assertEqual(self.fake.commits, 0)
+
+    def test_retiring_needs_a_post_a_token_and_an_admin(self):
+        self.assertEqual(self.post("/templates/retire/spring", csrf=True).status_code, 400)
+        for role in ("viewer", "sender"):
+            if role in self.users:
+                self.assertEqual(self.post("/templates/retire/spring", role=role).status_code, 403)
+                self.assertEqual(self.client_as(role).get("/templates/retire/spring").status_code, 403)
+        self.retire.assert_not_called()
+
+    def test_a_name_with_markup_is_escaped_on_the_confirmation_page(self):
+        self.fetch_one.return_value = row("<b>x<script>alert(1)")
+        text = self.client_as().get("/templates/retire/%3Cb%3Ex").get_data(as_text=True)
+        self.assertNotIn("<b>x", text)
+        self.assertNotIn("<script>alert(1)", text)
+        self.assertIn("&lt;b&gt;x&lt;script&gt;", text)
+
+
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+@unittest.skipUnless(os.environ.get("PGHOST") and os.environ.get("FLASK_SECRET_KEY"),
+                     "no database or secret key")
+class EditorScriptTest(unittest.TestCase):
+    """templates.js has no Node on this machine to run it (tests/js/templates_check.js does, in a
+    container).  These check the script against the page and the server it talks to, so the names
+    cannot drift apart unnoticed."""
+
+    JS = ROOT / "hailsys/web/static/templates.js"
+
+    def setUp(self):
+        with mock.patch("hailsys.web.jobs.sweep_stale_pulls"):
+            self.app = create_app()
+        conn = psycopg.connect(row_factory=dict_row)
+        self.addCleanup(conn.close)
+        self.admin = conn.execute("SELECT emp_id FROM users WHERE role = 'admin' AND is_active "
+                                  "ORDER BY emp_id LIMIT 1").fetchone()["emp_id"]
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(mock.patch.object(emailtpl.emailconfig, "load_settings",
+                                              return_value=settings()))
+        self.client = self.app.test_client()
+        with self.client.session_transaction() as s:
+            s["emp_id"], s["role"], s["user_name"] = self.admin, "admin", "test"
+            s["issued_at"] = datetime.now(timezone.utc).isoformat()
+        self.script = self.JS.read_text(encoding="utf-8")
+
+    def page(self):
+        return self.client.get("/templates/new").get_data(as_text=True)
+
+    def test_the_script_is_served_and_the_editor_page_loads_it_once(self):
+        resp = self.client.get("/static/templates.js")
+        self.assertEqual(resp.status_code, 200)
+        resp.close()
+        self.assertEqual(self.page().count('src="/static/templates.js"'), 1)
+        for path in ("/templates/", "/templates/retire/x"):
+            self.assertNotIn("templates.js", self.client.get(path).get_data(as_text=True))
+
+    def test_every_id_the_script_looks_up_is_on_the_page(self):
+        import re
+        page = self.page()
+        for element_id in re.findall(r"getElementById\('([^']+)'\)", self.script):
+            self.assertIn(f'id="{element_id}"', page, element_id)
+        for element_id in ("add_kind", "situation"):                     # compared by id in change
+            self.assertIn(f"'{element_id}'", self.script)
+            self.assertIn(f'id="{element_id}"', page)
+
+    def test_the_selectors_match_the_markup_the_server_draws(self):
+        page = self.page()
+        self.assertIn("'.block-errors[data-block=\"'", self.script)
+        self.assertIn('<div class="block-errors" data-block="0"></div>', page)
+        self.assertIn("p.error", self.script)
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        broken = self.client.post("/templates/edit", data={"n_blocks": "1", "b0_kind": "text",
+                                                           "b0_text": "[b]x"})
+        self.assertIn('<p class="error">', broken.get_data(as_text=True))
+        self.assertIn("button[name=\"action\"]", self.script)
+        self.assertIn('name="action"', page)
+
+    def test_the_script_talks_to_the_server_the_way_the_server_listens(self):
+        self.assertIn("'X-Requested-With': 'fetch'", self.script)
+        self.assertIn('X-Requested-With") == "fetch"', Path(emailtpl.__file__).read_text())
+        for key in ("blocks", "preview", "problems"):
+            self.assertIn(f"reply.{key}", self.script)
+        self.assertIn("form.getAttribute('action')", self.script)
+        self.assertNotIn("form.action", self.script.replace("form.getAttribute('action')", "")
+                         .replace("so form.action would be", ""))                   # the clobbering trap
+
+    def test_save_is_never_intercepted_and_preview_is(self):
+        self.assertIn("button.value === 'save'", self.script)
+        self.assertIn("send('preview')", self.script)
+
+    def test_no_curly_quotes_or_stray_characters(self):
+        self.assertEqual([c for c in self.script if ord(c) > 127], [])
+        self.assertEqual(self.script.count("{"), self.script.count("}"))
+        self.assertEqual(self.script.count("("), self.script.count(")"))
+        self.assertEqual(self.script.count("["), self.script.count("]"))
 
 
 if __name__ == "__main__":
