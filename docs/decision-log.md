@@ -6945,3 +6945,45 @@ change has a UI access point.
 **Related:** items 192, 194, 203; decision log 2026-10-13.
 
 ---
+
+## 2026-10-15 — Email template builder: the block model, storage and images (item 203, pieces 2 and 3)
+
+Built. A template is an ordered list of blocks that `hailsys/email/blocks.py` compiles into the same
+Jinja `(subject, body)` pair the engine already renders, so the sandbox, `ALLOWED_VARS`,
+`validate_template`, `render` and `sent_emails` are unchanged.
+
+- **Nothing typed becomes template syntax.** Static text is HTML-escaped and its braces are written as
+  character references; merge fields are a fixed list typed `{name}`; inline formatting is an allow-list
+  (`[b]`, `[b=colour]`, `[i]`, `[color=name]`, `[link=https://...]`); `[[` is refused (Constant Contact's
+  tag syntax). Limits: 30 blocks, 2,000 characters a text block, 90,000 bytes of HTML (Gmail clips at about
+  102 KB). The footer (advertisement notice, phone, contact email) is required, once, and last.
+- **The inline markup moved into piece 2** from piece 5: the current template needs bold navy text and a
+  styled link, and the block-built version had to render identically. The palette has seven colours
+  (`slate` added).
+- **A golden test pins it.** `HAIL_ALERT_BLOCKS` builds the built-in email; `tests/test_email_blocks.py`
+  requires the same subject and the same body as the shipped file in four situations (one storm, several
+  storms, "and N more", no first name), after removing comments, unescaping entities and collapsing
+  whitespace around tags.
+- **Images are referenced through the context** (`images['name']['url']` and `['alt']`): `EmailSettings`
+  carries every active image, `build_context` passes it on, so an address changed on the admin page reaches
+  every template.
+- **Storage (`sql/043`).** `email_templates.blocks` (JSONB) holds the block list the compiled `subject` and
+  `body` came from; it is frozen like the other columns by the guard trigger. The compiled text stays what is
+  rendered and sent. The database cannot check that `blocks` compiles to `body`; `templatestore.save_blocks`
+  always compiles from the blocks, and editing recompiles with the current compiler (old rows keep the text
+  they were sent with).
+- **Names:** letters, digits, hyphen and underscore, up to 40, unique ignoring case; `hail_alert` is reserved.
+  A save for a name that matches an existing one in a different case is refused. The lock is on the
+  lowercased name.
+- **A saved template must have its images.** `save_blocks` refuses a missing or retired image by name, and an
+  image that an active block template uses cannot be retired (the three required images keep the database's
+  own refusal).
+- **The built-in `hail_alert` stays file-based** for now (item 220): the rehearsed send path is unchanged.
+- **Not built:** the editor and preview (piece 4), the editor-side help (5), the test send (6). The first
+  production send still needs items 129, 183, 189 and 96; the production box has none of `sql/039` to `043`.
+- Accepted: items 217 (footer phone and template links are content), 218 (a generic render error), 219 (the
+  save-versus-retire race).
+
+**Related:** items 202, 203, 217 to 220; decision log 2026-10-13 and 2026-10-14.
+
+---

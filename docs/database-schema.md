@@ -822,6 +822,7 @@ Message text, versioned. Never edited in place.
 | `is_active` | Available for sending |
 | `created_at`, `created_by` | FK → `users` |
 | `supersedes_id` | Self-FK to the prior version |
+| `blocks` | `JSONB`, nullable, `CHECK` `email_templates_blocks_object` (a JSON object) — added `sql/043_email_template_blocks.sql` (item 203, piece 3). The block list `subject` and `body` were compiled from (`hailsys/email/blocks.py`), for the editor to open again. `NULL` for the built-in `hail_alert` (still rendered from its files) and any template not built from blocks. **Frozen** with the other columns (`email_templates_guard()` refuses a change). The database cannot check that it compiles to `body`; `templatestore.save_blocks` always compiles from it |
 | `description` | `TEXT`, nullable, `CHECK` `email_templates_description_length`: at most 300 characters. Added `sql/041_email_template_description.sql`. A note shown in the template list on the send page, not part of what is sent. **The one text column that can change in place, and only until the template has been used in an email**: `sent_emails` is the record of use, and a queued, sent or discarded email counts. After that the guard refuses a change, and a new version is needed |
 
 **Editing in place is refused by the database**, `sql/030_email_templates_immutable.sql`

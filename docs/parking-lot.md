@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*50 items (counted 2026-10-14 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
+*54 items (counted 2026-10-15 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -3102,7 +3102,9 @@ version from the UI before then.
 
 **Status:** open. **Piece 1 done 2026-10-14** (`sql/042`; `email_images` and the Email section of the admin
 page; the contact email, schedule link and sender moved from the environment to `settings`; decision log
-2026-10-14). Pieces 2 to 6 not started. (filed 2026-10-13, by developer request; shape agreed the same day)
+2026-10-14). **Pieces 2 and 3 done 2026-10-15** (`hailsys/email/blocks.py`, `sql/043`,
+`templatestore.save_blocks`; decision log 2026-10-15). Pieces 4 to 6 not started. (filed 2026-10-13, by
+developer request; shape agreed the same day)
 
 Staff should be able to create a template in the UI, with an image that is already in Constant
 Contact, bold, italic and coloured text, and the other parts of the current template.
@@ -3134,6 +3136,11 @@ not return the HTML, and `sent_emails` must hold the exact HTML, item 180).
   renderer, seeded with the current template; (3) storage and versioning; (4) the editor form
   and preview; (5) the rich-text sanitizer (the security-sensitive part: many XSS tests);
   (6) the test send.
+- **Changed 2026-10-15:** the core of piece 5 (the inline markup converter and its allow-list) moved
+  into piece 2, because the current template needs inline formatting (bold navy, a styled link) for
+  the block-built version to render identically. Piece 5 is now the editor's side of it (formatting
+  help, error display). The palette has seven colours (`slate` was added: the "since 1992" line and
+  the secondary link use it).
 - **Known limit:** email-client rendering cannot be tested here beyond sending test messages;
   the constrained blocks are what keep it safe.
 
@@ -3498,7 +3505,7 @@ the layout was not touched, and item numbers never change.
 
 **Status:** open (found 2026-10-14, while updating `docs/schema-review.md`)
 
-`guard_test.sql` covers `029`, `030`, `033` to `037`, the description rule in `041` and `042` (images and email settings). It has no check for
+`guard_test.sql` covers `029`, `030`, `033` to `037`, the description rule in `041`, `042` (images and email settings) and `043` (`blocks`). It has no check for
 `cc_status_runs_guard()` (`039`: refuses `DELETE`, any change to a finished run, and any change to the identifying
 columns of a running one) or `cc_api_calls_guard()` (`040`: refuses every update and delete), and the grant
 revocations on both tables are not tested either. The two guards are the same pattern as the tested ones
@@ -3548,6 +3555,74 @@ circle claims to show) and draw it in metres. No hard-coded radius in the page.
 anyone changes a radius on the admin page, whichever comes first.
 
 **Related:** `sql/020`; decision log 2026-10-13 (UI access point rule).
+
+## 217. The footer phone and the built-in template's links are template content, not settings
+
+**Status:** open (accepted 2026-10-15)
+
+In the block builder (item 203, pieces 2 and 3) the footer's phone number is a setting of the footer
+block (default `(303) 750-1900`), so it is not hard-coded in code. The other fixed text of the
+built-in template (the `Account/LoginRegister` button address and the birdeye "See more reviews"
+address) now lives in the seed `HAIL_ALERT_BLOCKS`
+(`hailsys/email/blocks.py`) as block settings. None of these is an admin-page setting.
+
+Accepted: a template author edits them per template in the editor (piece 4). A site-wide change
+(RBI's phone or review page moves) means editing each template, saved as a new version.
+
+**When:** a second template needs a different value, or RBI changes the phone or either link: then
+decide whether they become `settings` columns with an admin-page access point.
+
+**Related:** item 203; decision log 2026-10-15.
+
+## 218. A broken image address fails a render with a generic error
+
+**Status:** open (accepted 2026-10-15)
+
+A block template names images by name (`images['logo']['url']`). `save_blocks` refuses a name that is
+missing or retired, and an image in use by an active template cannot be retired (piece 3), so a
+missing image should not reach a send. What can still happen: the render fails with only the class
+name (`render.render` reports "template could not be rendered (UndefinedError)" on purpose, because
+the message can quote context values), so the cause is not visible.
+
+**When:** piece 4's preview: show the real cause (which image name is unavailable) in the preview,
+which does not send, rather than the generic message.
+
+**Related:** items 203, 202; `hailsys/email/render.py`.
+
+## 219. Saving a template and retiring an image in the same instant can slip past the guard
+
+**Status:** open (accepted 2026-10-15)
+
+`save_blocks` checks that its images are active, and `set_image_active` checks that no active block
+template uses the image, but neither holds a lock across the other. If an admin saves a template that
+uses an image while another admin retires it, both checks can pass, and the template then names a
+retired image. The failure is loud, not silent: every email of that template fails to render and is
+skipped as "unrenderable" (ids only), and the template's preview shows the error.
+
+Closing it: `save_blocks` takes `FOR SHARE` on the image rows it uses, and `set_image_active` takes
+`FOR UPDATE` on the image row before its template check.
+
+**When:** more than two people edit templates and images at once, or a template ever fails to render
+because of a retired image.
+
+**Related:** items 203, 218.
+
+## 220. Move the built-in `hail_alert` from its files onto blocks
+
+**Status:** open (filed 2026-10-15)
+
+The built-in template still renders from `hailsys/email/templates/hail_alert.html` and
+`hail_alert_subject.txt`, and `ensure_current` saves it on the first send. `HAIL_ALERT_BLOCKS`
+builds the same email, and the golden test (`tests/test_email_blocks.py`) requires identical
+output in four situations. Leaving the file-based path alone kept the rehearsed send path
+unchanged while the builder was built.
+
+**When:** after the first production send, once the editor has been used for a real template.
+Then retire the files: the built-in becomes a saved block template, and `load_files`,
+`TEMPLATE_NAME`'s special case and the "file_changed" badge go.
+
+**Related:** items 202, 203; decision log 2026-10-15.
+
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
 **Status:** spike done 2026-10-07; paid-account checks remain (item 183)
