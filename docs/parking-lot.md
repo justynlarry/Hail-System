@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*54 items (counted 2026-10-15 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
+*56 items (counted 2026-10-15 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -3103,7 +3103,9 @@ version from the UI before then.
 **Status:** open. **Piece 1 done 2026-10-14** (`sql/042`; `email_images` and the Email section of the admin
 page; the contact email, schedule link and sender moved from the environment to `settings`; decision log
 2026-10-14). **Pieces 2 and 3 done 2026-10-15** (`hailsys/email/blocks.py`, `sql/043`,
-`templatestore.save_blocks`; decision log 2026-10-15). Pieces 4 to 6 not started. (filed 2026-10-13, by
+`templatestore.save_blocks`; decision log 2026-10-15). **Piece 4 done 2026-10-15** (the admin-only
+`/templates` editor: list, new, edit, preview, save, retire; `hailsys/web/emailtpl.py`, `blockform.py`,
+`preview.py`, `templates.js`; cosmetics in item 221). Pieces 5 and 6 not started. (filed 2026-10-13, by
 developer request; shape agreed the same day)
 
 Staff should be able to create a template in the UI, with an image that is already in Constant
@@ -3622,6 +3624,42 @@ Then retire the files: the built-in becomes a saved block template, and `load_fi
 `TEMPLATE_NAME`'s special case and the "file_changed" badge go.
 
 **Related:** items 202, 203; decision log 2026-10-15.
+
+## 221. The template editor needs a cosmetic pass
+
+**Status:** open (filed 2026-10-15, after the developer's click-through of piece 4: "everything seems
+to work in the UI, it'll need to be cleaned up a bit cosmetically, but it's a good start")
+
+Piece 4 was built for function, with the site's existing styles and a handful of new classes
+(`.tpl-*` in `style.css`). Known roughness:
+- the editor is one long page of plain fields: 17 blocks of the built-in template stack with no way
+  to fold them;
+- labels and help text are bare, and the system blocks (headline, greeting, storm panel, listings)
+  are only marked by a dashed border and a note;
+- Save appears only at the foot of the blocks and after the preview;
+- the preview sits below the form, so a change is made in one place and seen in another;
+- the list page has two small text links (Edit, Retire) and no sorting.
+
+**When:** before the editor is shown to anyone but the developer, or when piece 5 (formatting help)
+adds more to the page, whichever comes first.
+
+**Related:** item 203; decision log 2026-10-15 (piece 4).
+
+## 222. The editor's JavaScript is checked in a container, not in the normal test run
+
+**Status:** open (accepted 2026-10-15)
+
+The host and the `web` image have no Node. `hailsys/web/static/templates.js` is therefore not run by
+`python -m unittest discover`. Its behaviour is checked by `tests/js/templates_check.js` (36 checks
+against a fake page), run in a throwaway `node:22-alpine` container:
+`docker run --rm -v ./hailsys/web/static:/s:ro -v ./tests/js:/t:ro node:22-alpine node /t/templates_check.js`.
+The Python suite checks only that the script's ids, selectors and header match the page and the server.
+A change to `templates.js` that is not followed by the container run is unchecked.
+
+**When:** if the script grows past about 200 lines or a second script appears, add Node to a test image
+and run the JS check from the normal suite.
+
+**Related:** items 203, 221; decision log 2026-10-15 (piece 4).
 
 ## 181. Constant Contact behaviours to verify before the send design is locked
 

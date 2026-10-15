@@ -71,11 +71,13 @@ addresses.
   `listing_freshness_days`. Templates are chosen and described in the UI (item 202). The email
   images, contact email, schedule link and sender identity are edited on the admin page
   (`email_images`, `settings`; item 203 piece 1), not in `docker-compose.yml`.
-- **Template builder (item 203, pieces 1 to 3 of 6; no editor yet).** `hailsys/email/blocks.py` compiles
-  a block list into the Jinja pair the engine renders (typed text is escaped and never becomes template
-  syntax); `templatestore.save_blocks` saves it as a new version with `email_templates.blocks` (`sql/043`).
-  A golden test pins the block-built `hail_alert` to the shipped file. The built-in template still renders
-  from its files (item 220). Not on the production box: `sql/039` to `043`.
+- **Template builder (item 203, pieces 1 to 4 of 6).** `hailsys/email/blocks.py` compiles a block list
+  into the Jinja pair the engine renders (typed text is escaped and never becomes template syntax);
+  `templatestore.save_blocks` saves it as a new version with `email_templates.blocks` (`sql/043`). The
+  admin-only `/templates` editor (`hailsys/web/emailtpl.py`) builds, previews, saves and retires block
+  templates; its JavaScript is checked in a Node container (item 222). A golden test pins the block-built
+  `hail_alert` to the shipped file. The built-in template still renders from its files (item 220). Not on
+  the production box: `sql/039` to `043`. Still to build: formatting help (5) and a test send (6).
 - **Sending and monitoring.** The admin-only `/send` screens (preview, confirm, start,
   batches, resume, discard, bounce check; `cc_status_runs`). A call counter,
   `cc_api_calls`, makes the engine stop at Constant Contact's daily limit (item 191).

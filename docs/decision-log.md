@@ -6987,3 +6987,34 @@ Jinja `(subject, body)` pair the engine already renders, so the sandbox, `ALLOWE
 **Related:** items 202, 203, 217 to 220; decision log 2026-10-13 and 2026-10-14.
 
 ---
+
+## 2026-10-15 — Template editor: pages, preview, save and retire (item 203, piece 4)
+
+Built. An admin-only `/templates` (a link in the nav) where a template is built from blocks, previewed,
+and saved as a new version. The send flow, the engine and `sent_emails` are unchanged: a saved block
+template appears in the Send list like any other.
+
+- **One form, one route.** `POST /templates/edit` takes an action (add, move up, move down, remove,
+  preview, save). Every button is a real submit, so the editor works without JavaScript; with an
+  `X-Requested-With: fetch` header the same route returns JSON (the new block list, the preview, the
+  problems). `static/templates.js` (about 100 lines) only avoids reloads, refreshes the preview after a
+  change, and warns before leaving with unsaved edits. All rules stay on the server.
+- **What is typed stays as typed.** The draft is the parsed form, not a cleaned copy; `BlockError`
+  carries `(block number, message)` pairs so each error appears beside its block. Pressing Enter in a
+  text box presses a hidden, first-in-the-form "Show preview" button, never a block's Remove.
+- **The preview uses the real images and stand-in storm data** in four situations (one storm, several
+  storms, more listings than fit, no first name), in a sandboxed iframe. No recipient or listing is read.
+  A missing image is named against the block that uses it (item 218's generic error never reaches here).
+- **Nothing is saved until Save.** Save checks the draft, then `save_blocks` makes a new version; a new
+  template may not take the name of an active one (`must_be_new`); a name whose templates are all
+  retired can be reused. **Retire** has a confirmation page and a POST, is one-way (the database guard
+  already refuses reviving), refuses the built-in, and removes the template from the Send list; emails
+  already sent are unchanged.
+- **Checking the JavaScript.** There is no Node on the host. `tests/js/templates_check.js` runs the
+  script against a fake page in a throwaway `node:22-alpine` container (item 222); the Python suite
+  cross-checks the script's ids, selectors and header against the page and the server.
+- **Not done:** cosmetics (item 221); the editor-side formatting help (piece 5); the test send (6).
+
+**Related:** items 203, 218, 221, 222; decision log 2026-10-15 (pieces 2 and 3).
+
+---
