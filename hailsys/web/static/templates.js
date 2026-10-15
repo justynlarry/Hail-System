@@ -12,7 +12,8 @@
   var previewBox = document.getElementById('preview');
   var busy = false;      // a button's request is running
   var skip = false;      // a button is being clicked again to submit the page normally
-  var dirty = false;     // edits that have not been saved
+  var dirty = form.dataset.unsaved === '1';   // edits not saved; a page that comes back with
+                                              // your draft (a test send) starts out unsaved
   var latest = 0;        // number of the newest request: an older, slower reply is ignored
   var timer = null;
 
@@ -104,8 +105,10 @@
 
   form.addEventListener('input', function () { dirty = true; });
 
-  // Only a real page submit gets here (Save): the edits are being saved.
-  form.addEventListener('submit', function () { dirty = false; });
+  // Only Save clears the warning.  A test send also submits the page, but the draft stays unsaved.
+  form.addEventListener('submit', function (event) {
+    if (event.submitter && event.submitter.value === 'save') { dirty = false; }
+  });
 
   window.addEventListener('beforeunload', function (event) {
     if (dirty) { event.preventDefault(); event.returnValue = ''; }

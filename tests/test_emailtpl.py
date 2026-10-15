@@ -541,7 +541,7 @@ class EmailTplActionsTest(unittest.TestCase):
     def test_every_block_button_posts_to_the_action_url_with_an_anchor_at_its_block(self):
         import re
         page = self.client_as().get("/templates/new").get_data(as_text=True)
-        self.assertRegex(page, r'<form id="editor" method="post" action="/templates/edit">')
+        self.assertRegex(page, r'<form id="editor" method="post" action="/templates/edit" data-unsaved="0">')
         self.assertIn('name="csrf_token"', page)
         self.assertRegex(page, r'value="up:5"\s+formaction="/templates/edit#b4"')
         self.assertRegex(page, r'value="down:5"\s+formaction="/templates/edit#b6"')
@@ -622,6 +622,7 @@ class EmailTplSaveRetireTest(unittest.TestCase):
         self.addCleanup(stack.close)
         self.fake = FakeConn()
         stack.enter_context(mock.patch.object(emailtpl, "get_connection", return_value=self.fake))
+        stack.enter_context(mock.patch.object(emailtpl, "_my_address", return_value="me@example.test"))
         stack.enter_context(mock.patch.object(emailtpl.emailconfig, "load_settings",
                                               return_value=settings()))
         stack.enter_context(mock.patch.object(emailtpl.templatestore, "load_blocks",
@@ -878,6 +879,231 @@ class EditorScriptTest(unittest.TestCase):
         self.assertEqual(self.script.count("{"), self.script.count("}"))
         self.assertEqual(self.script.count("("), self.script.count(")"))
         self.assertEqual(self.script.count("["), self.script.count("]"))
+
+
+def sent(outcome="accepted", cleanup="deleted", detail=None):
+    return {"outcome": outcome, "recipient": "me@example.test", "subject": "Subj",
+            "cleanup": cleanup, "detail": detail, "campaign_name": "TEST x"}
+
+
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+@unittest.skipUnless(os.environ.get("PGHOST") and os.environ.get("FLASK_SECRET_KEY"),
+                     "no database or secret key")
+class EmailTplTestSendTest(unittest.TestCase):
+    """POST /templates/test.  testsend.send_test is replaced: no Constant Contact call is made,
+    nothing is logged, and nothing depends on the hourly count."""
+
+    def setUp(self):
+        with mock.patch("hailsys.web.jobs.sweep_stale_pulls"):
+            self.app = create_app()
+        conn = psycopg.connect(row_factory=dict_row)
+        self.addCleanup(conn.close)
+        self.users = {}
+        for r in conn.execute("SELECT emp_id, role, emp_email FROM users WHERE is_active "
+                              "AND role IN ('admin', 'sender', 'viewer') ORDER BY emp_id"):
+            self.users.setdefault(r["role"], r["emp_id"])
+            if r["role"] == "admin":
+                self.admin_email = r["emp_email"]
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(mock.patch.object(emailtpl.emailconfig, "load_settings",
+                                              return_value=settings()))
+        stack.enter_context(mock.patch.object(emailtpl.emailconfig, "load_sender",
+                                              return_value={"from_name": "N", "from_email": "f@x.test",
+                                                            "reply_to": "r@x.test"}))
+        self.send = stack.enter_context(mock.patch.object(emailtpl.testsend, "send_test",
+                                                          return_value=sent()))
+        self.save = stack.enter_context(mock.patch.object(emailtpl.templatestore, "save_blocks"))
+        self.api = stack.enter_context(mock.patch("hailsys.constantcontact.api.request"))
+        self.draft = blockform.starter()
+
+    def client_as(self, role="admin"):
+        if role not in self.users:
+            self.skipTest(f"no active {role} user in this database")
+        client = self.app.test_client()
+        with client.session_transaction() as s:
+            s["emp_id"] = self.users[role]
+            s["role"] = role
+            s["user_name"] = "test"
+            s["issued_at"] = datetime.now(timezone.utc).isoformat()
+        return client
+
+    def form(self, **over):
+        values = {"mode": "new", "name": "spring", "situation": "one"}
+        values.update(blockform_form(self.draft))
+        values.update(over)
+        return values
+
+    def post(self, data=None, role="admin", csrf=False):
+        self.app.config["WTF_CSRF_ENABLED"] = csrf
+        return self.client_as(role).post("/templates/test", data=self.form() if data is None else data)
+
+    def text(self, **over):
+        resp = self.post(self.form(**over))
+        self.assertEqual(resp.status_code, 200)
+        return resp.get_data(as_text=True)
+
+    # ---- what the route hands to send_test ----
+
+    def test_the_draft_name_and_situation_reach_the_sender_and_the_user_is_the_signed_in_admin(self):
+        self.text(situation="several")
+        self.send.assert_called_once()
+        kwargs = self.send.call_args.kwargs
+        self.assertEqual(kwargs["user_id"], self.users["admin"])
+        self.assertEqual(kwargs["template"], blockform.parse_form(self.form()))
+        self.assertEqual((kwargs["template_name"], kwargs["situation"]), ("spring", "several"))
+        self.assertEqual(kwargs["sender"]["from_email"], "f@x.test")
+        self.assertEqual(kwargs["settings"].contact_email, "e@x.test")
+
+    def test_the_edited_draft_is_what_is_sent_not_the_starter(self):
+        values = self.form(title="Edited title", preheader="Edited line")
+        values["b6_text"] = "words typed just now"
+        self.post(values)
+        template = self.send.call_args.kwargs["template"]
+        self.assertEqual((template["title"], template["preheader"]), ("Edited title", "Edited line"))
+        self.assertEqual(template["blocks"][6]["text"], "words typed just now")
+
+    def test_a_blank_name_is_passed_as_none(self):
+        self.text(name="")
+        self.assertIsNone(self.send.call_args.kwargs["template_name"])
+
+    def test_nothing_posted_can_choose_the_recipient(self):
+        self.text(recipient="evil@example.test", email="evil@example.test", to="evil@example.test",
+                  email_addresses="evil@example.test", user_id="1", sent_by="1", emp_id="1")
+        kwargs = self.send.call_args.kwargs
+        self.assertNotIn("recipient", kwargs)
+        self.assertEqual(kwargs["user_id"], self.users["admin"])
+        for value in kwargs.values():
+            self.assertNotIn("evil@example.test", repr(value))
+
+    def test_an_unknown_situation_becomes_the_default(self):
+        self.text(situation="<script>")
+        self.assertEqual(self.send.call_args.kwargs["situation"], "one")
+
+    def test_the_route_makes_no_constant_contact_call_of_its_own(self):
+        self.text()
+        self.api.assert_not_called()
+
+    # ---- what the page says ----
+
+    def test_an_accepted_test_says_accepted_is_not_delivered(self):
+        text = self.text()
+        self.assertIn("Test sent to me@example.test.", text)
+        self.assertIn("accepted it, which is not the same as delivered", text)
+        self.assertIn("spam folder", text)
+        self.assertIn('id="test-result"', text)
+
+    def test_an_accepted_test_with_a_campaign_left_behind_says_so(self):
+        self.send.return_value = sent("accepted", "left_behind",
+                                      "The temporary campaign 'TEST x' could not be deleted.  Remove it in Constant Contact.")
+        text = self.text()
+        self.assertIn("Test sent to me@example.test.", text)
+        self.assertIn("could not be deleted", text)
+
+    def test_an_unknown_outcome_says_check_the_inbox_and_that_it_is_not_retried(self):
+        self.send.return_value = sent("unknown", "deleted", "Constant Contact did not answer.")
+        text = self.text()
+        self.assertIn("may or may not have been sent", text)
+        self.assertIn("Constant Contact did not answer.", text)
+        self.assertIn("never retried automatically", text)
+        self.assertNotIn("Test sent to", text)
+
+    def test_a_failed_test_says_it_was_not_sent_and_why(self):
+        self.send.return_value = sent("failed", "none", "Constant Contact refused the request (401, k).")
+        text = self.text()
+        self.assertIn("The test to me@example.test was not sent.", text)
+        self.assertIn("refused the request (401, k)", text)
+        self.assertNotIn("Test sent to", text)
+
+    def test_a_refusal_shows_its_message(self):
+        self.send.side_effect = emailtpl.testsend.TestSendRefused("You have already sent 5 tests in the last hour.")
+        text = self.text()
+        self.assertIn("You have already sent 5 tests in the last hour.", text)
+        self.assertNotIn("Test sent to", text)
+
+    def test_unusable_email_settings_say_sending_is_not_set_up(self):
+        with mock.patch.object(emailtpl.emailconfig, "load_settings",
+                               side_effect=render.SettingsError("The email image logo is not set up")):
+            text = self.text()
+        self.assertIn("Sending is not set up: The email image logo is not set up", text)
+        self.send.assert_not_called()
+
+    def test_the_result_is_escaped(self):
+        self.send.return_value = sent("failed", "none", '<script>alert(1)</script>')
+        text = self.text()
+        self.assertNotIn("<script>alert(1)", text)
+        self.assertIn("&lt;script&gt;alert(1)", text)
+
+    def test_the_draft_stays_on_the_page_as_it_was(self):
+        values = self.form(title="Kept title", mode="edit")
+        values["b6_text"] = "kept words"
+        resp = self.post(values)
+        text = resp.get_data(as_text=True)
+        self.assertIn('value="Kept title"', text)
+        self.assertIn(">kept words</textarea>", text)
+        self.assertIn('<input type="hidden" name="name" value="spring">', text)
+        self.save.assert_not_called()
+
+    # ---- the page itself ----
+
+    def editor(self, path="/templates/new"):
+        page = self.client_as().get(path).get_data(as_text=True)
+        start = page.index('<form id="editor"')
+        return page[start:page.index("</form>", start)]
+
+    def test_the_button_shows_the_admins_own_address_and_is_not_named_action(self):
+        form = self.editor()
+        self.assertIn(f"Send a test to {self.admin_email}</button>", form)
+        button = form[form.index('name="test"') - 40:form.index("Send a test to")]
+        self.assertIn('formaction="/templates/test#test-result"', button)
+        self.assertNotIn('name="action"', button)
+        self.assertNotIn(" disabled", button)
+
+    def test_without_an_address_the_button_is_disabled(self):
+        with mock.patch.object(emailtpl, "_my_address", return_value=None):
+            form = self.editor()
+        self.assertRegex(form, r'name="test" value="1"[^>]*disabled>Send a test to you<')
+
+    def test_the_page_says_it_goes_only_to_you_and_is_not_a_real_send(self):
+        form = self.editor()
+        self.assertIn("to your own address only", form)
+        self.assertIn("It is not a real send.", form)
+        self.assertIn("Up to 5 an hour", form)
+
+    def test_unsaved_is_zero_on_a_fresh_page_and_one_after_a_post(self):
+        self.assertIn('data-unsaved="0"', self.editor())
+        self.assertIn('data-unsaved="1"', self.text())
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        resp = self.client_as().post("/templates/edit", data={**self.form(), "action": "preview"})
+        self.assertIn('data-unsaved="1"', resp.get_data(as_text=True))
+
+    def test_no_result_paragraph_before_a_test(self):
+        self.assertNotIn('id="test-result"', self.editor("/templates/new"))
+
+    def test_other_actions_never_send_a_test(self):
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        client = self.client_as()
+        for action in ("preview", "add", "up:3", "remove:3", "save", "test"):
+            client.post("/templates/edit", data={**self.form(), "action": action, "add_kind": "text"})
+        client.get("/templates/new")
+        self.send.assert_not_called()
+
+    # ---- access ----
+
+    def test_a_test_needs_a_token_and_an_admin_and_a_post(self):
+        self.assertEqual(self.post(csrf=True).status_code, 400)
+        for role in ("viewer", "sender"):
+            if role in self.users:
+                self.assertEqual(self.post(role=role).status_code, 403)
+        self.assertEqual(self.client_as().get("/templates/test").status_code, 405)
+        resp = self.app.test_client().post("/templates/test", data=self.form())
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login", resp.headers["Location"])
+        self.send.assert_not_called()
+
+    def test_odd_forms_do_not_fail(self):
+        for data in ({}, {"n_blocks": "abc"}, {"n_blocks": "99999"}, {"name": "x" * 5000}):
+            self.assertEqual(self.post(data).status_code, 200, data)
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ from flask import (Blueprint, abort, flash, jsonify, redirect, render_template, 
 
 from hailsys.db import get_connection
 from hailsys.email import (blockform, blocks, emailconfig, preview, render, samples,
-                           templatestore)
+                           templatestore, testsend)
 from hailsys.queries import templatelist
 from hailsys.tuning import DISPLAY_TZ
 from hailsys.web.auth import require_role
@@ -44,14 +44,25 @@ def _situation(raw):
     return raw if raw in samples.SITUATIONS else samples.DEFAULT
 
 
-def _context(draft, name, is_new, situation, notice=None):
+def _my_address():
+    """The signed-in admin's email address, shown on the test button (and read again, from the
+    database, by testsend: nothing posted is ever used as the recipient)."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT emp_email FROM users WHERE emp_id = %s",
+                           (session["emp_id"],)).fetchone()
+        conn.rollback()
+    return row["emp_email"] if row else None
+
+
+def _context(draft, name, is_new, situation, notice=None, test_notice=None, unsaved=False):
     """Everything the editor page and its partials show."""
     shown = _preview(draft, situation)
     return {"name": name, "is_new": is_new, "title": draft.get("title", ""),
             "preheader": draft.get("preheader", ""), "subject": blockform.subject_form(draft),
             "block_views": blockform.describe(draft, shown["problems"]), "preview": shown,
             "situations": samples.SITUATIONS, "situation": situation,
-            "addable": blockform.ADDABLE, "notice": notice}
+            "addable": blockform.ADDABLE, "notice": notice, "test_notice": test_notice,
+            "test_address": _my_address(), "unsaved": unsaved}
 
 
 def _editor(draft, name, is_new):
@@ -151,7 +162,8 @@ def act():
             return jsonify(redirect=saved.location) if fetch else saved
     else:
         done, notice = _apply(draft, action, request.form.get("add_kind", ""))
-    context = _context(done, name, is_new, _situation(request.form.get("situation")), notice)
+    context = _context(done, name, is_new, _situation(request.form.get("situation")), notice,
+                       unsaved=True)
     if fetch:
         return jsonify(blocks=render_template("_editor_blocks.html", **context),
                        preview=render_template("_editor_preview.html", **context),
@@ -186,3 +198,40 @@ def retire(name):
     flash(f"Retired {name}.  It is no longer on the Send page; emails already sent are "
           "unchanged.")
     return redirect(url_for("emailtpl.index"))
+
+
+def _test_notice(result):
+    """What the page says after a test send."""
+    where, detail = result["recipient"], result["detail"] or ""
+    if result["outcome"] == "accepted":
+        text = (f"Test sent to {where}.  Constant Contact accepted it, which is not the same as "
+                "delivered: check your inbox and your spam folder.")
+        return f"{text} {detail}".strip() if detail else text
+    if result["outcome"] == "unknown":
+        return (f"The test to {where} may or may not have been sent.  {detail}  Check your inbox "
+                "before trying again: a test is never retried automatically.")
+    return f"The test to {where} was not sent.  {detail}"
+
+
+@emailtpl_bp.route("/test", methods=["POST"])
+def send_test_email():
+    """Send the draft in the form to the signed-in admin's own address.  The page comes
+    back with the draft as it was and the result under the button."""
+    draft = blockform.parse_form(request.form)
+    name = request.form.get("name", "")
+    is_new = request.form.get("mode") == "new"
+    situation = _situation(request.form.get("situation"))
+    try:
+        with get_connection() as conn:
+            settings = emailconfig.load_settings(conn)
+            sender = emailconfig.load_sender(conn)
+            result = testsend.send_test(
+                conn, user_id=session["emp_id"], template=draft, template_name=name or None,
+                situation=situation, settings=settings, sender=sender)
+        notice = _test_notice(result)
+    except testsend.TestSendRefused as exc:
+        notice = str(exc)
+    except render.SettingsError as exc:
+        notice = f"Sending is not set up: {exc}"
+    context = _context(draft, name, is_new, situation, test_notice=notice, unsaved=True)
+    return render_template("template_edit.html", **context)

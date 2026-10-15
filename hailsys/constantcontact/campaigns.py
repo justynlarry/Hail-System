@@ -133,3 +133,16 @@ def wait_until_done(activity_id, *, timeout=600.0, interval=5.0,
 def delete_list(list_id):
     """Asynchronous on their side (202), the contacts stay."""
     api.request("DELETE", f"/contact_lists/{list_id}", expect=(202, 204))
+
+
+def send_test(activity_id, address, message):
+    """Constant Contact's test send of a campaign to one address.  204 means accepted,
+    not delivered (item 186).  Not a send: nothing is scheduled."""
+    api.request("POST", f"/emails/activities/{_need({'id': activity_id}, 'id')}/tests",
+                body={"email_addresses": [address], "personal_message": message},
+                expect=(204,))
+
+
+def delete_campaign(campaign_id):
+    """Remove a campaign (204 for a draft)."""
+    api.request("DELETE", f"/emails/{_need({'id': campaign_id}, 'id')}", expect=(204,))

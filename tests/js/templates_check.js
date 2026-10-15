@@ -7,11 +7,11 @@ let failures = 0;
 function check(cond, what) { if (!cond) { failures++; console.log('FAIL: ' + what); } else { console.log('ok:   ' + what); } }
 const tick = (ms) => new Promise(r => setTimeout(r, ms));
 
-function makePage(fetchImpl) {
+function makePage(fetchImpl, unsaved = '0') {
   const handlers = {}, winHandlers = {}, ids = {};
   const mk = (id) => (ids[id] = {id, innerHTML: '', scrolled: false,
     scrollIntoView() { this.scrolled = true; }});
-  const form = {id: 'editor', getAttribute: (n) => ({action: '/templates/edit'}[n] || null),
+  const form = {id: 'editor', dataset: {unsaved}, getAttribute: (n) => ({action: '/templates/edit'}[n] || null),
     addEventListener: (t, f) => (handlers[t] = f), action: {tagName: 'BUTTON'} /* the clobbering trap */};
   const errorSpots = {0: {children: [], appendChild(p) { this.children.push(p); }}};
   const blocks = mk('blocks'); blocks.errorsRemoved = 0;
@@ -87,7 +87,7 @@ function button(value, extra = {}) {
   p.winHandlers.beforeunload(leave); check(!leave.stopped, 'no warning before any edit');
   p.handlers.input({}); leave = {preventDefault() { this.stopped = true; }};
   p.winHandlers.beforeunload(leave); check(leave.stopped === true && leave.returnValue === '', 'warns after an edit');
-  p.handlers.submit({}); leave = {preventDefault() { this.stopped = true; }};
+  p.handlers.submit({submitter: {value: 'save'}}); leave = {preventDefault() { this.stopped = true; }};
   p.winHandlers.beforeunload(leave); check(!leave.stopped, 'saving clears the warning');
   p.handlers.change({target: {id: 'situation'}}); leave = {preventDefault() { this.stopped = true; }};
   p.winHandlers.beforeunload(leave); check(!leave.stopped, 'changing the situation is not an edit');
@@ -121,6 +121,23 @@ function button(value, extra = {}) {
   check(p.sent.length === 1, 'three quick clicks send one request');
   p.handlers.click(button('add')); await tick(250);
   check(p.sent.length === 2, 'and the next click works once the first is done');
+
+  // 6e. a page that comes back with an unsaved draft starts out unsaved; only Save clears it
+  p = makePage(() => reply({}), '1'); new Function(src)();
+  leave = {preventDefault() { this.stopped = true; }}; p.winHandlers.beforeunload(leave);
+  check(leave.stopped === true, 'a page returned with your draft warns before any new edit');
+  p.handlers.submit({submitter: {value: '1', name: 'test'}});
+  leave = {preventDefault() { this.stopped = true; }}; p.winHandlers.beforeunload(leave);
+  check(leave.stopped === true, 'a test send submit does not clear the warning');
+  p.handlers.submit({});
+  leave = {preventDefault() { this.stopped = true; }}; p.winHandlers.beforeunload(leave);
+  check(leave.stopped === true, 'a submit with no known submitter does not clear it either');
+  p.handlers.submit({submitter: {value: 'save'}});
+  leave = {preventDefault() { this.stopped = true; }}; p.winHandlers.beforeunload(leave);
+  check(!leave.stopped, 'Save clears it');
+  p = makePage(() => reply({}), '0'); new Function(src)();
+  leave = {preventDefault() { this.stopped = true; }}; p.winHandlers.beforeunload(leave);
+  check(!leave.stopped, 'a fresh page does not warn');
 
   // 7. it does nothing on a page without the editor
   global.document = {getElementById: () => null}; global.window = {fetch: true};

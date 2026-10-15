@@ -10,7 +10,7 @@
     press Save.
 </p>
 
-<form id="editor" method="post" action="{{ url_for('emailtpl.act') }}">
+<form id="editor" method="post" action="{{ url_for('emailtpl.act') }}" data-unsaved="{{ 1 if unsaved else 0 }}">
     {# Enter in a text box presses the first submit button in the form.  This one comes first so
        that it is the preview, not some block's Remove. #}
     <button type="submit" name="action" value="preview" class="tpl-default" tabindex="-1"
@@ -79,6 +79,13 @@
                 formaction="{{ url_for('emailtpl.act') }}#preview">Show preview</button>
         <small>Stand-in data. No real recipient is read.</small>
     </p>
+    <p class="tpl-field">
+        <button type="submit" name="test" value="1"
+                formaction="{{ url_for('emailtpl.send_test_email') }}#test-result"{% if not test_address %} disabled{% endif %}>Send a test to {{ test_address or 'you' }}</button>
+        <small>Sends this draft, with the sample storm above, to your own address only, through
+        Constant Contact. Up to 5 an hour. It is not a real send.</small>
+    </p>
+    {% if test_notice %}<p class="note" id="test-result">{{ test_notice }}</p>{% endif %}
     <p class="tpl-save">
         <button type="submit" name="action" value="save"
                 formaction="{{ url_for('emailtpl.act') }}">{% if is_new %}Create template{% else %}Save as a new version{% endif %}</button>
