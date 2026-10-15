@@ -863,5 +863,198 @@ class ContextImagesTest(unittest.TestCase):
         self.assertEqual(settings.images, {"logo": {"url": "https://x.test/l.png", "alt": "L"}})
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+class ErrorPositionTest(unittest.TestCase):
+    """A markup error quotes the place it is (item 203, piece 5.2)."""
+
+    def error(self, text, fn=None):
+        with self.assertRaises(b.BlockError) as ctx:
+            (fn or (lambda t: b.rich(t, "w")))(text)
+        return str(ctx.exception)
+
+    @staticmethod
+    def quote(message):
+        """(the quoted text without its ellipses, cut at the start?, cut at the end?)"""
+        import re
+        found = re.search(r'\((?:at|opened at) "(.*)"\)$', message)
+        assert found, message
+        inner = found.group(1)
+        return inner.removeprefix("...").removesuffix("..."), inner.startswith("..."), inner.endswith("...")
+
+    def check(self, text, must_contain, **kw):
+        message = self.error(text, **kw)
+        inner, _, _ = self.quote(message)
+        collapsed = " ".join(text.split())
+        self.assertIn(inner, collapsed, message)                  # a real piece of the text
+        self.assertIn(must_contain, inner, message)               # and it holds the culprit
+        self.assertLessEqual(len(inner), 35, message)
+        return message
+
+    def test_an_unclosed_tag_quotes_where_it_was_opened(self):
+        text = "Our spring sale: [b]1992 plus more words follow here and keep going on"
+        message = self.check(text, "[b]1992")
+        self.assertIn("[b] is never closed (opened at", message)
+
+    def test_it_is_the_innermost_unclosed_tag_that_is_named(self):
+        message = self.check("[b]one [i]two three four five six seven eight nine ten", "[i]two")
+        self.assertIn("[i] is never closed", message)
+
+    def test_a_stray_closing_tag(self):
+        message = self.check("Hello there [/b] and more", "[/b]")
+        self.assertIn("[/b] does not match an open tag", message)
+
+    def test_a_closing_tag_in_the_wrong_order(self):
+        message = self.check("[b]bold [i]both[/b] end[/i]", "[/b]")
+        self.assertIn("[/b] does not match", message)
+
+    def test_a_closing_tag_with_a_setting(self):
+        self.check("[b]x[/b=navy]", "[/b=navy]")
+
+    def test_nesting_too_deep(self):
+        message = self.check("[b][i][b][i][b]x[/b][/i][/b][/i][/b]", "[b]x")
+        self.assertIn("nested more than 4 deep", message)
+
+    def test_an_unknown_merge_field(self):
+        message = self.check("Dear agent, {nope} was hit by hail near you", "{nope}")
+        self.assertIn("{nope} is not a merge field", message)
+
+    def test_a_merge_field_that_belongs_to_another_place(self):
+        self.check("Hello {agent_first_name}, welcome", "{agent_first_name}")
+
+    def test_a_stray_brace_is_quoted_at_the_brace(self):
+        self.assertIn("a } b", self.check("a } b", "}"))
+        self.check("Plenty of earlier words here, then a { brace and more after it", "{ brace")
+        self.check("closing } first, then {total} fine", "}")
+
+    def test_double_square_brackets(self):
+        message = self.check("see [[trackingImage]] here", "[[trackingImage")
+        self.assertIn("double square brackets", message)
+
+    def test_a_bad_colour_or_link_inside_a_tag(self):
+        self.assertIn("the color must be one of", self.check("text [color=pink]x[/color] tail", "[color=pink]"))
+        self.assertIn("https://", self.check("go [link=http://x.test]here[/link]", "[link=http"))
+        self.assertIn("needs an address", self.check("go [link]here[/link] now", "[link]"))
+        self.check("a [b=#ff0000]x[/b] b", "[b=#ff0000]")
+
+    def test_a_link_inside_a_link(self):
+        message = self.check("[link={schedule_url}]a [link={schedule_url}]b[/link][/link]", "[link={sch")
+        self.assertIn("cannot hold another link", message)
+
+    def test_double_square_brackets_far_into_the_text(self):
+        message = self.check("w" * 80 + " see [[trackingImage]] here " + "w" * 40, "[[trackingImage")
+        self.assertTrue(self.quote(message)[1])                     # the quote was cut at the start
+
+    def test_a_problem_after_a_tag_is_quoted_at_its_own_place_not_the_start_of_the_chunk(self):
+        # the text between tags is checked piece by piece; each piece must know where it begins
+        for tail, culprit in ((" {nope} then more words", "{nope}"), (" a } brace after it", "}"),
+                              (" and {agent_first_name} here", "{agent_first_name}")):
+            text = "[b]" + "x" * 60 + "[/b] " + "y" * 30 + tail
+            message = self.check(text, culprit)
+            self.assertTrue(self.quote(message)[1], message)
+
+    def test_a_stray_brace_before_a_merge_field_in_the_same_stretch(self):
+        message = self.check("w" * 60 + " } " + "{total} and then the rest of it", "w } {total")
+        self.assertTrue(self.quote(message)[1], message)
+
+    def test_a_stray_brace_after_an_earlier_merge_field_in_the_same_stretch(self):
+        message = self.check("{total} " + "w" * 60 + " } " + "{total} end of it all", "w } {total")
+        self.assertTrue(self.quote(message)[1], message)
+
+    def test_a_stray_brace_in_a_stretch_that_follows_several_merge_fields(self):
+        text = "{total}" + "a" * 40 + "{total}" + "w" * 60 + " } " + "{total} end of it all"
+        message = self.check(text, "w } {total")
+        self.assertTrue(self.quote(message)[1], message)
+
+    def test_a_stray_brace_after_a_tag_and_after_merge_fields(self):
+        text = ("q" * 60 + "[b]" + "{total}" + "a" * 40 + "{total}" + "z" * 60 + " } " + "{total} end")
+        self.check(text, "z } {total")
+
+    def test_a_problem_in_the_stretch_after_a_late_tag(self):
+        message = self.check("w" * 60 + "[b]x[/b]" + "y" * 50 + " {nope} " + "[i]z[/i] tail", "{nope}")
+        self.assertTrue(self.quote(message)[1], message)
+
+    def test_a_problem_between_two_tags_not_only_after_the_last(self):
+        message = self.check("[b]x[/b] " + "y" * 50 + " {nope} " + "[i]z[/i] tail", "{nope}")
+        self.assertTrue(self.quote(message)[1], message)
+
+    def test_the_unclosed_tag_is_found_when_other_tags_sit_far_after_it(self):
+        text = "[b]start" + "x" * 70 + "[i]inner[/i]" + "y" * 40
+        message = self.check(text, "[b]start")
+        self.assertIn("[b] is never closed", message)
+
+    def test_a_problem_after_two_tags_is_still_found(self):
+        text = "[b]a[/b] " + "m" * 40 + " [i]b[/i] " + "n" * 40 + " {nope} end"
+        self.check(text, "{nope}")
+
+    def test_the_unclosed_tag_is_the_one_quoted_when_others_were_opened_and_closed_after_it(self):
+        message = self.check("[b]start [i]inner[/i] and then it never closes, long text here", "[b]start")
+        self.assertIn("[b] is never closed", message)
+        message = self.check("[b]one[/b] [i]two [b]three[/b] four and no end to the italic", "[i]two")
+        self.assertIn("[i] is never closed", message)
+
+    def test_the_first_problem_in_reading_order_is_the_one_reported(self):
+        message = self.error("start {first} then {second} and [b]open")
+        self.assertIn("{first}", message)
+        self.assertNotIn("{second}", message.split("(at")[0])
+
+    def test_the_quote_comes_from_the_text_as_it_is_compiled(self):
+        message = self.error("line one\n\n   line   two [b]oops")
+        self.assertIn('"... line two [b]oops"', message)
+        self.assertNotIn("\n", message)
+
+    def test_cutting_marks_appear_only_where_the_text_was_cut(self):
+        _, front, back = self.quote(self.error("a } b"))
+        self.assertEqual((front, back), (False, False))
+        _, front, back = self.quote(self.error("x" * 50 + "[b]y" + "z" * 50))
+        self.assertEqual((front, back), (True, True))
+        _, front, back = self.quote(self.error("[b]" + "y" * 80))
+        self.assertEqual((front, back), (False, True))
+        _, front, back = self.quote(self.error("y" * 80 + " }"))
+        self.assertEqual((front, back), (True, False))
+
+    def test_at_the_very_start_and_the_very_end(self):
+        self.assertTrue(self.quote(self.error("{nope} then some more text after it ends here"))[0].startswith("{nope}"))
+        self.assertTrue(self.quote(self.error("some words before it ends here then }"))[0].endswith("}"))
+
+    def test_non_ascii_text_is_quoted_whole(self):
+        message = self.error("caf\u00e9 \u2019 \u2014 {nope} \u00fcber")
+        self.assertIn("caf\u00e9 \u2019 \u2014 {nope}", message)
+
+    def test_the_plain_text_fields_quote_too(self):
+        for fn in (lambda t: b.plain(t, "title", 100), lambda t: b.plain(t, "subject", 100, subject=True)):
+            message = self.check("hello {oops}", "{oops}", fn=fn)
+            self.assertIn("not a merge field", message)
+            message = self.check("close } here", "}", fn=fn)
+            self.assertIn("curly braces", message)
+
+    def test_a_full_template_reports_the_quote_against_its_block(self):
+        template = {"subject": {"text": "Storms near {total} homes"},
+                    "blocks": [{"kind": "text", "text": "fine"},
+                               {"kind": "text", "text": "Early words then [b]never closed here"},
+                               {"kind": "footer"}]}
+        with self.assertRaises(b.BlockError) as ctx:
+            b.clean_template(template)
+        (number, message), = ctx.exception.problems
+        self.assertEqual(number, 2)
+        self.assertIn('opened at "...ords then [b]never closed here"', message)
+
+    def test_valid_text_is_unchanged(self):
+        text = "Hello [b=navy]{total}[/b] [i]homes[/i] and [link={schedule_url}]book[/link]"
+        self.assertEqual(b.rich(text, "w"),
+                         'Hello <strong style="color:#1b4a80;">{{ total }}</strong> <em>homes</em> and '
+                         '<a href="{{ schedule_url }}" style="' + b.LINK_STYLE + '">book</a>')
+
+    def test_messages_still_hold_their_key_phrases(self):
+        for text, phrase in (("[b]x", "never closed"), ("x[/b]", "does not match"),
+                             ("{nope}", "merge field"), ("a }", "curly braces"),
+                             ("[[x]]", "double square brackets")):
+            self.assertIn(phrase, self.error(text))
+
+    def test_a_quote_with_markup_in_it_is_just_text_in_the_message(self):
+        message = self.error("<script>alert(1)</script> {nope}")
+        self.assertIn("</script> {nope}", message)                # escaping is the page's job
+        self.assertNotIn("\n", message)
+
+
 if __name__ == "__main__":
     unittest.main()

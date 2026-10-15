@@ -69,6 +69,12 @@ def _literal(text):
     return html.escape(text, quote=True).replace("{", "&#123;").replace("}", "&#125;")
 
 
+def _around(text, at, before=10, after=25):
+    """A short quote of `text` around position `at`, for a message that says where."""
+    start, end = max(at - before, 0), min(at + after, len(text))
+    return '"' + ("..." if start else "") + text[start:end] + ("..." if end < len(text) else "") + '"'
+
+
 def _squash(text, limit, where):
     if not isinstance(text, str):
         raise BlockError(f"{where} must be text")
@@ -76,24 +82,35 @@ def _squash(text, limit, where):
     if len(text) > limit:
         raise BlockError(f"{where} is limited to {limit} characters")
     if "[[" in text:
-        raise BlockError(f"{where} may not contain double square brackets")
+        raise BlockError(f"{where} may not contain double square brackets "
+                         f"(at {_around(text, text.index('[['))})")
     return text
 
 
-def _fields(text, where, allowed):
-    """[("text", s) | ("field", name), ...]. Braces are only for merge fields."""
+def _fields(text, where, allowed, base=0, whole=None):
+    """[("text", s) | ("field", name), ...].  Braces are only for merge fields.  `base` is where
+    `text` starts inside `whole` (the full text), so a message can quote the place."""
+    whole = text if whole is None else whole
+
+    def no_braces(chunk, offset):
+        for i, character in enumerate(chunk):
+            if character in "{}":
+                raise BlockError(f"{where}: curly braces are only for merge fields "
+                                 f"(at {_around(whole, offset + i)})")
+
     parts, pos = [], 0
     for m in _TOKEN.finditer(text):
         if m.group(1) not in allowed:
-            raise BlockError(f"{where}: {{{m.group(1)}}} is not a merge field you can use here")
+            raise BlockError(f"{where}: {{{m.group(1)}}} is not a merge field you can use here "
+                             f"(at {_around(whole, base + m.start())})")
+        no_braces(text[pos:m.start()], base + pos)
         parts.append(("text", text[pos:m.start()]))
         parts.append(("field", m.group(1)))
         pos = m.end()
+    no_braces(text[pos:], base + pos)
     parts.append(("text", text[pos:]))
-    for kind, value in parts:
-        if kind == "text" and ("{" in value or "}" in value):
-            raise BlockError(f"{where} curly braces are only for merge fields")
     return parts
+
 
 def plain(text, where, limit, tokens=(), subject=False):
     """Text with merge fields and no formatting, as body source (or subject source)."""
@@ -146,29 +163,37 @@ def _open(name, value, stack, where):
 def rich(text, where):
     """Body source for text with the inline tags and merge fields."""
     text = _squash(text, MAX_TEXT, where)
-    out, stack, pos = [], [], 0
+    out, names, opened, pos = [], [], [], 0
 
-    def emit(chunk):
-        for kind, value in _fields(chunk, where, TEXT_TOKENS):
+    def emit(chunk, base):
+        for kind, value in _fields(chunk, where, TEXT_TOKENS, base, text):
             out.append(_literal(value) if kind == "text" else "{{ " + value + " }}")
 
     for m in _TAG.finditer(text):
-        emit(text[pos:m.start()])
+        emit(text[pos:m.start()], pos)
         pos = m.end()
         closing, name, value = m.group(1) == "/", m.group(2), m.group(3)
+        here = _around(text, m.start())
         if closing:
-            if value is not None or not stack or stack[-1] != name:
-                raise BlockError(f"{where}:[/{name}] does not match an open tag")
-            stack.pop()
+            if value is not None or not names or names[-1] != name:
+                raise BlockError(f"{where}: [/{name}] does not match an open tag (at {here})")
+            names.pop()
+            opened.pop()
             out.append(_CLOSE[name])
         else:
-            if len(stack) >= MAX_NESTING:
-                raise BlockError(F"{where}: tags are nested more than {MAX_NESTING} deep")
-            out.append(_open(name, value, stack, where))
-            stack.append(name)
-    emit(text[pos:])
-    if stack:
-        raise BlockError(f"{where}: [{stack[-1]}] is never closed")
+            if len(names) >= MAX_NESTING:
+                raise BlockError(f"{where}: tags are nested more than {MAX_NESTING} deep "
+                                 f"(at {here})")
+            try:
+                out.append(_open(name, value, names, where))
+            except BlockError as exc:
+                raise BlockError(f"{exc} (at {here})") from None
+            names.append(name)
+            opened.append(m.start())
+    emit(text[pos:], pos)
+    if names:
+        raise BlockError(f"{where}: [{names[-1]}] is never closed "
+                         f"(opened at {_around(text, opened[-1])})")
     return "".join(out)
 
 
