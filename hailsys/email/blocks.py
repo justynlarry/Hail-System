@@ -51,7 +51,15 @@ _CLOSE = {"b": "</strong>", "i": "</em>", "color": "</span>", "link": "</a>"}
 
 
 class BlockError(ValueError):
-    """A template or block is not valid, message says where."""
+    """A template or block is not valid, message says where.
+
+    'problems' is the same information as data:  a list of (block number, message), the
+    number counted from 1, or None for a problem with the template as a whole.  The editor
+    shows each message beside its block."""
+
+    def __init__(self, message, problems=None):
+        super().__init__(message)
+        self.problems = problems if problems is not None else [(None, message)]
 
 
 # ------ text --------------------------
@@ -566,11 +574,11 @@ _FRAME_CLOSE = "</table>\n</td>\n</tr>\n</table>\n</body>\n</html>\n"
 
 # ------ the template -------------------------------------
 
-def _try(problems, fn, *args, **kwargs):
+def _try(problems, fn, *args, _at=None, **kwargs):
     try:
         return fn(*args, **kwargs)
     except BlockError as exc:
-        problems.append(str(exc))
+        problems.append((_at, str(exc)))
         return None
 
 
@@ -582,7 +590,7 @@ def clean_template(template):
     problems = []
     unknown = set(template) - {"title", "preheader", "subject", "blocks"}
     if unknown:
-        problems.append(f"unknown setting(s) {', '.join(sorted(map(str, unknown)))}")
+        problems.append((None, f"unknown setting(s) {', '.join(sorted(map(str, unknown)))}"))
 
     out = {}
     for key, limit, tokens in (("title", MAX_TITLE, ()), ("preheader", MAX_PREHEADER, TEXT_TOKENS)):
@@ -598,28 +606,28 @@ def clean_template(template):
         done = _try(problems, plain, subject["text"], "subject", render.MAX_SUBJECT,
                     TEXT_TOKENS, subject=True)
         if done is not None and not done:
-            problems.append("subject is empty")
+            problems.append((None, "subject is empty"))
         elif done:
             out["subject"] = {"text": subject["text"].strip()}
     else:
-        problems.append("subject must be a preset or some text")
+        problems.append((None, "subject must be a preset or some text"))
 
     blocks = template.get("blocks")
     cleaned = []
     if not isinstance(blocks, list) or not blocks:
-        problems.append("the template needs at least one block")
+        problems.append((None, "the template needs at least one block"))
     elif len(blocks) > MAX_BLOCKS:
-        problems.append(f"a template is limited to {MAX_BLOCKS} blocks")
+        problems.append((None, f"a template is limited to {MAX_BLOCKS} blocks"))
     else:
         for i, block in enumerate(blocks, 1):
-            done = _try(problems, clean_block, block, f"block {i}")
+            done = _try(problems, clean_block, block, f"block {i}", _at=i)
             if done is not None:
                 cleaned.append(done)
         kinds = [b["kind"] for b in cleaned]
         if len(cleaned) == len(blocks) and (kinds.count("footer") != 1 or kinds[-1] != "footer"):
-            problems.append("the footer block is required, once, and must be last")
+            problems.append((None, "the footer block is required, once, and must be last"))
     if problems:
-        raise BlockError("; ".join(problems))
+        raise BlockError("; ".join(message for _, message in problems), problems)
     out["blocks"] = cleaned
     return out
 
