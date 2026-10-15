@@ -4,6 +4,7 @@
         python -m unittest tests.test_email_blocks
 """
 
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -37,7 +38,9 @@ CTX = {"logo_url": "https://x.test/l.png", "badge_cra_url": "https://x.test/c.pn
        "schedule_url": "https://x.test/s", "agent_first_name": "Pat", "storm_count": 1,
        "storm_dates_label": "Aug 15", "largest_hail": '1.5"', "nearest_miles": "0.8",
        "properties": [{"address": "1 Main St"}], "more_count": 0, "total": 1,
-       "images": {"logo": {"url": "https://x.test/logo.png", "alt": 'Logo "A"'}}}
+       "images": {"logo": {"url": "https://x.test/logo.png", "alt": 'Logo "A"'},
+                  "badge_cra": {"url": "https://x.test/c.png", "alt": "CRA Member"},
+                  "badge_bbb": {"url": "https://x.test/b.png", "alt": "BBB Accredited"}}}
 
 
 def body_of(*blks, **over):
@@ -433,6 +436,371 @@ class InjectionTest(unittest.TestCase):
         self.assertEqual(b._literal("{{ x }}"), "&#123;&#123; x &#125;&#125;")
         self.assertNotIn("{", b._literal("{{ x }}{% y %}{# z #}"))
         self.assertNotIn("}", b._literal("{{ x }}{% y %}{# z #}"))
+
+
+SHIPPED = (ROOT / "hailsys/email/templates/hail_alert.html").read_text() if MISSING is None else ""
+
+
+def section(start, end):
+    """The shipped template between two of its '<!-- ---------- NAME' comments."""
+    a = SHIPPED.index(f"<!-- ---------- {start}")
+    return SHIPPED[a:SHIPPED.index(f"<!-- ---------- {end}", a)]
+
+
+def norm(markup):
+    """Markup with comments, entities, whitespace and layout removed, to compare content."""
+    import html as _html
+    markup = re.sub(r"<!--.*?-->", "", markup, flags=re.S)
+    markup = re.sub(r"\s+", " ", _html.unescape(markup))
+    return re.sub(r"\s*([<>])\s*", r"\1", markup).strip()
+
+
+def render_src(src, ctx=None):
+    # the compiled frame defines `multi` before the blocks; do the same here
+    return r._BODY_ENV.from_string("{% set multi = storm_count > 1 %}" + src).render(**(ctx or CTX))
+
+
+def event(date, hail, miles):
+    return {"date": date, "hail_size": hail, "miles": miles}
+
+
+def storm_ctx(properties, storm_count=1, more_count=0, name="Pat", dates="August 15, 2026"):
+    return {**CTX, "agent_first_name": name, "storm_count": storm_count,
+            "storm_dates_label": dates, "largest_hail": '1.75"', "nearest_miles": "0.4 mi",
+            "properties": properties, "more_count": more_count,
+            "total": len(properties) + more_count}
+
+
+STORMS = {
+    "one storm, one listing": storm_ctx(
+        [{"address": "1 Main St, Denver, CO", "events": [event("Aug 15", '1.75"', "0.4 mi")]}]),
+    "several storms and listings": storm_ctx(
+        [{"address": "1 Main St, Denver, CO",
+          "events": [event("Aug 15", '1.75"', "0.4 mi"), event("Aug 21", '1.00"', "2.1 mi")]},
+         {"address": "9 Oak Ave & Co, Aurora, CO", "events": [event("Aug 21", '1.25"', "1.5 mi")]}],
+        storm_count=2, dates="August 15 and August 21, 2026"),
+    "and N more": storm_ctx(
+        [{"address": f"{n} Elm St, Golden, CO", "events": [event("Aug 15", '1.50"', "1.0 mi")]}
+         for n in range(1, 4)], more_count=7),
+    "no first name": storm_ctx(
+        [{"address": "1 Main St, Denver, CO", "events": [event("Aug 15", '1.75"', "0.4 mi")]}],
+        name=""),
+}
+
+
+def blk_dict(kind):
+    return {"kind": kind}
+
+
+def blk(**kw):
+    return b.RENDERERS[kw["kind"]](b.clean_block(kw))
+
+
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+class ShippedMarkupTest(unittest.TestCase):
+    """Each block reproduces the shipped template's markup for the same content."""
+
+    def same(self, ours, theirs):
+        self.assertEqual(norm(ours), norm(theirs))
+
+    def test_cta_button(self):
+        self.same(blk(kind="button", label="SCHEDULE A FREE INSPECTION",
+                      url="https://www.roofbrokersinc.com/Account/LoginRegister"),
+                  section("CTA BUTTON", "SECONDARY LINK"))
+
+    def test_band_with_checklist(self):
+        self.same(blk(kind="band", title="Most of These Are Small",
+                      intro="[b]80% of homes are certifiable as-is[/b] or with minor repair "
+                            "work, and most hail repairs come in under the insurance deductible.",
+                      items=["[b]$35 Five-Year Certification[/b] once it passes",
+                             "Minimum repairs to certify \u2014 we fix what\u2019s necessary, "
+                             "nothing more",
+                             "Rapid-response reporting", "Rush repair scheduling",
+                             "Multiple vendor estimates", "Pay out of closing costs"]),
+                  section("BAND: MINOR DAMAGES", "TESTIMONIAL"))
+
+    def test_testimonial_heading_stars_quote_and_link(self):
+        ours = blk(kind="heading", text="Why Realtors Use Roof Brokers", size=19,
+                   space_before=30, space_after=4) + blk(
+            kind="testimonial",
+            quote="I\u2019ve referred Roof Brokers many times over the years, often numerous "
+                  "times per year when we have had hail storms. They have always been reliable, "
+                  "reasonable and professional. They do what they say they\u2019ll do, often "
+                  "when there is a time crunch.",
+            who="Jeff G., Yelp", more_label="See more reviews",
+            more_url="https://birdeye.com/roof-brokers-inc-145262047197938?rsource=2#reviews")
+        self.same(ours, section("TESTIMONIAL", "DOTTED RULE"))
+
+    def test_badges_render_like_the_shipped_pair(self):
+        ours = render_src(blk(kind="badges"))
+        self.same(ours, render_src(section("BADGES", "AD NOTICE")))
+
+    def test_since_1992_line_is_a_text_block(self):
+        self.same(blk(kind="text", text="Roof Brokers has certified roofs for Denver Metro real "
+                      "estate agents [b=navy]since 1992[/b].", size=14, color="slate",
+                      align="center", space_before=22, space_after=20),
+                  section("SINCE 1992", "BADGES"))
+
+    def test_secondary_link_line_is_a_text_block(self):
+        self.same(blk(kind="text", text="Already have an account? [link={schedule_url}]Schedule "
+                      "a new inspection[/link]", size=15, color="slate", align="center",
+                      space_after=32),
+                  render_src(section("SECONDARY LINK", "BAND: MINOR")).replace(
+                      CTX["schedule_url"], "{{ schedule_url }}"))
+
+    def test_body_copy_and_find_out_now_are_text_blocks(self):
+        self.same(blk(kind="text", text="This came from a public weather record, and while "
+                      "it\u2019s not confirmation that the roof was damaged, it may be worth "
+                      "having a licensed roofer come out to check for damage.", space_after=20)
+                  + blk(kind="text", text="Find out now, while you have time to deal with it.",
+                        color="navy", bold=True, space_after=26),
+                  section("BODY COPY", "CTA BUTTON"))
+
+
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+class MoreBlockSettingsTest(unittest.TestCase):
+    def test_defaults(self):
+        self.assertEqual(b.clean_block({"kind": "heading", "text": "Hi"}),
+                         {"kind": "heading", "text": "Hi", "size": 24, "color": "navy",
+                          "align": "center", "space_before": 0, "space_after": 12})
+        self.assertEqual(b.clean_block({"kind": "badges"}),
+                         {"kind": "badges", "images": ["badge_cra", "badge_bbb"], "width": 140})
+        t = b.clean_block({"kind": "testimonial", "quote": " q ", "who": "w"})
+        self.assertEqual((t["stars"], t["more_label"], t["more_url"], t["quote"]), (5, "", "", "q"))
+        self.assertEqual(b.clean_block({"kind": "button", "label": "Go",
+                                        "url": "https://x.test/"})["space_after"], 16)
+
+    def test_required_settings(self):
+        for bad in ({"kind": "heading"}, {"kind": "heading", "text": " "},
+                    {"kind": "button", "label": "Go"}, {"kind": "button", "url": "https://x.test/"},
+                    {"kind": "band", "title": "t", "intro": "i"},
+                    {"kind": "band", "title": "t", "items": ["a"]},
+                    {"kind": "testimonial", "quote": "q"}, {"kind": "testimonial", "who": "w"}):
+            with self.assertRaises(b.BlockError, msg=repr(bad)):
+                b.clean_block(bad)
+
+    def test_heading_sizes(self):
+        for size in (19, 21, 24):
+            self.assertEqual(b.clean_block({"kind": "heading", "text": "x", "size": size})["size"], size)
+        for bad in (16, 20, "24"):
+            with self.assertRaises(b.BlockError, msg=repr(bad)):
+                b.clean_block({"kind": "heading", "text": "x", "size": bad})
+
+    def test_heading_text_uses_the_inline_markup_rules(self):
+        for bad in ("[b]x", "{nope}", "[[x]]", "a" * 201):
+            with self.assertRaises(b.BlockError, msg=bad):
+                b.clean_block({"kind": "heading", "text": bad})
+
+    def test_button_addresses(self):
+        for ok in ("https://x.test/a", "{schedule_url}"):
+            self.assertEqual(b.clean_block({"kind": "button", "label": "Go", "url": ok})["url"], ok)
+        for bad in ("http://x.test", "javascript:alert(1)", "", "x.test", 5, None,
+                    "https://a.azurewebsites.net/x", "{total}", "https://x.test/a b"):
+            with self.assertRaises(b.BlockError, msg=repr(bad)):
+                b.clean_block({"kind": "button", "label": "Go", "url": bad})
+
+    def test_button_label_is_plain_text(self):
+        for bad in ("[b]x[/b]x{total}", "{{ 7*7 }}", "x" * 41, "[[x]]"):
+            with self.assertRaises(b.BlockError, msg=bad):
+                b.clean_block({"kind": "button", "label": bad, "url": "https://x.test/"})
+        html = blk(kind="button", label="A & <B>", url="https://x.test/")
+        self.assertIn("A &amp; &lt;B&gt;", html)
+
+    def test_button_colour_is_in_both_places(self):
+        html = blk(kind="button", label="Go", url="https://x.test/", color="red")
+        self.assertIn('bgcolor="#c0392b"', html)
+        self.assertIn("background-color:#c0392b", html)
+
+    def test_band_items(self):
+        base = {"kind": "band", "title": "t", "intro": "i"}
+        self.assertEqual(len(b.clean_block({**base, "items": ["a"] * 10})["items"]), 10)
+        for bad in ([], ["a"] * 11, "a", [""], [5], ["[b]x"], ["a" * 201], None):
+            with self.assertRaises(b.BlockError, msg=repr(bad)):
+                b.clean_block({**base, "items": bad})
+        for key, bad in (("title", "x" * 81), ("title", "{total}"), ("intro", "x" * 401),
+                         ("intro", "[b]x")):
+            with self.assertRaises(b.BlockError, msg=key):
+                b.clean_block({**base, "items": ["a"], key: bad})
+
+    def test_band_last_row_has_no_spacing(self):
+        html = blk(kind="band", title="t", intro="i", items=["a", "b"])
+        self.assertEqual(html.count("padding-bottom:10px;"), 2)     # first row only: tick + text
+
+    def test_testimonial_settings(self):
+        base = {"kind": "testimonial", "quote": "q", "who": "w"}
+        for stars in (0, 3, 5):
+            self.assertEqual(b.clean_block({**base, "stars": stars})["stars"], stars)
+        for bad in (-1, 6, "5", True):
+            with self.assertRaises(b.BlockError, msg=repr(bad)):
+                b.clean_block({**base, "stars": bad})
+        for key, bad in (("quote", "x" * 501), ("quote", "{total}"), ("who", "x" * 81),
+                         ("more_label", "x" * 61)):
+            with self.assertRaises(b.BlockError, msg=key):
+                b.clean_block({**base, key: bad})
+
+    def test_testimonial_link_needs_both_parts_and_an_https_address(self):
+        base = {"kind": "testimonial", "quote": "q", "who": "w"}
+        for bad in ({"more_label": "More"}, {"more_url": "https://x.test/"},
+                    {"more_label": "More", "more_url": "http://x.test/"}):
+            with self.assertRaises(b.BlockError, msg=repr(bad)):
+                b.clean_block({**base, **bad})
+        html = blk(**base)
+        self.assertNotIn("<a ", html)
+        self.assertEqual(html.count("&#9733;"), 5)
+        self.assertNotIn("&#9733;", blk(**base, stars=0))
+        self.assertIn("<a ", blk(**base, more_label="More", more_url="https://x.test/"))
+
+    def test_testimonial_star_count_and_row(self):
+        base = {"kind": "testimonial", "quote": "q", "who": "w"}
+        self.assertEqual(blk(**base, stars=3).count("&#9733;"), 3)
+        self.assertNotIn("letter-spacing:3px", blk(**base, stars=0))
+        self.assertIn("letter-spacing:3px", blk(**base, stars=1))
+
+    def test_testimonial_link_can_use_the_schedule_address(self):
+        html = blk(kind="testimonial", quote="q", who="w", more_label="More",
+                   more_url="{schedule_url}")
+        self.assertIn('href="{{ schedule_url }}"', html)
+        self.assertEqual(render_src(html).count('href="https://x.test/s"'), 1)
+
+    def test_testimonial_text_is_escaped(self):
+        html = blk(kind="testimonial", quote="<b>x</b> & y", who='"Z"')
+        self.assertIn("&lt;b&gt;x&lt;/b&gt; &amp; y", html)
+        self.assertNotIn("<b>", html)
+
+    def test_badges_settings(self):
+        for bad in ([], ["a"] * 5, "badge_cra", [5], ["a b"], ["x']}}{{ 7*7 }}{{ y['"], None):
+            with self.assertRaises(b.BlockError, msg=repr(bad)):
+                b.clean_block({"kind": "badges", "images": bad})
+        for width in (38, 202, 141):
+            with self.assertRaises(b.BlockError, msg=repr(width)):
+                b.clean_block({"kind": "badges", "width": width})
+        html = blk(kind="badges", images=["one", "two", "three"], width=100)
+        self.assertEqual(html.count("<img "), 3)
+        self.assertIn("images['three']['url']", html)
+
+    def test_defaults_list_is_not_shared_between_blocks(self):
+        first = b.clean_block({"kind": "badges"})
+        first["images"].append("zzz")
+        self.assertEqual(b.clean_block({"kind": "badges"})["images"], ["badge_cra", "badge_bbb"])
+
+    def test_all_blocks_together_compile_validate_and_render(self):
+        t = tpl({"kind": "heading", "text": "Hi"}, {"kind": "button", "label": "Go",
+                                                      "url": "{schedule_url}"},
+                {"kind": "band", "title": "t", "intro": "i", "items": ["a", "b"]},
+                {"kind": "testimonial", "quote": "q", "who": "w"}, {"kind": "badges"})
+        subject, html = b.compile_blocks(t)
+        out = r.render(subject, html, {**CTX, "images": {
+            "badge_cra": {"url": "https://x.test/c.png", "alt": "C"},
+            "badge_bbb": {"url": "https://x.test/b.png", "alt": "B"}}})[1]
+        self.assertIn('href="https://x.test/s"', out)
+        self.assertEqual(out.count("<img "), 2)
+
+
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+class SystemBlockTest(unittest.TestCase):
+    """The data-driven blocks render exactly what the shipped template renders."""
+
+    PAIRS = (("headline", "HEADLINE", "GREETING"),
+             ("greeting", "GREETING", "THE STORM DATA PANEL"),
+             ("storm_panel", "THE STORM DATA PANEL", "YOUR LISTINGS"),
+             ("listings", "YOUR LISTINGS", "BODY COPY"))
+
+    def test_each_block_matches_the_shipped_section_in_every_situation(self):
+        for kind, start, end in self.PAIRS:
+            for label, ctx in STORMS.items():
+                with self.subTest(block=kind, situation=label):
+                    self.assertEqual(norm(render_src(blk(kind=kind), ctx)),
+                                     norm(render_src(section(start, end), ctx)))
+
+    def test_the_situations_really_differ(self):
+        # guards the test above: the singular/plural and conditional branches are exercised
+        out = {label: render_src(blk(kind="headline") + blk(kind="greeting")
+                                 + blk(kind="listings"), ctx) for label, ctx in STORMS.items()}
+        self.assertIn("Recent Hail Storm Reported Near Your Listing", out["one storm, one listing"])
+        self.assertIn("Storms Reported Near Your Listings", out["several storms and listings"])
+        self.assertIn("reports</span>", out["several storms and listings"])
+        self.assertIn("and 7 more", out["and N more"])
+        self.assertNotIn("and 7 more", out["one storm, one listing"])
+        self.assertIn("Hello,", out["no first name"])
+        self.assertIn("Pat,", out["one storm, one listing"])
+
+    def test_the_blocks_take_no_settings(self):
+        for kind in ("headline", "greeting", "storm_panel", "listings"):
+            self.assertEqual(b.clean_block({"kind": kind}), {"kind": kind})
+            with self.assertRaises(b.BlockError, msg=kind):
+                b.clean_block({"kind": kind, "text": "reworded"})
+
+    def test_values_from_the_data_are_escaped(self):
+        ctx = storm_ctx([{"address": "<script>x</script>", "events": [event("d", "h", "m")]}],
+                        name="<i>Pat</i>")
+        out = render_src(blk(kind="greeting") + blk(kind="listings"), ctx)
+        self.assertNotIn("<script", out)
+        self.assertNotIn("<i>", out)
+        self.assertIn("&lt;script&gt;", out)
+
+    def test_a_missing_storm_field_fails_loudly(self):
+        for kind, field in (("headline", "storm_dates_label"), ("storm_panel", "largest_hail"),
+                            ("storm_panel", "nearest_miles"), ("listings", "properties")):
+            subject, html = b.compile_blocks(tpl(blk_dict(kind)))
+            ctx = {k: v for k, v in STORMS["one storm, one listing"].items() if k != field}
+            with self.assertRaises(r.RenderError, msg=f"{kind} without {field}"):
+                r.render(subject, html, ctx)
+
+    def test_a_full_storm_email_compiles_validates_and_renders(self):
+        kinds = ("headline", "greeting", "storm_panel", "listings")
+        subject, html = b.compile_blocks(tpl(*[blk_dict(k) for k in kinds]))
+        out = r.render(subject, html, STORMS["several storms and listings"])[1]
+        self.assertIn("Recent Hail Storms Reported Near Your Listings", out)
+        self.assertIn("9 Oak Ave &amp; Co", out)
+
+
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
+class GoldenTest(unittest.TestCase):
+    """The built-in template, built from blocks, is the shipped template (item 203, piece 2)."""
+
+    @staticmethod
+    def with_images(ctx):
+        # the images the built-in template needs, as the admin page seeds them
+        return {**ctx, "images": {
+            "logo": {"url": ctx["logo_url"], "alt": "Roof Brokers Inc."},
+            "badge_cra": {"url": ctx["badge_cra_url"], "alt": "CRA Member"},
+            "badge_bbb": {"url": ctx["badge_bbb_url"], "alt": "BBB Accredited"}}}
+
+    def test_block_built_email_matches_the_shipped_file_in_every_situation(self):
+        subject_src, body_src = b.compile_blocks(b.HAIL_ALERT_BLOCKS)
+        shipped_subject = (ROOT / "hailsys/email/templates/hail_alert_subject.txt").read_text()
+        for label, ctx in STORMS.items():
+            with self.subTest(situation=label):
+                ctx = self.with_images(ctx)
+                ours = r.render(subject_src, body_src, ctx)
+                theirs = r.render(shipped_subject, SHIPPED, ctx)
+                self.assertEqual(ours[0], theirs[0])
+                self.assertEqual(norm(ours[1]), norm(theirs[1]))
+
+    def test_the_comparison_sees_a_real_difference(self):
+        # guards the test above against comparing two empty or identical-by-accident strings
+        tweaked = {**b.HAIL_ALERT_BLOCKS, "blocks": [
+            {**blk_, "space_after": 22} if blk_["kind"] == "text" and blk_.get("space_after") == 20
+            else blk_ for blk_ in b.HAIL_ALERT_BLOCKS["blocks"]]}
+        ctx = self.with_images(STORMS["one storm, one listing"])
+        subject_src, body_src = b.compile_blocks(tweaked)
+        ours = r.render(subject_src, body_src, ctx)[1]
+        theirs = r.render("x", SHIPPED, ctx)[1]
+        self.assertNotEqual(norm(ours), norm(theirs))
+        self.assertGreater(len(norm(theirs)), 5000)
+
+    def test_the_seed_is_a_valid_template_and_is_not_changed_by_compiling(self):
+        before = repr(b.HAIL_ALERT_BLOCKS)
+        self.assertEqual(b.clean_template(b.HAIL_ALERT_BLOCKS)["blocks"][-1]["kind"], "footer")
+        b.compile_blocks(b.HAIL_ALERT_BLOCKS)
+        self.assertEqual(repr(b.HAIL_ALERT_BLOCKS), before)
+
+    def test_the_seed_only_uses_images_the_admin_page_always_has(self):
+        used = {x["image"] for x in b.HAIL_ALERT_BLOCKS["blocks"] if x["kind"] == "image"}
+        for x in b.HAIL_ALERT_BLOCKS["blocks"]:
+            if x["kind"] == "badges":
+                used.update(x.get("images", ["badge_cra", "badge_bbb"]))
+        self.assertEqual(used, {"logo", "badge_cra", "badge_bbb"})
 
 
 if __name__ == "__main__":
