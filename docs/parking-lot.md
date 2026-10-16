@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*58 items (counted 2026-10-15 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
+*58 items (counted 2026-10-16 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -3107,8 +3107,11 @@ page; the contact email, schedule link and sender moved from the environment to 
 `/templates` editor: list, new, edit, preview, save, retire; `hailsys/web/emailtpl.py`, `blockform.py`,
 `preview.py`, `templates.js`; cosmetics in item 221). **Piece 6 done 2026-10-15** (`sql/044`,
 `hailsys/email/testsend.py`: "Send a test to <your address>" in the editor; one live test on the dev
-trial: accepted, inbox, campaign deleted; decision log 2026-10-15). Only piece 5 (formatting help)
-remains. (filed 2026-10-13, by developer request; shape agreed the same day)
+trial: accepted, inbox, campaign deleted; decision log 2026-10-15). **Piece 5 done 2026-10-16**
+(formatting help: the guide, the toolbar, error positions that quote the place; the two-column layout
+of item 221; commits `1efca54`, `b290f51`, `7bb85d1`; decision log 2026-10-16). **All six pieces are
+done**; what remains is follow-up items 217, 220 and 225, and the developer's own feedback from using
+the editor. (filed 2026-10-13, by developer request; shape agreed the same day)
 
 Staff should be able to create a template in the UI, with an image that is already in Constant
 Contact, bold, italic and coloured text, and the other parts of the current template.
@@ -3143,7 +3146,7 @@ not return the HTML, and `sent_emails` must hold the exact HTML, item 180).
 - **Changed 2026-10-15:** the core of piece 5 (the inline markup converter and its allow-list) moved
   into piece 2, because the current template needs inline formatting (bold navy, a styled link) for
   the block-built version to render identically. Piece 5 is now the editor's side of it (formatting
-  help, error display). The palette has seven colours (`slate` was added: the "since 1992" line and
+  help, error display; done 2026-10-16). The palette has seven colours (`slate` was added: the "since 1992" line and
   the secondary link use it).
 - **Known limit:** email-client rendering cannot be tested here beyond sending test messages;
   the constrained blocks are what keep it safe.
@@ -3629,8 +3632,10 @@ Then retire the files: the built-in becomes a saved block template, and `load_fi
 
 ## 221. The template editor needs a cosmetic pass
 
-**Status:** open (filed 2026-10-15, after the developer's click-through of piece 4: "everything seems
-to work in the UI, it'll need to be cleaned up a bit cosmetically, but it's a good start")
+**Status:** resolved 2026-10-16 for the first pass (`7bb85d1`); filed 2026-10-15, after the developer's
+click-through of piece 4: "everything seems to work in the UI, it'll need to be cleaned up a bit
+cosmetically, but it's a good start". The developer called it "really 'programmer friendly' not user
+friendly" and asked for the preview beside the form.
 
 Piece 4 was built for function, with the site's existing styles and a handful of new classes
 (`.tpl-*` in `style.css`). Known roughness:
@@ -3642,21 +3647,30 @@ Piece 4 was built for function, with the site's existing styles and a handful of
 - the preview sits below the form, so a change is made in one place and seen in another;
 - the list page has two small text links (Edit, Retire) and no sorting.
 
-**When:** before the editor is shown to anyone but the developer, or when piece 5 (formatting help)
-adds more to the page, whichever comes first.
+**Resolved 2026-10-16 (first pass).** Two columns, the form on the left and the preview on the right,
+sticky and stacking below 1100 px; a sticky action bar with one Save, Show preview and the test send;
+a collapsible formatting guide; the storm blocks and the divider as one-line rows; a summary in each
+block's heading; small settings side by side; button-styled links on the list page. Not done: folding
+blocks, sorting the list.
 
-**Related:** item 203; decision log 2026-10-15 (piece 4).
+**When (the rest):** the developer said he would use the editor and give more feedback; revisit then,
+and before the editor is shown to anyone but the developer.
+
+**Related:** item 203; decision log 2026-10-15 (piece 4), 2026-10-16 (piece 5).
 
 ## 222. The editor's JavaScript is checked in a container, not in the normal test run
 
 **Status:** open (accepted 2026-10-15)
 
 The host and the `web` image have no Node. `hailsys/web/static/templates.js` is therefore not run by
-`python -m unittest discover`. Its behaviour is checked by `tests/js/templates_check.js` (36 checks
+`python -m unittest discover`. Its behaviour is checked by `tests/js/templates_check.js` (57 checks
 against a fake page), run in a throwaway `node:22-alpine` container:
 `docker run --rm -v ./hailsys/web/static:/s:ro -v ./tests/js:/t:ro node:22-alpine node /t/templates_check.js`.
 The Python suite checks only that the script's ids, selectors and header match the page and the server.
 A change to `templates.js` that is not followed by the container run is unchecked.
+
+**When:** `templates.js` is 198 lines after the toolbar (2026-10-16). Before it grows past about 200,
+decide whether to split it (the toolbar is separable) or to add a Node step to the normal test run.
 
 **When:** if the script grows past about 200 lines or a second script appears, add Node to a test image
 and run the JS check from the normal suite.
@@ -3693,6 +3707,21 @@ record. Whether the fixes were later made another way is not known.
 parts still wanted as a commit, then drop the stash.
 
 **Related:** `scripts/iem_backfill.py`, `tests/test_iem_parse.py`.
+
+## 225. The editor's formatting toolbar needs JavaScript
+
+**Status:** open (accepted 2026-10-16)
+
+The B, I, Colour, Link and Insert field controls above the rich text boxes are hidden until
+`templates.js` adds the class `js` to the form (`.tpl-toolbar` is `display: none` without it). With
+JavaScript off, or if the script fails to load, the editor still works: the boxes take the typed tags
+and the guide above the form lists them. Only the buttons are missing. Also, the toolbar edits the box
+at the browser's last cursor position, so a box that was never clicked takes the edit at its start.
+
+**When:** if anyone who edits templates turns out to use the editor without JavaScript, or the cursor
+position proves confusing in use.
+
+**Related:** items 203, 221, 222; decision log 2026-10-16.
 
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
@@ -3902,9 +3931,8 @@ template to a Gmail inbox and confirm it arrives.
 
 **Update 2026-10-15.** The editor's test send (item 203, piece 6) now does this in one click. A test of
 the built-in template's content reached a Gmail inbox the same day (accepted by Constant Contact at
-22:10 UTC, in the inbox, not spam). **Not yet done:** following each link in that message (the
-inspection button, "Schedule a new inspection", the review link, the phone and email links). Do that,
-and repeat for any new template, before the first real send.
+22:10 UTC, in the inbox, not spam). **Links, 2026-10-16:** the developer followed the links in that message and reported that they work.
+Repeat the test send for any new template, and send one with its final links, before the first real send.
 
 ## 187. The send list ignored `listing_freshness_days`; a send needs a fresh RentCast pull first
 

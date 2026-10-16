@@ -7049,9 +7049,44 @@ emails the draft on screen, rendered with the chosen sample storm, to the signed
   no `TEST` campaign left. The developer found the trial's counter on the billing page afterward: 9 emails
   sent, which matches the 7 rehearsal sends plus the spike's. **No "before" figure was taken, so the
   test's own effect on the counter was not measured**; the spike's note that test sends do not move it is
-  unconfirmed here. The links in the message were not followed (item 186 stays open for that).
+  unconfirmed here. The links in the message were not followed at the time; the developer followed them on
+  2026-10-16 and reported that they work (item 186).
 - Accepted: item 223 (two clicks in one instant can pass the hourly check).
 
 **Related:** items 183, 186, 203, 223; decision log 2026-10-07, 2026-10-15 (pieces 2 to 4).
+
+## 2026-10-16 — Template editor: formatting help and the two-column layout (item 203, piece 5)
+
+**Decided with the developer 2026-10-15/16** (his answers to four questions, and his first look at piece 4,
+which he called "really 'programmer friendly' not user friendly").
+
+- **Toolbar and legend both.** A guide at the top of the editor (a collapsible `<details>`: the tags, the
+  seven colours as swatches, the merge fields with the one-storm sample's real values, four rules) and a
+  toolbar on every rich text box (bold, italic, Colour, Link, Insert field). The text stays typed tags
+  (`[b]`, `[color=red]`, `[link=...]`); the toolbar only types them, so the server remains the only
+  authority on what is allowed, and the page works, minus the buttons, without JavaScript (item 225).
+- **One source for the help.** `blockform.legend()` builds the tags, colours and merge fields from
+  `blocks.PALETTE` and `blocks.TEXT_TOKENS`; a test fails if a merge field has no meaning. Fields that take
+  markup are marked `rich` in `blockform.FIELDS` (four kinds); the page puts the toolbar and `data-rich`
+  on exactly those.
+- **Error positions.** A markup error now quotes the place, with "..." where it is cut:
+  `[b] is never closed (opened at "...ing sale: [b]1992 plus more words f...")`.
+- **Layout.** The preview sits to the right of the form, sticky, so a change is seen where it is made; it
+  stacks below under 1100 px. The whole editor is one form, so Enter, the buttons and the script behave as
+  before. One Save, in a sticky bar with Show preview and the test send. Blocks with nothing to edit (the
+  storm blocks, the divider) are one-line rows; each block's heading carries a summary of its text; small
+  settings sit side by side. This closes the first pass of item 221; the developer will use the editor and
+  give more feedback.
+- **The toolbar's controls have no `name`**, so they are never posted and cannot change a draft; a test
+  counts them. The toolbar edits the box at the browser's last cursor position, then marks the page
+  unsaved and refreshes the preview. Its two text edits are pure functions checked in the Node container
+  (57 checks in all, item 222). `templates.js` is now 198 lines, at the limit item 222 names.
+- **Checked:** 1003 Python tests; mutation checks on the summary function, the markup and the script
+  (one survivor, the image-list cut, closed with a test). Typos the checks caught on the way: `text.slic`
+  and an undefined `ab` in the script.
+- **Corrected:** the piece 6 entry said the test email's links were not followed. The developer followed
+  them on 2026-10-16 and they work (item 186).
+
+**Related:** items 203, 221, 222, 225; decision log 2026-10-15 (pieces 2 to 4 and 6).
 
 ---
