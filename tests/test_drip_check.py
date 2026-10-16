@@ -38,17 +38,19 @@ HAVE_DB = bool(os.environ.get("PGHOST")) and psycopg is not None
 TODAY = date(2026, 10, 16)
 FRESH = 7                       # the stale line is 2026-10-09: that day is fresh, the 8th is not
 SECRET = "SECRET-BODY-TEXT"
+AGENT = "agent@example.com"        # the address the step-1 email went to
 
 
 def listing(**extra):
     base = {"id": "x", "status": "Active", "lastSeenDate": "2026-10-16T10:51:59.131Z",
-            "removedDate": None}
+            "removedDate": None, "listingAgent": {"name": "A", "email": AGENT}}
     base.update(extra)
     return base
 
 
 def judge(**extra):
-    return dripcheck.classify(listing(**extra), today=TODAY, freshness_days=FRESH)
+    return dripcheck.classify(listing(**extra), today=TODAY, freshness_days=FRESH,
+                              agent_email=AGENT)
 
 
 class FakeConn:
@@ -143,11 +145,50 @@ class ClassifyTest(unittest.TestCase):
         for days, outcome in ((4, "active"), (3, "inactive")):
             with self.subTest(days=days):
                 got = dripcheck.classify(listing(lastSeenDate=seen), today=TODAY,
-                                         freshness_days=days)
+                                         freshness_days=days, agent_email=AGENT)
                 self.assertEqual(got["outcome"], outcome)
 
     def test_a_future_last_seen_date_is_not_stale(self):
         self.assertEqual(judge(lastSeenDate="2026-10-20T00:00:00.000Z")["outcome"], "active")
+
+    # ---- the listing agent must still be the one emailed ----
+
+    def test_the_same_agent_with_other_case_or_spaces_is_active(self):
+        for written in ("AGENT@Example.COM", "  agent@example.com  ", "Agent@example.com\n"):
+            with self.subTest(written=written):
+                self.assertEqual(judge(listingAgent={"email": written})["outcome"], "active")
+
+    def test_another_agent_makes_the_listing_inactive_and_says_so_without_an_address(self):
+        verdict = judge(listingAgent={"email": "someone.else@example.com"})
+        self.assertEqual((verdict["outcome"], verdict["rc_status"]), ("inactive", "Active"))
+        self.assertIn("agent", verdict["detail"])
+        self.assertNotIn("@", verdict["detail"])
+        self.assertNotIn("example.com", verdict["detail"])
+
+    def test_an_answer_that_does_not_name_the_agent_is_an_error(self):
+        for agent in (None, {}, {"email": None}, {"email": ""}, {"email": "  "},
+                      {"email": 5}, {"name": "A"}, "agent@example.com", ["agent@example.com"]):
+            with self.subTest(agent=agent):
+                self.assertEqual(judge(listingAgent=agent)["outcome"], "error")
+        no_agent = listing()
+        del no_agent["listingAgent"]
+        self.assertEqual(dripcheck.classify(no_agent, today=TODAY, freshness_days=FRESH,
+                                            agent_email=AGENT)["outcome"], "error")
+
+    def test_without_an_address_to_compare_with_nothing_is_active(self):
+        for blank in (None, "", "   ", 5):
+            with self.subTest(blank=blank):
+                got = dripcheck.classify(listing(), today=TODAY, freshness_days=FRESH,
+                                         agent_email=blank)
+                self.assertEqual(got["outcome"], "error")
+
+    def test_a_removed_or_stale_listing_gives_that_reason_before_the_agent(self):
+        other = {"email": "someone.else@example.com"}
+        removed = judge(status="Inactive", listingAgent=other)
+        self.assertIn("not active", removed["detail"])
+        stale = judge(lastSeenDate="2026-09-01T12:00:00.000Z", listingAgent=other)
+        self.assertIn("not seen since", stale["detail"])
+        self.assertEqual(judge(status="Inactive", listingAgent=None)["outcome"], "inactive")
 
     # ---- anything unreadable is an error ----
 
@@ -157,7 +198,8 @@ class ClassifyTest(unittest.TestCase):
                 verdict = judge(status=status)
                 self.assertEqual(verdict["outcome"], "error")
                 self.assertIsNone(verdict["rc_status"])
-        self.assertEqual(dripcheck.classify({}, today=TODAY, freshness_days=FRESH)["outcome"],
+        self.assertEqual(dripcheck.classify({}, today=TODAY, freshness_days=FRESH,
+                                            agent_email=AGENT)["outcome"],
                          "error")
 
     def test_active_with_no_last_seen_date_is_an_error(self):
@@ -225,7 +267,7 @@ class CheckListingTest(unittest.TestCase):
 
     def run_check(self, **over):
         args = dict(campaign_id=7, step_no=2, listing_id=41, rentcast_id="x", today=TODAY,
-                    freshness_days=FRESH)
+                    freshness_days=FRESH, agent_email=AGENT)
         args.update(over)
         return dripcheck.check_listing(self.conn, **args)
 
@@ -258,6 +300,16 @@ class CheckListingTest(unittest.TestCase):
         verdict = self.run_check()
         self.assertEqual(verdict["outcome"], "error")
         self.assertEqual((self.row()["calls_made"], self.row()["http_status"]), (1, 200))
+
+    def test_another_agent_is_logged_as_inactive(self):
+        self.get.return_value = (listing(listingAgent={"email": "x@example.com"}), 1)
+        self.assertEqual(self.run_check()["outcome"], "inactive")
+        self.assertEqual(self.row()["outcome"], "inactive")
+        self.assertNotIn("x@example.com", str(self.conn.executed))
+
+    def test_the_agent_email_given_is_the_one_compared(self):
+        self.get.return_value = (listing(listingAgent={"email": "x@example.com"}), 1)
+        self.assertEqual(self.run_check(agent_email="x@example.com")["outcome"], "active")
 
     def test_a_404_is_logged_as_not_found(self):
         self.get.side_effect = failing(client.RentCastNotFound, 404)

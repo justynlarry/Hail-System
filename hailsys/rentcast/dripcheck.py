@@ -9,10 +9,11 @@ read is an 'error,' and a listing with 'error' is left out of the follow-up.
                 inside the freshness window (same rule as sendlist's stale_listing, a
                 Denver calendar date earlier than today minus freshness_days is stale).
     inactive    do not email about this listing, RentCast says it is not Active, or 
-                records a removal, or has not seen it inside the window.  rc_status
-                keeps what RentCast replied with, so a listing it still calls Active
-                but has not seen lately is 'inactive' with rc_status 'Active' and a 
-                detail explaining the reason.
+                records a removal, has not seen it inside the window, or the listing
+                agent is no longer the one emailed.  rc_status keeps what RentCast
+                replied with, so a listing it still calls Active but has not seen lately,
+                or that another agent now holds, is 'inactive' with rc_status 'Active' and
+                a detail explaining the reason.
     not_found   RentCast has no listing with that id (a 404)
     error       lookup failed, or answer couldn't be used
 """
@@ -60,9 +61,22 @@ def _when(value):
     return moment
 
 
-def classify(listing, *, today, freshness_days):
-    """The verdict for a listing RentCast returned.  today is a Denver date, the caller
-    adds calls_made and http_status.
+def _same_agent(listing, agent_email):
+    """True if the listing's agent is the address emailed, False if it is another,
+    None if the answer does not say.
+    """
+    if not isinstance(agent_email, str) or not agent_email.strip():
+        return None
+    agent = listing.get("listingAgent")
+    now = agent.get("email") if isinstance(agent, dict) else None
+    if not isinstance(now, str) or not now.strip():
+        return None
+    return now.strip().lower() == agent_email.strip().lower()
+
+
+def classify(listing, *, today, freshness_days, agent_email):
+    """The verdict for a listing RentCast returned.  today is a Denver date, agent_email
+    is the address the step-1 email went to, the caller adds calls_made and http_status.
     """
     status = listing.get("status")
     if not isinstance(status, str) or not status.strip():
@@ -86,6 +100,11 @@ def classify(listing, *, today, freshness_days):
     seen_day = last_seen.astimezone(DISPLAY_TZ).date()
     if seen_day < today - timedelta(days=freshness_days):
         return verdict("inactive", f"not seen since {seen_day}")
+    same = _same_agent(listing, agent_email)
+    if same is None:
+        return verdict("error", "the answer does not say who the listing agent is")
+    if not same:
+        return verdict("inactive", "the listing agent is no longer the one emailed")
     return verdict("active")
 
 
@@ -110,7 +129,8 @@ def record_check(conn, *, campaign_id, step_no, listing_id, verdict):
     conn.commit()
 
 
-def check_listing(conn, *, campaign_id, step_no, listing_id, rentcast_id, today, freshness_days):
+def check_listing(conn, *, campaign_id, step_no, listing_id, rentcast_id, today, freshness_days,
+                  agent_email):
     """One lookup by id, logged.  Returns verdict, raises only for a FATAL error, after
     it has been logged.
     """
@@ -130,7 +150,7 @@ def check_listing(conn, *, campaign_id, step_no, listing_id, rentcast_id, today,
         if isinstance(exc, FATAL):
             raise
         return verdict
-    verdict = classify(found, today=today, freshness_days=freshness_days)
+    verdict = classify(found, today=today, freshness_days=freshness_days, agent_email=agent_email)
     verdict["calls_made"] = attempts
     verdict["http_status"] = 200
     record_check(conn, verdict=verdict, **where)

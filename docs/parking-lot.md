@@ -3298,7 +3298,7 @@ is created (item 96), whichever comes first.
 
 ## 227. A follow-up goes to the original agent even if the listing's agent changed
 
-**Status:** open (found 2026-10-16, in the by-id probe for item 204)
+**Status:** decided 2026-10-16, partly built (found the same day, in the by-id probe for item 204)
 
 RentCast's lookup by id returns `listingAgent` and `listingOffice` for the listing as it stands now.
 A drip follow-up (item 204) is addressed to the realtor of the step-1 email. If the listing was taken
@@ -3307,8 +3307,19 @@ the listing. `listings.realtor_id` is set at the last pull, so a follow-up that 
 would refresh it and one that checks by id would not. The probe printed the field names only; whether
 `listingAgent` carries an email, and how it maps to `realtors`, is not checked.
 
-**When:** at piece 4 of item 204 (the follow-up list builder): decide whether an agent change drops the
-listing from that recipient's email, moves it to the new agent, or is ignored in Level 1.
+**Decided 2026-10-16 (developer): drop the listing.** If the listing's current agent is not the address
+the step-1 email went to, the listing is left out of that recipient's follow-up; reminding a former
+listing agent of a listing they lost is worse than saying nothing. If it was their only listing, they get
+no follow-up. Not moved to the new agent.
+- **By id:** built in `dripcheck.classify` (piece 4.0). It compares `listingAgent.email` in the answer, trimmed
+  and lower-cased, with the recipient's address. Another agent is outcome `inactive` (`rc_status` stays
+  `Active`, the detail says why and holds no address); an answer that does not name the agent is `error`
+  and the listing is left out.
+- **By zip pull:** the pull refreshes `listings.list_agent_email`, so the follow-up list builder (piece 4)
+  must compare `list_agent_email_norm` with the recipient's address and drop the listing on a difference
+  or a missing address. Not built yet.
+
+**When:** the zip-pull half is done when the list builder (piece 4 of item 204) is. Close this item then.
 
 **Related:** items 204, 55.
 
