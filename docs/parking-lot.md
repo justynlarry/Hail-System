@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*59 items (counted 2026-10-16 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
+*60 items (counted 2026-10-16 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -3159,7 +3159,8 @@ vocabulary (`ALLOWED_VARS` is it).
 ## 204. Drip campaigns: an initial email, then follow-ups
 
 **Status:** open (filed 2026-10-13, by developer request; the owner asked for it). **Plan agreed
-2026-10-16**, Level 1; piece 1 (the RentCast probe) is next. Nothing is built.
+2026-10-16**, Level 1. **Piece 1 (the RentCast probe) done 2026-10-16**; the check method changed
+as a result (below). Piece 2 is next. Nothing is built.
 
 **The ask:** an initial email about a storm, then N follow-ups with a chosen number of days
 between each (1 to 2, 2 to 3, 3 to 4). Each follow-up must re-check, with RentCast, that the
@@ -3207,12 +3208,17 @@ is summed from `api_call_log`, which needs a `pull_id` and a zip, and the pull e
 table, so by-id checks logged there would make a zip look recently pulled.
 
 *Decided with the developer 2026-10-16.*
-- **The check:** by id, per distinct listing, from the click's job. A listing counts as active only if
-  `status` is Active and `lastSeenDate` is inside the freshness window; a failed or unreadable check
-  excludes that listing (nothing is sent on a guess); a RentCast auth failure ends the job before any
-  send. No zip-pull fallback in Level 1.
-- **Its log:** a separate append-only table, `drip_listing_checks`; the quota sums it with
-  `api_call_log`.
+- **The check (changed 2026-10-16, after the probe):** the cheaper of two methods, chosen by the system
+  and shown with both costs before the click. *By id* (one call per distinct listing) when the listings
+  to check are fewer than the zips involved; otherwise a *zip pull* (status Active, today's code, logged
+  to `api_pulls` and `api_call_log` with no storm date, so the one-running-pull-per-storm index does not
+  apply; no matching is run). A listing counts as active only if RentCast says Active with no
+  `removedDate` and `lastSeenDate` is inside the freshness window (a zip pull: it came back in the
+  Active results); a failed, unreadable or 404 check, or a failed zip, excludes the listing (nothing is
+  sent on a guess); a RentCast auth failure ends the job before any send. *(The first decision was by id
+  only; see the probe results.)*
+- **Its log:** a separate append-only table, `drip_listing_checks`, for by-id calls only; the quota sums
+  it with `api_call_log`.
 - **Tables (`sql/045`):** `drip_campaigns` (only `status` changes: active, paused, cancelled,
   complete), `drip_steps` (frozen after creation except `batch_id`, set once), `drip_recipients`
   (the step-1 list, never grows; `stopped_at` and a reason: unsubscribed, bounced, no_active_listings,
@@ -3237,18 +3243,38 @@ table, so by-id checks logged there would make a zip look recently pulled.
 - **Rules kept:** every step starts with a click; RentCast calls happen only in that click's job and
   are logged; the suppression checks are the existing ones; the 14-day cap applies between campaigns.
 
-*Pieces.* (1) a read-only probe of the by-id endpoint, three calls: a freshly seen listing, a long-unseen
-one and a made-up id; (2) `sql/045` and guards; (3) `get_sale_listing`, the check log and the quota
-sum; (4) the follow-up list builder; (5) the chained job; (6) screens; (7) docs and a dev rehearsal.
+*Pieces.* (1) a read-only probe of the by-id endpoint, three calls (done); (2) `sql/045` and guards;
+(3) `get_sale_listing`, the check log, the quota sum and the cheaper-method choice; (4) the follow-up
+list builder; (5) the chained job; (6) screens; (7) docs and a dev rehearsal.
 
-*Not verified.* What the by-id endpoint returns for a removed listing, and its cost per call (piece 1);
-the Constant Contact calls per email (this item says about 10; it decides how many follow-ups fit in a
+*Probe results, 2026-10-16* (`scripts/rentcast_by_id_probe.py`, three calls, RentCast dashboard
+36 to 38 of 1,000).
+- A listing last seen that morning: 200, `status` Active, `removedDate` null, `lastSeenDate` that day
+  (our row had 2026-10-09).
+- A listing our database still held as Active, last seen 2026-09-16: 200, `status` **Inactive**,
+  `removedDate` 2026-09-17. A removed listing is a normal answer, not an error.
+- A made-up id: **404**, body `error`, `message`, `status`. The by-id function must keep this distinct
+  from "no listing" (the zip client turns a 404 into an empty list).
+- Billing: the two 200s moved the dashboard by 1 each and the 404 by 0 (the count may lag; treat "a 404
+  is free" as likely, not certain).
+- The response has `history`, `listingAgent` and `listingOffice` (item 227); the only header of note was
+  a trace id, so no rate-limit or usage headers.
+- Our database holds only `Active` listings (26,297), never refreshed by anything but a pull.
+
+*Why the method changed.* By id is one call per listing. Matched listings per storm day (test rows
+excluded): 7,317 (84 zips), 3,618 (40), 2,596 (30), 1,975 (20 zips, 1,415 agents), 1,392 (15). A
+by-id check of the 1,975 would be about 1,975 calls against a plan of 1,000 a month; re-pulling its 20
+zips costs about 20 to 40 (past pulls: 94 zips, 94 calls; 45 zips, 45 calls). By id wins only when
+there are fewer listings than zips.
+
+*Not verified.* Whether a 404 is really free; whether a zip pull inside a campaign step finishes in a
+useful time for the largest storms; the Constant Contact calls per email (this item says about 10; it decides how many follow-ups fit in a
 day); whether any trigger blocks a second `send_log` row for a match (the guard tests in piece 2).
 
 **When:** after 202 and the first pieces of 203 (steps need a template choice). Level 2 only
 after 189 and 129. Items 202 and 203 are done: Level 1 can start.
 
-**Related:** items 189, 191, 203, 226.
+**Related:** items 189, 191, 203, 226, 227.
 
 ## 226. Read replies from a dedicated Gmail inbox to stop follow-ups
 
@@ -3269,6 +3295,22 @@ not be treated as a reply that matters; and a reply is not an unsubscribe, so wh
 is created (item 96), whichever comes first.
 
 **Related:** items 204, 96, 129.
+
+## 227. A follow-up goes to the original agent even if the listing's agent changed
+
+**Status:** open (found 2026-10-16, in the by-id probe for item 204)
+
+RentCast's lookup by id returns `listingAgent` and `listingOffice` for the listing as it stands now.
+A drip follow-up (item 204) is addressed to the realtor of the step-1 email. If the listing was taken
+over by another agent between steps, the follow-up still goes to the first one, who may no longer have
+the listing. `listings.realtor_id` is set at the last pull, so a follow-up that re-checks by zip pull
+would refresh it and one that checks by id would not. The probe printed the field names only; whether
+`listingAgent` carries an email, and how it maps to `realtors`, is not checked.
+
+**When:** at piece 4 of item 204 (the follow-up list builder): decide whether an agent change drops the
+listing from that recipient's email, moves it to the new agent, or is ignored in Level 1.
+
+**Related:** items 204, 55.
 
 ## 205. Likelihood tiers: rank outreach by radar swath and distance instead of one circle
 
