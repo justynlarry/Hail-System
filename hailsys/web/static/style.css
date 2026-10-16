@@ -1009,13 +1009,60 @@ path.map-county { fill: var(--map-county-fill); }
   .theme-switch::after { transition: none; }
 }
 
-/* Template editor (item 203, piece 4) */
-.tpl-block { margin: 0 0 1rem; padding: 0.5rem 1rem 0.75rem; border: 1px solid var(--border); border-radius: 4px; }
-.tpl-system { border-style: dashed; }
-.tpl-block legend { font-weight: 600; padding: 0 0.4rem; }
-.tpl-field { margin: 0.4rem 0; }
-.tpl-field label { display: inline-block; min-width: 9rem; vertical-align: top; }
-.tpl-field small { display: block; margin-left: 9rem; color: var(--muted); }
+/* Template editor (item 203, pieces 4 and 5): the form on the left, the preview on the right */
 .tpl-default { position: absolute; left: -9999px; }
+
+.tpl-guide { margin: 0.75rem 0 1rem; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); }
+.tpl-guide summary { cursor: pointer; padding: 0.5rem 0.9rem; font-weight: 600; }
+.tpl-guide-body { padding: 0 1rem 0.75rem; }
+.tpl-guide h4 { margin: 0.9rem 0 0.25rem; }
+.tpl-guide td { padding: 0.2rem 1rem 0.2rem 0; vertical-align: top; }
+.tpl-guide code { background: var(--surface); border: 1px solid var(--border-2); border-radius: 3px; padding: 0 0.3rem; }
+.tpl-swatches { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0.25rem 0; }
+.tpl-swatch i { display: inline-block; width: 1rem; height: 1rem; margin-right: 0.35rem; vertical-align: -0.2rem; border: 1px solid var(--border); border-radius: 3px; }
+
+.tpl-bar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; padding: 0.6rem 0; margin-bottom: 0.75rem; background: var(--bg); border-bottom: 1px solid var(--border); }
+.tpl-primary { background: var(--accent-fill); color: #fff; border: 1px solid var(--accent-fill); border-radius: 4px; padding: 0.4rem 0.9rem; font-weight: 600; cursor: pointer; }
+.tpl-primary:hover { background: var(--accent-fill-hover); }
+
+.tpl-columns { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.tpl-right { position: sticky; top: 4rem; }
+.tpl-frame { display: block; width: 100%; height: calc(100vh - 14rem); min-height: 420px; border: 1px solid var(--border); background: #fff; }
+.tpl-subject { margin: 0 0 0.4rem; }
+.tpl-result { padding: 0.5rem 0.75rem; border: 1px solid var(--flash-border); background: var(--flash-bg); border-radius: 4px; }
+
+.tpl-block { margin: 0 0 0.9rem; padding: 0.4rem 0.9rem 0.7rem; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); }
+.tpl-block legend { font-weight: 600; padding: 0 0.4rem; }
+.tpl-summary { font-weight: 400; color: var(--muted); margin-left: 0.4rem; }
+.tpl-fields { display: flex; flex-wrap: wrap; gap: 0.2rem 1.2rem; }
+.tpl-field { margin: 0.35rem 0; flex: 1 1 100%; }
+.tpl-field.tpl-small { flex: 0 0 auto; }
+.tpl-field label { display: block; margin-bottom: 0.15rem; font-size: 0.8125rem; color: var(--muted); }
+.tpl-field input[type="text"], .tpl-field textarea { width: 100%; box-sizing: border-box; }
+.tpl-field small { display: block; margin-top: 0.15rem; font-size: 0.75rem; color: var(--muted); }
+.tpl-add select { width: auto; }
+
+.tpl-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.4rem; margin: 0 0 0.5rem; padding: 0.35rem 0.9rem; border: 1px dashed var(--border); border-radius: 4px; background: var(--panel); }
+.tpl-row-title { font-weight: 600; }
+.tpl-row-title small { font-weight: 400; color: var(--muted); }
+.tpl-row .error, .tpl-row .block-errors { flex: 1 1 100%; margin: 0; }
+
 .tpl-actions { margin-top: 0.5rem; }
+.tpl-row .tpl-actions { margin-top: 0; }
 .tpl-actions button { margin-right: 0.4rem; }
+
+/* The formatting buttons need JavaScript, so they stay hidden until the script switches them on */
+.tpl-toolbar { display: none; margin-bottom: 0.25rem; }
+.js .tpl-toolbar { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.tpl-toolbar button, .tpl-toolbar select { font-size: 0.8125rem; }
+
+.tpl-btn { display: inline-block; padding: 0.15rem 0.6rem; margin-right: 0.3rem; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); text-decoration: none; }
+.tpl-btn:hover { border-color: var(--accent); }
+.tpl-btn-primary { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; font-weight: 600; }
+.tpl-btn-primary:hover { background: var(--accent-fill-hover); }
+
+@media (max-width: 1100px) {
+  .tpl-columns { grid-template-columns: 1fr; }
+  .tpl-right { position: static; }
+  .tpl-frame { height: 600px; }
+}

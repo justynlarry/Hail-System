@@ -278,6 +278,20 @@ def remove_block(template, index):
     return done
 
 
+def _summary(block):
+    """The first words of a block's own text, for its heading, so a long editor can be
+    scanned."""
+    for key in ("text", "label", "title", "image", "who", "phone"):
+        value = block.get(key)
+        if isinstance(value, str) and value.strip():
+            value = blocks._TAG.sub("", value).strip()
+            return value[:50] + ("..." if len(value) > 50 else "")
+    images = block.get("images")
+    if isinstance(images, list) and images:
+        return ", ".join(str(name) for name in images)[:50]
+    return ""
+
+
 def describe(template, problems=()):
     """The blocks as the page shows them, in order: label, fields, the problems that belong
     to the block ('problems' is a list of (block number, message)) and whether it can move."""
@@ -293,6 +307,7 @@ def describe(template, problems=()):
         shown.append({
             "index": i, "number": i + 1, "kind": kind or "",
             "label": KIND_LABELS.get(kind, "Unknown block"),
+            "summary": _summary(block),
             "system": kind in SYSTEM_KINDS, "footer": kind == "footer",
             "fields": fields_for(block, i), "problems": by_number.get(i + 1, []),
             "can_up": _can_move(block_list, i, -1), "can_down": _can_move(block_list, i, 1)})

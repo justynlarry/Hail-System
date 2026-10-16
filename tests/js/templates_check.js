@@ -12,7 +12,8 @@ function makePage(fetchImpl, unsaved = '0') {
   const mk = (id) => (ids[id] = {id, innerHTML: '', scrolled: false,
     scrollIntoView() { this.scrolled = true; }});
   const form = {id: 'editor', dataset: {unsaved}, getAttribute: (n) => ({action: '/templates/edit'}[n] || null),
-    addEventListener: (t, f) => (handlers[t] = f), action: {tagName: 'BUTTON'} /* the clobbering trap */};
+    addEventListener: (t, f) => (handlers[t] = f), action: {tagName: 'BUTTON'} /* the clobbering trap */,
+    classList: {classes: [], add(c) { this.classes.push(c); }}};
   const errorSpots = {0: {children: [], appendChild(p) { this.children.push(p); }}};
   const blocks = mk('blocks'); blocks.errorsRemoved = 0;
   blocks.querySelectorAll = (sel) => { check(sel === 'p.error', 'clears p.error before redrawing'); return [{remove() { blocks.errorsRemoved++; }}]; };
@@ -32,7 +33,7 @@ function button(value, extra = {}) {
   const b = Object.assign({value, disabled: false, clicked: 0,
     getAttribute: (n) => (n === 'formaction' ? '/templates/edit#b3' : null),
     click() { this.clicked++; }}, extra);
-  return {target: {closest: (sel) => { check(sel === 'button[name="action"]', 'finds the clicked button'); return b; }},
+  return {target: {closest: (sel) => (sel === 'button[name="action"]' ? b : null)},
     preventDefault() { this.prevented = true; }, _b: b};
 }
 
@@ -138,6 +139,63 @@ function button(value, extra = {}) {
   p = makePage(() => reply({}), '0'); new Function(src)();
   leave = {preventDefault() { this.stopped = true; }}; p.winHandlers.beforeunload(leave);
   check(!leave.stopped, 'a fresh page does not warn');
+
+  // 8. the toolbar: the two pure edits
+  const tools = (() => {
+    global.document = {getElementById: () => null}; global.window = {fetch: true};
+    const m = {exports: {}}; new Function('module', src)(m); return m.exports;
+  })();
+  let r = tools.wrapText('hello world', 0, 5, '[b]', '[/b]');
+  check(r.text === '[b]hello[/b] world' && r.start === 3 && r.end === 8, 'wraps the selection and keeps it selected');
+  r = tools.wrapText('ab', 1, 1, '[b]', '[/b]');
+  check(r.text === 'a[b][/b]b' && r.start === 4 && r.end === 4, 'with nothing selected, inserts a pair with the cursor between');
+  r = tools.wrapText('hi', 2, 2, '[i]', '[/i]');
+  check(r.text === 'hi[i][/i]' && r.start === 5, 'works at the end of the text');
+  r = tools.insertText('Hi ', 3, 3, '{total}');
+  check(r.text === 'Hi {total}' && r.start === 10 && r.end === 10, 'inserts a field and puts the cursor after it');
+  r = tools.insertText('Hi XX!', 3, 5, '{total}');
+  check(r.text === 'Hi {total}!', 'an inserted field replaces the selection');
+
+  // 8b. the toolbar: clicks and menus on a fake page
+  const bar = {getAttribute: (n) => (n === 'data-for' ? 'f1' : null)};
+  const control = (attrs, extra = {}) => Object.assign({closest: (s) => (s === '.tpl-toolbar' ? bar : null),
+    getAttribute: (n) => (n in attrs ? attrs[n] : null)}, extra);
+  const clickOn = (ctl) => ({target: {closest: (s) => (s === '[data-wrap],[data-link]' ? ctl : null)},
+    preventDefault() { this.prevented = true; }});
+  function toolbarPage(a, b, value = 'hello world') {
+    const t = makePage(() => reply({preview: 'P', problems: []}));
+    t.field = t.ids.f1 = {value, selectionStart: a, selectionEnd: b, focused: 0, focus() { this.focused++; },
+      setSelectionRange(x, y) { this.sel = [x, y]; }};
+    new Function(src)(); return t;
+  }
+  let t = toolbarPage(0, 5);
+  check(t.form.classList.classes.includes('js'), 'switches the toolbars on');
+  ev = clickOn(control({'data-wrap': 'b'})); t.handlers.click(ev);
+  check(t.field.value === '[b]hello[/b] world' && t.field.sel[0] === 3 && t.field.sel[1] === 8 && t.field.focused === 1, 'Bold wraps the selection and refocuses');
+  check(!ev.prevented && t.sent.length === 0, 'a toolbar click is not a block action and sends nothing at once');
+  leave = {preventDefault() { this.stopped = true; }}; t.winHandlers.beforeunload(leave);
+  check(leave.stopped === true, 'a toolbar edit counts as unsaved');
+  await tick(700); check(t.sent.length === 1 && t.sent[0].opts.body.data.action === 'preview', 'and refreshes the preview');
+  t = toolbarPage(5, 5); t.handlers.click(clickOn(control({'data-wrap': 'i'})));
+  check(t.field.value === 'hello[i][/i] world' && t.field.sel[0] === 8 && t.field.sel[1] === 8, 'Italic with nothing selected leaves the cursor between the tags');
+  t = toolbarPage(0, 5); global.window.prompt = () => ' https://x.example ';
+  t.handlers.click(clickOn(control({'data-link': ''})));
+  check(t.field.value === '[link=https://x.example]hello[/link] world', 'Link uses the typed address');
+  t = toolbarPage(0, 5); global.window.prompt = () => '   ';
+  t.handlers.click(clickOn(control({'data-link': ''})));
+  check(t.field.value === '[link={schedule_url}]hello[/link] world', 'an empty address links to the schedule page');
+  t = toolbarPage(0, 5); global.window.prompt = () => null;
+  t.handlers.click(clickOn(control({'data-link': ''})));
+  check(t.field.value === 'hello world' && t.field.focused === 0, 'cancelling the prompt changes nothing');
+  t = toolbarPage(0, 5); let menu = control({}, {dataset: {colour: ''}, value: 'red'});
+  t.handlers.change({target: menu});
+  check(t.field.value === '[color=red]hello[/color] world' && menu.value === '', 'the Colour menu wraps the selection and resets');
+  t = toolbarPage(5, 5); menu = control({}, {dataset: {merge: ''}, value: '{total}'});
+  t.handlers.change({target: menu});
+  check(t.field.value === 'hello{total} world' && menu.value === '', 'the Insert field menu inserts the token and resets');
+  t = toolbarPage(0, 5); menu = control({}, {dataset: {colour: ''}, value: ''});
+  t.handlers.change({target: menu});
+  check(t.field.value === 'hello world', 'choosing the menu label changes nothing');
 
   // 7. it does nothing on a page without the editor
   global.document = {getElementById: () => null}; global.window = {fetch: true};

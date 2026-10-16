@@ -5,8 +5,29 @@
 (function () {
   'use strict';
 
+  // The two edits the toolbar makes.  Each takes the field's text and selection (start, end)
+  // and returns the new text and the selection to leave behind.
+  function wrapText(text, start, end, open, close) {
+    var chosen = text.slice(start, end);
+    return {
+      text: text.slice(0, start) + open + chosen + close + text.slice(end),
+      start: start + open.length,
+      end: start + open.length + chosen.length
+    };
+  }
+
+  function insertText(text, start, end, token) {
+    var at = start + token.length;
+    return {text: text.slice(0, start) + token + text.slice(end), start: at, end: at};
+  }
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {wrapText: wrapText, insertText: insertText};
+  }
+
   var form = document.getElementById('editor');
   if (!form || !window.fetch) { return; }
+  form.classList.add('js');
 
   var blocksBox = document.getElementById('blocks');
   var previewBox = document.getElementById('preview');
@@ -59,6 +80,65 @@
     if (target) { target.scrollIntoView({block: 'nearest'}); }
   }
 
+  // A change the script made itself: the browser sends no input event for it.
+  function edited() {
+    dirty = true;
+    clearTimeout(timer);
+    timer = setTimeout(refreshPreview, 500);
+  }
+
+  // ---- the formatting toolbar above the rich text boxes ----
+  function toolbarField(control) {
+    var bar = control.closest('.tpl-toolbar');
+    return bar ? document.getElementById(bar.getAttribute('data-for')) : null;
+  }
+
+  function applyTo(field, make) {
+    var result = make(field.value, field.selectionStart, field.selectionEnd);
+    field.value = result.text;
+    field.focus();
+    field.setSelectionRange(result.start, result.end);
+    edited();
+  }
+
+  // The B, I and Link buttons.  Returns true if the click was one of them.
+  function toolbarClick(event) {
+    var control = event.target.closest('[data-wrap],[data-link]');
+    var field = control && toolbarField(control);
+    if (!field) { return false; }
+    var tag = control.getAttribute('data-wrap');
+    var open, close;
+    if (tag) {
+      open = '[' + tag + ']';
+      close = '[/' + tag + ']';
+    } else {
+      var address = window.prompt('Where should the link go? Type a web address starting with ' +
+        'https://, or leave this empty to link to your schedule page.');
+      if (address === null) { return true; }
+      open = '[link=' + (address.trim() || '{schedule_url}') + ']';
+      close = '[/link]';
+    }
+    applyTo(field, function (text, a, b) { return wrapText(text, a, b, open, close); });
+    return true;
+  }
+
+  // The Colour and Insert field menus.
+  function toolbarChange(target) {
+    var data = target.dataset;
+    if (!data || (data.colour === undefined && data.merge === undefined) || !target.value) {
+      return;
+    }
+    var value = target.value;
+    var field = toolbarField(target);
+    target.value = '';              // back to its label, ready for the next use
+    if (!field) { return; }
+    applyTo(field, function (text, a, b) {
+      return data.colour !== undefined
+        ? wrapText(text, a, b, '[color=' + value + ']', '[/color]')
+        : insertText(text, a, b, value);
+    });
+  }
+
   // Add, move, remove and preview buttons.
   function act(button) {
     if (busy) { return; }
@@ -79,6 +159,7 @@
   }
 
   form.addEventListener('click', function (event) {
+    if (toolbarClick(event)) { return; }
     var button = event.target.closest('button[name="action"]');
     if (!button || button.disabled || button.value === 'save') { return; }
     if (skip) { skip = false; return; }
@@ -97,6 +178,7 @@
   }
 
   form.addEventListener('change', function (event) {
+    toolbarChange(event.target);
     if (event.target.id === 'add_kind') { return; }
     if (event.target.id !== 'situation') { dirty = true; }
     clearTimeout(timer);

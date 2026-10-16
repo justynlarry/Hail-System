@@ -7,7 +7,7 @@
 <p class="note">
     A template is built from blocks. Saving makes a new version, and an email already sent keeps
     the exact text it was sent with. The Send page lists every active template.
-    <a href="{{ url_for('emailtpl.new') }}">New template</a>
+    <a class="tpl-btn tpl-btn-primary" href="{{ url_for('emailtpl.new') }}">New template</a>
 </p>
 <div class="table-scroll">
 <table>
@@ -27,8 +27,8 @@
             <td>{% if r.last_used %}{{ r.last_used.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</td>
             <td>{{ r.sends }}</td>
             <td>
-                {% if r.has_blocks and r.template_name != builtin_name %}<a href="{{ url_for('emailtpl.edit', name=r.template_name) }}">Edit</a>{% endif %}
-                {% if r.template_name != builtin_name and r.versions %}<a href="{{ url_for('emailtpl.retire_confirm', name=r.template_name) }}">Retire</a>{% endif %}
+                {% if r.has_blocks and r.template_name != builtin_name %}<a class="tpl-btn" href="{{ url_for('emailtpl.edit', name=r.template_name) }}">Edit</a>{% endif %}
+                {% if r.template_name != builtin_name and r.versions %}<a class="tpl-btn" href="{{ url_for('emailtpl.retire_confirm', name=r.template_name) }}">Retire</a>{% endif %}
             </td>
         </tr>
         {% endfor %}

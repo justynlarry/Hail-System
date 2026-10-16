@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT))
 
 try:
     import psycopg
+    from markupsafe import escape
     from psycopg.rows import dict_row
     from hailsys.email import blockform, render, samples, templatestore
     from hailsys.web import create_app, emailtpl
@@ -175,12 +176,105 @@ class EmailTplPagesTest(unittest.TestCase):
         self.assertIn("wording fixed", page)                      # the system blocks say so
         self.assertEqual(self.load_blocks.call_count, 0)
 
+    def editor_form(self, path="/templates/new"):
+        page = self.text(path)
+        start = page.index('<form id="editor"')
+        return page[start:page.index("</form>", start)]
+
+    def test_the_guide_lists_every_tag_colour_and_merge_field(self):
+        from hailsys.email import blockform as bf
+        page = self.text("/templates/new")
+        self.assertEqual(page.count('class="tpl-guide"'), 1)
+        legend = bf.legend()
+        guide = page[page.index('class="tpl-guide"'):page.index('<form id="editor"')]
+        for c in legend["colours"]:
+            self.assertIn(c["name"], guide)
+            self.assertIn(c["hex"], guide)
+        for m in legend["merge_fields"]:
+            self.assertIn(m["token"], guide)
+        for tag in legend["tags"]:
+            self.assertIn(str(escape(tag["code"])), guide)
+        self.assertIn("&lt;b&gt;", guide)                     # the HTML warning is shown, not obeyed
+
+    def test_one_form_holds_the_buttons_the_fields_and_the_preview(self):
+        page = self.text("/templates/new")
+        self.assertEqual(page.count("<form id=\"editor\""), 1)
+        form = self.editor_form()
+        for needle in ('class="tpl-bar"', 'class="tpl-columns"', 'class="tpl-left"',
+                       'class="tpl-right"', 'id="blocks"', 'id="preview"', 'name="situation"',
+                       'name="csrf_token"', 'value="save"', 'name="test"'):
+            self.assertIn(needle, form, needle)
+        self.assertLess(form.index('class="tpl-left"'), form.index('class="tpl-right"'))
+        self.assertLess(form.index('id="blocks"'), form.index('id="preview"'))
+
+    def test_blocks_with_nothing_to_edit_are_one_line_rows(self):
+        form = self.editor_form()
+        views = blockform.describe(blockform.starter())
+        plain = [v for v in views if not v["fields"]]
+        self.assertTrue(plain)
+        self.assertEqual(form.count('<div class="tpl-row'), len(plain))
+        self.assertEqual(form.count('<fieldset class="tpl-block"'), len(views) - len(plain))
+        self.assertEqual(form.count('tpl-row tpl-system'), len([v for v in plain if v["system"]]))
+        for v in plain:
+            self.assertIn(f'id="b{v["index"]}"', form)
+            self.assertIn(f'name="b{v["index"]}_kind" value="{v["kind"]}"', form)
+
+    def test_each_heading_shows_its_summary_escaped(self):
+        form = self.editor_form()
+        shown = [v["summary"] for v in blockform.describe(blockform.starter()) if v["summary"]]
+        self.assertTrue(shown)
+        for summary in shown:
+            self.assertIn(f'<span class="tpl-summary">{escape(summary)}</span>', form)
+
+    def test_a_summary_cannot_inject_markup(self):
+        draft = blockform.starter()
+        draft["blocks"][0].update(kind="text", text="<script>alert(1)</script>")
+        self.load_blocks.return_value = draft
+        form = self.editor_form("/templates/edit/spring")
+        self.assertNotIn("<script>alert(1)", form)
+        self.assertIn("&lt;script&gt;", form)
+
+    def test_only_the_rich_fields_get_a_toolbar_and_its_controls_have_no_name(self):
+        import re
+        form = self.editor_form()
+        rich = [f for v in blockform.describe(blockform.starter()) for f in v["fields"] if f["rich"]]
+        self.assertTrue(rich)
+        self.assertEqual(form.count('data-rich="1"'), len(rich))
+        self.assertEqual(form.count('class="tpl-toolbar"'), len(rich))
+        for f in rich:
+            self.assertIn(f'<span class="tpl-toolbar" data-for="{f["name"]}">', form)
+        # a named control would be posted with the form and change the draft
+        controls = re.findall(r'<(?:button type="button"|select data-)[^>]*>', form)
+        self.assertEqual(len(controls), 5 * len(rich))
+        for control in controls:
+            self.assertNotIn(" name=", control)
+        for needle in ('data-wrap="b"', 'data-wrap="i"', "data-colour", "data-link", "data-merge"):
+            self.assertEqual(form.count(needle), len(rich), needle)
+
+    def test_the_toolbar_offers_the_legends_colours_and_fields(self):
+        from hailsys.email import blockform as bf
+        import re
+        bars = re.findall(r'<span class="tpl-toolbar".*?</span>', self.editor_form(), re.S)
+        self.assertTrue(bars)
+        legend = bf.legend()
+        for bar in bars:
+            for c in legend["colours"]:
+                self.assertEqual(bar.count(f'<option value="{c["name"]}">{c["name"]}</option>'), 1)
+            for m in legend["merge_fields"]:
+                self.assertEqual(bar.count(f'<option value="{m["token"]}">{m["token"]}</option>'), 1)
+            self.assertEqual(bar.count("<option"), 2 + len(legend["colours"]) + len(legend["merge_fields"]))
+
+    def test_the_list_page_uses_button_links(self):
+        page = self.text("/templates/")
+        self.assertIn('class="tpl-btn tpl-btn-primary"', page)
+        self.assertIn('class="tpl-btn"', page)
+
     def test_the_edit_page_loads_the_saved_blocks_and_shows_the_name_not_a_box(self):
         page = self.text("/templates/edit/spring")
         self.load_blocks.assert_called_once()
         self.assertEqual(self.load_blocks.call_args.args[1], "spring")
         self.assertIn("Template: spring", page)
-        self.assertNotIn('size="30" maxlength="40"', page)                  # no name box
+        self.assertNotIn('<input type="text" id="name"', page)             # no name box
         self.assertIn('<input type="hidden" name="name" value="spring">', page)
 
     def test_an_unknown_template_is_a_404(self):
@@ -247,7 +341,8 @@ class EmailTplPagesTest(unittest.TestCase):
         self.assertIn("&lt;/html&gt;", value)
 
     def test_a_new_template_starts_with_an_empty_name(self):
-        self.assertRegex(self.text("/templates/new"), r'name="name" size="30" maxlength="40" value=""')
+        self.assertIn('<input type="text" id="name" name="name" maxlength="40" value="">',
+                      self.text("/templates/new"))
 
     def test_the_templates_link_is_highlighted_on_these_pages(self):
         for path in ("/templates/", "/templates/new", "/templates/edit/spring"):
@@ -485,7 +580,7 @@ class EmailTplActionsTest(unittest.TestCase):
         self.assertIn('name="subject_mode" value="text" checked', page)
         self.assertIn('value="Hello {total}"', page)
         self.assertIn('<option value="several" selected>', page)
-        self.assertIn('name="name" size="30" maxlength="40" value="spring"', page)
+        self.assertIn('<input type="text" id="name" name="name" maxlength="40" value="spring">', page)
 
     def test_an_existing_template_keeps_its_name_in_a_hidden_field(self):
         page = self.post(self.form(action="preview", mode="edit")).get_data(as_text=True)
@@ -726,13 +821,13 @@ class EmailTplSaveRetireTest(unittest.TestCase):
                 self.assertEqual(self.post("/templates/edit", self.form(), role).status_code, 403)
         self.save.assert_not_called()
 
-    def test_the_editor_offers_save_at_both_ends_with_the_right_label(self):
+    def test_the_editor_has_one_save_button_with_the_right_label(self):
         client = self.client_as()
         text = client.get("/templates/new").get_data(as_text=True)
-        self.assertEqual(text.count('value="save"'), 2)
-        self.assertEqual(text.count(">Create template<"), 2)
+        self.assertEqual(text.count('value="save"'), 1)
+        self.assertEqual(text.count(">Create template<"), 1)
         text = client.get("/templates/edit/spring").get_data(as_text=True)
-        self.assertEqual(text.count(">Save as a new version<"), 2)
+        self.assertEqual(text.count(">Save as a new version<"), 1)
 
     # ---- retire ----
 

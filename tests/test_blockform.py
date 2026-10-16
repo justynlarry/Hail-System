@@ -401,6 +401,36 @@ class DescribeTest(unittest.TestCase):
         self.assertEqual([x["label"] for x in shown], ["Unknown block"] * 4)
         self.assertTrue(all(x["fields"] == [] for x in shown))
 
+    def test_the_summary_is_the_first_words_of_the_blocks_own_text(self):
+        def summary(block):
+            return f.describe({"blocks": [block]})[0]["summary"]
+        self.assertEqual(summary({"kind": "text", "text": "Hello there"}), "Hello there")
+        self.assertEqual(summary({"kind": "button", "label": "See the dates"}), "See the dates")
+        self.assertEqual(summary({"kind": "testimonial", "who": "A. Agent"}), "A. Agent")
+        self.assertEqual(summary({"kind": "badges", "images": ["one", "two"]}), "one, two")
+        self.assertEqual(summary({"kind": "divider"}), "")
+        self.assertEqual(summary({"kind": "text", "text": "   "}), "")
+
+    def test_the_summary_drops_tags_and_is_cut_at_fifty_characters(self):
+        def summary(text):
+            return f.describe({"blocks": [{"kind": "text", "text": text}]})[0]["summary"]
+        self.assertEqual(summary("[b]Big[/b] [color=red]news[/color]"), "Big news")
+        self.assertEqual(summary("x" * 50), "x" * 50)
+        self.assertEqual(summary("x" * 51), "x" * 50 + "...")
+        self.assertEqual(summary("[link=https://a.example|{schedule_url}]" + "y" * 60 + "[/link]"),
+                         "y" * 50 + "...")
+
+    def test_a_long_list_of_image_names_is_cut_at_fifty_characters(self):
+        names = ["badge_" + str(i) * 5 for i in range(1, 9)]
+        shown = f.describe({"blocks": [{"kind": "badges", "images": names}]})[0]["summary"]
+        self.assertEqual(shown, ", ".join(names)[:50])
+        self.assertEqual(len(shown), 50)
+
+    def test_a_text_that_is_not_a_string_gives_no_summary(self):
+        shown = f.describe({"blocks": [{"kind": "text", "text": 5}, {"kind": "text", "text": None},
+                                       {"kind": "badges", "images": "x"}]})
+        self.assertEqual([x["summary"] for x in shown[:3]], ["", "", ""])
+
     def test_the_subject_labels_cover_every_preset(self):
         shown = f.subject_form(tpl())
         for preset in shown["presets"]:

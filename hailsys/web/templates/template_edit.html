@@ -3,12 +3,47 @@
 {% block heading %}{% if is_new %}New template{% else %}Template: {{ name }}{% endif %}{% endblock %}
 
 {% block content %}
-<div class="page">
+<div class="page tpl-page">
 <p class="note">
     <a href="{{ url_for('emailtpl.index') }}">All templates</a>. Saving always makes a new
     version; nothing here changes an email that was already sent. Nothing is saved until you
     press Save.
 </p>
+
+<details class="tpl-guide">
+    <summary>Formatting guide: tags, colours and merge fields</summary>
+    <div class="tpl-guide-body">
+        <h4>Tags</h4>
+        <p class="note">Type these in a paragraph, a heading or a band's text, or use the buttons above the box.</p>
+        <table>
+            <tbody>
+                {% for tag in legend.tags %}
+                <tr><td><code>{{ tag.code }}</code></td><td>{{ tag.meaning }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <h4>Colours</h4>
+        <p class="tpl-swatches">
+            {% for c in legend.colours %}<span class="tpl-swatch"><i style="background: {{ c.hex }}"></i>{{ c.name }}</span>{% endfor %}
+        </p>
+        <h4>Merge fields</h4>
+        <p class="note">Each is replaced by the real value for the agent. The examples are from the one-storm sample.</p>
+        <table>
+            <tbody>
+                {% for m in legend.merge_fields %}
+                <tr><td><code>{{ m.token }}</code></td><td>{{ m.meaning }}</td><td>for example <strong>{{ m.example }}</strong></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <h4>Rules</h4>
+        <ul class="note">
+            <li>Close tags in the opposite order you opened them: <code>[b]bold [i]both[/i][/b]</code>.</li>
+            <li>Anything else in square brackets is shown as typed. Two square brackets in a row are not allowed.</li>
+            <li>HTML is never interpreted: <code>&lt;b&gt;</code> appears as those characters.</li>
+            <li>Curly braces are only for the merge fields listed here.</li>
+        </ul>
+    </div>
+</details>
 
 <form id="editor" method="post" action="{{ url_for('emailtpl.act') }}" data-unsaved="{{ 1 if unsaved else 0 }}">
     {# Enter in a text box presses the first submit button in the form.  This one comes first so
@@ -19,79 +54,80 @@
     <input type="hidden" name="mode" value="{{ 'new' if is_new else 'edit' }}">
     {% if not is_new %}<input type="hidden" name="name" value="{{ name }}">{% endif %}
 
-    <p class="tpl-field">
-        <label for="name">Name</label>
-        {% if is_new %}
-        <input type="text" id="name" name="name" size="30" maxlength="40" value="{{ name }}">
-        <small>Letters, digits, hyphens and underscores, up to 40. It cannot be changed later.</small>
-        {% else %}
-        <strong>{{ name }}</strong>
-        {% endif %}
-    </p>
-
-    <h3>Subject and preview text</h3>
-    <p class="tpl-field">
-        <label><input type="radio" name="subject_mode" value="preset"{% if subject.mode == 'preset' %} checked{% endif %}> A standard subject</label>
-        <select name="subject_preset" aria-label="Standard subject">
-            {% for p in subject.presets %}<option value="{{ p }}"{% if p == subject.preset %} selected{% endif %}>{{ subject.labels.get(p, p) }}</option>{% endfor %}
-        </select>
-    </p>
-    <p class="tpl-field">
-        <label><input type="radio" name="subject_mode" value="text"{% if subject.mode == 'text' %} checked{% endif %}> Your own text</label>
-        <input type="text" name="subject_text" size="60" value="{{ subject.text }}" aria-label="Subject text">
-        <small>Merge fields: {total}, {storm_dates_label}, {largest_hail}, {nearest_miles}</small>
-    </p>
-    <p class="tpl-field">
-        <label for="title">Page title</label>
-        <input type="text" id="title" name="title" size="60" value="{{ title }}">
-        <small>Shown in the browser tab when the email is opened on the web.</small>
-    </p>
-    <p class="tpl-field">
-        <label for="preheader">Preview line</label>
-        <input type="text" id="preheader" name="preheader" size="60" value="{{ preheader }}">
-        <small>The grey text beside the subject in the inbox. Merge fields work here too.</small>
-    </p>
-
-    <h3>Blocks</h3>
-    <div id="blocks">{% include "_editor_blocks.html" %}</div>
-
-    <p class="tpl-field" id="add-block">
-        <label for="add_kind">Add a block</label>
-        <select id="add_kind" name="add_kind">
-            {% for kind, label in addable %}<option value="{{ kind }}">{{ label }}</option>{% endfor %}
-        </select>
-        <button type="submit" name="action" value="add"
-                formaction="{{ url_for('emailtpl.act') }}#add-block">Add</button>
-        <small>New blocks go above the footer.</small>
-    </p>
-    <p class="tpl-save">
-        <button type="submit" name="action" value="save"
+    <div class="tpl-bar">
+        <button type="submit" name="action" value="save" class="tpl-primary"
                 formaction="{{ url_for('emailtpl.act') }}">{% if is_new %}Create template{% else %}Save as a new version{% endif %}</button>
-    </p>
-
-    <h3>Preview</h3>
-    <p class="tpl-field">
-        <label for="situation">Storm situation</label>
-        <select id="situation" name="situation">
-            {% for key, s in situations.items() %}<option value="{{ key }}"{% if key == situation %} selected{% endif %}>{{ s.label }}</option>{% endfor %}
-        </select>
         <button type="submit" name="action" value="preview"
                 formaction="{{ url_for('emailtpl.act') }}#preview">Show preview</button>
-        <small>Stand-in data. No real recipient is read.</small>
-    </p>
-    <p class="tpl-field">
         <button type="submit" name="test" value="1"
                 formaction="{{ url_for('emailtpl.send_test_email') }}#test-result"{% if not test_address %} disabled{% endif %}>Send a test to {{ test_address or 'you' }}</button>
-        <small>Sends this draft, with the sample storm above, to your own address only, through
-        Constant Contact. Up to 5 an hour. It is not a real send.</small>
-    </p>
-    {% if test_notice %}<p class="note" id="test-result">{{ test_notice }}</p>{% endif %}
-    <p class="tpl-save">
-        <button type="submit" name="action" value="save"
-                formaction="{{ url_for('emailtpl.act') }}">{% if is_new %}Create template{% else %}Save as a new version{% endif %}</button>
-    </p>
+    </div>
+
+    <div class="tpl-columns">
+        <div class="tpl-left">
+            <p class="tpl-field">
+                <label for="name">Name</label>
+                {% if is_new %}
+                <input type="text" id="name" name="name" maxlength="40" value="{{ name }}">
+                <small>Letters, digits, hyphens and underscores, up to 40. It cannot be changed later.</small>
+                {% else %}
+                <strong>{{ name }}</strong>
+                {% endif %}
+            </p>
+
+            <h3>Subject and preview text</h3>
+            <p class="tpl-field">
+                <label><input type="radio" name="subject_mode" value="preset"{% if subject.mode == 'preset' %} checked{% endif %}> A standard subject</label>
+                <select name="subject_preset" aria-label="Standard subject">
+                    {% for p in subject.presets %}<option value="{{ p }}"{% if p == subject.preset %} selected{% endif %}>{{ subject.labels.get(p, p) }}</option>{% endfor %}
+                </select>
+            </p>
+            <p class="tpl-field">
+                <label><input type="radio" name="subject_mode" value="text"{% if subject.mode == 'text' %} checked{% endif %}> Your own text</label>
+                <input type="text" name="subject_text" value="{{ subject.text }}" aria-label="Subject text">
+                <small>Merge fields: {total}, {storm_dates_label}, {largest_hail}, {nearest_miles}</small>
+            </p>
+            <p class="tpl-field">
+                <label for="title">Page title</label>
+                <input type="text" id="title" name="title" value="{{ title }}">
+                <small>Shown in the browser tab when the email is opened on the web.</small>
+            </p>
+            <p class="tpl-field">
+                <label for="preheader">Preview line</label>
+                <input type="text" id="preheader" name="preheader" value="{{ preheader }}">
+                <small>The grey text beside the subject in the inbox. Merge fields work here too.</small>
+            </p>
+
+            <h3>Blocks</h3>
+            <div id="blocks">{% include "_editor_blocks.html" %}</div>
+
+            <p class="tpl-field tpl-add" id="add-block">
+                <label for="add_kind">Add a block</label>
+                <select id="add_kind" name="add_kind">
+                    {% for kind, label in addable %}<option value="{{ kind }}">{{ label }}</option>{% endfor %}
+                </select>
+                <button type="submit" name="action" value="add"
+                        formaction="{{ url_for('emailtpl.act') }}#add-block">Add</button>
+                <small>New blocks go above the footer.</small>
+            </p>
+        </div>
+
+        <aside class="tpl-right">
+            <h3>Preview</h3>
+            <p class="tpl-field tpl-small">
+                <label for="situation">Storm situation</label>
+                <select id="situation" name="situation">
+                    {% for key, s in situations.items() %}<option value="{{ key }}"{% if key == situation %} selected{% endif %}>{{ s.label }}</option>{% endfor %}
+                </select>
+                <small>Stand-in data. No real recipient is read. The preview updates after you change a field; without JavaScript, press Show preview.</small>
+            </p>
+            {% if test_notice %}<p class="note tpl-result" id="test-result">{{ test_notice }}</p>{% endif %}
+            <p class="note">The test button sends this draft, with the sample storm above, to your own address only, through
+            Constant Contact. Up to 5 an hour. It is not a real send.</p>
+            <div id="preview">{% include "_editor_preview.html" %}</div>
+        </aside>
+    </div>
 </form>
-<div id="preview">{% include "_editor_preview.html" %}</div>
-</div>
 <script src="{{ url_for('static', filename='templates.js') }}" defer></script>
+</div>
 {% endblock %}

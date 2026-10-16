@@ -1,8 +1,7 @@
 {% if preview.ok %}
-<p>Subject: <strong>{{ preview.subject }}</strong> &middot; {{ (preview.size / 1000) | round(1) }} KB</p>
+<p class="tpl-subject">Subject: <strong>{{ preview.subject }}</strong> <small>&middot; {{ (preview.size / 1000) | round(1) }} KB</small></p>
 {% for w in preview.warnings %}<p class="note warning">{{ w }}</p>{% endfor %}
-<iframe sandbox title="Preview" srcdoc="{{ preview.html }}"
-        style="width:100%; height:700px; border:1px solid var(--border);"></iframe>
+<iframe sandbox title="Preview" srcdoc="{{ preview.html }}" class="tpl-frame"></iframe>
 {% else %}
 <p class="note warning">There is no preview yet. Fix these first:</p>
 <ul>

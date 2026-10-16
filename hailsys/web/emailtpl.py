@@ -62,7 +62,8 @@ def _context(draft, name, is_new, situation, notice=None, test_notice=None, unsa
             "block_views": blockform.describe(draft, shown["problems"]), "preview": shown,
             "situations": samples.SITUATIONS, "situation": situation,
             "addable": blockform.ADDABLE, "notice": notice, "test_notice": test_notice,
-            "test_address": _my_address(), "unsaved": unsaved}
+            "test_address": _my_address(), "unsaved": unsaved,
+            "legend": blockform.legend()}
 
 
 def _editor(draft, name, is_new):
