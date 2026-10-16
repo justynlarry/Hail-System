@@ -3863,8 +3863,25 @@ production will use, to check when it exists and repeat the relevant probes ther
 - bulk-activity and list-delete timing at real volume (docs: 30 seconds to 15+ minutes)
 - that the CNAME self-authentication and the `ctct1` DKIM alignment carry over to the
   production sending domain (item 96)
+- the plan's contact cap and monthly send limit, against the real contact count (see "Plan tier" below)
+- whether API and OAuth access, and the 10,000-calls-a-day limit the send engine stops at
+  (item 191), are the same on the plan chosen; the reset time of that limit is still unverified
+- whether unsubscribed contacts count toward the plan's contact cap (we hold 760 suppressions)
 
-**When:** when the production account is created, before the first production send.
+**Plan tier (considered 2026-10-15, not yet chosen).** Constant Contact is used here as a
+delivery pipe through the API: the template builder (item 203), eligibility, suppression
+(`dnc_list`) and sending (`/send`) all live in this system, so the plan's editor, automation,
+segmentation, social, SMS, ads and events features go unused, and nothing may send
+automatically. Lite (about $10.20/month: 5,000-contact cap, sends of 5 times the contacts per
+month, 2 users) covers one developer and one sender. The deciding number is contacts. Item 121
+measured 3,259 distinct agents over a six-week HAIL window (1,415 from one storm), so a busy
+season could pass Lite's 5,000 cap. Standard (about $29.75/month) has no cap. The prices and
+limits above come from Constant Contact's pricing page as pasted on 2026-10-15; they are not
+verified against the account. Start on Lite only if the contact count the send path actually
+creates in Constant Contact stays under 5,000; otherwise start on Standard.
+
+**When:** when the production account is created, before the first production send. Choose the
+plan after counting contacts, and confirm the API and call-limit bullets above before paying.
 
 ## 184. A one-character typo in the API throttle hung a request; no test ran its arithmetic
 
