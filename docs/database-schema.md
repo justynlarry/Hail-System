@@ -989,6 +989,24 @@ retried. An admin's tests in the last hour are counted from this table (the cap 
 in code); failed and unknown attempts count. No email content is kept, only the subject and its size.
 `accepted` is Constant Contact taking the test, not delivery (item 186).
 
+### Drip campaigns (item 204)
+
+`sql/046_drip_campaigns.sql`, applied to `hail-dev` only; no screen or job uses these yet (pieces 4 to 6).
+An initial email, then follow-ups at set gaps. Step 1 is the ordinary send. `hail_app` has `SELECT` and
+`INSERT` on all five, `UPDATE` on only the nine columns named below, no `DELETE` or `TRUNCATE`.
+`sql/guard_test.sql` holds the rules as tests.
+
+| Table | What it holds | Rules in the database |
+|---|---|---|
+| `drip_campaigns` | `campaign_id`, `name` (1 to 100), `first_batch_id` (UNIQUE; must exist in `sent_emails`), `created_by/at`, `status`, `status_changed_at/by` | Only `status`, `status_changed_at`, `status_changed_by` change. Moves: active to paused, cancelled or complete; paused to active or cancelled; cancelled and complete are final. `complete` needs every step sent. The database sets `status_changed_at` |
+| `drip_steps` | PK `(campaign_id, step_no)` (1 to 10), `gap_days` (1 to 30), `template_name`, then `batch_id` (UNIQUE), `started_by`, `started_at` | Frozen at creation except that the last three are set together, once, when the step is sent. Step n needs n-1 sent; the campaign must be active; the batch must exist in `sent_emails` and not be the first batch. No steps added once one is sent. The database sets `started_at` |
+| `drip_recipients` | PK `(campaign_id, realtor_id)`, `recipient_email`, `stopped_at`, `stop_reason`, `stopped_by` | Must have been emailed in the first batch at that address; the list is fixed once a step is sent. A recipient is stopped once. Reasons: `unsubscribed`, `bounced`, `no_active_listings` (system, no `stopped_by`), `manual`, `replied` (a person, `stopped_by` required). Stopping does **not** add to `dnc_list` |
+| `drip_listing_checks` | `check_id`, `campaign_id`, `step_no`, `listing_id`, `checked_at`, `calls_made`, `http_status`, `outcome`, `rc_status`, `last_seen`, `removed_at`, `detail` (300 at most) | Append-only. One row per RentCast lookup by id. `outcome` is `active`, `inactive`, `not_found` or `error`; `rc_status` is required for `active` and `inactive`. A listing RentCast still calls Active but has not seen inside the freshness window is `inactive` with `rc_status` `Active`. `calls_made` is attempts, a 404 included (RentCast probably does not bill a 404; unconfirmed). Counted in the quota with `api_call_log` |
+| `drip_step_pulls` | `pull_id` (PK, FK `api_pulls`), `campaign_id`, `step_no`, `created_at` | Append-only. The zip pulls a step spent calls on when that was the cheaper way; `api_pulls` and `api_call_log` hold the calls |
+
+A campaign's matches are the `send_log` rows of its first batch. Nothing here is written by the nightly
+jobs, and nothing sends by itself: every step starts with a person's click.
+
 ---
 
 ## Address search
@@ -1110,6 +1128,8 @@ invalidation to get wrong across Gunicorn workers.
 | `rentcast_billing_day` | `SMALLINT NOT NULL DEFAULT 9`, `CHECK` `BETWEEN 1 AND 28` — added `sql/023_rentcast_quota.sql`, 2026-09-23. Day of month the RentCast plan resets. Capped at 28 because a 29th–31st has no February equivalent and no fallback rule has been chosen. The period rolls over at **Denver** midnight in `hailsys/queries/quota.py`; RentCast's own rollover timezone is unconfirmed |
 | `listing_freshness_days` | `SMALLINT NOT NULL DEFAULT 7`, `CHECK` `BETWEEN 1 AND 90` — added `sql/028_listing_freshness.sql`. A listing RentCast has not seen within this many days is not emailed about, since it may have been sold or withdrawn. 7 assumes a storm is pulled and sent the same or next day, with a week of slack |
 | `match_max_age_days` | `SMALLINT NOT NULL DEFAULT 30`, `CHECK` `BETWEEN 1 AND 90` — added `sql/038_email_settings.sql`. A storm day older than this many days is not emailed about |
+| `drip_max_followups` | `SMALLINT NOT NULL DEFAULT 3`, `CHECK` `BETWEEN 0 AND 10` — added `sql/045_drip_settings.sql` (item 204). The most follow-ups a new drip campaign may have; 0 turns new campaigns off. A change affects campaigns started afterwards |
+| `drip_max_gap_days` | `SMALLINT NOT NULL DEFAULT 7`, `CHECK` `BETWEEN 1 AND 30` — added `045`. The longest gap, in days, between two steps of a new campaign |
 | `email_cap_days` | `SMALLINT NOT NULL DEFAULT 14`, `CHECK` `BETWEEN 1 AND 90` — added `038`. A realtor emailed within this many days is held back from the next send unless the sender overrides it; their matches stay unsent for a later email |
 | `contact_email` | `TEXT NOT NULL`, `CHECK` an address (one `@`, no spaces) — added `sql/042_email_images_and_settings.sql`. The contact line at the foot of the email. Moved from the `EMAIL_CONTACT_EMAIL` environment variable; the column default is the value it had |
 | `schedule_url` | `TEXT NOT NULL`, `CHECK` starts `https://` — added `042`. The "Schedule a new inspection" link. Was `EMAIL_SCHEDULE_URL`. The renderer also refuses free-hosting domains (`render.check_url`) |
@@ -1130,7 +1150,7 @@ checks, plus `settings_rentcast_billing_day_check` and
 `INTEGER` fails as a `DataError`, which the route catches separately.
 
 **Usage is not stored here.** `quota.fetch_usage` sums
-`api_call_log.calls_made` over the current billing period on each request that
+`api_call_log.calls_made` plus `drip_listing_checks.calls_made` over the current billing period on each request that
 shows it: the admin page, the pull estimate, and the storm list for senders and
 admins.
 
@@ -1156,6 +1176,7 @@ freshness settings, snapshotting all seven values that resulted (five before `03
 | `default_zip_radius_miles`, `default_match_radius_miles` | `NUMERIC(4,1) NOT NULL` — the values after the change |
 | `rentcast_billing_day`, `rentcast_monthly_quota` | Nullable — added `023`. **NULL on rows written before `023`**, not backfilled: a default would assert a value nobody recorded. The admin page shows them as "—" |
 | `listing_freshness_days` | `SMALLINT`, nullable — added `sql/028`. **NULL on rows written before `028`**, not backfilled, for the same reason |
+| `drip_max_followups`, `drip_max_gap_days` | `SMALLINT`, nullable — added `045`. **NULL on rows written before `045`**, not backfilled |
 | `match_max_age_days`, `email_cap_days` | `SMALLINT`, nullable — added `sql/038`. **NULL on rows written before `038`**, not backfilled, for the same reason |
 | `contact_email`, `schedule_url`, `from_name`, `from_email`, `reply_to` | `TEXT`, nullable — added `sql/042`. **NULL on rows written before `042`**, not backfilled, for the same reason |
 
@@ -1273,8 +1294,8 @@ ago, re-pulling probably returns the same listings" warning.
 Per-zip granularity also shows which zips are expensive. A dense metro zip may
 take six pages; a rural one takes one.
 
-**Also the source of RentCast usage.** `hailsys/queries/quota.py` sums
-`calls_made` over the billing period (see `settings`). Since 2026-09-24 every
+**Also the source of RentCast usage**, together with `drip_listing_checks`. `hailsys/queries/quota.py` sums
+`calls_made` of both over the billing period (see `settings`). The pull estimate reads this table alone. Since 2026-09-24 every
 zip that makes a request gets a row, including one that ends the pull. The
 bad-key abort records its attempts, and the unclassified catch-all records 1,
 so neither is missing from the usage figure any more (parking-lot item 88).

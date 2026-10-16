@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*60 items (counted 2026-10-16 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
+*61 items (counted 2026-10-16 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -3160,7 +3160,7 @@ vocabulary (`ALLOWED_VARS` is it).
 
 **Status:** open (filed 2026-10-13, by developer request; the owner asked for it). **Plan agreed
 2026-10-16**, Level 1. **Piece 1 (the RentCast probe) done 2026-10-16**; the check method changed
-as a result (below). Piece 2 is next. Nothing is built.
+as a result (below). **Pieces 2 and 3 done 2026-10-16** (`sql/045`, `sql/046`, the by-id client, the check log writer, the quota sum, the cheaper-method choice). Piece 4 is next. No screen or job exists yet.
 
 **The ask:** an initial email about a storm, then N follow-ups with a chosen number of days
 between each (1 to 2, 2 to 3, 3 to 4). Each follow-up must re-check, with RentCast, that the
@@ -3219,10 +3219,10 @@ table, so by-id checks logged there would make a zip look recently pulled.
   only; see the probe results.)*
 - **Its log:** a separate append-only table, `drip_listing_checks`, for by-id calls only; the quota sums
   it with `api_call_log`.
-- **Tables (`sql/045`):** `drip_campaigns` (only `status` changes: active, paused, cancelled,
+- **Tables (`sql/045` adds the two settings; `sql/046` the tables):** `drip_campaigns` (only `status` changes: active, paused, cancelled,
   complete), `drip_steps` (frozen after creation except `batch_id`, set once), `drip_recipients`
   (the step-1 list, never grows; `stopped_at` and a reason: unsubscribed, bounced, no_active_listings,
-  manual, cancelled), `drip_listing_checks`. A campaign's matches are the `send_log` rows of its
+  manual, replied), `drip_listing_checks`, and `drip_step_pulls` (the zip pulls a step spent calls on). A campaign's matches are the `send_log` rows of its
   step-1 batch. Guard tests in `sql/guard_test.sql`.
 - **Limits are admin settings**, in `settings` with changes in `settings_history`, bounds in the
   database as for the radii: most follow-ups per campaign (default 3, 0 to 10; 0 turns campaigns off)
@@ -3243,8 +3243,8 @@ table, so by-id checks logged there would make a zip look recently pulled.
 - **Rules kept:** every step starts with a click; RentCast calls happen only in that click's job and
   are logged; the suppression checks are the existing ones; the 14-day cap applies between campaigns.
 
-*Pieces.* (1) a read-only probe of the by-id endpoint, three calls (done); (2) `sql/045` and guards;
-(3) `get_sale_listing`, the check log, the quota sum and the cheaper-method choice; (4) the follow-up
+*Pieces.* (1) a read-only probe of the by-id endpoint, three calls (done); (2) `sql/045`, `sql/046` and guards (done);
+(3) `get_sale_listing`, the check log, the quota sum and the cheaper-method choice (done); (4) the follow-up
 list builder; (5) the chained job; (6) screens; (7) docs and a dev rehearsal.
 
 *Probe results, 2026-10-16* (`scripts/rentcast_by_id_probe.py`, three calls, RentCast dashboard
@@ -3311,6 +3311,21 @@ would refresh it and one that checks by id would not. The probe printed the fiel
 listing from that recipient's email, moves it to the new agent, or is ignored in Level 1.
 
 **Related:** items 204, 55.
+
+## 228. The RentCast zip client has no unit tests
+
+**Status:** open (found 2026-10-16, while writing the by-id tests for item 204)
+
+`get_sale_listing` has 20 tests (`tests/test_rentcast_by_id.py`: retries and the cap, 404, auth, unreadable
+answers, nothing from a response body in a log). The older zip search in `hailsys/rentcast/client.py`
+(paging, retries, the 404-to-empty-list rule, the abort paths that feed `api_call_log`) has none; it was
+verified by real pulls. A change to the shared pieces (`_throttle`, the error classes, back-off) is
+covered on the by-id side only.
+
+**When:** before the next change to `client.py` that touches the zip search or the shared error classes,
+or when item 204's piece 5 makes a zip pull part of a chained job.
+
+**Related:** items 204, 88.
 
 ## 205. Likelihood tiers: rank outreach by radar swath and distance instead of one circle
 
