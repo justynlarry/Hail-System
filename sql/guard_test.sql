@@ -403,6 +403,282 @@ SELECT pg_temp.expect('email_test_sends UPDATE blocked',
 SELECT pg_temp.expect('email_test_sends DELETE blocked',
   $q$DELETE FROM email_test_sends WHERE recipient = 'guard-test@example.invalid'$q$, '23001');
 
+-- ---- drip campaigns (sql/046) ----
+-- Helpers: the first user, the Nth realtor, a fixed batch id per number, a test campaign by number.
+CREATE FUNCTION pg_temp.u() RETURNS bigint AS $$
+    SELECT emp_id FROM users ORDER BY emp_id LIMIT 1 $$ LANGUAGE sql;
+CREATE FUNCTION pg_temp.r(n int) RETURNS bigint AS $$
+    SELECT realtor_id FROM realtors ORDER BY realtor_id OFFSET n - 1 LIMIT 1 $$ LANGUAGE sql;
+CREATE FUNCTION pg_temp.b(n int) RETURNS uuid AS $$
+    SELECT ('00000000-0000-4000-8000-0000000000a' || n)::uuid $$ LANGUAGE sql;
+CREATE FUNCTION pg_temp.c(n int) RETURNS bigint AS $$
+    SELECT campaign_id FROM drip_campaigns WHERE name = 'guard-test-campaign-' || n $$ LANGUAGE sql;
+
+-- Emailed batches: 1 = campaign 1's first batch (realtors 1 and 2), 2 and 3 = its follow-ups,
+-- 4 = campaign 2's first batch, 5 = a spare.  Batch 9 deliberately has no emails.
+INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, sync_run_id,
+                         permission_asserted, created_by, subject, html_body)
+SELECT pg_temp.b(v.batch), pg_temp.r(v.realtor),
+       'guard-test-drip-' || v.realtor || '@example.invalid',
+       (SELECT template_id FROM email_templates WHERE template_name = 'guard-test'),
+       (SELECT run_id FROM cc_sync_runs WHERE watermark = '1999-01-05'),
+       'none', pg_temp.u(), 's', '<p>b</p>'
+FROM (VALUES (1, 1), (1, 2), (2, 1), (3, 1), (4, 1), (5, 1)) AS v(batch, realtor);
+
+-- drip_campaigns: creation
+SELECT pg_temp.expect('drip_campaigns needs a batch that has emails',
+  $q$INSERT INTO drip_campaigns (name, first_batch_id, created_by)
+     VALUES ('guard-test-campaign-1', pg_temp.b(9), pg_temp.u())$q$, '23001');
+SELECT pg_temp.expect('drip_campaigns a new campaign starts active',
+  $q$INSERT INTO drip_campaigns (name, first_batch_id, created_by, status)
+     VALUES ('guard-test-campaign-1', pg_temp.b(1), pg_temp.u(), 'paused')$q$, '23001');
+SELECT pg_temp.expect('drip_campaigns name must be 1 to 100 characters',
+  $q$INSERT INTO drip_campaigns (name, first_batch_id, created_by)
+     VALUES ('', pg_temp.b(1), pg_temp.u())$q$, '23514');
+SELECT pg_temp.expect('drip_campaigns a good campaign can be created',
+  $q$INSERT INTO drip_campaigns (name, first_batch_id, created_by)
+     VALUES ('guard-test-campaign-1', pg_temp.b(1), pg_temp.u())$q$, 'ok');
+SELECT pg_temp.expect('drip_campaigns one first batch cannot start two campaigns',
+  $q$INSERT INTO drip_campaigns (name, first_batch_id, created_by)
+     VALUES ('guard-test-campaign-x', pg_temp.b(1), pg_temp.u())$q$, '23505');
+
+-- drip_steps: creation
+SELECT pg_temp.expect('drip_steps step 2 cannot be added before step 1',
+  $q$INSERT INTO drip_steps (campaign_id, step_no, gap_days, template_name)
+     VALUES (pg_temp.c(1), 2, 2, 'guard-test')$q$, '23001');
+SELECT pg_temp.expect('drip_steps a step cannot be created already sent',
+  $q$INSERT INTO drip_steps (campaign_id, step_no, gap_days, template_name,
+                             batch_id, started_by, started_at)
+     VALUES (pg_temp.c(1), 1, 2, 'guard-test', pg_temp.b(2), pg_temp.u(), now())$q$, '23001');
+SELECT pg_temp.expect('drip_steps gap_days must be 1 to 30',
+  $q$INSERT INTO drip_steps (campaign_id, step_no, gap_days, template_name)
+     VALUES (pg_temp.c(1), 1, 0, 'guard-test')$q$, '23514');
+SELECT pg_temp.expect('drip_steps step_no must be 1 to 10',
+  $q$INSERT INTO drip_steps (campaign_id, step_no, gap_days, template_name)
+     VALUES (pg_temp.c(1), 0, 2, 'guard-test')$q$, '23514');
+SELECT pg_temp.expect('drip_steps template name must not be empty',
+  $q$INSERT INTO drip_steps (campaign_id, step_no, gap_days, template_name)
+     VALUES (pg_temp.c(1), 1, 2, '')$q$, '23514');
+SELECT pg_temp.expect('drip_steps step 1 can be added',
+  $q$INSERT INTO drip_steps (campaign_id, step_no, gap_days, template_name)
+     VALUES (pg_temp.c(1), 1, 2, 'guard-test')$q$, 'ok');
+SELECT pg_temp.expect('drip_steps step 2 can be added',
+  $q$INSERT INTO drip_steps (campaign_id, step_no, gap_days, template_name)
+     VALUES (pg_temp.c(1), 2, 3, 'guard-test')$q$, 'ok');
+SELECT pg_temp.expect('drip_steps a step number cannot be used twice',
+  $q$INSERT INTO drip_steps (campaign_id, step_no, gap_days, template_name)
+     VALUES (pg_temp.c(1), 2, 3, 'guard-test')$q$, '23505');
+
+-- drip_recipients: creation and stopping
+SELECT pg_temp.expect('drip_recipients a realtor not emailed in the first batch is refused',
+  $q$INSERT INTO drip_recipients (campaign_id, realtor_id, recipient_email)
+     VALUES (pg_temp.c(1), pg_temp.r(3), 'guard-test-drip-3@example.invalid')$q$, '23001');
+SELECT pg_temp.expect('drip_recipients a different address for a real recipient is refused',
+  $q$INSERT INTO drip_recipients (campaign_id, realtor_id, recipient_email)
+     VALUES (pg_temp.c(1), pg_temp.r(1), 'someone-else@example.invalid')$q$, '23001');
+SELECT pg_temp.expect('drip_recipients a recipient cannot start stopped',
+  $q$INSERT INTO drip_recipients (campaign_id, realtor_id, recipient_email, stop_reason)
+     VALUES (pg_temp.c(1), pg_temp.r(1), 'guard-test-drip-1@example.invalid', 'bounced')$q$, '23001');
+SELECT pg_temp.expect('drip_recipients recipient 1 can be added',
+  $q$INSERT INTO drip_recipients (campaign_id, realtor_id, recipient_email)
+     VALUES (pg_temp.c(1), pg_temp.r(1), 'guard-test-drip-1@example.invalid')$q$, 'ok');
+SELECT pg_temp.expect('drip_recipients recipient 2 can be added',
+  $q$INSERT INTO drip_recipients (campaign_id, realtor_id, recipient_email)
+     VALUES (pg_temp.c(1), pg_temp.r(2), 'guard-test-drip-2@example.invalid')$q$, 'ok');
+SELECT pg_temp.expect('drip_recipients a stop time needs a reason',
+  $q$UPDATE drip_recipients SET stopped_at = now()
+     WHERE campaign_id = pg_temp.c(1) AND realtor_id = pg_temp.r(1)$q$, '23514');
+SELECT pg_temp.expect('drip_recipients the realtor is frozen',
+  $q$UPDATE drip_recipients SET realtor_id = pg_temp.r(3)
+     WHERE campaign_id = pg_temp.c(1) AND realtor_id = pg_temp.r(1)$q$, '23001');
+SELECT pg_temp.expect('drip_recipients the address is frozen',
+  $q$UPDATE drip_recipients SET recipient_email = 'x@example.invalid'
+     WHERE campaign_id = pg_temp.c(1) AND realtor_id = pg_temp.r(1)$q$, '23001');
+SELECT pg_temp.expect('drip_recipients a stop reason must be a known one',
+  $q$UPDATE drip_recipients SET stop_reason = 'whatever'
+     WHERE campaign_id = pg_temp.c(1) AND realtor_id = pg_temp.r(1)$q$, '23514');
+SELECT pg_temp.expect('drip_recipients a manual stop needs a person',
+  $q$UPDATE drip_recipients SET stop_reason = 'manual'
+     WHERE campaign_id = pg_temp.c(1) AND realtor_id = pg_temp.r(2)$q$, '23514');
+SELECT pg_temp.expect('drip_recipients a system stop must not name a person',
+  $q$UPDATE drip_recipients SET stop_reason = 'bounced', stopped_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1) AND realtor_id = pg_temp.r(2)$q$, '23514');
+SELECT pg_temp.expect('drip_recipients a system stop is allowed',
+  $q$UPDATE drip_recipients SET stop_reason = 'bounced'
+     WHERE campaign_id = pg_temp.c(1) AND realtor_id = pg_temp.r(2)$q$, 'ok');
+SELECT pg_temp.expect('drip_recipients the stop time is set by the database',
+  $q$SELECT 1 / count(*) FROM drip_recipients
+     WHERE campaign_id = pg_temp.c(1) AND realtor_id = pg_temp.r(2) AND stopped_at IS NOT NULL$q$, 'ok');
+SELECT pg_temp.expect('drip_recipients a stopped recipient stays stopped',
+  $q$UPDATE drip_recipients SET stop_reason = 'manual', stopped_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1) AND realtor_id = pg_temp.r(2)$q$, '23001');
+SELECT pg_temp.expect('drip_recipients a recipient cannot be deleted',
+  $q$DELETE FROM drip_recipients WHERE campaign_id = pg_temp.c(1)$q$, '23001');
+
+-- drip_campaigns: status moves
+SELECT pg_temp.expect('drip_campaigns name is frozen',
+  $q$UPDATE drip_campaigns SET name = 'changed' WHERE campaign_id = pg_temp.c(1)$q$, '23001');
+SELECT pg_temp.expect('drip_campaigns first_batch_id is frozen',
+  $q$UPDATE drip_campaigns SET first_batch_id = pg_temp.b(5) WHERE campaign_id = pg_temp.c(1)$q$, '23001');
+SELECT pg_temp.expect('drip_campaigns a status change must record who made it',
+  $q$UPDATE drip_campaigns SET status = 'paused' WHERE campaign_id = pg_temp.c(1)$q$, '23514');
+SELECT pg_temp.expect('drip_campaigns active -> paused',
+  $q$UPDATE drip_campaigns SET status = 'paused', status_changed_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1)$q$, 'ok');
+SELECT pg_temp.expect('drip_campaigns the change time is set by the database',
+  $q$SELECT 1 / count(*) FROM drip_campaigns
+     WHERE campaign_id = pg_temp.c(1) AND status_changed_at IS NOT NULL$q$, 'ok');
+SELECT pg_temp.expect('drip_campaigns the change record cannot be edited without a status change',
+  $q$UPDATE drip_campaigns SET status_changed_at = now() - interval '1 day'
+     WHERE campaign_id = pg_temp.c(1)$q$, '23001');
+SELECT pg_temp.expect('drip_steps a paused campaign cannot send a step',
+  $q$UPDATE drip_steps SET batch_id = pg_temp.b(2), started_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1) AND step_no = 1$q$, '23001');
+SELECT pg_temp.expect('drip_campaigns paused -> active',
+  $q$UPDATE drip_campaigns SET status = 'active', status_changed_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1)$q$, 'ok');
+
+-- drip_steps: sending
+SELECT pg_temp.expect('drip_steps gap_days is frozen',
+  $q$UPDATE drip_steps SET gap_days = 5 WHERE campaign_id = pg_temp.c(1) AND step_no = 1$q$, '23001');
+SELECT pg_temp.expect('drip_steps template_name is frozen',
+  $q$UPDATE drip_steps SET template_name = 'other' WHERE campaign_id = pg_temp.c(1) AND step_no = 1$q$, '23001');
+SELECT pg_temp.expect('drip_steps step 2 cannot be sent before step 1',
+  $q$UPDATE drip_steps SET batch_id = pg_temp.b(3), started_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1) AND step_no = 2$q$, '23001');
+SELECT pg_temp.expect('drip_steps a step cannot be sent with a batch that has no emails',
+  $q$UPDATE drip_steps SET batch_id = pg_temp.b(9), started_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1) AND step_no = 1$q$, '23001');
+SELECT pg_temp.expect('drip_steps a follow-up cannot reuse the first batch',
+  $q$UPDATE drip_steps SET batch_id = pg_temp.b(1), started_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1) AND step_no = 1$q$, '23001');
+SELECT pg_temp.expect('drip_steps sending must record who sent it',
+  $q$UPDATE drip_steps SET batch_id = pg_temp.b(2)
+     WHERE campaign_id = pg_temp.c(1) AND step_no = 1$q$, '23514');
+SELECT pg_temp.expect('drip_campaigns cannot complete while a step is unsent',
+  $q$UPDATE drip_campaigns SET status = 'complete', status_changed_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1)$q$, '23001');
+SELECT pg_temp.expect('drip_steps step 1 can be sent',
+  $q$UPDATE drip_steps SET batch_id = pg_temp.b(2), started_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1) AND step_no = 1$q$, 'ok');
+SELECT pg_temp.expect('drip_steps the start time is set by the database',
+  $q$SELECT 1 / count(*) FROM drip_steps
+     WHERE campaign_id = pg_temp.c(1) AND step_no = 1 AND started_at IS NOT NULL$q$, 'ok');
+SELECT pg_temp.expect('drip_steps a sent step cannot be sent again with another batch',
+  $q$UPDATE drip_steps SET batch_id = pg_temp.b(3) WHERE campaign_id = pg_temp.c(1) AND step_no = 1$q$, '23001');
+SELECT pg_temp.expect('drip_steps a sent step cannot be unset',
+  $q$UPDATE drip_steps SET batch_id = NULL, started_by = NULL, started_at = NULL
+     WHERE campaign_id = pg_temp.c(1) AND step_no = 1$q$, '23001');
+SELECT pg_temp.expect('drip_steps one batch cannot serve two steps',
+  $q$UPDATE drip_steps SET batch_id = pg_temp.b(2), started_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1) AND step_no = 2$q$, '23505');
+SELECT pg_temp.expect('drip_steps no step can be added once one was sent',
+  $q$INSERT INTO drip_steps (campaign_id, step_no, gap_days, template_name)
+     VALUES (pg_temp.c(1), 3, 2, 'guard-test')$q$, '23001');
+SELECT pg_temp.expect('drip_recipients the list is fixed once a step was sent',
+  $q$INSERT INTO drip_recipients (campaign_id, realtor_id, recipient_email)
+     VALUES (pg_temp.c(1), pg_temp.r(1), 'guard-test-drip-1@example.invalid')$q$, '23001');
+SELECT pg_temp.expect('drip_recipients stopping is still allowed after a step was sent',
+  $q$UPDATE drip_recipients SET stop_reason = 'replied', stopped_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1) AND realtor_id = pg_temp.r(1)$q$, 'ok');
+SELECT pg_temp.expect('drip_steps step 2 can be sent',
+  $q$UPDATE drip_steps SET batch_id = pg_temp.b(3), started_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1) AND step_no = 2$q$, 'ok');
+SELECT pg_temp.expect('drip_steps a step cannot be deleted',
+  $q$DELETE FROM drip_steps WHERE campaign_id = pg_temp.c(1) AND step_no = 1$q$, '23001');
+
+-- drip_campaigns: completing and the end states
+SELECT pg_temp.expect('drip_campaigns active -> paused (campaign 1, every step sent)',
+  $q$UPDATE drip_campaigns SET status = 'paused', status_changed_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1)$q$, 'ok');
+SELECT pg_temp.expect('drip_campaigns paused -> complete is not a move even with every step sent',
+  $q$UPDATE drip_campaigns SET status = 'complete', status_changed_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1)$q$, '23001');
+SELECT pg_temp.expect('drip_campaigns paused -> active (campaign 1, every step sent)',
+  $q$UPDATE drip_campaigns SET status = 'active', status_changed_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1)$q$, 'ok');
+SELECT pg_temp.expect('drip_campaigns active -> complete once every step was sent',
+  $q$UPDATE drip_campaigns SET status = 'complete', status_changed_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1)$q$, 'ok');
+SELECT pg_temp.expect('drip_campaigns a complete campaign stays complete',
+  $q$UPDATE drip_campaigns SET status = 'active', status_changed_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1)$q$, '23001');
+SELECT pg_temp.expect('drip_campaigns a complete campaign cannot be cancelled',
+  $q$UPDATE drip_campaigns SET status = 'cancelled', status_changed_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(1)$q$, '23001');
+SELECT pg_temp.expect('drip_campaigns campaign 2 can be created',
+  $q$INSERT INTO drip_campaigns (name, first_batch_id, created_by)
+     VALUES ('guard-test-campaign-2', pg_temp.b(4), pg_temp.u())$q$, 'ok');
+SELECT pg_temp.expect('drip_steps campaign 2 gets a step',
+  $q$INSERT INTO drip_steps (campaign_id, step_no, gap_days, template_name)
+     VALUES (pg_temp.c(2), 1, 2, 'guard-test')$q$, 'ok');
+SELECT pg_temp.expect('drip_campaigns active -> paused (campaign 2)',
+  $q$UPDATE drip_campaigns SET status = 'paused', status_changed_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(2)$q$, 'ok');
+SELECT pg_temp.expect('drip_campaigns paused -> complete is not a move',
+  $q$UPDATE drip_campaigns SET status = 'complete', status_changed_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(2)$q$, '23001');
+SELECT pg_temp.expect('drip_campaigns paused -> cancelled',
+  $q$UPDATE drip_campaigns SET status = 'cancelled', status_changed_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(2)$q$, 'ok');
+SELECT pg_temp.expect('drip_campaigns a cancelled campaign stays cancelled',
+  $q$UPDATE drip_campaigns SET status = 'active', status_changed_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(2)$q$, '23001');
+SELECT pg_temp.expect('drip_steps a cancelled campaign cannot send a step',
+  $q$UPDATE drip_steps SET batch_id = pg_temp.b(5), started_by = pg_temp.u()
+     WHERE campaign_id = pg_temp.c(2) AND step_no = 1$q$, '23001');
+SELECT pg_temp.expect('drip_campaigns a campaign cannot be deleted',
+  $q$DELETE FROM drip_campaigns WHERE campaign_id = pg_temp.c(2)$q$, '23001');
+
+-- drip_listing_checks and drip_step_pulls: append-only logs
+SELECT pg_temp.expect('drip_listing_checks a lookup can be logged',
+  $q$INSERT INTO drip_listing_checks (campaign_id, step_no, listing_id, calls_made, http_status,
+                                      outcome, rc_status, last_seen)
+     VALUES (pg_temp.c(1), 1, (SELECT listing_id FROM listings ORDER BY listing_id LIMIT 1),
+             1, 200, 'active', 'Active', now())$q$, 'ok');
+SELECT pg_temp.expect('drip_listing_checks a failed lookup needs no status',
+  $q$INSERT INTO drip_listing_checks (campaign_id, step_no, listing_id, calls_made, outcome, detail)
+     VALUES (pg_temp.c(1), 1, (SELECT listing_id FROM listings ORDER BY listing_id LIMIT 1),
+             0, 'error', 'timed out')$q$, 'ok');
+SELECT pg_temp.expect('drip_listing_checks an answered lookup needs the status',
+  $q$INSERT INTO drip_listing_checks (campaign_id, step_no, listing_id, calls_made, outcome)
+     VALUES (pg_temp.c(1), 1, (SELECT listing_id FROM listings ORDER BY listing_id LIMIT 1),
+             1, 'inactive')$q$, '23514');
+SELECT pg_temp.expect('drip_listing_checks outcome must be a known one',
+  $q$INSERT INTO drip_listing_checks (campaign_id, step_no, listing_id, calls_made, outcome)
+     VALUES (pg_temp.c(1), 1, (SELECT listing_id FROM listings ORDER BY listing_id LIMIT 1),
+             1, 'maybe')$q$, '23514');
+SELECT pg_temp.expect('drip_listing_checks calls cannot be negative',
+  $q$INSERT INTO drip_listing_checks (campaign_id, step_no, listing_id, calls_made, outcome)
+     VALUES (pg_temp.c(1), 1, (SELECT listing_id FROM listings ORDER BY listing_id LIMIT 1),
+             -1, 'error')$q$, '23514');
+SELECT pg_temp.expect('drip_listing_checks the step must exist',
+  $q$INSERT INTO drip_listing_checks (campaign_id, step_no, listing_id, calls_made, outcome)
+     VALUES (pg_temp.c(1), 9, (SELECT listing_id FROM listings ORDER BY listing_id LIMIT 1),
+             1, 'error')$q$, '23503');
+SELECT pg_temp.expect('drip_listing_checks detail limited to 300 characters',
+  $q$INSERT INTO drip_listing_checks (campaign_id, step_no, listing_id, calls_made, outcome, detail)
+     VALUES (pg_temp.c(1), 1, (SELECT listing_id FROM listings ORDER BY listing_id LIMIT 1),
+             0, 'error', repeat('x', 301))$q$, '23514');
+SELECT pg_temp.expect('drip_listing_checks UPDATE blocked',
+  $q$UPDATE drip_listing_checks SET calls_made = 5$q$, '23001');
+SELECT pg_temp.expect('drip_listing_checks DELETE blocked',
+  $q$DELETE FROM drip_listing_checks$q$, '23001');
+SELECT pg_temp.expect('drip_step_pulls a pull can be linked to a step',
+  $q$WITH p AS (INSERT INTO api_pulls (emp_id, zip_count, estimated_api_calls)
+                VALUES (pg_temp.u(), 1, 1) RETURNING pull_id)
+     INSERT INTO drip_step_pulls (pull_id, campaign_id, step_no)
+     SELECT pull_id, pg_temp.c(1), 1 FROM p$q$, 'ok');
+SELECT pg_temp.expect('drip_step_pulls the step must exist',
+  $q$WITH p AS (INSERT INTO api_pulls (emp_id, zip_count, estimated_api_calls)
+                VALUES (pg_temp.u(), 1, 1) RETURNING pull_id)
+     INSERT INTO drip_step_pulls (pull_id, campaign_id, step_no)
+     SELECT pull_id, pg_temp.c(1), 9 FROM p$q$, '23503');
+SELECT pg_temp.expect('drip_step_pulls UPDATE blocked',
+  $q$UPDATE drip_step_pulls SET step_no = 2$q$, '23001');
+SELECT pg_temp.expect('drip_step_pulls DELETE blocked',
+  $q$DELETE FROM drip_step_pulls$q$, '23001');
+
 ROLLBACK;
 
 -- Nothing should have survived.
@@ -411,4 +687,7 @@ SELECT (SELECT count(*) FROM email_templates) AS templates,
        (SELECT count(*) FROM oauth_tokens WHERE account_id = 'guard-test') AS oauth_token_rows,
        (SELECT count(*) FROM sent_emails WHERE recipient_email LIKE 'guard-test-%') AS sent_email_rows,
        (SELECT count(*) FROM cc_sync_runs WHERE watermark IN ('1999-01-01', '1999-01-02', '1999-01-04', '1999-01-05')) AS sync_test_rows,
-       (SELECT count(*) FROM email_test_sends) AS test_send_rows;
+       (SELECT count(*) FROM email_test_sends) AS test_send_rows,
+       (SELECT count(*) FROM drip_campaigns) + (SELECT count(*) FROM drip_steps)
+         + (SELECT count(*) FROM drip_recipients) + (SELECT count(*) FROM drip_listing_checks)
+         + (SELECT count(*) FROM drip_step_pulls) AS drip_rows;
