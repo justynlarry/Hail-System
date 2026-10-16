@@ -24,6 +24,7 @@ MAX_RETRIES = 4
 RETRY_BACKOFF_BASE = 1.0
 RETRYABLE_STATUSES = {429, 500, 503, 504}
 TIMEOUT = 30
+MAX_ATTEMPTS_BY_ID = 3      # A lookup by id is billed per attempt
 
 class RentCastError(Exception):
     """Base for everything this module raises.  'user_message' is
@@ -43,6 +44,13 @@ class RentCastAuthError(RentCastError):
 class RentCastValidationError(RentCastError):
     """400/405: The request was malformed"""
     user_message = "The request to RentCast was malformed - this is an internal system bug."
+
+
+class RentCastNotFound(RentCastError):
+    """404 from a look up by id:  Rentcast has no listings with that id.  An error and
+    not an empty result, so a caller that forgets to handle it fails closed."""
+    user_message = "RentCast has no listing with that id."
+
 
 class RentCastServerError(RentCastError):
     """429/500/503/504: After retries were exhausted.
@@ -213,4 +221,76 @@ def search_sale_listings(zip_code: str, status: str = "Active",
         offset += MAX_PAGE_SIZE
         
     return listings, calls_made
+
+
+def get_sale_listing(listing_id: str) -> tuple[dict, int]:
+    """Look up one sale listing by its RentCast id.  Returns (listing, attempts).
+    
+    One billed call per attempt, so a retryable failure is tried at most MAX_ATTEMPTS_BY_ID
+    times in all.  A 404 raises RentCastNotFound, never an empty result.  "no such listing"
+    shouldn't read as "nothing to report."  A blank id is refused before a request.
+    """
+    if not isinstance(listing_id, str) or not listing_id.strip():
+        raise ValueError("a listing id is required")
+    url = f"{BASE_URL}/{urllib.parse.quote(listing_id, safe=',-')}"
+    request = urllib.request.Request(
+        url, headers={"X-Api-Key": _api_key(), "Accept": "application/json"})
+
+    attempt = 0
+    while True:
+        attempt += 1
+        _throttle()
+        try:
+            with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+                data = json.loads(response.read())
+                status = response.status
+        except urllib.error.HTTPError as exc:
+            status = exc.code
+            if status == 404:
+                raise RentCastNotFound(f"no listing with id {listing_id!r}",
+                                       attempts=attempt, status=status) from exc
+            if status in (401, 403):
+                logger.error("event=rentcast_auth_error status=%s lookup=by_id", status)
+                raise RentCastAuthError(f"status={status}", attempts=attempt,
+                                        status=status) from exc
+            if status in (400, 405):
+                logger.error("event=rentcast_validation_error status=%s lookup=by_id", status)
+                raise RentCastValidationError(f"status={status}", attempts=attempt,
+                                              status=status) from exc
+            if status in RETRYABLE_STATUSES:
+                if attempt >= MAX_ATTEMPTS_BY_ID:
+                    logger.error("event=rentcast_retries_exhausted status=%s lookup=by_id", status)
+                    raise RentCastServerError(f"status={status} after {attempt} attempts",
+                                              attempts=attempt, status=status) from exc
+                backoff = RETRY_BACKOFF_BASE * (2 ** (attempt -1))
+                logger.warning("event=rentcast_retry status=%s attempt=%d/%d sleep=%.1fs lookup=by_id",
+                               status, attempt, MAX_ATTEMPTS_BY_ID, backoff)
+                time.sleep(backoff)
+                continue
+            logger.error("event=rentcast_unexpected_status status=%s lookup=by_id", status)
+            raise RentCastError(f"unexpected status={status}", attempts=attempt,
+                                status=status) from exc
+        except urllib.error.URLError as exc:
+            if attempt >= MAX_ATTEMPTS_BY_ID:
+                logger.error("event=rentcast_unreachable attempts=%d reason=%s lookup=by_id",
+                             attempt, exc.reason)
+                raise RentCastConnectionError(str(exc.reason), attempts=attempt) from exc
+            backoff = RETRY_BACKOFF_BASE * (2 ** (attempt -1))
+            logger.warning("event=rentcast_unreachable_retry reason=%s attempt=%d sleep=%.1fs lookup=by_id",
+                           exc.reason, attempt, backoff)
+            time.sleep(backoff)
+            continue
+        except (json.JSONDecodeError, ValueError, OSError, http.client.HTTPException) as exc:
+            # The request was sent and answered, and the answer could not be read.  Not Retried:
+            # Rentcast has billed the call either way.
+            logger.error("event=rentcast_unreadable_response attempts=%d error=%s lookup=by_id",
+                         attempt, exc)
+            raise RentCastResponseError(str(exc), attempts=attempt) from exc
+        # A 200 for some other listing would be checked against the wrong house
+        if not isinstance(data, dict) or data.get("id") != listing_id:
+            logger.error("event=rentcast_unexpected_shape type=%s lookup=by_id",
+                         type(data).__name__)
+            raise RentCastResponseError("the answer is not the listing asked for",
+                                        attempts=attempt, status=status)
+        return data, attempt
 

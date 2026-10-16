@@ -1,16 +1,22 @@
 """Rentcast usage against the monthly plan
 
-Usage comes from api_call_log, written per zip as the pull runs, and 
-counts calls a pull that died partway had already made.
+Usage is two logs added together: api_call_log, written per zip as a pull runs (it
+counts calls a pull that died partway had already made), and drip_listing_checks, one row per
+by-id lookup made for a drip campaign.  The pull estimate reads api_call_log only.  It
+needs a zip and a pull_id on each row, and a by-id check has neither.
 """
 
 from datetime import timedelta
 
 _USAGE_SQL = """
-    SELECT COALESCE(sum(calls_made), 0) as used
-        FROM api_call_log
-     WHERE called_at >= %(period_start)s
-        AND called_at < %(period_end)s
+    SELECT (SELECT COALESCE(sum(calls_made), 0)
+              FROM api_call_log
+             WHERE called_at >= %(period_start)s
+               AND called_at < %(period_end)s)
+         + (SELECT COALESCE(sum(calls_made), 0)
+              FROM drip_listing_checks
+             WHERE checked_at >= %(period_start)s
+               AND checked_at < %(period_end)s) AS used
 """
 
 
