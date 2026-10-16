@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*58 items (counted 2026-10-16 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
+*59 items (counted 2026-10-16 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -3158,7 +3158,8 @@ vocabulary (`ALLOWED_VARS` is it).
 
 ## 204. Drip campaigns: an initial email, then follow-ups
 
-**Status:** open (filed 2026-10-13, by developer request; the owner asked for it)
+**Status:** open (filed 2026-10-13, by developer request; the owner asked for it). **Plan agreed
+2026-10-16**, Level 1; piece 1 (the RentCast probe) is next. Nothing is built.
 
 **The ask:** an initial email about a storm, then N follow-ups with a chosen number of days
 between each (1 to 2, 2 to 3, 3 to 4). Each follow-up must re-check, with RentCast, that the
@@ -3193,8 +3194,81 @@ budget. The 14-day cap has to apply between campaigns, not within one.
   than one day, so a step can span two days. In Level 1 the person resumes on the second day.
 - **Data model.** Something like `drip_campaigns` plus steps linked to each step's `batch_id`.
 
+**Plan, 2026-10-16 (Level 1).**
+
+*Found while planning.* RentCast documents a lookup by id, `GET /v1/listings/sale/{id}`, returning
+`status`, `lastSeenDate` and `removedDate`; the id is the one stored as `rentcast_id`. Its page says
+nothing about billing, so one call per request is assumed. A zip pull costs one call per zip per 500
+listings however short the recipient list; a by-id check costs one call per listing, so it is cheaper
+only while the recipients are few. `send_log` has no unique key on `match_id` (the "already emailed"
+rule is in `sendlist.py`), so a second send for a match is allowed by the schema and a follow-up needs
+its own list builder, with the 14-day cap exempting the campaign's own earlier steps. RentCast usage
+is summed from `api_call_log`, which needs a `pull_id` and a zip, and the pull estimate reads the same
+table, so by-id checks logged there would make a zip look recently pulled.
+
+*Decided with the developer 2026-10-16.*
+- **The check:** by id, per distinct listing, from the click's job. A listing counts as active only if
+  `status` is Active and `lastSeenDate` is inside the freshness window; a failed or unreadable check
+  excludes that listing (nothing is sent on a guess); a RentCast auth failure ends the job before any
+  send. No zip-pull fallback in Level 1.
+- **Its log:** a separate append-only table, `drip_listing_checks`; the quota sums it with
+  `api_call_log`.
+- **Tables (`sql/045`):** `drip_campaigns` (only `status` changes: active, paused, cancelled,
+  complete), `drip_steps` (frozen after creation except `batch_id`, set once), `drip_recipients`
+  (the step-1 list, never grows; `stopped_at` and a reason: unsubscribed, bounced, no_active_listings,
+  manual, cancelled), `drip_listing_checks`. A campaign's matches are the `send_log` rows of its
+  step-1 batch. Guard tests in `sql/guard_test.sql`.
+- **Limits are admin settings**, in `settings` with changes in `settings_history`, bounds in the
+  database as for the radii: most follow-ups per campaign (default 3, 0 to 10; 0 turns campaigns off)
+  and longest gap in days (default 7, 1 to 30). A change affects campaigns started afterwards.
+- **Starting:** an optional "Make this a campaign" part on the existing `/send` confirm screen: number
+  of follow-ups, a gap and a template for each. Step 1 sends as today.
+- **A step is due** on the previous step's last send date (Denver) plus the gap, and never expires; the
+  screen says how late it is. A banner on `/send` is display only. The step screen shows, with no
+  RentCast call on page load, the listings to be checked (about that many calls), the quota (warn and
+  allow), the expected emails and the Constant Contact budget; one button, "Check listings and send",
+  runs the chain under `sendjobs`' lock: check, unsubscribe sync, follow-up list, contacts lookup,
+  `queue_batch`, `deliver`, setting `drip_steps.batch_id` in the queue's transaction. A job that dies
+  before the queue can be re-run (the calls are logged); after it, the existing Resume takes over.
+- **Replies are invisible to the system** (they go to `settings.reply_to`, forwarded to Gmail).
+  Level 1: a per-recipient "Stop for this recipient" on the campaign page, and a paste box that stops
+  many addresses at once. Stopping follow-ups does not add anyone to `dnc_list`. Reading a mailbox is
+  item 226.
+- **Rules kept:** every step starts with a click; RentCast calls happen only in that click's job and
+  are logged; the suppression checks are the existing ones; the 14-day cap applies between campaigns.
+
+*Pieces.* (1) a read-only probe of the by-id endpoint, three calls: a freshly seen listing, a long-unseen
+one and a made-up id; (2) `sql/045` and guards; (3) `get_sale_listing`, the check log and the quota
+sum; (4) the follow-up list builder; (5) the chained job; (6) screens; (7) docs and a dev rehearsal.
+
+*Not verified.* What the by-id endpoint returns for a removed listing, and its cost per call (piece 1);
+the Constant Contact calls per email (this item says about 10; it decides how many follow-ups fit in a
+day); whether any trigger blocks a second `send_log` row for a match (the guard tests in piece 2).
+
 **When:** after 202 and the first pieces of 203 (steps need a template choice). Level 2 only
-after 189 and 129.
+after 189 and 129. Items 202 and 203 are done: Level 1 can start.
+
+**Related:** items 189, 191, 203, 226.
+
+## 226. Read replies from a dedicated Gmail inbox to stop follow-ups
+
+**Status:** open (proposal, filed 2026-10-16; not decided)
+
+Replies to the campaign emails go to `settings.reply_to`, forwarded to a Gmail account. Level 1 of the
+drip campaigns (item 204) cannot see them, so a recipient who replies "not interested" is stopped only
+by hand (a Stop button and a paste box). The idea: a Gmail account created for production that handles
+only this reply-to address, read by the system through the Gmail API, stopping follow-ups to anyone who
+writes back.
+
+Parked because it is large: Google OAuth, a new dependency and mailbox permissions. A dedicated account
+removes the worry about reading mixed mail. Still to design: out-of-office replies and forwards must
+not be treated as a reply that matters; and a reply is not an unsubscribe, so what it should do to
+`dnc_list` is a separate decision.
+
+**When:** campaigns are in real use and stopping by hand is a burden, or the production reply-to address
+is created (item 96), whichever comes first.
+
+**Related:** items 204, 96, 129.
 
 ## 205. Likelihood tiers: rank outreach by radar swath and distance instead of one circle
 
