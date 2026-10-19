@@ -124,6 +124,97 @@ class SendJobsTest(unittest.TestCase):
             args=(7, "b", {"sender": "s", "max_emails": 3}), daemon=True)
         thread.return_value.start.assert_called_once()
 
+    # ---- drip step (item 204): the same lock, so a step and a send never overlap ----
+
+    STEP_DONE = {"status": "complete", "method": "by_id", "calls": 4, "emails": 2,
+                 "delivery": {"sent": 2}}
+
+    def test_the_lock_is_held_during_a_drip_step_and_released_after(self):
+        seen = []
+
+        def run_step(**kw):
+            seen.append(sendjobs.is_busy())
+            return self.STEP_DONE
+
+        with mock.patch.object(sendjobs.dripstep, "run_step", side_effect=run_step):
+            sendjobs._run_drip_step(1, 5, 2, {})
+        self.assertEqual(seen, [True])
+        self.assertFalse(sendjobs.is_busy())
+
+    def test_a_drip_step_gets_the_user_the_step_and_the_extra_arguments(self):
+        with mock.patch.object(sendjobs.dripstep, "run_step", return_value=self.STEP_DONE) as run:
+            sendjobs._run_drip_step(1, 5, 2, {"sender": "s", "max_emails": 3})
+        run.assert_called_once_with(user_id=1, campaign_id=5, step_no=2, sender="s",
+                                    max_emails=3)
+
+    def test_a_finished_drip_step_logs_its_counts(self):
+        with mock.patch.object(sendjobs.dripstep, "run_step", return_value=self.STEP_DONE):
+            with self.assertLogs("hailsys.web.sendjobs", level="INFO") as logs:
+                sendjobs._run_drip_step(1, 5, 2, {})
+        line = logs.output[0]
+        for part in ("campaign=5", "step=2", "status=complete", "method=by_id", "calls=4",
+                     "emails=2"):
+            self.assertIn(part, line)
+
+    def test_a_failing_drip_step_releases_the_lock_and_does_not_raise(self):
+        with mock.patch.object(sendjobs.dripstep, "run_step", side_effect=RuntimeError("x")):
+            with self.assertLogs("hailsys.web.sendjobs", level="ERROR"):
+                sendjobs._run_drip_step(1, 5, 2, {})
+        self.assertFalse(sendjobs.is_busy())
+
+    def test_a_refused_drip_step_is_a_warning_not_an_error_and_releases_the_lock(self):
+        with mock.patch.object(sendjobs.dripstep, "run_step",
+                               side_effect=sendjobs.StepRefused("The campaign is paused.")):
+            with self.assertLogs("hailsys.web.sendjobs", level="WARNING") as logs:
+                sendjobs._run_drip_step(1, 5, 2, {})
+        self.assertEqual(len(logs.records), 1)
+        self.assertEqual(logs.records[0].levelname, "WARNING")
+        self.assertIn("campaign=5", logs.output[0])
+        self.assertFalse(sendjobs.is_busy())
+
+    def test_a_busy_lock_means_the_drip_step_never_starts(self):
+        self.hold()
+        with mock.patch.object(sendjobs.dripstep, "run_step") as run:
+            with self.assertLogs("hailsys.web.sendjobs", level="WARNING"):
+                sendjobs._run_drip_step(1, 5, 2, {})
+        run.assert_not_called()
+
+    def test_start_drip_step_refuses_when_busy_and_checks_nothing(self):
+        self.hold()
+        with mock.patch.object(sendjobs.dripstep, "preflight") as preflight:
+            with self.assertRaises(sendjobs.SendInProgress):
+                sendjobs.start_drip_step(user_id=1, campaign_id=5, step_no=2)
+        preflight.assert_not_called()
+
+    def test_start_drip_step_refuses_before_a_thread_starts(self):
+        with mock.patch.object(sendjobs, "is_busy", return_value=False), \
+             mock.patch.object(sendjobs.dripstep, "preflight",
+                               side_effect=sendjobs.StepRefused("paused")), \
+             mock.patch.object(sendjobs.threading, "Thread") as thread:
+            with self.assertRaises(sendjobs.StepRefused):
+                sendjobs.start_drip_step(user_id=1, campaign_id=5, step_no=2)
+        thread.assert_not_called()
+
+    def test_start_drip_step_checks_the_step_it_was_asked_for(self):
+        with mock.patch.object(sendjobs, "is_busy", return_value=False), \
+             mock.patch.object(sendjobs.dripstep, "preflight") as preflight, \
+             mock.patch.object(sendjobs.threading, "Thread"):
+            sendjobs.start_drip_step(user_id=1, campaign_id=5, step_no=2)
+        self.assertEqual(preflight.call_args.args[1:], (5, 2))
+
+    def test_start_drip_step_starts_one_daemon_thread(self):
+        with mock.patch.object(sendjobs, "is_busy", return_value=False), \
+             mock.patch.object(sendjobs.dripstep, "preflight"), \
+             mock.patch.object(sendjobs.threading, "Thread") as thread:
+            sendjobs.start_drip_step(user_id=7, campaign_id=5, step_no=2, sender="s",
+                                     max_emails=3)
+        thread.assert_called_once_with(
+            target=sendjobs._run_drip_step,
+            args=(7, 5, 2, {"sender": "s", "max_emails": 3}), daemon=True)
+        thread.return_value.start.assert_called_once()
+
+    def test_the_route_can_catch_a_refused_step_from_sendjobs(self):
+        self.assertIs(sendjobs.StepRefused, sendjobs.dripstep.StepRefused)
 
     # ---- discard (item 199): the same global lock, no thread ----
 
