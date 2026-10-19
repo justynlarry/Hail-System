@@ -991,9 +991,11 @@ in code); failed and unknown attempts count. No email content is kept, only the 
 
 ### Drip campaigns (item 204)
 
-`sql/046_drip_campaigns.sql`, applied to `hail-dev` only; no screen or job uses these yet (pieces 4 to 6).
+`sql/046_drip_campaigns.sql` and `sql/047_drip_step_runs.sql`, applied to `hail-dev` only. The follow-up
+list builder and the step job (`hailsys/email/dripstep.py`, started by `sendjobs.start_drip_step`) use
+these; no screen calls them yet (piece 6).
 An initial email, then follow-ups at set gaps. Step 1 is the ordinary send. `hail_app` has `SELECT` and
-`INSERT` on all five, `UPDATE` on only the nine columns named below, no `DELETE` or `TRUNCATE`.
+`INSERT` on all six, `UPDATE` on only the columns named below, no `DELETE` or `TRUNCATE`.
 `sql/guard_test.sql` holds the rules as tests.
 
 | Table | What it holds | Rules in the database |
@@ -1003,6 +1005,7 @@ An initial email, then follow-ups at set gaps. Step 1 is the ordinary send. `hai
 | `drip_recipients` | PK `(campaign_id, realtor_id)`, `recipient_email`, `stopped_at`, `stop_reason`, `stopped_by` | Must have been emailed in the first batch at that address; the list is fixed once a step is sent. A recipient is stopped once. Reasons: `unsubscribed`, `bounced`, `no_active_listings` (system, no `stopped_by`), `manual`, `replied` (a person, `stopped_by` required). Stopping does **not** add to `dnc_list` |
 | `drip_listing_checks` | `check_id`, `campaign_id`, `step_no`, `listing_id`, `checked_at`, `calls_made`, `http_status`, `outcome`, `rc_status`, `last_seen`, `removed_at`, `detail` (300 at most) | Append-only. One row per RentCast lookup by id. `outcome` is `active`, `inactive`, `not_found` or `error`; `rc_status` is required for `active` and `inactive`. A listing RentCast still calls Active but has not seen inside the freshness window is `inactive` with `rc_status` `Active`. `calls_made` is attempts, a 404 included (RentCast probably does not bill a 404; unconfirmed). Counted in the quota with `api_call_log` |
 | `drip_step_pulls` | `pull_id` (PK, FK `api_pulls`), `campaign_id`, `step_no`, `created_at` | Append-only. The zip pulls a step spent calls on when that was the cheaper way; `api_pulls` and `api_call_log` hold the calls |
+| `drip_step_runs` | `run_id`, `campaign_id`, `step_no`, `started_by`, `started_at`, `status`, `finished_at`, `method` (`by_id` or `zip_pull`), `calls_made`, `emails`, `detail` (300 at most, never response text) | One row per attempt to run a step: inserted `running`, updated once to `complete`, `nothing_to_send`, `failed` or `abandoned` (a later job found it still running). Only a start can be inserted, on an active campaign and an unsent step; one `running` row per step; the database sets `started_at` and `finished_at`; a finished row cannot change; no delete. `hail_app` may update only `status`, `method`, `calls_made`, `emails`, `detail` |
 
 A campaign's matches are the `send_log` rows of its first batch. Nothing here is written by the nightly
 jobs, and nothing sends by itself: every step starts with a person's click.

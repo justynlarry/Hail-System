@@ -3160,7 +3160,7 @@ vocabulary (`ALLOWED_VARS` is it).
 
 **Status:** open (filed 2026-10-13, by developer request; the owner asked for it). **Plan agreed
 2026-10-16**, Level 1. **Piece 1 (the RentCast probe) done 2026-10-16**; the check method changed
-as a result (below). **Pieces 2 and 3 done 2026-10-16** (`sql/045`, `sql/046`, the by-id client, the check log writer, the quota sum, the cheaper-method choice). **Piece 4 done 2026-10-19** (`hailsys/queries/dripfollowup.py`, `queue_batch(send_list=...)`). Piece 5 (the chained job) is next. No screen or job exists yet.
+as a result (below). **Pieces 2 and 3 done 2026-10-16** (`sql/045`, `sql/046`, the by-id client, the check log writer, the quota sum, the cheaper-method choice). **Piece 4 done 2026-10-19** (`hailsys/queries/dripfollowup.py`, `queue_batch(send_list=...)`). **Piece 5 done 2026-10-19** (`sql/047`, `hailsys/rentcast/dripstep.py`, `hailsys/email/dripstep.py`, `sendjobs.start_drip_step`). Piece 6 (the screens) is next: the job exists and nothing calls it, so no page starts or shows a step yet.
 
 **The ask:** an initial email about a storm, then N follow-ups with a chosen number of days
 between each (1 to 2, 2 to 3, 3 to 4). Each follow-up must re-check, with RentCast, that the
@@ -3245,7 +3245,7 @@ table, so by-id checks logged there would make a zip look recently pulled.
 
 *Pieces.* (1) a read-only probe of the by-id endpoint, three calls (done); (2) `sql/045`, `sql/046` and guards (done);
 (3) `get_sale_listing`, the check log, the quota sum and the cheaper-method choice (done); (4) the follow-up
-list builder (done); (5) the chained job; (6) screens; (7) docs and a dev rehearsal.
+list builder (done); (5) the chained job (done); (6) screens; (7) docs and a dev rehearsal.
 
 *Piece 4 decisions, 2026-10-19* (developer: all as recommended).
 - **Cap:** applies only to emails outside this campaign (another send or campaign inside the cap window
@@ -3266,6 +3266,30 @@ list builder (done); (5) the chained job; (6) screens; (7) docs and a dev rehear
   `api_call_log`), and listings the pull did not return are outcome `not_found`, 0 calls, detail "not returned
   by the zip pull". The builder reads only that table, so both methods feed one rule set. The job must
   also refuse to send if the pull was incomplete (a zip that failed would make its listings look absent).
+
+*Piece 5 as built, 2026-10-19* (developer: all as recommended).
+- **`drip_step_runs` (`sql/047`).** One row per attempt to run a step: inserted `running`, updated once to
+  `complete`, `nothing_to_send`, `failed` or `abandoned`, with the method, calls, emails and a reason of 300
+  characters at most that never holds response text. The database allows a run only on an active campaign
+  and an unsent step, one `running` row per step, and sets both timestamps. A finished row never changes.
+- **`run_step` order** (`hailsys/email/dripstep.py`): pre-flight (campaign active, next unsent step,
+  template active, RentCast key set; nothing spent or written), unsubscribe sync, run row, re-check, rebuild
+  the list, then one transaction (`queue_batch(send_list=...)`, step marked sent, stops written, campaign
+  `complete` on the last step), close the run row, deliver. The run row is closed before delivery, so a
+  crash during delivery leaves nothing `running`; Resume takes over. The sync is run again before queueing
+  if the re-check took more than 10 minutes (`queue_batch` refuses a sync older than 15).
+- **Re-check** (`hailsys/rentcast/dripstep.py`): a definite answer under 24 hours old is reused; ten failed
+  by-id lookups in a row end the step (a fixed limit, not a setting); an auth or malformed-request failure
+  ends it at once; a failed zip in a pull marks only its own listings `error` and the step goes on. A
+  listing with no zip on file can only be checked by id, so it forces that method.
+- **Nobody left to email:** nothing is queued, the stops are written, the run ends `nothing_to_send`, and
+  the campaign is left for a person to cancel.
+- **`sendjobs.start_drip_step`** takes the same `send:run` lock as sends and resumes, so a step and a send
+  never overlap; the pre-flight runs before the thread starts so the route can explain a refusal.
+- **Known limits.** A failed unsubscribe sync raises before the run row exists, so the step screen has no
+  record of it (piece 6 should show it from the job's result or a banner). A zip pull asks for Active
+  listings only, so a listing that went inactive is not returned and is recorded `not_found`, not
+  `inactive`; both are excluded, only the logged word differs.
 
 *Probe results, 2026-10-16* (`scripts/rentcast_by_id_probe.py`, three calls, RentCast dashboard
 36 to 38 of 1,000).
