@@ -231,6 +231,68 @@ class QueueBatchTest(unittest.TestCase):
         self.assertEqual(again["emails"], 0)
         self.assertEqual(again["excluded"]["already_emailed"]["realtors"], 2)
 
+    # ---- a list that is already built (drip follow-ups, item 204) ----
+
+    def built(self, realtors=None):
+        """A list in the shape build_send_list and dripfollowup.build_followup_list return."""
+        return {"realtors": self.realtors if realtors is None else realtors,
+                "considered": {"matches": 7, "realtors": 3},
+                "excluded": {"listing_inactive": {"matches": 1, "realtors": 1}}}
+
+    def test_a_built_list_is_queued_without_storm_days(self):
+        out = self.queue(storm_days=None, send_list=self.built())
+        self.assertEqual(out["emails"], 2)
+        queued = {r["recipient_email"] for r in self.conn.execute(
+            "SELECT recipient_email FROM sent_emails WHERE batch_id = %s", (out["batch_id"],))}
+        self.assertEqual(queued, set(self.emails))
+        wanted = sum(len(e["match_ids"]) for r in self.realtors for e in r["events"])
+        self.assertEqual(out["matches"], wanted)
+        self.assertEqual(self.count("send_log", "email_id = ANY(%s)", (out["email_ids"],)), wanted)
+
+    def test_neither_storm_days_nor_a_list_is_a_programming_error_and_writes_nothing(self):
+        before = (self.count("sent_emails"), self.count("send_log"))
+        with self.assertRaises(ValueError):
+            self.queue(storm_days=None)
+        self.assertEqual((self.count("sent_emails"), self.count("send_log")), before)
+
+    def test_a_list_wins_over_storm_days(self):
+        out = self.queue(send_list=self.built(self.realtors[:1]))
+        self.assertEqual(out["emails"], 1)
+        self.assertEqual(self.count("sent_emails", "recipient_email = %s", (self.emails[1],)), 0)
+
+    def test_the_lists_counts_come_through_in_the_summary(self):
+        out = self.queue(storm_days=None, send_list=self.built())
+        self.assertEqual(out["considered"], {"matches": 7, "realtors": 3})
+        self.assertEqual(out["excluded"], {"listing_inactive": {"matches": 1, "realtors": 1}})
+
+    def test_matches_already_emailed_queue_again_through_a_list(self):
+        # What a follow-up depends on: the storm-days path refuses a match it has already sent,
+        # a built list does not, and the database allows a second send_log row for a match.
+        first = self.queue()
+        self.assertEqual(first["emails"], 2)
+        self.assertEqual(self.queue()["emails"], 0)
+        second = self.queue(storm_days=None, send_list=self.built())
+        self.assertEqual(second["emails"], 2)
+        self.assertNotEqual(second["batch_id"], first["batch_id"])
+        match_id = self.realtors[0]["events"][0]["match_ids"][0]
+        self.assertEqual(self.count("send_log", "match_id = %s", (match_id,)), 2)
+
+    def test_the_allowed_list_and_constant_contact_state_still_filter_a_list(self):
+        contacts = {self.emails[0]: {"contact_id": "c-1", "permission": "unsubscribed"},
+                    self.emails[1]: None}
+        out = self.queue(storm_days=None, send_list=self.built(), contacts=contacts)
+        self.assertEqual((out["emails"], out["skipped"]["unsubscribed_in_cc"]), (1, 1))
+        out = self.queue(storm_days=None, send_list=self.built(),
+                         allowed_emails=[self.emails[1]])
+        self.assertGreater(out["skipped"]["not_allowed"], 0)
+
+    def test_a_recipient_nobody_looked_up_is_refused_for_a_list_too(self):
+        self.refused(storm_days=None, send_list=self.built(), contacts={self.emails[0]: None})
+
+    def test_a_failed_sync_run_is_refused_for_a_list_too(self):
+        self.refused(storm_days=None, send_list=self.built(),
+                     sync_run_id=self.sync_run("failed", NOW))
+
     # ---- refusals write nothing ----
 
     def refused(self, **over):

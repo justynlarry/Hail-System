@@ -36,16 +36,25 @@ def _check_syn(conn, run_id, now):
         raise SendError("The unsubscribe sync did not succeed just before this send.")
 
 
-def queue_batch(conn, *, user_id, storm_days, email_settings, now, sync_run_id,
-                allowed_emails, contacts, override_cap=False,
+def queue_batch(conn, *, user_id, storm_days=None, email_settings, now, sync_run_id,
+                allowed_emails, contacts, override_cap=False, send_list=None,
                 max_age_days=sendlist.MAX_AGE_DAYS, cap_days=sendlist.CAP_DAYS,
                 freshness_days=sendlist.FRESH_DAYS,
                 template_name=templatestore.TEMPLATE_NAME):
-    """Queue one email per eligible realtor.  Returns what was queued and what was left out."""
+    """Queue one email per eligible realtor.  Returns what was queued and what was left out.
+
+    send_list is a list already built, a drip follow-up (dripfollowup.build_followup_list).  The
+    storm days, the cap override and the age, cap and freshness arguments are then not used.
+    """
     _check_syn(conn, sync_run_id, now)
-    found = sendlist.build_send_list(
-        conn, storm_days, now=now, max_age_days=max_age_days,
-        cap_days=None if override_cap else cap_days, freshness_days=freshness_days)
+    if send_list is not None:
+        found = send_list
+    elif storm_days is not None:
+        found = sendlist.build_send_list(
+            conn, storm_days, now=now, max_age_days=max_age_days,
+            cap_days=None if override_cap else cap_days, freshness_days=freshness_days)
+    else:
+        raise ValueError("queue_batch needs storm_days or a send_list")
 
     allowed = {e.strip().lower() for e in allowed_emails}
     skipped = {"not_allowed": 0, "unsubscribed_in_cc": 0, "unrenderable": []}
