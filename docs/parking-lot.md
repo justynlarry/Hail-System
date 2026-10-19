@@ -36,7 +36,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*61 items (counted 2026-10-16 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
+*63 items (counted 2026-10-19 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -3160,7 +3160,7 @@ vocabulary (`ALLOWED_VARS` is it).
 
 **Status:** open (filed 2026-10-13, by developer request; the owner asked for it). **Plan agreed
 2026-10-16**, Level 1. **Piece 1 (the RentCast probe) done 2026-10-16**; the check method changed
-as a result (below). **Pieces 2 and 3 done 2026-10-16** (`sql/045`, `sql/046`, the by-id client, the check log writer, the quota sum, the cheaper-method choice). Piece 4 is next. No screen or job exists yet.
+as a result (below). **Pieces 2 and 3 done 2026-10-16** (`sql/045`, `sql/046`, the by-id client, the check log writer, the quota sum, the cheaper-method choice). **Piece 4 done 2026-10-19** (`hailsys/queries/dripfollowup.py`, `queue_batch(send_list=...)`). Piece 5 (the chained job) is next. No screen or job exists yet.
 
 **The ask:** an initial email about a storm, then N follow-ups with a chosen number of days
 between each (1 to 2, 2 to 3, 3 to 4). Each follow-up must re-check, with RentCast, that the
@@ -3245,7 +3245,27 @@ table, so by-id checks logged there would make a zip look recently pulled.
 
 *Pieces.* (1) a read-only probe of the by-id endpoint, three calls (done); (2) `sql/045`, `sql/046` and guards (done);
 (3) `get_sale_listing`, the check log, the quota sum and the cheaper-method choice (done); (4) the follow-up
-list builder; (5) the chained job; (6) screens; (7) docs and a dev rehearsal.
+list builder (done); (5) the chained job; (6) screens; (7) docs and a dev rehearsal.
+
+*Piece 4 decisions, 2026-10-19* (developer: all as recommended).
+- **Cap:** applies only to emails outside this campaign (another send or campaign inside the cap window
+  holds the recipient back from that step; the campaign's own steps do not count). The step has an override
+  like `/send`, off by default. A held-back recipient misses that step and stays in the campaign.
+- **Storm age:** `match_max_age_days` is not applied to follow-ups; the listing rules guard the content.
+- **Stopping:** the job, not the builder, writes the stop. `bounced` and `unsubscribed` for those recipients;
+  `no_active_listings` only when every listing is definitely dead (inactive or not found) and none is
+  unconfirmed or held back. A check error only skips the recipient for that step.
+- **Dead listings:** a listing found inactive or not found in an earlier step is not checked again and stays
+  out (fewer calls).
+- **Agent changed (item 227):** the listing is dropped; see that item.
+- **A zip pull cannot be judged by `list_last_seen`.** That column is RentCast's `lastSeenDate`, not our pull
+  time: against our first-pull times it trails by up to 65 hours (99% within 38) across 26,289 listings, so
+  no window separates a sold listing (absent from the pull, row unchanged) from a live one at a 1 to 3 day
+  gap. Instead the job (piece 5) writes one `drip_listing_checks` row per listing after a zip pull:
+  returned listings are classified by `dripcheck.classify` (0 calls, the pull's calls are in
+  `api_call_log`), and listings the pull did not return are outcome `not_found`, 0 calls, detail "not returned
+  by the zip pull". The builder reads only that table, so both methods feed one rule set. The job must
+  also refuse to send if the pull was incomplete (a zip that failed would make its listings look absent).
 
 *Probe results, 2026-10-16* (`scripts/rentcast_by_id_probe.py`, three calls, RentCast dashboard
 36 to 38 of 1,000).
@@ -3337,6 +3357,32 @@ covered on the by-id side only.
 or when item 204's piece 5 makes a zip pull part of a chained job.
 
 **Related:** items 204, 88.
+
+## 229. Nothing tests that the cap override turns the cap off
+
+**Status:** open (found 2026-10-19, mutation-checking item 204's `queue_batch` change)
+
+Replacing `cap_days=None if override_cap else cap_days` in `queue_batch` with `cap_days=cap_days` fails
+no test. `tests/test_send_queue.py` checks only that the override leaves `already_emailed` in force, and
+`tests/test_send_screen.py` only that the argument is passed through. A change that made the override do
+nothing would go unnoticed. The test needs a realtor emailed inside the cap window on a different storm,
+which is more fixture than the check was worth that day.
+
+**When:** the next change to `queue_batch` or the cap rule, or the item 189 eligibility work.
+
+## 230. A by-id lookup may return a relisted house's newer listing
+
+**Status:** open (watch; found 2026-10-19, planning item 204 piece 4)
+
+RentCast's `id` is a property id and a relisted house reuses it (`CLAUDE.md`, data traps). The drip check
+looks a listing up by that id, so after a relisting it may answer with the newer listing (new list date,
+possibly a new agent) rather than the one we emailed about. The agent comparison (item 227) catches the
+common case; nothing compares list dates, and the probe did not test a relisted property.
+
+**When:** if a follow-up ever names a house whose listing changed, or when piece 7's dev rehearsal can
+include a property known to have been relisted.
+
+**Related:** items 204, 227.
 
 ## 205. Likelihood tiers: rank outreach by radar swath and distance instead of one circle
 
