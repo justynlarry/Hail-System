@@ -1,5 +1,12 @@
 # Rocky Linux Server Setup
 
+## Production hosts (2026-10-20)
+- `pve-prod01.rbi.internal`, 192.168.16.20: HP ProDesk 400 G6, Proxmox VE. Runs the production VM
+  `rbi-hail01.rbi.internal` (VM 101, Rocky Linux 10.2, 8 cores, 28 GB, 400 GB), created but not started.
+- `pbs-prod01.rbi.internal`, 192.168.16.21: Dell OptiPlex 3020, Proxmox Backup Server.
+- Both passed `scripts/hw-acceptance-test.sh` on 2026-10-19. Details: `docs/hail-consolidated.md` §9.
+- The steps below build the Rocky VM (`rbi-hail01`), not the Proxmox hosts.
+
 ## Hostname
 Normally set during the Rocky installer — but if it was skipped, the box comes
 up as `localhost.localdomain`:

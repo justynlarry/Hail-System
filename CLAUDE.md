@@ -10,7 +10,7 @@ codes, lets staff pull real estate listings in those areas from RentCast, and
 send templated email to the listing agents.
 
 Single developer. Two machines — a `hail-dev` VM and the production
-OptiPlex, deliberately built alike. See `docs/hail-consolidated.md` §9.
+VM on an HP ProDesk host (`pve-prod01`), deliberately built alike. See `docs/hail-consolidated.md` §9.
 
 ## Current phase
 
@@ -24,11 +24,16 @@ storm-to-listing matching and the match page working through the web UI, and
 
 **Caveat on "Phase 0 closed":** that call was made against Phase 0's own
 done-when bar — the spatial query — not against every item Phase 0's task
-list carried, and the physical production OptiPlex build (racking it at
-RBI's office, Proxmox, static IP, UPS, Irin enrollment) is one of those
-items. Everything verified so far has run on the `hail-dev` VM. Do not
-assume the production box is racked, reachable, or has anything deployed to
-it without checking.
+list carried, and the physical production build (racking it at RBI's office,
+static IP, UPS, Irin enrollment) is one of those items. **Update 2026-10-20:**
+the hardware has arrived and passed acceptance (`pve-prod01`, an HP ProDesk 400 G6
+running Proxmox VE; `pbs-prod01`, a separate Dell OptiPlex 3020 running Proxmox
+Backup Server; `docs/hail-consolidated.md` §9), and the production VM
+`rbi-hail01` (VM 101, Rocky Linux 10.2) is **created but not started**. Nothing is
+deployed to it: no Docker, no database, no code. Racking, UPS and Irin enrollment
+are not confirmed here. Everything verified so far has run on the `hail-dev` VM.
+Do not assume the production box is reachable or has anything deployed to it
+without checking.
 
 What Phase 3 delivered: `hailsys/rentcast/` (`client.py`, `estimate.py`,
 `pull.py`, `upsert.py`); `sql/013`–`017` (linking a pull back to the storm it
@@ -100,7 +105,7 @@ Do not build ahead of the current phase.
 
 ## Stack
 
-- Rocky Linux VM on Proxmox, single Dell OptiPlex, on RBI's office network
+- Rocky Linux VM on Proxmox (HP ProDesk 400 G6, backed up to a separate PBS host), on RBI's office network
 - PostgreSQL + PostGIS
 - Python backend
 - Web UI, reached over Tailscale for Phase 2 (Cloudflare tunnel revisited at

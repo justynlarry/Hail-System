@@ -3408,6 +3408,41 @@ include a property known to have been relisted.
 
 **Related:** items 204, 227.
 
+## 231. Drip follow-up counts queued emails as emailed
+
+**Status:** open (found 2026-10-19, planning item 204 piece 6)
+
+`dripfollowup._HITS_SQL` joins `send_log` with `send_status <> 'failed'`, so a step-1 email still `queued`
+(for instance with `max_emails` at its default of 5, most of a large batch stays queued) is treated as sent,
+and its recipient would get a follow-up to an email never delivered. The same holds for any later step's batch.
+
+**Fix decided 2026-10-19:** the step's pre-flight refuses while the previous step's batch (the first batch,
+for step 1) still has `queued` emails: "N emails of step 1 are still queued: resume or discard them first".
+Built in piece 6.1.
+
+**When:** piece 6.1 of item 204. Close then.
+
+**Related:** items 204, 180.
+
+## 232. The backup host's disk is old: 66,811 power-on hours
+
+**Status:** open (watch; accepted 2026-10-20)
+
+**Evidence:** `scripts/hw-acceptance-test.sh` on `pbs-prod01` (Dell OptiPlex 3020, 500 GB HDD,
+`/dev/sda`), 2026-10-19: 14 passed, 1 warning, 0 failures. The warning fires when an HDD passes
+`HDD_HOURS_WARN=35000` (line 69, checked at line 504). This disk is at about 7.6 years. The sector checks
+(pending, offline-uncorrectable, reallocated) raised nothing. The script's "healthy now" wording is fixed
+text in the warning, not a separate verdict; the SMART and sector results are what support it.
+
+**Decision:** accepted as the backup target, not as primary storage. The backup is the only copy of
+`pve-prod01`'s VM, so a failed disk means no backup, not lost data.
+
+**When:** before the first production send, check that a backup has completed and a restore has been tried.
+Also rerun the acceptance test (or `smartctl -a`) on `pbs-prod01` every six months, and replace the disk or
+add a second backup target at once if reallocated or pending sectors appear.
+
+**Related:** decision log 2026-10-20.
+
 ## 205. Likelihood tiers: rank outreach by radar swath and distance instead of one circle
 
 **Status:** open (proposal, filed 2026-10-13; not decided)

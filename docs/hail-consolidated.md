@@ -112,7 +112,7 @@ The pitch is deliberately narrow: *"hail of X size was reported near this
 listing."* It reports a public record. It never claims damage.
 
 **Scale.** Single developer (Justyn). Two machines — a `hail-dev` VM and the
-production OptiPlex (§9). Four or five user accounts, probably ever — **two
+production VM (§9). Four or five user accounts, probably ever — **two
 people accounts exist today**, `justyn` (`admin`) and `testview` (`viewer`,
 kept for role testing), plus the non-login `system` account. **177,523 storm
 report rows** on `hail-dev` as of 2026-09-24, 2004-01-26 to present — about 23
@@ -1828,12 +1828,34 @@ open question; if so, remediation is its own line item.
 
 | | `hail-dev` | production |
 |---|---|---|
-| Hardware | VM | Dell OptiPlex on RBI's office network, running **Proxmox** |
-| OS | **Rocky 10** | **Rocky Linux** VM (plus a PBS VM for backup) |
+| Hardware | VM | HP ProDesk 400 G6 on RBI's office network, running **Proxmox VE**; backups on a separate PBS host |
+| OS | **Rocky 10** | **Rocky Linux 10.2** VM (`rbi-hail01`, VM 101) |
 | Docker | CE from the CentOS repo | CE from the CentOS repo |
 | Timezone | UTC | UTC |
 | journald | persistent | persistent, capped at 500M |
 | SELinux | **enforcing**, `:Z` on bind mounts | enforcing, `:Z` on bind mounts |
+
+### Production hardware (as of 2026-10-20)
+
+| | Production host | Backup host |
+|---|---|---|
+| Name | `pve-prod01.rbi.internal` | `pbs-prod01.rbi.internal` |
+| IP | 192.168.16.20 | 192.168.16.21 |
+| Machine | HP ProDesk 400 G6 Desktop Mini | Dell OptiPlex 3020 MT |
+| CPU | i5-10500T (6 cores / 12 threads) | i5-4590 (4 cores / 4 threads) |
+| Memory | 32 GB DDR4 | 16 GB DDR3 |
+| Storage | 1 TB WD Blue NVMe | 500 GB HDD |
+| OS | Proxmox VE | Proxmox Backup Server |
+| Acceptance test (2026-10-19) | 16 passed, 0 warnings, 0 failures (76 min) | 14 passed, 1 warning, 0 failures (41 min) |
+
+**Production VM:** ID 101, `rbi-hail01.rbi.internal`, Rocky Linux 10.2, 8 cores (1 socket), 28 GB RAM,
+400 GB disk. **Created, not started; nothing deployed to it.**
+
+The acceptance test is `scripts/hw-acceptance-test.sh`. The backup host's one warning is its disk's age:
+66,811 power-on hours (about 7.6 years), against the script's `HDD_HOURS_WARN` of 35,000. That is the
+only check that fired; the script's pending, offline-uncorrectable and reallocated-sector tests raised
+nothing. An old spinner is acceptable for backups and not for primary storage (parking-lot item 232).
+The production host's 28 GB VM leaves 4 GB of its 32 GB for Proxmox itself.
 
 **Dev matching prod is the point, not a coincidence.** SELinux in particular:
 a bind mount without `:Z` fails with a permission error that looks nothing like

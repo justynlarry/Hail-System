@@ -17,8 +17,11 @@ by the time Phase 5 needs it.
 ## Phase 0 — Groundwork
 **~12–20 hrs · 1.5–2 weeks · nothing visible yet**
 
-- OptiPlex: RAM, second SSD, BIOS (VT-x, AC power recovery, admin password)
-- Proxmox install, Rocky VM, PBS VM
+- Production host (HP ProDesk 400 G6, `pve-prod01`): BIOS (VT-x, AC power recovery, admin password)
+- Proxmox VE install, Rocky VM (`rbi-hail01`, VM 101); a separate Dell OptiPlex 3020 runs Proxmox
+  Backup Server (`pbs-prod01`) instead of a PBS VM
+- *Status 2026-10-20:* both hosts built and through `scripts/hw-acceptance-test.sh`; the VM is created
+  but not started
 - Static IP, UPS, add to Irin monitoring as a client
 - PostgreSQL + PostGIS
 - Schema created from `database-schema.md`

@@ -7090,3 +7090,24 @@ which he called "really 'programmer friendly' not user friendly").
 **Related:** items 203, 221, 222, 225; decision log 2026-10-15 (pieces 2 to 4 and 6).
 
 ---
+
+## 2026-10-20 — Production hardware: ProDesk host, separate PBS machine
+
+**Decision:** production is an HP ProDesk 400 G6 (`pve-prod01`, Proxmox VE) running the Rocky VM
+`rbi-hail01` (VM 101). Backups go to a separate Dell OptiPlex 3020 running Proxmox Backup Server
+(`pbs-prod01`), not to a PBS VM on the production host. Both passed `scripts/hw-acceptance-test.sh` on
+2026-10-19 (16 passed; 14 passed with 1 warning).
+
+**Supersedes:** the earlier plan and wording (`CLAUDE.md`, `docs/phases.md`, `docs/hail-consolidated.md` §9)
+of a single Dell OptiPlex with a PBS VM and a second SSD. Older entries below this point still say
+"production OptiPlex"; they are history and are not rewritten. Read them as the production box.
+
+**Why a separate backup machine:** a backup on the same box does not survive that box failing.
+
+**Accepted:** the PBS disk is a 500 GB HDD with 66,811 power-on hours (the script's one warning, a
+threshold of 35,000). It passed the script's sector checks. Accepted for backups (parking-lot item 232).
+
+**Not done:** the VM is created but not started; nothing is deployed. Racking, UPS and Irin enrollment are
+not recorded as confirmed. The Phase 5 production-send prerequisites are unchanged.
+
+---
