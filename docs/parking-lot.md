@@ -1621,6 +1621,9 @@ already version-controlled, queryable from SQL.
 **When:** when there's wind analysis to base a number on. *(`tuning.py`'s own
 comment already points here.)*
 
+**Added 2026-10-20 (owner's direction):** the focus is hail. No wind analysis is planned for now, so this
+item stays a watch item and nothing is built toward it. Radar work (items 205, 206, Phase 5b) covers hail only.
+
 ## 41. Index on `report_zip_distances (zcta5)` — for address lookup
 
 **Status:** open (watch)
@@ -3570,6 +3573,40 @@ at their office.
 
 **Related:** decision log 2026-10-20.
 
+## 238. Multi-market readiness: what is hard-coded for RBI, Colorado and Denver
+
+**Status:** open (filed 2026-10-20, by developer direction; not urgent)
+
+The developer wants anything specific to RBI or Denver to work like a toggle, so a license or a SaaS
+offering stays possible (decision log 2026-10-20, point 5). Checked 2026-10-20 against the code and the
+database. **Already generic:** `coverage_zips` is data and `load_coverage.sh` takes the zip list as an
+argument (decision log 2026-09-09); `zcta_boundaries` holds all 33,791 national ZCTAs; the report-to-zip
+distances, pulls, matching, geocoding, drip campaigns and the email engine work for any zips; MRMS and NWS
+warnings cover the whole country.
+
+**Hard-coded today:**
+1. **Storm ingest state.** `IEM_STATE = "CO"` in `hailsys/iem/common.py`, and `assert_single_state` raises on
+   any other state. Another market needs the state(s) as a setting, plus a backfill.
+2. **The time zone.** `DISPLAY_TZ = ZoneInfo("America/Denver")` in `hailsys/tuning.py` and `'America/Denver'`
+   in SQL strings (`storms.py`, `activity.py`, `workstate.py`, `exports.py`, `ingest.py`, `search.py`,
+   `scripts/`). The storm day is the Denver calendar day. One market per install is fine; two markets in one
+   install need a time zone per market.
+3. **The map.** `map.js` sets the view to Denver; `static/coverage.geojson` and `colorado_counties.geojson`
+   are Colorado's (`scripts/build_coverage_geojson.py` regenerates the first).
+4. **Tuning evidence.** Radii, per-type `min_magnitude` and the 1.00 in cutoff were derived from Colorado
+   data (`tuning.py`'s own header says so), and MESH reads high against reports here. Another region needs
+   its own calibration; the Phase 5b parameter sets are built so it can have one.
+5. **Brand and content.** "Roof Brokers has certified roofs for Denver Metro real estate agents" in the
+   built-in template and `blocks.py`; sender, images and addresses are already settings (item 203).
+
+**Rule for new work:** no new constant of this kind (decision log 2026-10-20). Phase 5b takes the time zone,
+state and bounds from settings and data.
+
+**When:** before a second market, a second state, or a license or SaaS conversation, whichever comes first.
+Items 1 to 3 are the work; item 2 is the largest.
+
+**Related:** items 203, 216; decision log 2026-09-09, 2026-10-20.
+
 ## 205. Likelihood tiers: rank outreach by radar swath and distance instead of one circle
 
 **Status:** open (proposal, filed 2026-10-13; not decided)
@@ -3713,7 +3750,7 @@ circle" as the fallback for pre-2020 storms and radar gaps.
 
 ## 207. Inspection export from RBI
 
-**Status:** open (not requested yet; filed 2026-10-14)
+**Status:** open (requested from RBI, confirmed by the developer 2026-10-20; **delivery date unknown**; filed 2026-10-14)
 
 RBI has done about 20 to 30 inspections a day since 2014, each rated low, moderate, high or severe.
 That is the ground truth that everything in items 205 and 206 is waiting for.

@@ -7231,3 +7231,38 @@ zero bytes uploaded. The PVE to PBS pipeline works end to end.
 too, and there is no disk redundancy (item 233).
 
 ---
+
+---
+
+## 2026-10-20 — Phase 5b starts now; what is specific to RBI or Denver becomes a setting
+
+**Decision (developer, 2026-10-20):**
+1. **Phase 5b starts before Phase 5 is done.** This waives "do not build ahead of the current phase" for
+   this one phase only. The reason: what is left of Phase 5 (items 129, 183, 189, 96 and the production
+   box) is outside our hands, and 5b is internal display that cannot send anything. The scope stays as
+   decided 2026-10-14: four layers (core, margin, radar-indicated, outer) per Denver storm day, staff
+   only, no matcher change, nothing radar-derived in an email or export.
+2. **Added to 5b:** a per-storm-day findings panel computed from the system's own data (areas, the share of
+   actionable reports confirmed by radar, how much of the circle has no radar hail, pulled listings in each
+   tier); and calibration as **versioned parameter sets** (threshold, margin, settings with history) with a
+   repeatable calibration run over a set of storm days. Inspection data (items 207, 208) is added later as
+   another measure on the same runs. A first parameter set comes from the existing analysis evidence.
+3. **Pulls and matching are unchanged** until inspection data exists and a further entry decides. Zone-aware
+   zip choice for pulls and zone-based matching are not part of 5b. (RentCast bills by zip, so zones would not
+   cut pull cost; the gain is in who is matched and in what order.)
+4. **Hail only.** Wind tracking is left out by the owner's direction (item 38).
+5. **Configurability rule, for new code.** Anything specific to RBI or to Colorado or Denver is a setting or
+   data, not a constant: the time zone, the state or states of storm ingest, the map's default view and
+   bounds, thresholds and margins. A future licensee or SaaS customer may have a different territory,
+   time zone and database. New code takes these from existing settings and data (`DISPLAY_TZ` until it
+   moves to a setting) and adds no new Colorado or Denver constant. The hard-codes that already exist are
+   not fixed by this entry; they are item 238.
+6. **No signup or key for the radar.** MRMS MESH is NOAA public data in an open bucket
+   (`noaa-mrms-pds.s3.amazonaws.com`), read anonymously over HTTPS, from 2020-10-14. It is free. Before
+   any further source is added (CoCoRaHS for an independent check), its terms are read first (item 210).
+
+**Why:** the territory and the thresholds are the part of this system most likely to differ between
+customers, and the radar zones are new code with nothing to migrate, so the rule costs least now.
+
+**Related:** items 38, 205, 206, 207, 208, 210, 211, 215, 216, 238; decision log 2026-10-14 ("Radar layers on
+the territory page"), 2026-09-09 ("Generic and specific are split by directory"); `phases.md` Phase 5b.

@@ -300,9 +300,9 @@ sending modest volume over consecutive days.
 ---
 
 ## Phase 5b — Radar layers on the territory page (internal)
-**Starts after Phase 5 is done. Estimate: several sessions.**
+**Started early, 2026-10-20 (decision log 2026-10-20): the rest of Phase 5 is blocked outside our hands. Estimate: several sessions.**
 
-Decision log 2026-10-14 ("Radar layers on the territory page").
+Decision log 2026-10-14 ("Radar layers on the territory page") and 2026-10-20.
 - Verify which `MESH_Max_1440min` file covers a Denver day (item 211's kind of question)
 - Schema: daily radar-hail polygons, warning polygons with hail tags, tier settings on the admin page
 - Nightly ingest of both (ingest image rebuilt); backfill from 2020-10-14
@@ -310,6 +310,10 @@ Decision log 2026-10-14 ("Radar layers on the territory page").
 - `/map/radar.geojson` and four layers in `map.js`, with legend and toggles; fix item 216 in the same
   edit
 - Staff only: no matcher change, nothing radar-derived in email or exports
+- A findings panel per storm day, from our own data; thresholds and margins as versioned parameter sets with
+  a repeatable calibration run (inspection data joins later, items 207 and 208)
+- Hail only. No new Colorado or Denver constants: time zone, state and map bounds come from settings and data
+  (item 238 lists the ones that already exist)
 
 **Done when:** for a historical storm day, the four layers draw on the territory page and agree with
 the 2026-10 analysis for that day (`docs/analysis/radar-areas-2026-10/`). The tier settings change the
