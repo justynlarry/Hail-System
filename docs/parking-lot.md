@@ -3158,7 +3158,7 @@ vocabulary (`ALLOWED_VARS` is it).
 
 ## 204. Drip campaigns: an initial email, then follow-ups
 
-**Status:** open (filed 2026-10-13, by developer request; the owner asked for it). **Plan agreed
+**Status:** open, **parked 2026-10-20 by developer decision: only piece 7's dev rehearsal remains** (filed 2026-10-13, by developer request; the owner asked for it). **Plan agreed
 2026-10-16**, Level 1. **Piece 1 (the RentCast probe) done 2026-10-16**; the check method changed
 as a result (below). **Pieces 2 and 3 done 2026-10-16** (`sql/045`, `sql/046`, the by-id client, the check log writer, the quota sum, the cheaper-method choice). **Piece 4 done 2026-10-19** (`hailsys/queries/dripfollowup.py`, `queue_batch(send_list=...)`). **Piece 5 done 2026-10-19** (`sql/047`, `hailsys/rentcast/dripstep.py`, `hailsys/email/dripstep.py`, `sendjobs.start_drip_step`). **Piece 6 done 2026-10-20** (commits `313df2e` to `8021288`; `/campaigns`, the follow-up part of the `/send` confirm page, the due banner). Piece 7 (these docs and a dev rehearsal) is next. **No campaign has been run yet**: nothing in `sent_emails` came from one.
 
@@ -3362,8 +3362,9 @@ there are fewer listings than zips.
 useful time for the largest storms; the Constant Contact calls per email (this item says about 10; it decides how many follow-ups fit in a
 day); whether any trigger blocks a second `send_log` row for a match (the guard tests in piece 2).
 
-**When:** after 202 and the first pieces of 203 (steps need a template choice). Level 2 only
-after 189 and 129. Items 202 and 203 are done: Level 1 can start.
+**When:** the dev rehearsal (piece 7) before the first production campaign, using only the developer's
+own test addresses (it spends a few real RentCast calls and sends through Constant Contact). Level 2 still
+not before 189 and 129.
 
 **Related:** items 189, 191, 203, 226, 227.
 
