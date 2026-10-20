@@ -3446,6 +3446,82 @@ add a second backup target at once if reallocated or pending sectors appear.
 
 **Related:** decision log 2026-10-20.
 
+## 233. Backups: single-disk datastore, retention, encryption, consistency, restore test
+
+**Status:** open (filed 2026-10-20)
+
+**Evidence:** datastore `prod` is on the root filesystem of `pbs-prod01`'s single 500 GB disk (decision log
+2026-10-20): if it fills, the OS fills, and there is no redundancy. No retention, prune or garbage-collection
+schedule is set. Backups are not yet encrypted client-side. VM 101 has only had an empty test backup.
+
+**To do:**
+- Add a second 500 GB HDD, reinstall PBS on a ZFS mirror, move the datastore off root. The earlier
+  OptiPlex-plus-second-SSD plan is out.
+- Set retention, prune and GC.
+- Decide the client-side encryption key before backups leave the site (item 235).
+- Postgres-consistent backups: guest-agent filesystem freeze, or a `pg_dump` hook.
+- After the OS install: install `qemu-guest-agent`, enable `fstrim.timer`, then test-restore VM 101 to VMID
+  9100 with the network disconnected. The restore target must support x86-64-v3.
+
+**When:** before the first production send (as item 232 already says), and before backups go offsite.
+
+**Related:** items 232, 235; decision log 2026-10-20.
+
+## 234. Irin alerts for PBS disk usage and backup job failures are unconfirmed
+
+**Status:** open (filed 2026-10-20)
+
+**Evidence:** `CLAUDE.md` records Irin enrollment as not confirmed; nothing records alerts for `pbs-prod01`'s
+disk or for backup job failures.
+
+**When:** before the first production send; with item 233's single-disk datastore, a full disk must alert.
+
+**Related:** items 9, 233, 236.
+
+## 235. Offsite sync is not built
+
+**Status:** open (filed 2026-10-20)
+
+**Evidence:** no sync user/token, Remote or sync job exists.
+
+**To do:** create a sync user and token with `DatastoreReader`; add the Remote and the sync job on the home PBS;
+decide which home PBS pulls and confirm it is untagged (tagged machines cannot reach shared nodes); settle the
+encryption key first (item 233).
+
+**When:** after item 233's retention and key decisions.
+
+**Related:** items 233, 237; decision log 2026-10-20 (Tailscale entries).
+
+## 236. PVE email notifications do not arrive
+
+**Status:** open (filed 2026-10-20)
+
+**Evidence:** the backup notification sent through the `mail-to-root` target on 2026-10-20 never arrived.
+
+**To do:** a real SMTP notification target, then a test send.
+
+**When:** before relying on any backup or job-failure notice (item 234).
+
+**Related:** items 234, 233.
+
+## 237. Production hosts: hardening and housekeeping
+
+**Status:** open (filed 2026-10-20)
+
+**To do:**
+- Disable Tailscale key expiry on `pbs-prod01` and `pve-prod01`.
+- Remove the stale `rbi-hail01` node from the personal tailnet before the new VM ever joins Tailscale
+  (MagicDNS name collision).
+- Confirm Tailscale SSH is off on `pve-prod01`.
+- Harden sshd on both hosts: keys only, no root password login.
+- Internal DNS for `rbi.internal`; then switch PVE's PBS storage from the IP to the name.
+- Tell RBI about Tailscale on the machines on their LAN.
+
+**When:** before the production VM is started or joins Tailscale; the RBI notice before anything is racked
+at their office.
+
+**Related:** decision log 2026-10-20.
+
 ## 205. Likelihood tiers: rank outreach by radar swath and distance instead of one circle
 
 **Status:** open (proposal, filed 2026-10-13; not decided)

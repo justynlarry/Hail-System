@@ -7111,3 +7111,123 @@ threshold of 35,000). It passed the script's sector checks. Accepted for backups
 not recorded as confirmed. The Phase 5 production-send prerequisites are unchanged.
 
 ---
+
+## 2026-10-20 — Backups run on bare metal, on hardware separate from the host they protect
+
+**Decision:** Proxmox Backup Server runs directly on `pbs-prod01`, not in a VM on `pve-prod01`.
+
+**Why:** a backup must not share hardware with what it protects. This restates the reasoning of the
+"Production hardware" entry above and adds the bare-metal install (LVM, ext4 root, 7.7 GB swap) as the
+decision.
+
+**Related:** decision log 2026-10-20 (Production hardware); item 232.
+
+---
+
+## 2026-10-20 — Internal domain is `rbi.internal`
+
+**Decision:** the three production hosts sit side by side under `rbi.internal`: `pve-prod01`,
+`pbs-prod01`, `rbi-hail01`.
+
+**Why:** `.internal` is reserved for private use, so it can never collide with a public TLD. A made-up
+`.rbi` was rejected for that reason.
+
+**Not done:** `rbi.internal` does not resolve yet. PVE's storage entry for the PBS host uses its IP address
+until internal DNS exists (item 237).
+
+---
+
+## 2026-10-20 — The PBS datastore is named `prod`, not `hail`
+
+**Decision:** the datastore is `prod` (`/mnt/datastore/prod` on `pbs-prod01`).
+
+**Why:** the name still fits if the box later backs up more than one VM.
+
+---
+
+## 2026-10-20 — The PVE side holds a backup-only credential
+
+**Decision:** PVE authenticates to PBS as user `pve-prod01@pbs` (no password; it exists only to own the
+token) with API token `pve-prod01@pbs!backup`. The role is `DatastoreBackup` on `/datastore/prod`, granted
+to both the user and the token. The storage entry (`pbs-prod01`, type pbs) was added through the GUI so the
+token secret never entered shell history, and pins the PBS certificate fingerprint.
+
+**Why:** least privilege. PVE can create backups but cannot prune or delete them, so a compromised
+production host cannot erase its own history.
+
+**Cleanup:** a user created by mistake, `pve-prod@pbs`, was removed along with its orphaned ACL entry.
+
+---
+
+## 2026-10-20 — VM CPU type is x86-64-v3
+
+**Decision:** VM 101 uses CPU type `x86-64-v3`.
+
+**Why:** Rocky and RHEL 10 require it.
+
+**Consequence:** any disaster-recovery restore target must also support x86-64-v3. A restore onto older
+hardware will not boot the guest. Check this before choosing a recovery machine (item 233).
+
+---
+
+## 2026-10-20 — VM disk has `discard=on` and `ssd=1`
+
+**Decision:** VM 101's `scsi0` (local-lvm thin, 400 GB, virtio-scsi-single) has `iothread=1`, `discard=on`
+and `ssd=1`.
+
+**Why:** space freed inside the guest is released to the thin pool, so backups stay small. The guest side
+(`qemu-guest-agent`, `fstrim.timer`) is still to do after the OS install (item 233).
+
+---
+
+## 2026-10-20 — Offsite transport is Tailscale, directly on the hosts, with no jump box
+
+**Decision:** `pve-prod01` and `pbs-prod01` run Tailscale themselves.
+
+**Why Tailscale and not WireGuard:** there is no admin access to RBI's router, so a port forward is not
+possible. **Why no jump box:** access must not depend on another VM being up.
+
+**Not done:** the offsite sync itself (item 235). Tell RBI about Tailscale on their LAN (item 237).
+
+---
+
+## 2026-10-20 — A separate tailnet for RBI, shared machine by machine
+
+**Decision:** `pve-prod01` and `pbs-prod01` live on their own Tailscale account and tailnet, not the
+developer's personal one. Each machine is shared into the personal tailnet with machine sharing, not a user
+invite. Reachability was verified from the developer's workstation.
+
+**Why:** nothing at RBI becomes visible to the personal tailnet unless it is shared on purpose.
+
+**Note:** the `tail74972c` tailnet named elsewhere (`hail-dev`) is the personal one. It does not cover the
+production hosts.
+
+**Open:** a stale `rbi-hail01` node in the personal tailnet must be removed before the new VM joins
+Tailscale, or the MagicDNS names collide (item 237). Tagged machines cannot reach shared nodes, so the
+home PBS that pulls offsite must be untagged (item 235).
+
+---
+
+## 2026-10-20 — Tailscale SSH is off; host access is OpenSSH with keys
+
+**Decision:** Tailscale SSH is disabled on `pbs-prod01` (`tailscale set --ssh=false`). SSH is plain OpenSSH
+with keys.
+
+**Why:** host access stays independent of Tailscale's policy engine.
+
+**Not confirmed:** Tailscale SSH on `pve-prod01`. sshd hardening on both hosts is open (item 237).
+
+---
+
+## 2026-10-20 — Test backup of VM 101 to `pbs-prod01` succeeded
+
+**Verified:** a backup of VM 101 (empty, stopped) at 2026-10-20 18:14 UTC completed. It was fully sparse:
+zero bytes uploaded. The PVE to PBS pipeline works end to end.
+
+**Not verified:** a restore (item 233), and the backup notification. The email sent through the
+`mail-to-root` target never arrived (item 236).
+
+**Known risk, open:** the datastore is on the root filesystem of a single disk. If it fills, the OS fills
+too, and there is no disk redundancy (item 233).
+
+---

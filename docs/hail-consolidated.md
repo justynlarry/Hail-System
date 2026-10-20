@@ -1843,7 +1843,7 @@ open question; if so, remediation is its own line item.
 | IP | 192.168.16.20 | 192.168.16.21 |
 | Machine | HP ProDesk 400 G6 Desktop Mini | Dell OptiPlex 3020 MT |
 | CPU | i5-10500T (6 cores / 12 threads) | i5-4590 (4 cores / 4 threads) |
-| Memory | 32 GB DDR4 | 16 GB DDR3 |
+| Memory | 32 GB DDR4 | 8 GB DDR3 |
 | Storage | 1 TB WD Blue NVMe | 500 GB HDD |
 | OS | Proxmox VE | Proxmox Backup Server |
 | Acceptance test (2026-10-19) | 16 passed, 0 warnings, 0 failures (76 min) | 14 passed, 1 warning, 0 failures (41 min) |
@@ -1856,6 +1856,24 @@ The acceptance test is `scripts/hw-acceptance-test.sh`. The backup host's one wa
 only check that fired; the script's pending, offline-uncorrectable and reallocated-sector tests raised
 nothing. An old spinner is acceptable for backups and not for primary storage (parking-lot item 232).
 The production host's 28 GB VM leaves 4 GB of its 32 GB for Proxmox itself.
+
+### Production backup and remote access (2026-10-20)
+
+Decisions are in the decision log, 2026-10-20; the open items are parking-lot items 233 to 237.
+
+- **PBS (`pbs-prod01`):** bare metal, LVM with an ext4 root (about 441 GB) and 7.7 GB swap. Datastore `prod`
+  at `/mnt/datastore/prod`, **on the root filesystem of a single disk**: no redundancy, and a full
+  datastore fills the OS. User `pve-prod01@pbs` owns API token `pve-prod01@pbs!backup`; role
+  `DatastoreBackup` on `/datastore/prod` for both.
+- **PVE (`pve-prod01`):** storage `pbs-prod01` (type pbs) points at datastore `prod` by IP address
+  (`rbi.internal` does not resolve yet), with the token and a pinned certificate fingerprint. VM 101: 8 cores,
+  28 GB, CPU `x86-64-v3`, virtio-scsi-single, `scsi0` local-lvm thin 400 GB with `iothread=1`, `discard=on`,
+  `ssd=1`, `agent=1`, `onboot=1`. Rocky 10.2 ISO attached; OS not installed.
+- **Verified:** a test backup of the empty, stopped VM succeeded 2026-10-20 18:14 UTC (zero bytes
+  uploaded). **Not verified:** a restore, retention, offsite sync, notification email.
+- **Remote access:** both hosts are on a separate RBI Tailscale tailnet, shared into the developer's personal
+  tailnet by machine sharing. Host SSH is OpenSSH with keys; Tailscale SSH is off on `pbs-prod01`
+  (`pve-prod01` not confirmed). `hail-dev` is on the personal tailnet, not this one.
 
 **Dev matching prod is the point, not a coincidence.** SELinux in particular:
 a bind mount without `:Z` fails with a permission error that looks nothing like

@@ -6,6 +6,9 @@
 - `pbs-prod01.rbi.internal`, 192.168.16.21: Dell OptiPlex 3020, Proxmox Backup Server.
 - Both passed `scripts/hw-acceptance-test.sh` on 2026-10-19. Details: `docs/hail-consolidated.md` §9.
 - The steps below build the Rocky VM (`rbi-hail01`), not the Proxmox hosts.
+- The two hosts are reached over a separate RBI Tailscale tailnet, shared into the developer's personal one,
+  with OpenSSH and keys (decision log 2026-10-20). After the OS install, in the guest: install
+  `qemu-guest-agent` and enable `fstrim.timer` (parking-lot item 233).
 
 ## Hostname
 Normally set during the Rocky installer — but if it was skipped, the box comes
