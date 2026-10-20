@@ -159,6 +159,18 @@
                        value="{{ settings.email_cap_days }}" required>
                 <br><small>A realtor emailed within this many days is held back unless
                 the sender overrides it.</small></td></tr>
+        <tr><th><label for="drip_max_followups">Most follow-ups per campaign</label></th>
+            <td><input id="drip_max_followups" name="drip_max_followups" type="number"
+                       step="1" min="0" max="10"
+                       value="{{ settings.drip_max_followups }}" required>
+                <br><small>0 turns new campaigns off. Applies to campaigns started
+                afterwards.</small></td></tr>
+        <tr><th><label for="drip_max_gap_days">Longest gap between steps (days)</label></th>
+            <td><input id="drip_max_gap_days" name="drip_max_gap_days" type="number"
+                       step="1" min="1" max="30"
+                       value="{{ settings.drip_max_gap_days }}" required>
+                <br><small>Each follow-up has its own gap, up to this. For 7 days then 14,
+                set this to 14 or more. Applies to campaigns started afterwards.</small></td></tr>
 
         <tr><th>Ceiling (read-only)</th>
             <td>{{ "%.1f"|format(ceiling_miles) }} mi — raising it needs a migration
@@ -292,7 +304,7 @@
   <div class="table-scroll">
   <table>
     <thead><tr><th>When</th><th>By</th><th>Zip radius</th><th>Match radius</th>
-               <th>Billing day</th><th>Monthly quota</th><th>Freshness (days)</th><th>Storm age</th><th>Email cap</th><th>Email values</th></tr></thead>
+               <th>Billing day</th><th>Monthly quota</th><th>Freshness (days)</th><th>Storm age</th><th>Email cap</th><th>Follow-ups</th><th>Longest gap</th><th>Email values</th></tr></thead>
     <tbody>
     {% for h in history %}
       <tr>
@@ -307,13 +319,16 @@
         <td>{{ h.listing_freshness_days if h.listing_freshness_days is not none else "—" }}</td>
         <td>{{ h.match_max_age_days if h.match_max_age_days is not none else "—" }}</td>
         <td>{{ h.email_cap_days if h.email_cap_days is not none else "—" }}</td>
+        {# NULL on rows written before sql/045, which added these columns #}
+        <td>{{ h.drip_max_followups if h.drip_max_followups is not none else "—" }}</td>
+        <td>{{ h.drip_max_gap_days if h.drip_max_gap_days is not none else "—" }}</td>
         {# NULL on rows written before sql/042, which added these columns #}
         <td>{% if h.contact_email %}<small>contact {{ h.contact_email }}; schedule
             {{ h.schedule_url }}; from {{ h.from_name }} &lt;{{ h.from_email }}&gt;;
             reply-to {{ h.reply_to }}</small>{% else %}—{% endif %}</td>
       </tr>
     {% else %}
-      <tr><td colspan="10">No changes yet.</td></tr>
+      <tr><td colspan="12">No changes yet.</td></tr>
     {% endfor %}
     </tbody>
   </table>
