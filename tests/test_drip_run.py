@@ -12,6 +12,7 @@ cheaper method is used, except that a listing with no zip forces by-id.  Everyth
 database, no network, no Constant Contact.
 """
 
+import os
 import sys
 import unittest
 from datetime import datetime, timezone
@@ -31,7 +32,7 @@ except ImportError as exc:
 
 NOW = datetime(2026, 10, 19, 5, 30, tzinfo=timezone.utc)      # 2026-10-18 23:30 in Denver
 STEP = {"status": "active", "template_name": "follow-up", "batch_id": None, "step_count": 2,
-        "previous_sent": True}
+        "previous_sent": True, "queued_before": 0}
 
 
 class Stopped(Exception):
@@ -187,12 +188,139 @@ class PreflightTest(unittest.TestCase):
     def test_a_missing_rentcast_key(self):
         self.assertIn("RentCast key", self.refused(STEP, key_ok=False))
 
+    def test_queued_emails_of_the_first_send_refuse_step_one(self):
+        self.assertEqual(self.refused(dict(STEP, queued_before=4), step_no=1),
+                         "4 emails of the first send are still queued: resume or discard them first.")
+
+    def test_one_queued_email_is_worded_in_the_singular(self):
+        self.assertEqual(self.refused(dict(STEP, queued_before=1), step_no=1),
+                         "1 email of the first send is still queued: resume or discard it first.")
+
+    def test_queued_emails_of_an_earlier_step_name_that_step(self):
+        self.assertEqual(self.refused(dict(STEP, queued_before=2), step_no=3),
+                         "2 emails of follow-up 2 are still queued: resume or discard them first.")
+
+    def test_no_queued_emails_is_no_refusal(self):
+        row, _ = self.run_preflight(dict(STEP, queued_before=0))
+        self.assertEqual(row["queued_before"], 0)
+
+    def test_an_unsent_previous_step_is_reported_before_queued_emails(self):
+        self.assertEqual(self.refused(dict(STEP, previous_sent=False, queued_before=3)),
+                         "Step 1 has to be sent first.")
+
+    def test_the_queue_count_is_read_in_the_pre_flight_query(self):
+        sql = dripstep._STEP_SQL
+        self.assertIn("l.send_status = 'queued'", sql)
+        self.assertIn("e.error_detail IS NULL", sql)
+        self.assertIn("c.first_batch_id", sql)
+
     def test_the_template_is_the_steps_own(self):
         load = mock.Mock()
         with mock.patch.object(dripstep.templatestore, "load", load), \
                 mock.patch.object(client, "_api_key"):
             dripstep.preflight(self.conn(STEP), 5, 1)
         self.assertEqual(load.call_args.args[1], "follow-up")
+
+
+@unittest.skipIf(MISSING, f"imports unavailable: {MISSING}")
+@unittest.skipUnless(os.environ.get("PGHOST"), "no database (PGHOST unset)")
+class QueuedBeforeQueryTest(unittest.TestCase):
+    """_STEP_SQL against real rows, built inside a transaction that is always rolled back."""
+
+    def setUp(self):
+        import psycopg
+        from psycopg.rows import dict_row
+        self.conn = psycopg.connect(row_factory=dict_row)
+        self.addCleanup(self.conn.close)
+        self.addCleanup(self.conn.rollback)
+        q = lambda sql, *a: self.conn.execute(sql, a).fetchone()
+        user = q("SELECT emp_id FROM users ORDER BY emp_id LIMIT 1")
+        self.realtors = [r["realtor_id"] for r in self.conn.execute(
+            "SELECT realtor_id FROM realtors ORDER BY realtor_id LIMIT 4").fetchall()]
+        match = q("SELECT match_id FROM storm_listing_matches ORDER BY match_id LIMIT 1")
+        if not (user and match and len(self.realtors) == 4):
+            self.skipTest("the database has no user, match or four realtors to build on")
+        self.user, self.match = user["emp_id"], match["match_id"]
+        self.conn.execute(
+            "INSERT INTO email_templates (template_name, subject, body, created_by) "
+            "VALUES ('test-queued-before', 's', 'b', %s)", (self.user,))
+        self.template = q("SELECT template_id FROM email_templates "
+                          "WHERE template_name = 'test-queued-before'")["template_id"]
+        self.sync = q("INSERT INTO cc_sync_runs (triggered_by, watermark) "
+                      "VALUES (%s, '1999-02-01') RETURNING run_id", self.user)["run_id"]
+        self.first = self.batch("first", [("queued", None), ("queued", "needs review"),
+                                          ("sent", None), ("failed", None)])
+        self.conn.execute(
+            "INSERT INTO drip_campaigns (name, first_batch_id, created_by) "
+            "VALUES ('test-queued-before', %s, %s)", (self.first, self.user))
+        self.campaign = q("SELECT campaign_id FROM drip_campaigns "
+                          "WHERE name = 'test-queued-before'")["campaign_id"]
+        for n in (1, 2):
+            self.conn.execute(
+                "INSERT INTO drip_steps (campaign_id, step_no, gap_days, template_name) "
+                "VALUES (%s, %s, 2, 'test-queued-before')", (self.campaign, n))
+
+    def batch(self, tag, rows):
+        """A batch with one email per (send_status, error_detail) pair."""
+        import uuid
+        batch_id = uuid.uuid4()
+        for i, (status, error) in enumerate(rows):
+            email_id = self.conn.execute(
+                "INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, "
+                "sync_run_id, permission_asserted, created_by, subject, html_body) "
+                "VALUES (%s, %s, %s, %s, %s, 'none', %s, 's', '<p>b</p>') RETURNING email_id",
+                (batch_id, self.realtors[i], f"test-queued-{tag}-{i}@example.invalid", self.template,
+                 self.sync, self.user)).fetchone()["email_id"]
+            self.conn.execute(
+                "INSERT INTO send_log (realtor_id, recipient_email, match_id, template_id, "
+                "sent_by, email_id) VALUES (%s, %s, %s, %s, %s, %s)",
+                (self.realtors[i], f"test-queued-{tag}-{i}@example.invalid", self.match,
+                 self.template, self.user, email_id))
+            if status != "queued":
+                self.conn.execute(
+                    "UPDATE send_log SET send_status = %s, status_updated_at = now(), "
+                    "sent_at = CASE WHEN %s = 'sent' THEN now() END WHERE email_id = %s",
+                    (status, status, email_id))
+            if error:
+                self.conn.execute("UPDATE sent_emails SET error_detail = %s WHERE email_id = %s",
+                                  (error, email_id))
+        return batch_id
+
+    def queued_before(self, step_no):
+        return self.conn.execute(dripstep._STEP_SQL, {"campaign_id": self.campaign,
+                                                      "step_no": step_no}).fetchone()["queued_before"]
+
+    def test_step_one_counts_only_untouched_queued_emails_of_the_first_batch(self):
+        # queued + no error counts; queued + needs review, sent and failed do not.
+        self.assertEqual(self.queued_before(1), 1)
+
+    def test_a_step_whose_previous_step_is_unsent_counts_nothing(self):
+        self.assertEqual(self.queued_before(2), 0)
+
+    def test_step_two_counts_step_ones_batch_and_not_the_first_batch(self):
+        second = self.batch("second", [("queued", None), ("queued", None)])
+        self.conn.execute("UPDATE drip_steps SET batch_id = %s, started_by = %s "
+                          "WHERE campaign_id = %s AND step_no = 1",
+                          (second, self.user, self.campaign))
+        self.assertEqual(self.queued_before(2), 2)
+
+    def test_the_count_falls_to_zero_when_the_emails_are_delivered(self):
+        second = self.batch("second", [("queued", None)])
+        self.conn.execute("UPDATE drip_steps SET batch_id = %s, started_by = %s "
+                          "WHERE campaign_id = %s AND step_no = 1",
+                          (second, self.user, self.campaign))
+        self.conn.execute("UPDATE send_log SET send_status = 'sent', sent_at = now() "
+                          "WHERE email_id IN (SELECT email_id FROM sent_emails WHERE batch_id = %s)",
+                          (second,))
+        self.assertEqual(self.queued_before(2), 0)
+
+    def test_preflight_refuses_with_the_real_count(self):
+        with mock.patch.object(dripstep.templatestore, "load"), \
+                mock.patch.object(client, "_api_key"):
+            with self.assertRaises(dripstep.StepRefused) as cm:
+                dripstep.preflight(self.conn, self.campaign, 1)
+        self.assertEqual(str(cm.exception),
+                         "1 email of the first send is still queued: resume or discard it first.")
 
 
 @unittest.skipIf(MISSING, f"imports unavailable: {MISSING}")
@@ -206,18 +334,41 @@ class RunStepTest(unittest.TestCase):
         self.assertEqual(rig.conn.params("_START_SQL"), [])
         rig.checks.check_by_id.assert_not_called()
 
-    def test_a_failed_sync_stops_before_the_run_row_and_any_call(self):
-        rig = Rig(self, sync_error=RuntimeError("sync down"))
+    def test_a_failed_sync_is_recorded_and_stops_before_any_call(self):
+        rig = Rig(self, sync_error=RuntimeError("SECRET-BODY-TEXT"))
         with self.assertRaises(RuntimeError):
             rig.go()
-        self.assertEqual(rig.conn.params("_START_SQL"), [])
+        self.assertEqual(len(rig.conn.params("_START_SQL")), 1)
+        p = rig.conn.params("_FINISH_SQL")[0]
+        self.assertEqual((p["run_id"], p["status"], p["detail"], p["method"], p["calls"]),
+                         (9, "failed", "the unsubscribe sync failed (RuntimeError)", None, None))
         rig.checks.recent_definite.assert_not_called()
         rig.checks.check_by_id.assert_not_called()
+        rig.queue.assert_not_called()
+        rig.deliver.assert_not_called()
+
+    def test_a_failed_sync_records_no_message_text(self):
+        rig = Rig(self, sync_error=RuntimeError("SECRET-BODY-TEXT"))
+        with self.assertRaises(RuntimeError):
+            rig.go()
+        self.assertNotIn("SECRET", str(rig.conn.params("_FINISH_SQL")))
+
+    def test_a_failed_sync_closes_the_run_row_once_and_commits_it(self):
+        rig = Rig(self, sync_error=RuntimeError("x"))
+        with self.assertRaises(RuntimeError):
+            rig.go()
+        self.assertEqual(len(rig.conn.params("_FINISH_SQL")), 1)
+        self.assertEqual(rig.log[rig.log.index("_FINISH_SQL") + 1], "commit")
+
+    def test_the_run_row_starts_before_the_sync(self):
+        rig = Rig(self)
+        rig.go()
+        self.assertLess(rig.log.index("_START_SQL"), rig.log.index("sync"))
 
     def test_the_order_of_a_full_click(self):
         rig = Rig(self)
         rig.go()
-        wanted = ["preflight", "sync", "_ABANDON_SQL", "_START_SQL", "check_by_id", "build",
+        wanted = ["preflight", "_ABANDON_SQL", "_START_SQL", "sync", "check_by_id", "build",
                   "lookup", "queue", "_SEND_STEP_SQL", "_FINISH_SQL", "deliver"]
         self.assertEqual([e for e in rig.log if e in wanted], wanted)
 

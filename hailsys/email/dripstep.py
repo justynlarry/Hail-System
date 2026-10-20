@@ -7,8 +7,8 @@ time.
 
 Order, and why:
     pre-flight     nothing is spent or written if the step cannot run
-    sync           a failed sync raises here, before a run row exists or a call is spent
     run row        drip_step_runs 'running'; a stale 'running' row is closed as abandoned
+    sync           a failed sync closes the run row as failed and raises, before a call is spent
     re-check       RentCast calls, one drip_listing_checks row per listing
     rebuild        the follow-up list is built again from what the database holds now
     queue          one transaction:  queue_batch, step marked sent, stops written, campaign
@@ -42,7 +42,14 @@ SELECT c.status, s.template_name, s.batch_id,
        (s.step_no = 1 OR EXISTS (
             SELECT 1 FROM drip_steps p
             WHERE p.campaign_id = s.campaign_id AND p.step_no = s.step_no - 1
-              AND p.batch_id IS NOT NULL)) AS previous_sent
+              AND p.batch_id IS NOT NULL)) AS previous_sent,
+       (SELECT count(DISTINCT e.email_id)
+         FROM sent_emails e JOIN send_log l ON l.email_id = e.email_id
+         WHERE l.send_status = 'queued' AND e.error_detail IS NULL
+           AND e.batch_id = CASE WHEN s.step_no = 1 THEN c.first_batch_id
+                                 ELSE (SELECT p.batch_id FROM drip_steps p
+                                       WHERE p.campaign_id = s.campaign_id
+                                         AND p.step_no = s.step_no - 1) END) AS queued_before
 FROM drip_campaigns c
 JOIN drip_steps s ON s.campaign_id = c.campaign_id
 WHERE c.campaign_id = %(campaign_id)s AND s.step_no = %(step_no)s
@@ -97,6 +104,12 @@ def preflight(conn, campaign_id, step_no):
         raise StepRefused("That step was already sent.")
     if not step["previous_sent"]:
         raise StepRefused(f"Step {step_no - 1} has to be sent first.")
+    if step["queued_before"]:
+        n = step["queued_before"]
+        before = "the first send" if step_no == 1 else f"follow-up {step_no -1}"
+        raise StepRefused(f"{n} email{'' if n == 1 else 's'} of {before} "
+                          f"{'is' if n == 1 else 'are'} still queued: resume or discard "
+                          f"{'it' if n == 1 else 'them'} first.")
     try:
         templatestore.load(conn, step["template_name"])
     except templatestore.TemplateNotFound:
@@ -134,7 +147,7 @@ def run_step(*, user_id, campaign_id, step_no, email_settings, sender, freshness
              sync=unsubs.run_sync, cc=campaigns, checks=rentcast_checks,
              clock=time.monotonic, now=None):
     """One click on a due step.  Returns what happened; raises StepRefused before anything
-    is written, and whatever a failed sync raises.
+    is written, and whatever a failed sync raises (after recording it).
     """
     start = now or datetime.now(timezone.utc)
     today = start.astimezone(DISPLAY_TZ).date()
@@ -143,12 +156,15 @@ def run_step(*, user_id, campaign_id, step_no, email_settings, sender, freshness
     with get_connection() as conn:
         step = preflight(conn, campaign_id, step_no)
         conn.commit()
-
-    synced_at = clock()
-    result = sync(triggered_by=user_id)
-
-    with get_connection() as conn:
         run_id = _start_run(conn, campaign_id, step_no, user_id)
+        synced_at = clock()
+        try:
+            result = sync(triggered_by=user_id)
+        except Exception as exc:
+            # The class name only:  a message may carry text from a response.
+            _finish_run(conn, run_id, "failed",
+                        detail=f"the unsubscribe sync failed ({type(exc).__name__})")
+            raise
         method = None
         try:
             hits = dripfollowup.fetch_hits(conn, campaign_id, now=start, cap_days=cap)
