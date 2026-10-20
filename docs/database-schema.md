@@ -993,7 +993,9 @@ in code); failed and unknown attempts count. No email content is kept, only the 
 
 `sql/046_drip_campaigns.sql` and `sql/047_drip_step_runs.sql`, applied to `hail-dev` only. The follow-up
 list builder and the step job (`hailsys/email/dripstep.py`, started by `sendjobs.start_drip_step`) use
-these; no screen calls them yet (piece 6).
+these. The `/campaigns` screens read them through `hailsys/queries/dripscreen.py` and change them through
+`hailsys/email/dripactions.py` (stop a recipient, pause, resume, cancel) and `dripstart.create_campaign` (inside
+the step-1 queue transaction).
 An initial email, then follow-ups at set gaps. Step 1 is the ordinary send. `hail_app` has `SELECT` and
 `INSERT` on all six, `UPDATE` on only the columns named below, no `DELETE` or `TRUNCATE`.
 `sql/guard_test.sql` holds the rules as tests.

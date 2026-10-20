@@ -887,8 +887,8 @@ the problems found are in `docs/parking-lot.md`.
 - **Screens and jobs.** The admin-only `/send` screens: preview, confirm and start, recent sends, per-send
   progress, resume and discard of a queued remainder (item 199), and a bounce check (`sql/039`) that writes hard
   bounces to `dnc_list`. A call counter (`sql/040`) stops the engine at the daily limit (item 191).
-- **Templates** are chosen and described in the UI (`sql/041`, item 202); a block builder and drip campaigns are
-  filed (items 203, 204).
+- **Templates** are chosen and described in the UI (`sql/041`, item 202); the block builder is built (item 203); drip
+  campaigns (item 204) have their screens and await a dev rehearsal.
 - **Audience: the warm pools only** (decision log 2026-10-07): realtors from RBI's in-house database and the
   Constant Contact list, each with a recorded basis. Item 189 (the eligibility gate) is parked.
 - **Still open before a production send:** items 129 (is the unsubscribe export complete), 183 (the paid

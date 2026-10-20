@@ -3160,7 +3160,7 @@ vocabulary (`ALLOWED_VARS` is it).
 
 **Status:** open (filed 2026-10-13, by developer request; the owner asked for it). **Plan agreed
 2026-10-16**, Level 1. **Piece 1 (the RentCast probe) done 2026-10-16**; the check method changed
-as a result (below). **Pieces 2 and 3 done 2026-10-16** (`sql/045`, `sql/046`, the by-id client, the check log writer, the quota sum, the cheaper-method choice). **Piece 4 done 2026-10-19** (`hailsys/queries/dripfollowup.py`, `queue_batch(send_list=...)`). **Piece 5 done 2026-10-19** (`sql/047`, `hailsys/rentcast/dripstep.py`, `hailsys/email/dripstep.py`, `sendjobs.start_drip_step`). Piece 6 (the screens) is next: the job exists and nothing calls it, so no page starts or shows a step yet.
+as a result (below). **Pieces 2 and 3 done 2026-10-16** (`sql/045`, `sql/046`, the by-id client, the check log writer, the quota sum, the cheaper-method choice). **Piece 4 done 2026-10-19** (`hailsys/queries/dripfollowup.py`, `queue_batch(send_list=...)`). **Piece 5 done 2026-10-19** (`sql/047`, `hailsys/rentcast/dripstep.py`, `hailsys/email/dripstep.py`, `sendjobs.start_drip_step`). **Piece 6 done 2026-10-20** (commits `313df2e` to `8021288`; `/campaigns`, the follow-up part of the `/send` confirm page, the due banner). Piece 7 (these docs and a dev rehearsal) is next. **No campaign has been run yet**: nothing in `sent_emails` came from one.
 
 **The ask:** an initial email about a storm, then N follow-ups with a chosen number of days
 between each (1 to 2, 2 to 3, 3 to 4). Each follow-up must re-check, with RentCast, that the
@@ -3245,7 +3245,7 @@ table, so by-id checks logged there would make a zip look recently pulled.
 
 *Pieces.* (1) a read-only probe of the by-id endpoint, three calls (done); (2) `sql/045`, `sql/046` and guards (done);
 (3) `get_sale_listing`, the check log, the quota sum and the cheaper-method choice (done); (4) the follow-up
-list builder (done); (5) the chained job (done); (6) screens; (7) docs and a dev rehearsal.
+list builder (done); (5) the chained job (done); (6) screens (done); (7) docs and a dev rehearsal.
 
 *Piece 4 decisions, 2026-10-19* (developer: all as recommended).
 - **Cap:** applies only to emails outside this campaign (another send or campaign inside the cap window
@@ -3286,10 +3286,57 @@ list builder (done); (5) the chained job (done); (6) screens; (7) docs and a dev
   the campaign is left for a person to cancel.
 - **`sendjobs.start_drip_step`** takes the same `send:run` lock as sends and resumes, so a step and a send
   never overlap; the pre-flight runs before the thread starts so the route can explain a refusal.
-- **Known limits.** A failed unsubscribe sync raises before the run row exists, so the step screen has no
-  record of it (piece 6 should show it from the job's result or a banner). A zip pull asks for Active
+- **Known limits.** A failed unsubscribe sync now closes the run row `failed` ("the unsubscribe sync failed
+  (ExceptionName)") before re-raising (piece 6.1; it used to leave no record). A zip pull asks for Active
   listings only, so a listing that went inactive is not returned and is recorded `not_found`, not
   `inactive`; both are excluded, only the logged word differs.
+
+*Piece 6 as built, 2026-10-20* (developer: all six decisions as recommended).
+- **Start (D1).** The "Follow-ups (optional)" part of the `/send` confirm page (`dripstart.parse_plan`,
+  `hailsys/web/send.py`). The campaign is created inside the step-1 queue transaction
+  (`deliver.run_send(campaign=...)`), so a failed send leaves no campaign and a campaign always has a first
+  batch. The name is required (1 to 100), prefilled "Storm <date(s)>".
+- **Screens** (`hailsys/web/drip.py`, admin only; reads in `hailsys/queries/dripscreen.py`, changes in
+  `hailsys/email/dripactions.py`): `/campaigns` (list, next follow-up and how late), `/campaigns/<id>` (steps
+  with due dates, run history, recipients, pause / resume / cancel, stop one, paste box),
+  `/campaigns/<id>/step/<n>` (the preview and the button), and a banner on `/send` listing due follow-ups.
+  Opening any page calls neither RentCast nor Constant Contact.
+- **The click (D2, D3).** "Check listings and send" posts the numbers the preview showed (listings to check,
+  emails at most) and the start refuses if either changed. The pre-flight refuses while the previous step's
+  batch has untouched queued emails (item 231). The run row is written before the sync, so a failed sync is
+  on the campaign page.
+- **One rule for the method.** `rentcast.dripstep.plan_method` picks by-id or zip pull (a listing with no zip
+  forces by-id); the preview and `run_step` both call it, so the screen cannot disagree with the job.
+- **Due date.** The Denver date of the latest delivery in the previous step's batch (the first batch for
+  follow-up 1) plus `gap_days`. A step with an undelivered predecessor has no due date. It never expires; the
+  page says how many days late.
+- **Stopping (D5).** Per recipient and by paste box, with a required reason: `replied` or `manual`
+  (`stopped_by` is the person). Neither adds anyone to `dnc_list`. A stopped recipient stays stopped; a
+  cancelled or complete campaign refuses further stops.
+- **Pause / resume / cancel (D4).** Active to paused, paused to active, either to cancelled (final, with a
+  confirm). Pausing or cancelling while a step runs makes that step's queue transaction fail on the
+  `drip_steps` trigger ("campaign is not active"), which rolls back the whole queue and closes the run
+  `failed`. This follows from the trigger and has not been exercised in a test. Cancelling does not touch
+  queued emails of earlier steps: resume or discard them from the batch page.
+- **Not built.** (1) The cap override from the piece 4 decision: the follow-up screen always applies
+  `email_cap_days`. `run_step` accepts `override_cap`; only the box is missing. *When:* add it the first
+  time a person needs to reach someone emailed inside the window. (2) No per-send test addresses on a
+  follow-up: the recipients are the campaign's list, so a rehearsal uses a campaign made from test addresses.
+- **Checks.** 1,447 tests at the end of piece 6; each sub-step mutation-checked (the web layer about 55
+  mutations).
+
+*Running a campaign (operator note).*
+1. On `/send`, pick the storm days, the template and the addresses as for any send. In "Follow-ups
+   (optional)" tick "Make this a campaign", name it, and fill the rows in order (a gap in days and a template
+   for each follow-up). The limits are on the admin page (`drip_max_followups`, `drip_max_gap_days`). Send.
+2. Resume or discard any queued remainder of that send from its batch page; a follow-up is refused while the
+   previous step has untouched queued emails.
+3. When a follow-up is due, `/send` shows a banner and `/campaigns` shows it with how late it is. Open the
+   step, read the preview (listings to check, RentCast calls, emails at most), set "Send at most" and press
+   "Check listings and send". It runs in the background; the campaign page shows the run.
+4. When someone replies, stop them on the campaign page (reason `replied`), one at a time or by pasting
+   addresses. A reply is not an unsubscribe: it does not add anyone to the do-not-contact list.
+5. Pause if you need time; cancel to end it. Nothing is sent without a click.
 
 *Probe results, 2026-10-16* (`scripts/rentcast_by_id_probe.py`, three calls, RentCast dashboard
 36 to 38 of 1,000).
