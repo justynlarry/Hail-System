@@ -877,6 +877,186 @@ class SendScreenTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("template=beta", resp.headers["Location"])
 
+    # ---- starting a drip campaign from the confirm screen (item 204, 6.2b) ----
+
+    def campaign_stubs(self, followups=3, gap=14, names=("beta", "second")):
+        """The drip limits set, and the template lookups replaced.  Returns the start stub."""
+        start = self.stubs()
+        rows = [self.trow(name, i + 2) for i, name in enumerate(names)]
+        self.template_stubs(rows)
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(mock.patch.object(screen.templatelist, "fetch_all", return_value=rows))
+        real = fetch_settings
+        stack.enter_context(mock.patch(
+            "hailsys.web.auth.fetch_settings",
+            side_effect=lambda conn: {**real(conn), "drip_max_followups": followups,
+                                      "drip_max_gap_days": gap}))
+        return start
+
+    CAMPAIGN = {"campaign": "1", "campaign_name": "Storm test", "gap_1": "7",
+                "template_1": "hail_alert", "gap_2": "14", "template_2": "beta"}
+
+    def start_with(self, **over):
+        data = {**self.FORM, **self.CAMPAIGN, **over}
+        data = {k: v for k, v in data.items() if v is not None}
+        return self.post("/send/start", expected="2", **data).get_data(as_text=True)
+
+    def test_confirm_offers_one_row_per_allowed_follow_up(self):
+        self.campaign_stubs(followups=3)
+        text = self.post("/send/confirm", **self.FORM).get_data(as_text=True)
+        self.assertIn("Follow-ups (optional)", text)
+        for n in (1, 2, 3):
+            self.assertIn(f'name="gap_{n}"', text)
+            self.assertIn(f'name="template_{n}"', text)
+        self.assertNotIn('name="gap_4"', text)
+
+    def test_confirm_limits_the_gap_box_to_the_admin_limit(self):
+        self.campaign_stubs(gap=21)
+        text = self.post("/send/confirm", **self.FORM).get_data(as_text=True)
+        self.assertIn('name="gap_1" min="1" max="21"', text)
+        self.assertIn("up to 21 days", text)
+
+    def test_confirm_names_the_campaign_after_the_storm_day(self):
+        self.campaign_stubs()
+        text = self.post("/send/confirm", **self.FORM).get_data(as_text=True)
+        self.assertIn('name="campaign_name" maxlength="100" size="40"\n'
+                      '                   value="Storm 2026-09-19"', text)
+
+    def test_confirm_names_a_campaign_over_several_days_by_its_first_and_last(self):
+        self.campaign_stubs()
+        text = self.post("/send/confirm", **{**self.FORM, "day": ["2026-09-22", "2026-09-19"]}
+                         ).get_data(as_text=True)
+        self.assertIn('value="Storm 2026-09-19 to 2026-09-22"', text)
+
+    def test_confirm_lists_the_built_in_then_the_active_templates_in_every_row(self):
+        self.campaign_stubs(followups=2)
+        text = self.post("/send/confirm", **self.FORM).get_data(as_text=True)
+        row = text[text.index('name="template_1"'):text.index('name="template_2"')]
+        self.assertLess(row.index(">hail_alert<"), row.index(">beta<"))
+        self.assertLess(row.index(">beta<"), row.index(">second<"))
+
+    def test_the_built_in_is_listed_once_even_when_it_has_a_saved_version(self):
+        self.campaign_stubs(followups=1, names=("hail_alert", "beta"))
+        text = self.post("/send/confirm", **self.FORM).get_data(as_text=True)
+        row = text[text.index('name="template_1"'):text.index("</select>", text.index('name="template_1"'))]
+        self.assertEqual(row.count(">hail_alert<"), 1)
+        self.assertEqual(row.count(">beta<"), 1)
+
+    def test_the_template_list_is_not_read_when_campaigns_are_off(self):
+        self.campaign_stubs(followups=0)
+        with mock.patch.object(screen.templatelist, "fetch_all") as fetch_all:
+            self.post("/send/confirm", **self.FORM)
+        fetch_all.assert_not_called()
+
+    def test_confirm_preselects_the_template_chosen_for_the_first_email(self):
+        self.campaign_stubs()
+        text = self.post("/send/confirm", **{**self.FORM, "template": "beta"}
+                         ).get_data(as_text=True)
+        self.assertIn('<option value="beta" selected>beta</option>', text)
+        self.assertNotIn('<option value="second" selected>', text)
+
+    def test_confirm_hides_the_part_when_campaigns_are_turned_off(self):
+        self.campaign_stubs(followups=0)
+        text = self.post("/send/confirm", **self.FORM).get_data(as_text=True)
+        self.assertNotIn("Follow-ups (optional)", text)
+        self.assertNotIn('name="campaign"', text)
+
+    def test_confirm_keeps_the_part_inside_the_start_form(self):
+        self.campaign_stubs()
+        text = self.post("/send/confirm", **self.FORM).get_data(as_text=True)
+        form_start = text.index('action="/send/start"')
+        form_end = text.index("</form>", form_start)
+        self.assertGreater(text.index('name="campaign"'), form_start)
+        self.assertLess(text.index('name="gap_1"'), form_end)
+
+    def test_confirm_does_not_start_or_create_anything(self):
+        start = self.campaign_stubs()
+        before = self.counts()
+        self.post("/send/confirm", **{**self.FORM, **self.CAMPAIGN})
+        start.assert_not_called()
+        self.assertEqual(self.counts(), before)
+
+    def test_start_without_the_box_ticked_hands_the_engine_no_campaign(self):
+        start = self.campaign_stubs()
+        self.start_with(campaign=None)
+        self.assertIsNone(start.call_args.kwargs["campaign"])
+
+    def test_start_hands_the_engine_the_parsed_plan(self):
+        start = self.campaign_stubs()
+        self.start_with()
+        self.assertEqual(start.call_args.kwargs["campaign"], {
+            "name": "Storm test",
+            "steps": [{"gap_days": 7, "template_name": "hail_alert"},
+                      {"gap_days": 14, "template_name": "beta"}]})
+
+    def test_start_still_hands_over_the_rest_of_the_send(self):
+        start = self.campaign_stubs()
+        self.start_with()
+        kw = start.call_args.kwargs
+        self.assertEqual((kw["allowed_emails"], kw["max_emails"], kw["template_name"]),
+                         (["a@example.com", "b@example.com"], 5, "hail_alert"))
+
+    def test_the_message_names_the_campaign_and_counts_its_follow_ups(self):
+        self.campaign_stubs()
+        text = self.start_with()
+        self.assertIn("Campaign &#39;Storm test&#39; with 2 follow-ups is created with it.", text)
+
+    def test_one_follow_up_reads_in_the_singular(self):
+        self.campaign_stubs()
+        text = self.start_with(gap_2=None, template_2=None)
+        self.assertIn("with 1 follow-up is created", text)
+
+    def test_no_campaign_message_without_a_campaign(self):
+        self.campaign_stubs()
+        self.assertNotIn("Campaign &#39;", self.start_with(campaign=None))
+
+    def test_a_long_name_is_cut_in_the_message(self):
+        self.campaign_stubs()
+        text = self.start_with(campaign_name="N" * 90)
+        self.assertIn("N" * 60, text)
+        self.assertNotIn("N" * 61, text)
+
+    def refused_at_start(self, expect, **over):
+        start = self.campaign_stubs()
+        text = self.start_with(**over)
+        self.assertIn(expect, text)
+        start.assert_not_called()
+
+    def test_a_gap_over_the_admin_limit_starts_nothing(self):
+        self.refused_at_start("follow-up 2 must be a whole number of days from 1 to 14",
+                              gap_2="15")
+
+    def test_follow_up_rows_out_of_order_start_nothing(self):
+        self.refused_at_start("Fill the follow-ups in order", gap_1=None, template_1=None)
+
+    def test_a_ticked_box_with_no_gaps_starts_nothing(self):
+        self.refused_at_start("at least one follow-up", gap_1=None, gap_2=None)
+
+    def test_a_retired_template_starts_nothing(self):
+        self.refused_at_start("template for follow-up 2 is not available", template_2="retired")
+
+    def test_a_missing_name_starts_nothing(self):
+        self.refused_at_start("Give the campaign a name", campaign_name="")
+
+    def test_a_campaign_while_campaigns_are_off_starts_nothing(self):
+        start = self.campaign_stubs(followups=0)
+        text = self.start_with()
+        self.assertIn("turned off", text)
+        start.assert_not_called()
+
+    def test_a_refused_campaign_is_reported_before_the_list_count_check(self):
+        start = self.campaign_stubs()
+        text = self.post("/send/start", expected="99",
+                         **{**self.FORM, **self.CAMPAIGN, "gap_1": "99"}).get_data(as_text=True)
+        self.assertIn("whole number of days", text)
+        start.assert_not_called()
+
+    def test_a_raised_admin_limit_allows_the_longer_gap(self):
+        start = self.campaign_stubs(gap=30)
+        self.start_with(gap_2="30")
+        self.assertEqual(start.call_args.kwargs["campaign"]["steps"][1]["gap_days"], 30)
+
 
 if __name__ == "__main__":
     unittest.main()

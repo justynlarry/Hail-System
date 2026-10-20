@@ -15,7 +15,7 @@ from flask import (Blueprint, abort, flash, g, redirect, render_template, reques
 
 from hailsys.constantcontact import api, oauth, statuses
 from hailsys.db import get_connection
-from hailsys.email import render, templatestore
+from hailsys.email import dripstart, render, templatestore
 from hailsys.queries import sendlist, sendstatus, templatelist
 from hailsys.tuning import DISPLAY_TZ
 from hailsys.web import sendjobs
@@ -143,6 +143,16 @@ def _template_available(name):
     return row is not None
 
 
+def _campaign_templates():
+    """The names a follow-up can use:  the built-in first, then every active template."""
+    with get_connection() as conn:
+        rows = templatelist.fetch_all(conn)
+        conn.rollback()
+    names = [templatestore.TEMPLATE_NAME]
+    names += [r["template_name"] for r in rows if r["template_name"] != templatestore.TEMPLATE_NAME]
+    return names
+
+
 @send_bp.route("/")
 def index():
     now = datetime.now(timezone.utc)
@@ -237,9 +247,18 @@ def _read_form():
         max_emails = int(request.form.get("max_emails") or "")
     except ValueError:
         max_emails = 0
+    s = g.settings
+    campaign, campaign_problem = None, None
+    try:
+        campaign = dripstart.parse_plan(
+            request.form, max_followups=s["drip_max_followups"],
+            max_gap_days=s["drip_max_gap_days"], template_ok=_template_available)
+    except dripstart.CampaignError as exc:
+        campaign_problem = str(exc)
     form = {"days": sorted(days), "allowed": allowed, "max_emails": max_emails,
             "override_cap": "override_cap" in request.form,
-            "template": request.form.get("template") or templatestore.TEMPLATE_NAME}
+            "template": request.form.get("template") or templatestore.TEMPLATE_NAME,
+            "campaign": campaign}
     if not days:
         problem = "Tick at least one storm day."
     elif bad:
@@ -251,6 +270,8 @@ def _read_form():
         problem = f"'Send at most' must be between 1 and {MAX_EMAILS_LIMIT}."
     elif not _template_available(form["template"]):
         problem = "That template is not available."
+    elif campaign_problem:
+        problem = campaign_problem
     else:
         problem = None
     return form, problem
@@ -292,10 +313,16 @@ def confirm():
     with get_connection() as conn:
         template_row = templatelist.fetch_one(conn, form["template"])
         conn.rollback()
+    s = g.settings
+    first, last = form["days"][0], form["days"][-1]
+    default_name = f"Storm {first}" if first == last else f"Storm {first} to {last}"
     return render_template(
         "send_confirm.html", form=form, mine=mine, unmatched=unmatched, sender=sender,
         going=going, calls=going * CALLS_PER_EMAIL, budget=sendjobs.calls_budget(),
-        template_row=template_row, busy=sendjobs.is_busy())
+        template_row=template_row, busy=sendjobs.is_busy(),
+        max_followups=s["drip_max_followups"], max_gap_days=s["drip_max_gap_days"],
+        campaign_templates=_campaign_templates() if s["drip_max_followups"] else [],
+        default_name=default_name)
 
 
 @send_bp.route("/start", methods=["POST"])
@@ -324,13 +351,18 @@ def start():
             user_id=session["emp_id"], storm_days=form["days"], email_settings=email_settings,
             sender=sender, allowed_emails=form["allowed"], override_cap=form["override_cap"],
             max_emails=form["max_emails"], template_name=form["template"],
-            max_age_days=s["match_max_age_days"],
+            max_age_days=s["match_max_age_days"], campaign=form["campaign"],
             cap_days=s["email_cap_days"], freshness_days=s["listing_freshness_days"])
     except sendjobs.SendInProgress:
         flash("A send is already running.  Nothing new was started.")
         return _back(form["days"])
+    made = ""
+    if form["campaign"]:
+        n = len(form["campaign"]["steps"])
+        made = (f" Campaign '{form['campaign']['name'][:60]}' with {n} "
+                f"follow-up{'' if n == 1 else 's'} is created with it.")
     flash(f"Send started: up to {min(len(mine), form['max_emails'])} of {len(mine)} emails. "
-          "It runs in the background. This page shows progress.")
+          f"It runs in the background. This page shows progress.{made}")
     return redirect(url_for("send.batches"))
 
 

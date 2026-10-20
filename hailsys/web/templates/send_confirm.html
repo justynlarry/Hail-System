@@ -49,6 +49,40 @@
     {% if form.override_cap %}<input type="hidden" name="override_cap" value="1">{% endif %}
     <!-- The count, not the list: /send/start recomputes and refuses if it no longer matches. -->
     <input type="hidden" name="expected" value="{{ mine | length }}">
+    {% if max_followups > 0 %}
+    <fieldset class="campaign">
+        <legend>Follow-ups (optional)</legend>
+        <p><label><input type="checkbox" name="campaign" value="1">
+            Make this a campaign: follow up with the same people, checking each time that
+            the listing is still active.</label></p>
+        <p><label>Campaign name
+            <input type="text" name="campaign_name" maxlength="100" size="40"
+                   value="{{ default_name }}"></label></p>
+        <p class="note">Fill the rows in order and leave the rest empty. Each gap counts from
+            the day the previous email went out. At most {{ max_followups }} follow-up{{ '' if max_followups == 1 else 's' }}, each
+            up to {{ max_gap_days }} days after the one before (both limits are on the admin
+            page). A follow-up needs a click of its own: nothing is sent by itself.</p>
+        <table>
+            <thead><tr><th>Follow-up</th><th>Send after (days)</th><th>Template</th></tr></thead>
+            <tbody>
+            {% for n in range(1, max_followups + 1) %}
+            <tr>
+                <td>{{ n }}</td>
+                <td><input type="number" name="gap_{{ n }}" min="1" max="{{ max_gap_days }}"
+                           step="1"></td>
+                <td><select name="template_{{ n }}">
+                    {% for name in campaign_templates %}
+                    <option value="{{ name }}" {% if name == form.template %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <p class="note">Follow-ups only go to people whose first email was delivered. If some
+            of this send stays queued, resume or discard those before the first follow-up.</p>
+    </fieldset>
+    {% endif %}
     <button type="submit" {% if busy %}disabled{% endif %}>Send {{ going }} email{{ '' if going == 1 else 's' }} now</button>
     <a href="{{ url_for('send.index', day=form.days | map('string') | list) }}">Cancel</a>
 </form>
