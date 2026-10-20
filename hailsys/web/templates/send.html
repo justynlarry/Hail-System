@@ -11,6 +11,15 @@
 {% if busy %}
 <p class="note warning">A send is running. <a href="{{ url_for('send.batches') }}">See progress</a>.</p>
 {% endif %}
+{% if due_steps %}
+<p class="note warning">Follow-ups ready to send:</p>
+<ul>
+    {% for d in due_steps %}
+    <li><a href="{{ url_for('drip.step', campaign_id=d.campaign_id, step_no=d.step_no) }}">{{ d.name }}: follow-up {{ d.step_no }}</a>
+        &mdash; due {{ d.due.strftime('%b %d') }}{% if d.days_late %}, {{ d.days_late }} day{{ '' if d.days_late == 1 else 's' }} late{% endif %}</li>
+    {% endfor %}
+</ul>
+{% endif %}
 {% include "_budget.html" %}
 
 <form method="get" action="{{ url_for('send.index') }}">

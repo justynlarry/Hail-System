@@ -16,7 +16,7 @@ from flask import (Blueprint, abort, flash, g, redirect, render_template, reques
 from hailsys.constantcontact import api, oauth, statuses
 from hailsys.db import get_connection
 from hailsys.email import dripstart, render, templatestore
-from hailsys.queries import sendlist, sendstatus, templatelist
+from hailsys.queries import dripscreen, sendlist, sendstatus, templatelist
 from hailsys.tuning import DISPLAY_TZ
 from hailsys.web import sendjobs
 from hailsys.web.auth import require_role
@@ -174,6 +174,7 @@ def index():
             flash(f"The template '{chosen[:60]}' is not available.  Showing the built-in template.")
             chosen = templatestore.TEMPLATE_NAME
             selected = templatelist.fetch_one(conn, chosen)
+        due = dripscreen.due_steps(conn, today=now.astimezone(DISPLAY_TZ).date())
         conn.rollback()                     # read only: nothing to keep
     if selected is None:
         selected = _builtin_row()
@@ -210,7 +211,7 @@ def index():
         tpage=listing["page"], tpages=listing["pages"], ttotal=listing["total"],
         display_tz=DISPLAY_TZ,
         default_max_emails=DEFAULT_MAX_EMAILS, max_emails_limit=MAX_EMAILS_LIMIT,
-        busy=sendjobs.is_busy())
+        due_steps=due, busy=sendjobs.is_busy())
 
 
 def parse_allow_list(text):

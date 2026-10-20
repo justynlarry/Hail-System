@@ -101,6 +101,37 @@ class SendScreenTest(unittest.TestCase):
                 self.assertEqual(self.client_as(role).get("/send/").status_code, 403, role)
         self.assertEqual(self.client_as("admin").get("/send/").status_code, 200)
 
+    def test_the_banner_lists_due_follow_ups_with_a_link(self):
+        due = [{"campaign_id": 5, "name": "Storm 2026-10-01", "step_no": 2,
+                "due": date(2026, 10, 8), "days_late": 2},
+               {"campaign_id": 6, "name": "Other", "step_no": 1,
+                "due": date(2026, 10, 10), "days_late": 0}]
+        with mock.patch.object(screen.dripscreen, "due_steps", return_value=due):
+            text = self.client_as("admin").get("/send/").get_data(as_text=True)
+        self.assertIn("Follow-ups ready to send", text)
+        self.assertIn('href="/campaigns/5/step/2"', text)
+        self.assertIn("Storm 2026-10-01: follow-up 2", text)
+        self.assertIn("due Oct 08, 2 days late", text)
+        self.assertIn('href="/campaigns/6/step/1"', text)
+        self.assertIn("due Oct 10</li>", text)               # on time: nothing about being late
+
+    def test_the_banner_is_absent_when_nothing_is_due(self):
+        with mock.patch.object(screen.dripscreen, "due_steps", return_value=[]):
+            text = self.client_as("admin").get("/send/").get_data(as_text=True)
+        self.assertNotIn("Follow-ups ready to send", text)
+
+    def test_the_banner_reads_for_today_in_denver(self):
+        # 21:00 on Oct 10 in Denver is already Oct 11 in UTC:  the banner must use Denver's date.
+        class Frozen(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 10, 11, 3, 0, tzinfo=timezone.utc).astimezone(tz)
+
+        with mock.patch.object(screen, "datetime", Frozen), \
+             mock.patch.object(screen.dripscreen, "due_steps", return_value=[]) as due:
+            self.client_as("admin").get("/send/")
+        self.assertEqual(due.call_args.kwargs["today"], date(2026, 10, 10))
+
     def test_a_bad_day_is_a_400(self):
         self.assertEqual(self.client_as("admin").get("/send/?day=not-a-date").status_code, 400)
 

@@ -104,6 +104,20 @@ def list_campaigns(conn, *, today):
             for c in campaigns]
 
 
+def due_steps(conn, *, today):
+    """The follow-ups ready to click, for the banner on the send page:  the next step of each
+    active campaign, if it is due today or earlier, the most overdue first.
+    Display only: nothing is started, and a due step never expires.
+    """
+    rows = [{"campaign_id": c["campaign_id"], "name": c["name"],
+             "step_no": c["next_step"]["step_no"], "due": c["next_step"]["due"],
+             "days_late": c["next_step"]["days_late"]}
+            for c in list_campaigns(conn, today=today)
+            if c["status"] == "active" and c["next_step"]
+            and c["next_step"]["due"] is not None and c["next_step"]["due"] <= today]
+    return sorted(rows, key=lambda r: (-r["days_late"], r["campaign_id"]))
+
+
 def campaign_detail(conn, campaign_id, *, today):
     """One campaign with its steps (due dates), run history, recipients: None if it does not exist."""
     campaign = conn.execute(_CAMPAIGN_SQL, {"campaign_id": campaign_id}).fetchone()

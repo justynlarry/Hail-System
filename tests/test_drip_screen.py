@@ -143,6 +143,52 @@ class StepPreviewTest(unittest.TestCase):
         self.assertEqual(self.preview([hit_listing(1)], found=found)["will_stop"], 2)
 
 
+def listed(cid, status="active", next_step=None, name=None):
+    return {"campaign_id": cid, "name": name or f"c{cid}", "status": status, "next_step": next_step}
+
+
+def due_step(n, due, late):
+    return {"step_no": n, "due": due, "days_late": late}
+
+
+@unittest.skipIf(MISSING, f"imports unavailable: {MISSING}")
+class DueStepsTest(unittest.TestCase):
+    TODAY = date(2026, 10, 10)
+
+    def due(self, rows):
+        with mock.patch.object(dripscreen, "list_campaigns", return_value=rows) as lc:
+            out = dripscreen.due_steps(mock.sentinel.conn, today=self.TODAY)
+        lc.assert_called_once_with(mock.sentinel.conn, today=self.TODAY)
+        return out
+
+    def test_a_due_step_is_listed_with_what_the_banner_needs(self):
+        out = self.due([listed(4, next_step=due_step(2, date(2026, 10, 8), 2), name="Storm")])
+        self.assertEqual(out, [{"campaign_id": 4, "name": "Storm", "step_no": 2,
+                                "due": date(2026, 10, 8), "days_late": 2}])
+
+    def test_due_today_counts_and_tomorrow_does_not(self):
+        out = self.due([listed(1, next_step=due_step(1, self.TODAY, 0)),
+                        listed(2, next_step=due_step(1, date(2026, 10, 11), 0))])
+        self.assertEqual([r["campaign_id"] for r in out], [1])
+
+    def test_only_active_campaigns_are_listed(self):
+        step = due_step(1, date(2026, 10, 8), 2)
+        out = self.due([listed(1, "paused", step), listed(2, "cancelled", step),
+                        listed(3, "complete", step), listed(4, "active", step)])
+        self.assertEqual([r["campaign_id"] for r in out], [4])
+
+    def test_a_step_with_no_due_date_or_no_next_step_is_not_listed(self):
+        out = self.due([listed(1, next_step=due_step(1, None, None)), listed(2, next_step=None)])
+        self.assertEqual(out, [])
+
+    def test_the_most_overdue_comes_first_then_the_lower_id(self):
+        out = self.due([listed(9, next_step=due_step(1, date(2026, 10, 9), 1)),
+                        listed(7, next_step=due_step(1, date(2026, 10, 8), 2)),
+                        listed(3, next_step=due_step(1, date(2026, 10, 8), 2)),
+                        listed(5, next_step=due_step(1, date(2026, 10, 1), 9))])
+        self.assertEqual([r["campaign_id"] for r in out], [5, 3, 7, 9])
+
+
 @unittest.skipIf(MISSING, f"imports unavailable: {MISSING}")
 @unittest.skipUnless(os.environ.get("PGHOST"), "no database (PGHOST unset)")
 class ScreenQueryTest(unittest.TestCase):
@@ -300,6 +346,38 @@ class ScreenQueryTest(unittest.TestCase):
         self.assertEqual(second_step["due"], date(2026, 10, 15))
         self.assertEqual(second_step["days_late"], 5)
         self.assertEqual(d["next_step"]["step_no"], 2)
+
+    def my_due(self, today):
+        rows = dripscreen.due_steps(self.conn, today=today)
+        return [r for r in rows if r["campaign_id"] == self.campaign]
+
+    def test_due_steps_lists_a_delivered_campaign_once_its_gap_has_passed(self):
+        self.deliver(self.first, self.SENT)
+        self.assertEqual(self.my_due(date(2026, 10, 2)), [])
+        out = self.my_due(date(2026, 10, 6))
+        self.assertEqual(len(out), 1)
+        self.assertEqual((out[0]["step_no"], out[0]["due"], out[0]["days_late"]),
+                         (1, date(2026, 10, 3), 3))
+        self.assertEqual(out[0]["name"], "test-dripscreen")
+
+    def test_due_steps_waits_for_delivery(self):
+        self.assertEqual(self.my_due(date(2026, 12, 1)), [])
+
+    def test_due_steps_drops_a_paused_campaign(self):
+        self.deliver(self.first, self.SENT)
+        self.conn.execute("UPDATE drip_campaigns SET status = 'paused', status_changed_by = %s "
+                          "WHERE campaign_id = %s", (self.user, self.campaign))
+        self.assertEqual(self.my_due(date(2026, 10, 6)), [])
+
+    def test_due_steps_puts_the_more_overdue_campaign_first(self):
+        other = self.other_campaign()
+        other_batch = self.conn.execute("SELECT first_batch_id FROM drip_campaigns "
+                                        "WHERE campaign_id = %s", (other,)).fetchone()
+        self.deliver(self.first, self.SENT)
+        self.deliver(other_batch["first_batch_id"], datetime(2026, 9, 20, 18, 0, tzinfo=timezone.utc))
+        ids = [r["campaign_id"] for r in dripscreen.due_steps(self.conn, today=date(2026, 10, 6))
+               if r["campaign_id"] in (self.campaign, other)]
+        self.assertEqual(ids, [other, self.campaign])
 
     def test_a_completed_campaign_has_no_next_step(self):
         self.deliver(self.first, self.SENT)
