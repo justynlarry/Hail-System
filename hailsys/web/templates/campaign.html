@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}{{ campaign.name }}{% endblock %}
+{% block heading %}{{ campaign.name }}{% endblock %}
+
+{% block content %}
+<div class="page">
+<p><a href="{{ url_for('drip.index') }}">All campaigns</a></p>
+
+{% if busy %}
+<p class="note warning">A send or follow-up is running. This page refreshes every 5 seconds.</p>
+<script>setTimeout(function () { location.reload(); }, 5000);</script>
+{% endif %}
+
+<p>Status: <strong>{{ campaign.status }}</strong>
+    {% if campaign.status_changed_at %}
+    (changed {{ campaign.status_changed_at.astimezone(display_tz).strftime('%b %d %H:%M') }}
+    by {{ campaign.status_changed_by_name }})
+    {% endif %}
+    &middot; started {{ campaign.created_at.astimezone(display_tz).strftime('%Y-%m-%d') }}
+    by {{ campaign.created_by_name }}</p>
+
+{% if campaign.status in ('active', 'paused') %}
+<form method="post" action="{{ url_for('drip.status', campaign_id=campaign.campaign_id) }}" class="confirm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if campaign.status == 'active' %}
+    <button type="submit" name="move" value="pause">Pause</button>
+    {% else %}
+    <button type="submit" name="move" value="resume">Resume</button>
+    {% endif %}
+    <button type="submit" name="move" value="cancel"
+            onclick="return confirm('Cancel this campaign? This cannot be undone.');">Cancel campaign</button>
+    <span class="note">Pausing stops follow-ups from being started until you resume. Nothing is sent by itself either way.</span>
+</form>
+{% endif %}
+
+<h2>Follow-ups</h2>
+<table>
+    <thead><tr><th>#</th><th>Template</th><th>Gap</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+        {% for s in steps %}
+        <tr>
+            <td>{{ s.step_no }}</td>
+            <td>{{ s.template_name }}</td>
+            <td>{{ s.gap_days }} day{{ '' if s.gap_days == 1 else 's' }} after
+                {{ 'the first email' if s.step_no == 1 else 'follow-up ' ~ (s.step_no - 1) }}</td>
+            <td>
+                {% if s.batch_id %}
+                    sent {{ s.started_at.astimezone(display_tz).strftime('%b %d %H:%M') }}
+                {% elif s.due %}
+                    due {{ s.due.strftime('%b %d') }}{% if s.days_late %}, {{ s.days_late }} day{{ '' if s.days_late == 1 else 's' }} late{% endif %}
+                {% else %}
+                    waiting for the one before it to be delivered
+                {% endif %}
+            </td>
+            <td>
+                {% if next_step and next_step.step_no == s.step_no and campaign.status == 'active' %}
+                <a href="{{ url_for('drip.step', campaign_id=campaign.campaign_id, step_no=s.step_no) }}">Review and send</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h2>Runs</h2>
+{% if runs %}
+<table>
+    <thead><tr><th>Follow-up</th><th>Started</th><th>By</th><th>Result</th><th>How</th>
+        <th>RentCast calls</th><th>Emails</th><th>Note</th></tr></thead>
+    <tbody>
+        {% for r in runs %}
+        <tr>
+            <td>{{ r.step_no }}</td>
+            <td>{{ r.started_at.astimezone(display_tz).strftime('%b %d %H:%M') }}</td>
+            <td>{{ r.started_by_name }}</td>
+            <td>{{ r.status.replace('_', ' ') }}</td>
+            <td>{{ (r.method or '').replace('_', ' ') }}</td>
+            <td>{{ r.calls_made if r.calls_made is not none else '' }}</td>
+            <td>{{ r.emails if r.emails is not none else '' }}</td>
+            <td>{{ r.detail or '' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="note">No follow-up has been started yet.</p>
+{% endif %}
+
+<h2>Recipients</h2>
+{% if campaign.status in ('active', 'paused') %}
+<form method="post" action="{{ url_for('drip.stop_addresses', campaign_id=campaign.campaign_id) }}" class="confirm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p><label>Stop these addresses (paste any text, for example a list of people who replied):<br>
+        <textarea name="addresses" rows="3" cols="60"></textarea></label></p>
+    <p><label>Why
+        <select name="reason">
+            {% for r in reasons %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        </select></label>
+        <button type="submit">Stop them</button></p>
+    <p class="note">Stopping only ends follow-ups from this campaign. It does not put anyone on the do-not-contact list.</p>
+</form>
+{% endif %}
+<table>
+    <thead><tr><th>Agent</th><th>Email</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+        {% for r in recipients %}
+        <tr>
+            <td>{{ r.agent_name }}</td>
+            <td>{{ r.recipient_email }}</td>
+            <td>
+                {% if r.stopped_at %}
+                    stopped: {{ r.stop_reason.replace('_', ' ') }}{% if r.stopped_by_name %} by {{ r.stopped_by_name }}{% endif %},
+                    {{ r.stopped_at.astimezone(display_tz).strftime('%b %d') }}
+                {% else %}
+                    still going
+                {% endif %}
+            </td>
+            <td>
+                {% if not r.stopped_at and campaign.status in ('active', 'paused') %}
+                <form method="post" action="{{ url_for('drip.stop_recipient', campaign_id=campaign.campaign_id, realtor_id=r.realtor_id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <select name="reason">
+                        {% for reason in reasons %}<option value="{{ reason }}">{{ reason }}</option>{% endfor %}
+                    </select>
+                    <button type="submit">Stop</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

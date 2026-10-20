@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Follow-up {{ step.step_no }}{% endblock %}
+{% block heading %}{{ campaign.name }}: follow-up {{ step.step_no }}{% endblock %}
+
+{% block content %}
+{% set labels = {
+    'recipient_bounced': 'Recipient bounced',
+    'on_dnc_list': 'On the do-not-contact list',
+    'within_cap': 'Emailed recently by another send',
+    'listing_dead_earlier': 'Listing already found inactive',
+    'listing_inactive': 'Listing found inactive (assumed active here)',
+    'listing_not_found': 'Listing no longer found (assumed active here)',
+    'listing_unconfirmed': 'Listing not yet confirmed active'} %}
+<div class="page">
+<p><a href="{{ url_for('drip.detail', campaign_id=campaign.campaign_id) }}">Back to the campaign</a></p>
+
+<p>Template: <strong>{{ step.template_name }}</strong>
+    &middot; {{ step.gap_days }} day{{ '' if step.gap_days == 1 else 's' }} after
+    {{ 'the first email' if step.step_no == 1 else 'follow-up ' ~ (step.step_no - 1) }}
+    {% if step.due %}&middot; due {{ step.due.strftime('%b %d') }}{% if step.days_late %}, {{ step.days_late }} day{{ '' if step.days_late == 1 else 's' }} late{% endif %}{% endif %}</p>
+
+{% if problem %}
+<p class="note warning">This follow-up cannot be started now: {{ problem }}</p>
+{% else %}
+<p class="note">Opening this page spends nothing. The button below is what asks RentCast
+    whether each listing is still active, and then sends.</p>
+
+<p class="estimate-summary">
+    <strong>{{ preview.listings }}</strong> listing{{ '' if preview.listings == 1 else 's' }} to
+    confirm are still active; <strong>{{ preview.to_check }}</strong> need{{ 's' if preview.to_check == 1 else '' }}
+    checking now ({{ preview.reused }} answered within the last day).
+    Up to <strong>{{ preview.emails_at_most }}</strong> email{{ '' if preview.emails_at_most == 1 else 's' }}
+    will go out, fewer if some listings are no longer active.
+    {% if preview.will_stop %}{{ preview.will_stop }} recipient{{ '' if preview.will_stop == 1 else 's' }}
+    will be stopped (unsubscribed, bounced or nothing left to send).{% endif %}
+</p>
+
+{% if preview.to_check %}
+<p>Checking costs about <strong>{{ preview.plan.calls }}</strong> RentCast call{{ '' if preview.plan.calls == 1 else 's' }},
+    {{ 'one lookup per listing' if preview.plan.method == 'by_id' else 'a fresh pull of their zip codes' }}
+    (by listing: {{ preview.plan.by_id_calls }}; by zip: {{ preview.plan.zip_pull_calls }}).
+    This month: {{ usage.used }} of {{ usage.quota }} used; after this click about
+    {{ usage.used + preview.plan.calls }}.</p>
+{% if usage.used + preview.plan.calls > usage.quota %}
+<p class="note warning">That is over the monthly RentCast allowance of {{ usage.quota }} calls.</p>
+{% endif %}
+{% endif %}
+
+{% set shown = preview.excluded.items() | selectattr('1.matches') | list %}
+{% if shown %}
+<p class="note">Left out of the list, by reason:</p>
+<ul>
+    {% for reason, n in shown %}
+    <li>{{ labels.get(reason, reason) }}: {{ n.matches }} match{{ '' if n.matches == 1 else 'es' }}, {{ n.realtors }} recipient{{ '' if n.realtors == 1 else 's' }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+{% include "_budget.html" %}
+{% if calls > budget.usable %}
+<p class="note warning">Sending {{ going }} email{{ '' if going == 1 else 's' }} needs about {{ calls }} Constant Contact
+    calls, and only {{ budget.usable }} can be used in the daily budget. It will stop when the budget
+    is used up and the rest stay queued; resume them on a later day.</p>
+{% endif %}
+
+{% if busy %}
+<p class="note warning">A send is already running. Wait for it to finish before starting this.</p>
+{% endif %}
+
+<form method="post" action="{{ url_for('drip.start', campaign_id=campaign.campaign_id, step_no=step.step_no) }}" class="confirm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="expected_checks" value="{{ preview.to_check }}">
+    <input type="hidden" name="expected_emails" value="{{ preview.emails_at_most }}">
+    <p><label>Send at most
+        <input type="number" name="max_emails" min="1" max="{{ max_limit }}" value="{{ default_max }}"> emails now</label>
+        <span class="note">(the rest stay queued; resume them from the batch page)</span></p>
+    <button type="submit" {% if busy %}disabled{% endif %}>Check listings and send</button>
+    <a href="{{ url_for('drip.detail', campaign_id=campaign.campaign_id) }}">Cancel</a>
+</form>
+<p class="note">Nothing is sent until you press the button above.</p>
+{% endif %}
+</div>
+{% endblock %}

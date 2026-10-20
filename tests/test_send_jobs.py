@@ -202,6 +202,23 @@ class SendJobsTest(unittest.TestCase):
             sendjobs.start_drip_step(user_id=1, campaign_id=5, step_no=2)
         self.assertEqual(preflight.call_args.args[1:], (5, 2))
 
+    def test_step_problem_is_the_preflight_message(self):
+        with mock.patch.object(sendjobs.dripstep, "preflight",
+                               side_effect=sendjobs.StepRefused("The campaign is paused.")) as pre:
+            self.assertEqual(sendjobs.step_problem(5, 2), "The campaign is paused.")
+        self.assertEqual(pre.call_args.args[1:], (5, 2))
+
+    def test_step_problem_is_none_when_the_step_can_run(self):
+        with mock.patch.object(sendjobs.dripstep, "preflight") as pre:
+            self.assertIsNone(sendjobs.step_problem(5, 2))
+        pre.assert_called_once()
+
+    def test_step_problem_starts_nothing(self):
+        with mock.patch.object(sendjobs.dripstep, "preflight"), \
+             mock.patch.object(sendjobs.threading, "Thread") as thread:
+            sendjobs.step_problem(5, 2)
+        thread.assert_not_called()
+
     def test_start_drip_step_starts_one_daemon_thread(self):
         with mock.patch.object(sendjobs, "is_busy", return_value=False), \
              mock.patch.object(sendjobs.dripstep, "preflight"), \

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Campaigns{% endblock %}
+{% block heading %}Campaigns{% endblock %}
+
+{% block content %}
+<div class="page">
+<p class="note">A campaign is a first email plus follow-ups to the same people. You start a campaign
+    from the <a href="{{ url_for('send.index') }}">Send</a> page; each follow-up needs a click
+    of its own.</p>
+
+{% if campaigns %}
+<table>
+    <thead>
+        <tr><th>Campaign</th><th>Status</th><th>Started</th><th>By</th><th>Follow-ups sent</th>
+            <th>Recipients still going</th><th>Next follow-up</th></tr>
+    </thead>
+    <tbody>
+        {% for c in campaigns %}
+        <tr>
+            <td><a href="{{ url_for('drip.detail', campaign_id=c.campaign_id) }}">{{ c.name }}</a></td>
+            <td>{{ c.status }}</td>
+            <td>{{ c.created_at.astimezone(display_tz).strftime('%Y-%m-%d') }}</td>
+            <td>{{ c.created_by_name }}</td>
+            <td>{{ c.steps_sent }} of {{ c.step_count }}</td>
+            <td>{{ c.still_going }} of {{ c.recipients }}</td>
+            <td>
+                {% if c.status in ('active', 'paused') and c.next_step %}
+                    {% set n = c.next_step %}
+                    Follow-up {{ n.step_no }}:
+                    {% if n.due %}
+                        due {{ n.due.strftime('%b %d') }}{% if n.days_late %}, {{ n.days_late }} day{{ '' if n.days_late == 1 else 's' }} late{% endif %}
+                    {% else %}
+                        after {{ 'the first email' if n.step_no == 1 else 'follow-up ' ~ (n.step_no - 1) }} is delivered
+                    {% endif %}
+                {% else %}
+                    &mdash;
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="note">No campaigns yet.</p>
+{% endif %}
+</div>
+{% endblock %}

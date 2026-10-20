@@ -165,6 +165,18 @@ def start_drip_step(*, user_id, campaign_id, step_no, **run_kwargs):
     thread.start()
 
 
+def step_problem(campaign_id, step_no):
+    """Why this step cannot be started now (the pre-flight message) or None.  Read-Only."""
+    with get_connection() as conn:
+        try:
+            dripstep.preflight(conn, campaign_id, step_no)
+        except dripstep.StepRefused as exc:
+            return str(exc)
+        finally:
+            conn.rollback()
+    return None
+
+
 def count_discardable(batch_id):
     """Untouched queued emails of a batch that discard_queued would discard (read-only)."""
     return deliver.count_untouched(batch_id)
