@@ -603,6 +603,85 @@ class DeliverTest(unittest.TestCase):
             self.assertEqual(row["template_id"], template_id)
             self.assertIn("MARKER-ZX", row["html_body"])
 
+    # ---- a send that is step 1 of a drip campaign (item 204, 6.2a) ----
+
+    CAMPAIGN = {"name": "test-run-send",
+                "steps": [{"gap_days": 7, "template_name": "hail_alert"},
+                          {"gap_days": 14, "template_name": "hail_alert"}]}
+
+    def synced(self, *, triggered_by):
+        return {"run_id": self.run_id}
+
+    def campaigns_for(self, batch_id):
+        return self.conn.execute(
+            "SELECT campaign_id, name, created_by FROM drip_campaigns "
+            "WHERE first_batch_id = %s::uuid", (batch_id,)).fetchall()
+
+    def test_a_send_with_a_campaign_makes_the_campaign_for_its_batch(self):
+        out = self.run_send(self.synced, campaign=self.CAMPAIGN)
+        made = self.campaigns_for(out["batch_id"])
+        self.assertEqual([(c["campaign_id"], c["name"], c["created_by"]) for c in made],
+                         [(out["campaign_id"], "test-run-send", self.user)])
+        steps = self.conn.execute("SELECT step_no, gap_days FROM drip_steps WHERE campaign_id = %s "
+                                  "ORDER BY step_no", (out["campaign_id"],)).fetchall()
+        self.assertEqual([(s["step_no"], s["gap_days"]) for s in steps], [(1, 7), (2, 14)])
+        recipients = {r["recipient_email"] for r in self.conn.execute(
+            "SELECT recipient_email FROM drip_recipients WHERE campaign_id = %s",
+            (out["campaign_id"],)).fetchall()}
+        self.assertEqual(recipients, set(self.emails))
+
+    def test_a_send_without_a_campaign_makes_none(self):
+        before = self.conn.execute("SELECT count(*) AS n FROM drip_campaigns").fetchone()["n"]
+        out = self.run_send(self.synced)
+        self.assertNotIn("campaign_id", out)
+        self.assertEqual(self.conn.execute("SELECT count(*) AS n FROM drip_campaigns")
+                         .fetchone()["n"], before)
+
+    def test_the_campaign_is_made_after_the_queue_and_committed_before_anything_is_delivered(self):
+        events = []
+        real = deliver.dripstart.create_campaign
+
+        def create(*a, **k):
+            events.append("create")
+            return real(*a, **k)
+
+        with mock.patch.object(deliver.dripstart, "create_campaign", side_effect=create), \
+                mock.patch.object(NoCommit, "commit", lambda s: events.append("commit")), \
+                mock.patch.object(deliver, "deliver_batch",
+                                  side_effect=lambda *a, **k: events.append("deliver") or {}):
+            self.run_send(self.synced, campaign=self.CAMPAIGN)
+        self.assertEqual(events[events.index("create"):], ["create", "commit", "deliver"])
+
+    def test_the_campaign_gets_the_user_the_batch_and_the_plan(self):
+        with mock.patch.object(deliver.dripstart, "create_campaign", return_value=42) as create:
+            out = self.run_send(self.synced, campaign=self.CAMPAIGN)
+        kw = create.call_args.kwargs
+        self.assertEqual((kw["user_id"], kw["batch_id"], kw["name"], kw["steps"]),
+                         (self.user, out["batch_id"], "test-run-send", self.CAMPAIGN["steps"]))
+        self.assertEqual(out["campaign_id"], 42)
+
+    def test_a_campaign_that_cannot_be_made_stops_the_send_before_the_commit(self):
+        events = []
+        with mock.patch.object(deliver.dripstart, "create_campaign",
+                               side_effect=lambda *a, **k: events.append("create") or 1 / 0), \
+                mock.patch.object(NoCommit, "commit", lambda s: events.append("commit")), \
+                mock.patch.object(deliver, "deliver_batch",
+                                  side_effect=lambda *a, **k: events.append("deliver") or {}):
+            with self.assertRaises(ZeroDivisionError):
+                self.run_send(self.synced, campaign=self.CAMPAIGN)
+        self.assertEqual(events[events.index("create"):], ["create"])
+        self.assertNotIn("schedule", self.cc.calls)
+
+    def test_nothing_queued_makes_no_campaign(self):
+        with self.patched(), mock.patch.object(deliver.dripstart, "create_campaign") as create:
+            out = deliver.run_send(
+                user_id=self.user, storm_days=[DAY], email_settings=self.settings, sender=SENDER,
+                allowed_emails=["nobody@example.invalid"], now=NOW, sync=self.synced,
+                cc=self.cc, campaign=self.CAMPAIGN)
+        self.assertIsNone(out["batch_id"])
+        create.assert_not_called()
+        self.assertNotIn("campaign_id", out)
+
     def test_lookup_contacts_maps_each_address(self):
         self.cc.contacts[self.emails[0]] = {"contact_id": "c-1", "permission": "implicit"}
         got = deliver.lookup_contacts(self.emails, cc=self.cc)

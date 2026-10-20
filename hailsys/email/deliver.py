@@ -28,7 +28,7 @@ from datetime import datetime, timedelta, timezone
 from hailsys.constantcontact import budget, campaigns, unsubs
 from hailsys.constantcontact.api import ApiError
 from hailsys.db import get_connection
-from hailsys.email import render, send, templatestore
+from hailsys.email import dripstart, render, send, templatestore
 from hailsys.queries import sendlist
 
 logger = logging.getLogger(__name__)
@@ -275,12 +275,14 @@ def deliver_batch(batch_id, *, sender, cc=campaigns, max_emails=None):
 def run_send(*, user_id, storm_days, email_settings, sender, allowed_emails,
              override_cap=False, max_emails=None, max_age_days=sendlist.MAX_AGE_DAYS,
              cap_days=sendlist.CAP_DAYS, freshness_days=sendlist.FRESH_DAYS,
-             template_name=templatestore.TEMPLATE_NAME,
+             template_name=templatestore.TEMPLATE_NAME, campaign=None,
              sync=unsubs.run_sync, cc=campaigns, now=None):
     """One send click.  Sync unsubscribes, look up recipients, queue, then deliver.
 
     Failed sync raises before anything is written or sent.  Returns the queue summary with a
-    'delivery' entry (counts) when anything was queued.
+    'delivery' entry (counts) when anything was queued.  campaign, from dripstart.parse_plan,
+    makes this send step 1 of a drip campaign.  It is created in the queue transaction, so if it
+    cannot be made nothing is queued.
     """
     result = sync(triggered_by=user_id)
     now = now or datetime.now(timezone.utc)
@@ -300,6 +302,9 @@ def run_send(*, user_id, storm_days, email_settings, sender, allowed_emails,
             now=now, sync_run_id=result["run_id"], allowed_emails=allowed,
             contacts=contacts, override_cap=override_cap, max_age_days=max_age_days,
             cap_days=cap_days, freshness_days=freshness_days, template_name=template_name)
+        if campaign is not None and summary["batch_id"]:
+            summary["campaign_id"] = dripstart.create_campaign(
+                conn, user_id=user_id, batch_id=summary["batch_id"], **campaign)
         conn.commit()           # Queued rows are on disk before anything is sent
     if summary["batch_id"]:
         summary["delivery"] = deliver_batch(summary["batch_id"], sender=sender, cc=cc,
