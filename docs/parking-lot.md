@@ -3410,17 +3410,20 @@ include a property known to have been relisted.
 
 ## 231. Drip follow-up counts queued emails as emailed
 
-**Status:** open (found 2026-10-19, planning item 204 piece 6)
+**Status:** resolved 2026-10-20 in `7a58a05` (found 2026-10-19, planning item 204 piece 6)
 
 `dripfollowup._HITS_SQL` joins `send_log` with `send_status <> 'failed'`, so a step-1 email still `queued`
 (for instance with `max_emails` at its default of 5, most of a large batch stays queued) is treated as sent,
 and its recipient would get a follow-up to an email never delivered. The same holds for any later step's batch.
 
-**Fix decided 2026-10-19:** the step's pre-flight refuses while the previous step's batch (the first batch,
-for step 1) still has `queued` emails: "N emails of step 1 are still queued: resume or discard them first".
-Built in piece 6.1.
+**Fix, built 2026-10-20 (piece 6.1):** `dripstep.preflight` refuses while the previous step's batch (the first
+batch, for step 1) still has `queued` emails: "N emails of the first send are still queued: resume or discard
+them first". Only untouched emails count (`error_detail IS NULL`, the test `_deliver_all` uses). A
+`needs_review` email is parked with its `send_log` rows still `queued` and neither Resume nor Discard touches
+it, so counting it would block a campaign for good; the builder treats it as emailed. Tested on real rows in a
+rolled-back transaction (`QueuedBeforeQueryTest`).
 
-**When:** piece 6.1 of item 204. Close then.
+**When:** done.
 
 **Related:** items 204, 180.
 
