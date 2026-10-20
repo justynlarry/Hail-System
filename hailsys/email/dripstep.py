@@ -172,17 +172,12 @@ def run_step(*, user_id, campaign_id, step_no, email_settings, sender, freshness
             listings = dripfollowup.listings_to_check(hits, dead)
             skip = checks.recent_definite(conn, campaign_id, step_no)
             todo = [i for i in listings if i["listing_id"] not in skip]
-            zips = checks.listing_zips(conn, [i["listing_id"] for i in todo]) if todo else {}
-            plan = dripplan.choose_method(
-                listings=len(todo),
-                zip_calls=dripplan.zip_calls_estimate(conn, {z for z in zips.values() if z}))
+            zips, plan = checks.plan_method(conn, todo)
             conn.commit()
 
             calls = 0
             if todo:
-                # A listing with no zip on file can only be checked by id.
-                no_zip = len(zips) < len(todo) or None in zips.values()
-                method = dripplan.BY_ID if no_zip else plan["method"]
+                method = plan["method"]
                 if method == dripplan.BY_ID:
                     done = checks.check_by_id(
                         conn, campaign_id=campaign_id, step_no=step_no, listings=listings,

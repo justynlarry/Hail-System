@@ -318,5 +318,53 @@ class CheckByZipPullTest(unittest.TestCase):
             self.assertEqual((r["campaign_id"], r["step_no"]), (5, 2))
 
 
+@unittest.skipIf(MISSING, f"imports unavailable: {MISSING}")
+class PlanMethodTest(unittest.TestCase):
+    def plan(self, todo, zips, estimate):
+        with mock.patch.object(dripstep, "listing_zips", return_value=zips) as lz, \
+                mock.patch.object(dripstep.dripplan, "zip_calls_estimate",
+                                  return_value=estimate) as est:
+            result = dripstep.plan_method(FakeConn(), todo)
+        return result, lz, est
+
+    def test_nothing_to_check_reads_nothing(self):
+        (zips, plan), lz, est = self.plan([], {}, 0)
+        lz.assert_not_called()
+        self.assertEqual((zips, plan["method"], plan["calls"]), ({}, "by_id", 0))
+
+    def test_the_cheaper_way_is_chosen(self):
+        todo = [item(n) for n in range(1, 6)]
+        zips = {n: "80202" for n in range(1, 6)}
+        (_, plan), _, _ = self.plan(todo, zips, 1)
+        self.assertEqual((plan["method"], plan["calls"]), ("zip_pull", 1))
+
+    def test_a_tie_is_by_id(self):
+        todo = [item(1), item(2)]
+        (_, plan), _, _ = self.plan(todo, {1: "80202", 2: "80202"}, 2)
+        self.assertEqual((plan["method"], plan["calls"]), ("by_id", 2))
+
+    def test_a_listing_with_no_zip_forces_by_id_and_its_cost(self):
+        todo = [item(n) for n in range(1, 6)]
+        zips = {1: "80202", 2: None, 3: "80202", 4: "80202", 5: "80202"}
+        (_, plan), _, _ = self.plan(todo, zips, 1)
+        self.assertEqual((plan["method"], plan["calls"]), ("by_id", 5))
+        self.assertEqual(plan["zip_pull_calls"], 1)
+
+    def test_a_listing_missing_from_the_lookup_forces_by_id(self):
+        todo = [item(n) for n in range(1, 6)]
+        zips = {n: "80202" for n in range(1, 5)}
+        (_, plan), _, _ = self.plan(todo, zips, 1)
+        self.assertEqual((plan["method"], plan["calls"]), ("by_id", 5))
+
+    def test_the_estimate_covers_only_the_zips_of_listings_still_to_check(self):
+        (_, _), lz, est = self.plan([item(2)], {2: "80203"}, 1)
+        self.assertEqual(lz.call_args.args[1], [2])
+        self.assertEqual(est.call_args.args[1], {"80203"})
+
+    def test_no_zip_is_not_asked_about_in_the_estimate(self):
+        (_, _), _, est = self.plan([item(1), item(2)], {1: "80202", 2: None}, 1)
+        self.assertEqual(est.call_args.args[1], {"80202"})
+
+
 if __name__ == "__main__":
     unittest.main()

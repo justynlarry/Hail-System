@@ -14,7 +14,7 @@ say what happened.  Its reason never holds text from a RentCast response.
 
 import logging
 
-from hailsys.rentcast import client, dripcheck, pull, upsert
+from hailsys.rentcast import client, dripcheck, dripplan, pull, upsert
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,22 @@ def listing_zips(conn, listing_ids):
     """{listing_id: zip_code} for these listings, zip_code None when the property has none."""
     rows = conn.execute(_ZIPS_SQL, {"listing_ids": list(listing_ids)}).fetchall()
     return {r["listing_id"]: r["zip_code"] for r in rows}
+
+
+def plan_method(conn, todo):
+    """(zips, plan) for the listings still to check:  the zip each sits in, and which way costs less
+    (dripplan.choose_method).  A listing with no zip on file can only be checked by id, so it forces
+    the method and plan['calls'] is then the by-id count.  Read-Only, no RentCast call.  Step screen
+    shows this plan and run_step follows it.
+    """
+    zips = listing_zips(conn, [i["listing_id"] for i in todo]) if todo else {}
+    plan = dripplan.choose_method(
+        listings=len(todo),
+        zip_calls=dripplan.zip_calls_estimate(conn, {z for z in zips.values() if z}))
+    no_zip = len(zips) < len(todo) or None in zips.values()
+    if todo and no_zip and plan["method"] != dripplan.BY_ID:
+        plan = dict(plan, method=dripplan.BY_ID, calls=plan["by_id_calls"])
+    return zips, plan
 
 
 def _refused(exc):

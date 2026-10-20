@@ -26,6 +26,7 @@ try:
     from hailsys.email import dripstep
     from hailsys.queries import sendlist
     from hailsys.rentcast import client
+    from hailsys.rentcast import dripstep as rc_dripstep
     MISSING = None
 except ImportError as exc:
     MISSING = str(exc)
@@ -103,6 +104,8 @@ class Rig:
         self.checks.StepStopped = Stopped
         self.checks.recent_definite.return_value = set(skip)
         self.checks.listing_zips.return_value = self.zips
+        # The real plan_method, fed by the faked zip lookup, so these tests cover the rule run_step follows.
+        self.checks.plan_method.side_effect = rc_dripstep.plan_method
         self.checks.check_by_id.side_effect = lambda *a, **k: (
             self.log.append("check_by_id") or {"calls": 3})
         self.checks.check_by_zip_pull.side_effect = lambda *a, **k: (
@@ -123,6 +126,7 @@ class Rig:
             p(dripstep.dripfollowup, "build_followup_list",
               side_effect=lambda *a, **k: self.log.append("build") or self.found),
             p(dripstep.dripplan, "zip_calls_estimate", return_value=zip_estimate),
+            p(rc_dripstep, "listing_zips", self.checks.listing_zips),
             p(dripstep.deliver, "lookup_contacts",
               side_effect=lambda *a, **k: self.log.append("lookup") or {}),
             p(dripstep.send, "queue_batch",
@@ -136,7 +140,7 @@ class Rig:
         for x in patches:
             test.addCleanup(x.stop)
         (_, self.preflight, self.fetch_hits, self.fetch_dead, self.to_check, self.build,
-         self.estimate, self.lookup, self.queue, self.deliver) = started
+         self.estimate, _, self.lookup, self.queue, self.deliver) = started
 
     def go(self, **overrides):
         kwargs = dict(user_id=3, campaign_id=5, step_no=1, email_settings={"x": 1},
