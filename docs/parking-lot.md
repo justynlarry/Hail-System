@@ -6103,3 +6103,43 @@ class lacks a rule, or the template contains label text. See decision log, "Work
 states have a key, a label and a CSS class".
 
 </details>
+
+
+## 240. Radar zones are cut at the crop box edge
+
+**Status:** open, accepted (filed 2026-10-21, Phase 5b slice 2)
+
+`hailsys/radar/load.py` stores cells only inside the coverage extent plus 0.5 degrees (`BOX_MARGIN_DEGREES`),
+so a hail patch that runs past that edge is clipped, and its core, margin and radar-indicated areas end in a
+straight line. On 2026-05-21 the stored box ends at -103.205 and the analysis's 30 km domain around that
+storm's reports reaches past it. The 0.5 degrees is there so the widest allowed margin (50 km, `sql/048`) always
+fits inside the box. Hail beyond the box is outside RBI's coverage, so staff lose nothing, but the map will show
+the edge.
+
+**When:** slice 5 (the map layer), where it first becomes visible; or when a coverage zip is added near the
+edge of the box.
+
+**Related:** `docs/analysis/radar-areas-2026-10/`; decision log 2026-10-20.
+
+## 241. The radar database tests need the admin role and skip under the standard test command
+
+**Status:** open (filed 2026-10-21, Phase 5b slice 2)
+
+`tests/test_radar_zones.py` and `tests/test_radar_load.py` insert parameter sets, radar rows and reports, which
+`hail_app` cannot do, so under the documented test command they skip (44 tests). A break in `zones.py` or `load.py`
+would pass the default suite. They run with `-e PGUSER=hail_admin -e PGPASSWORD=...` (command in each
+docstring).
+
+**When:** before the nightly radar job (slice 4): add the run command to `docs/command-ref.md`, or give these
+tests a role of their own.
+
+## 242. `.env` line 35 is not a valid shell variable name
+
+**Status:** open (filed 2026-10-21)
+
+The line `PERMIT-STACK-API=...` has hyphens, so `. ./.env` fails on it and bash prints the value in the error
+message (it appeared in a session transcript on 2026-10-21). Docker Compose reads the file without trouble.
+Read single values with `grep '^NAME=' .env | cut -d= -f2-` meanwhile.
+
+**When:** the next time `.env` is edited: rename it to `PERMIT_STACK_API` and change the one place that reads it.
+Consider rotating that key.

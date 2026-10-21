@@ -846,6 +846,50 @@ SELECT pg_temp.expect('radar_cells a cell must have hail in it',
   $q$INSERT INTO radar_cells (day, grid_row, grid_col, mm, geom)
      VALUES ('1999-01-01', 1, 2, 0, ST_SetSRID(ST_MakePoint(-105, 40), 4326))$q$, '23514');
 
+INSERT INTO radar_zone_builds (day, set_id, window_start, window_end, cells_over_threshold, patches,
+    patches_anchored, anchor_reports)
+SELECT '1999-01-01', 1, '1999-01-01 07:00+00', '1999-01-02 07:00+00', 10, 2, 1, 3;
+SELECT pg_temp.expect('radar_runs a manual run can be added',
+  $q$INSERT INTO radar_runs (run_mode) VALUES ('manual')$q$, 'ok');
+SELECT pg_temp.expect('radar_zone_builds anchored patches cannot exceed patches',
+  $q$INSERT INTO radar_zone_builds (day, set_id, window_start, window_end, cells_over_threshold,
+       patches, patches_anchored, anchor_reports)
+     VALUES ('1999-01-01', 2, '1999-01-01 07:00+00', '1999-01-02 07:00+00', 10, 1, 2, 3)$q$, '23514');
+SELECT pg_temp.expect('radar_zone_builds the window must run forward',
+  $q$INSERT INTO radar_zone_builds (day, set_id, window_start, window_end, cells_over_threshold,
+       patches, patches_anchored, anchor_reports)
+     VALUES ('1999-01-01', 2, '1999-01-02 07:00+00', '1999-01-01 07:00+00', 10, 1, 1, 3)$q$, '23514');
+SELECT pg_temp.expect('radar_zone_builds one build per day and set',
+  $q$INSERT INTO radar_zone_builds (day, set_id, window_start, window_end, cells_over_threshold,
+       patches, patches_anchored, anchor_reports)
+     VALUES ('1999-01-01', 1, '1999-01-01 07:00+00', '1999-01-02 07:00+00', 10, 2, 1, 3)$q$, '23505');
+SELECT pg_temp.expect('radar_zones a core zone can be added',
+  $q$INSERT INTO radar_zones (day, set_id, layer, geom, area_km2)
+     VALUES ('1999-01-01', 1, 'core',
+       ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)), 90)$q$, 'ok');
+SELECT pg_temp.expect('radar_zones layer must be known',
+  $q$INSERT INTO radar_zones (day, set_id, layer, geom, area_km2)
+     VALUES ('1999-01-01', 1, 'outer',
+       ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)), 90)$q$, '23514');
+SELECT pg_temp.expect('radar_zones a layer is stored once per build',
+  $q$INSERT INTO radar_zones (day, set_id, layer, geom, area_km2)
+     VALUES ('1999-01-01', 1, 'core',
+       ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)), 90)$q$, '23505');
+SELECT pg_temp.expect('radar_zones an empty layer is not stored',
+  $q$INSERT INTO radar_zones (day, set_id, layer, geom, area_km2)
+     VALUES ('1999-01-01', 1, 'margin',
+       ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)), 0)$q$, '23514');
+SELECT pg_temp.expect('radar_zones geometry must be valid',
+  $q$INSERT INTO radar_zones (day, set_id, layer, geom, area_km2)
+     VALUES ('1999-01-01', 1, 'radar_indicated',
+       'SRID=4326;MULTIPOLYGON(((0 0,1 1,1 0,0 1,0 0)))'::geometry, 50)$q$, '23514');
+SELECT pg_temp.expect('radar_zones needs a build row',
+  $q$INSERT INTO radar_zones (day, set_id, layer, geom, area_km2)
+     VALUES ('1999-01-01', 1, 'margin',
+       ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)), 90),
+       ('1999-01-05', 1, 'margin',
+       ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)), 90)$q$, '23503');
+
 ROLLBACK;
 
 -- Nothing should have survived.
@@ -859,4 +903,5 @@ SELECT (SELECT count(*) FROM email_templates) AS templates,
          + (SELECT count(*) FROM drip_recipients) + (SELECT count(*) FROM drip_listing_checks)
          + (SELECT count(*) FROM drip_step_pulls) + (SELECT count(*) FROM drip_step_runs) AS drip_rows,
        (SELECT count(*) FROM radar_runs) + (SELECT count(*) FROM radar_days)
-         + (SELECT count(*) FROM radar_cells) + (SELECT count(*) FROM radar_parameter_sets) - 1 AS radar_rows;
+         + (SELECT count(*) FROM radar_cells) + (SELECT count(*) FROM radar_parameter_sets) - 1
+         + (SELECT count(*) FROM radar_zone_builds) + (SELECT count(*) FROM radar_zones) AS radar_rows;
