@@ -3858,6 +3858,12 @@ not confirm that a file stamped H covers exactly the hour before it.
 
 **Why it matters:** the 60-storm study (item 205's evidence) uses hourly `MESH_Max_60min` files.
 
+**Update 2026-10-21 (Phase 5b slice 0):** NOAA's own products agree with each other. On 2026-06-08 the
+`MESH_Max_1440min` file equals the maximum of the 24 hourly `MESH_Max_60min` files ending at its stamp on every
+cell, so the stamp marks the END of the window (decision log 2026-10-21). That supports the likely cause above
+(a window or stamp difference against the Iowa State two-minute build) but does not test it: the 27 cells remain
+unexplained. Evidence: `docs/analysis/mesh-window-2026-10/`.
+
 **When:** before the 60-minute product sets a threshold or a window for any decision, or whenever
 `mesh60` is rerun.
 

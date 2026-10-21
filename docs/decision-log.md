@@ -7266,3 +7266,25 @@ customers, and the radar zones are new code with nothing to migrate, so the rule
 
 **Related:** items 38, 205, 206, 207, 208, 210, 211, 215, 216, 238; decision log 2026-10-14 ("Radar layers on
 the territory page"), 2026-09-09 ("Generic and specific are split by directory"); `phases.md` Phase 5b.
+
+## 2026-10-21 — The MESH day-file stamp marks the end of the window
+
+**Decision (checked, 2026-10-21; Phase 5b slice 0):** a `MESH_Max_1440min` file stamped T is the maximum over
+the 24 hours **ending** at T. For a Denver storm day D the file to use is the one stamped at the local
+midnight that ends D, converted to UTC with the time zone setting (`DISPLAY_TZ` until it moves to a setting):
+06:00 UTC the next day in summer time, 07:00 UTC in winter. The conversion is computed, never a constant, and
+gets a unit test for both seasons.
+
+**Evidence:** on 2026-06-08 the 1440-minute file equals the cell-by-cell maximum of the 24 hourly
+`MESH_Max_60min` files ending at the same stamp, exactly (416,331 of 416,331 cells, worst difference 0.0 mm), at
+stamps 20:00, 21:00, 22:00 and 23:00 UTC. The hail fell 21:02 to 22:00 UTC and appears first in the 22:00 file
+(998 cells at or above 1.00 in, against 917 at 21:00), which fixes the end convention. The file stamped
+2026-06-09 06:00 UTC also matches exactly (5,196 cells at or above 1.00 in). Script and log:
+`docs/analysis/mesh-window-2026-10/`.
+
+**Not checked:** a second date (blocked by 8-bit PNG packing in a 2023 hourly file that the analysis decoder does
+not read) and a winter day. The production decoder reads 8- and 16-bit packing, and the 2023 date becomes a
+golden test.
+
+**Related:** item 211 (this does not resolve it: the two NOAA products agree with each other here; the
+open difference is against a maximum built from Iowa State's 2-minute files); `phases.md` Phase 5b.

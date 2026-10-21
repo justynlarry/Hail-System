@@ -1,0 +1,31 @@
+== A. which end does the stamp mark?  2026-06-08, hail 21:02-22:00 UTC
+1440@20:00Z vs 24h-hourly ending -1h: {'cells': 416331, 'equal': 416243, 'pct': 99.979, 'worst_mm': 8.9, 'big_1440': 917, 'big_ref': 917, 'big_only_1440': 0, 'big_only_ref': 0}
+1440@20:00Z vs 24h-hourly ending +0h: {'cells': 416331, 'equal': 416331, 'pct': 100.0, 'worst_mm': 0.0, 'big_1440': 917, 'big_ref': 917, 'big_only_1440': 0, 'big_only_ref': 0}
+  retry 1 MRMS_MESH_Max_60min_00.50_20260608-210000.grib2.gz: <urlopen error [Errno 104] Connection reset by peer>
+1440@20:00Z vs 24h-hourly ending +1h: {'cells': 416331, 'equal': 415035, 'pct': 99.689, 'worst_mm': 19.8, 'big_1440': 917, 'big_ref': 917, 'big_only_1440': 0, 'big_only_ref': 0}
+1440@21:00Z vs 24h-hourly ending -1h: {'cells': 416331, 'equal': 415035, 'pct': 99.689, 'worst_mm': 19.8, 'big_1440': 917, 'big_ref': 917, 'big_only_1440': 0, 'big_only_ref': 0}
+1440@21:00Z vs 24h-hourly ending +0h: {'cells': 416331, 'equal': 416331, 'pct': 100.0, 'worst_mm': 0.0, 'big_1440': 917, 'big_ref': 917, 'big_only_1440': 0, 'big_only_ref': 0}
+1440@21:00Z vs 24h-hourly ending +1h: {'cells': 416331, 'equal': 412155, 'pct': 98.997, 'worst_mm': 35.9, 'big_1440': 917, 'big_ref': 998, 'big_only_1440': 0, 'big_only_ref': 81}
+1440@22:00Z vs 24h-hourly ending -1h: {'cells': 416331, 'equal': 412155, 'pct': 98.997, 'worst_mm': 35.9, 'big_1440': 998, 'big_ref': 917, 'big_only_1440': 81, 'big_only_ref': 0}
+1440@22:00Z vs 24h-hourly ending +0h: {'cells': 416331, 'equal': 416331, 'pct': 100.0, 'worst_mm': 0.0, 'big_1440': 998, 'big_ref': 998, 'big_only_1440': 0, 'big_only_ref': 0}
+1440@22:00Z vs 24h-hourly ending +1h: {'cells': 416331, 'equal': 408989, 'pct': 98.236, 'worst_mm': 56.2, 'big_1440': 998, 'big_ref': 1617, 'big_only_1440': 0, 'big_only_ref': 619}
+1440@23:00Z vs 24h-hourly ending -1h: {'cells': 416331, 'equal': 408989, 'pct': 98.236, 'worst_mm': 56.2, 'big_1440': 1617, 'big_ref': 998, 'big_only_1440': 619, 'big_only_ref': 0}
+1440@23:00Z vs 24h-hourly ending +0h: {'cells': 416331, 'equal': 416331, 'pct': 100.0, 'worst_mm': 0.0, 'big_1440': 1617, 'big_ref': 1617, 'big_only_1440': 0, 'big_only_ref': 0}
+1440@23:00Z vs 24h-hourly ending +1h: {'cells': 416331, 'equal': 408585, 'pct': 98.139, 'worst_mm': 48.4, 'big_1440': 1617, 'big_ref': 2211, 'big_only_1440': 0, 'big_only_ref': 594}
+== B. Denver midnight stamps (MDT: 06:00Z next day)
+Denver day 2026-06-08: 1440@2026-06-09 06:00Z: {'cells': 416331, 'equal': 416331, 'pct': 100.0, 'worst_mm': 0.0, 'big_1440': 5196, 'big_ref': 5196, 'big_only_1440': 0, 'big_only_ref': 0}
+  retry 1 MRMS_MESH_Max_60min_00.50_20230510-220000.grib2.gz: <urlopen error [Errno 104] Connection reset by peer>
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-hail-user-hail-system/b6c8ed6a-6295-453d-9cc9-7a6e28e4b896/scratchpad/mesh0/window_check.py", line 52, in <module>
+    print(f"Denver day {day}: 1440@{T:%Y-%m-%d %H:%MZ}:", compare(g1440, hourly_max(T)), flush=True)
+                                                                         ^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-hail-user-hail-system/b6c8ed6a-6295-453d-9cc9-7a6e28e4b896/scratchpad/mesh0/window_check.py", line 31, in hourly_max
+    g = grid("MESH_Max_60min_00.50", end - dt.timedelta(hours=h))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/claude-1000/-home-hail-user-hail-system/b6c8ed6a-6295-453d-9cc9-7a6e28e4b896/scratchpad/mesh0/window_check.py", line 25, in grid
+    d = mesh_lib.read_crop(fetch(prod, t), *BOX)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hail-user/hail-system/docs/analysis/storm-shape-mesh-2026-10/storm_shape/mesh/mesh_lib.py", line 34, in read_crop
+    assert nbits == 16
+           ^^^^^^^^^^^
+AssertionError
