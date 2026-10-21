@@ -3607,6 +3607,28 @@ Items 1 to 3 are the work; item 2 is the largest.
 
 **Related:** items 203, 216; decision log 2026-09-09, 2026-10-20.
 
+
+## 239. The analysis MESH decoder cannot read 8-bit files, and S3 resets connections
+
+**Status:** resolved 2026-10-21 (found in Phase 5b slice 0; fixed in slice 1, commit below)
+
+`docs/analysis/storm-shape-mesh-2026-10/storm_shape/mesh/mesh_lib.py` asserts `nbits == 16` and unfilters PNG
+rows assuming 2-byte samples. The `MESH_Max_60min` file stamped 2023-05-10 16:00 UTC is packed at 8 bits and
+stopped the slice 0 window check with `AssertionError`. Every 1440-minute file inspected was 16-bit, but
+nothing guarantees that a quiet day is. S3 also reset the connection three times in about 100 requests, which
+ended the first slice 0 run.
+
+**Fixed:** `hailsys/radar/mesh.py` reads the bit depth from the PNG and the packing section, handles all five PNG
+filters at either depth, and raises `MeshError` instead of asserting; `hailsys/radar/fetch.py` retries with
+backoff and writes to a `.part` file before renaming. Tests: `tests/test_radar_mesh.py`,
+`tests/test_radar_fetch.py`, with a golden test against the analysis decoder on the 2026-06-09 06:00 UTC file.
+`mesh_lib.py` itself is left as it was (analysis code).
+
+**Not done:** a real 8-bit file has not been decoded end to end against a reference. The 2023-05-10 date can be
+checked once a nightly or backfill run has fetched it.
+
+**Related:** items 205, 211; decision log 2026-10-21; `phases.md` Phase 5b.
+
 ## 205. Likelihood tiers: rank outreach by radar swath and distance instead of one circle
 
 **Status:** open (proposal, filed 2026-10-13; not decided)

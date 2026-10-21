@@ -803,6 +803,49 @@ SELECT pg_temp.expect('drip_step_runs a step that was sent cannot be run again',
   $q$INSERT INTO drip_step_runs (campaign_id, step_no, started_by)
      VALUES (pg_temp.c(3), 1, pg_temp.u())$q$, '23001');
 
+INSERT INTO radar_runs (run_mode) VALUES ('backfill');
+SELECT pg_temp.expect('radar_parameter_sets cannot be updated',
+  $q$UPDATE radar_parameter_sets SET margin_km = 4 WHERE set_id = 1$q$, '23001');
+SELECT pg_temp.expect('radar_parameter_sets cannot be deleted',
+  $q$DELETE FROM radar_parameter_sets WHERE set_id = 1$q$, '23001');
+SELECT pg_temp.expect('radar_parameter_sets a new row can be added',
+  $q$INSERT INTO radar_parameter_sets (name, hail_threshold_in, margin_km, report_radius_km)
+     VALUES ('guard-test', 1.25, 2.0, 5.0)$q$, 'ok');
+SELECT pg_temp.expect('radar_parameter_sets threshold under the 0.50 in floor is refused',
+  $q$INSERT INTO radar_parameter_sets (name, hail_threshold_in, margin_km, report_radius_km)
+     VALUES ('guard-test', 0.40, 2.0, 5.0)$q$, '23514');
+SELECT pg_temp.expect('radar_runs a finished run needs a finish time',
+  $q$INSERT INTO radar_runs (run_mode, run_status) VALUES ('nightly', 'complete')$q$, '23514');
+SELECT pg_temp.expect('radar_days a loaded day can be added',
+  $q$INSERT INTO radar_days (day, run_id, status, stamp_utc, source_key, box_lat_max, box_lat_min,
+       box_lon_min, box_lon_max, floor_mm, cells_in_box, cells_stored, max_mm)
+     VALUES ('1999-01-01', (SELECT max(run_id) FROM radar_runs), 'loaded', now(), 'k',
+       41.5, 36.5, -109.7, -101.4, 12.7, 100, 1, 20)$q$, 'ok');
+SELECT pg_temp.expect('radar_days a loaded day needs its cell count',
+  $q$INSERT INTO radar_days (day, run_id, status, stamp_utc, source_key, box_lat_max, box_lat_min,
+       box_lon_min, box_lon_max, floor_mm)
+     VALUES ('1999-01-02', (SELECT max(run_id) FROM radar_runs), 'loaded', now(), 'k',
+       41.5, 36.5, -109.7, -101.4, 12.7)$q$, '23514');
+SELECT pg_temp.expect('radar_days a missing day holds no cells',
+  $q$INSERT INTO radar_days (day, run_id, status, stamp_utc, source_key, box_lat_max, box_lat_min,
+       box_lon_min, box_lon_max, floor_mm, cells_stored)
+     VALUES ('1999-01-03', (SELECT max(run_id) FROM radar_runs), 'missing', now(), 'k',
+       41.5, 36.5, -109.7, -101.4, 12.7, 5)$q$, '23514');
+SELECT pg_temp.expect('radar_days the box must be ordered',
+  $q$INSERT INTO radar_days (day, run_id, status, stamp_utc, source_key, box_lat_max, box_lat_min,
+       box_lon_min, box_lon_max, floor_mm, cells_in_box)
+     VALUES ('1999-01-04', (SELECT max(run_id) FROM radar_runs), 'loaded', now(), 'k',
+       36.5, 41.5, -109.7, -101.4, 12.7, 100)$q$, '23514');
+SELECT pg_temp.expect('radar_cells a cell can be added',
+  $q$INSERT INTO radar_cells (day, grid_row, grid_col, mm, geom)
+     VALUES ('1999-01-01', 1, 1, 20, ST_SetSRID(ST_MakePoint(-105, 40), 4326))$q$, 'ok');
+SELECT pg_temp.expect('radar_cells a cell is stored once per day',
+  $q$INSERT INTO radar_cells (day, grid_row, grid_col, mm, geom)
+     VALUES ('1999-01-01', 1, 1, 21, ST_SetSRID(ST_MakePoint(-105, 40), 4326))$q$, '23505');
+SELECT pg_temp.expect('radar_cells a cell must have hail in it',
+  $q$INSERT INTO radar_cells (day, grid_row, grid_col, mm, geom)
+     VALUES ('1999-01-01', 1, 2, 0, ST_SetSRID(ST_MakePoint(-105, 40), 4326))$q$, '23514');
+
 ROLLBACK;
 
 -- Nothing should have survived.
@@ -814,4 +857,6 @@ SELECT (SELECT count(*) FROM email_templates) AS templates,
        (SELECT count(*) FROM email_test_sends) AS test_send_rows,
        (SELECT count(*) FROM drip_campaigns) + (SELECT count(*) FROM drip_steps)
          + (SELECT count(*) FROM drip_recipients) + (SELECT count(*) FROM drip_listing_checks)
-         + (SELECT count(*) FROM drip_step_pulls) + (SELECT count(*) FROM drip_step_runs) AS drip_rows;
+         + (SELECT count(*) FROM drip_step_pulls) + (SELECT count(*) FROM drip_step_runs) AS drip_rows,
+       (SELECT count(*) FROM radar_runs) + (SELECT count(*) FROM radar_days)
+         + (SELECT count(*) FROM radar_cells) + (SELECT count(*) FROM radar_parameter_sets) - 1 AS radar_rows;
