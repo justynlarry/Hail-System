@@ -20,7 +20,7 @@ core without new cells; a rebuild replaces; an empty day is built and has no zon
 import os
 import sys
 import unittest
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -37,6 +37,8 @@ DENVER = ZoneInfo("America/Denver")
 UTC = timezone.utc
 SUMMER = date(1999, 6, 8)
 WINTER = date(1999, 1, 15)
+START = datetime(1999, 6, 8, 6, tzinfo=UTC)       # SUMMER in Denver, in UTC
+END = datetime(1999, 6, 9, 6, tzinfo=UTC)
 
 # Denver, on the NOAA grid:  a cell is 0.01 degrees, about 0.86 km wide and 1.11 km tall here.
 ROW, COL = 1525, 2500
@@ -327,6 +329,171 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(set(got["areas"]), set(self.layers()))
         for layer, km2 in self.layers().items():
             self.assertAlmostEqual(got["areas"][layer], km2)
+
+    # -- the outer layer: NWS warning polygons ---------------------------------------------
+
+    def cover(self, states="CO", start=START - timedelta(days=1), end=END + timedelta(days=1)):
+        """A warning_loads row, as a fetch for the day would leave."""
+        return self.conn.execute(
+            "INSERT INTO warning_loads (window_start, window_end, states, polygons_seen, polygons_new) "
+            "VALUES (%s, %s, %s, 0, 0) RETURNING load_id", (start, end, states)).fetchone()["load_id"]
+
+    def add_warning(self, load_id, begin=START + timedelta(hours=12), end=None, box=(-105.2, 39.6, -104.8, 39.9),
+                    eventid=None):
+        self.serial += 1
+        end = end or begin + timedelta(minutes=30)
+        self.conn.execute(
+            "INSERT INTO warning_polygons (wfo, phenomena, significance, eventid, vtec_year, poly_begin, "
+            "poly_end, load_id, geom) VALUES ('BOU', 'SV', 'W', %s, 1999, %s, %s, %s, "
+            "ST_Multi(ST_MakeEnvelope(%s, %s, %s, %s, 4326)))",
+            (eventid or self.serial, begin, end, load_id, *box))
+
+    def anchored_day(self):
+        self.add_day(SUMMER)
+        self.add_cells(SUMMER, [(ROW, COL, 30)])
+        lat, lon = self.cell_lat_lon(ROW, COL)
+        self.add_report(self.noon(), lat, lon)
+
+    def test_without_a_warnings_fetch_there_is_no_outer_layer_and_it_says_so(self):
+        self.anchored_day()
+        got = self.build()
+        self.assertIsNone(got["warnings_used"])
+        self.assertNotIn("outer", got["areas"])
+
+    def test_a_fetch_for_other_states_does_not_count(self):
+        self.anchored_day()
+        self.add_warning(self.cover(states="WY"))
+        got = self.build()
+        self.assertIsNone(got["warnings_used"])
+        self.assertNotIn("outer", got["areas"])
+
+    def test_a_fetch_that_found_nothing_is_zero_warnings_and_no_outer_layer(self):
+        self.anchored_day()
+        self.cover()
+        got = self.build()
+        self.assertEqual(got["warnings_used"], 0)
+        self.assertNotIn("outer", got["areas"])
+
+    def test_a_warning_over_the_storm_becomes_the_outer_layer(self):
+        self.anchored_day()
+        self.add_warning(self.cover())
+        got = self.build()
+        self.assertEqual(got["warnings_used"], 1)
+        self.assertIn("outer", got["areas"])
+        self.assertEqual(set(self.layers()), {"core", "margin", "outer"})
+
+    def test_the_outer_layer_is_outside_the_other_three(self):
+        self.anchored_day()
+        self.add_warning(self.cover())
+        self.build()
+        for other in ("core", "margin"):
+            with self.subTest(other=other):
+                self.assertLess(self.overlap_km2("outer", other), 1e-6)
+        polygon_km2 = self.conn.execute(
+            "SELECT ST_Area(ST_MakeEnvelope(-105.2, 39.6, -104.8, 39.9, 4326)::geography) / 1e6 AS a").fetchone()["a"]
+        layers = self.layers()
+        self.assertAlmostEqual(layers["outer"] + layers["core"] + layers["margin"], polygon_km2, delta=2.0)
+
+    def test_the_outer_layer_is_clipped_to_the_crop_box(self):
+        self.anchored_day()
+        self.add_warning(self.cover(), box=(-125.0, 39.6, -104.8, 39.9))      # runs far west of the box
+        self.build()
+        inside = self.conn.execute(
+            "SELECT ST_Within(z.geom, ST_MakeEnvelope(-109.7 - 0.0051, 36.5 - 0.0051, -101.4 + 0.0051, 41.5 + 0.0051, 4326)) AS ok "
+            "FROM radar_zones z WHERE z.day = %s AND z.layer = 'outer'", (SUMMER,)).fetchone()["ok"]
+        self.assertTrue(inside)
+
+    def test_the_outer_layer_reaches_the_edge_of_the_box_cells(self):
+        self.anchored_day()
+        self.add_warning(self.cover(), box=(-125.0, 39.6, -104.8, 39.9))
+        self.build()
+        west = self.conn.execute("SELECT ST_XMin(geom) AS x FROM radar_zones WHERE day = %s AND layer = 'outer'",
+                                 (SUMMER,)).fetchone()["x"]
+        self.assertAlmostEqual(west, -109.7 - 0.005, places=6)       # the edge of the westmost cell
+
+    def test_the_outer_layer_reaches_the_north_edge_of_the_box_cells_too(self):
+        self.anchored_day()
+        self.add_warning(self.cover(), box=(-105.2, 39.6, -104.8, 45.0))
+        self.build()
+        north = self.conn.execute("SELECT ST_YMax(geom) AS y FROM radar_zones WHERE day = %s AND layer = 'outer'",
+                                  (SUMMER,)).fetchone()["y"]
+        self.assertAlmostEqual(north, 41.5 + 0.005, places=6)
+
+    def test_a_warning_bigger_than_the_box_fills_all_four_edges_of_the_box_cells(self):
+        self.anchored_day()
+        self.add_warning(self.cover(), box=(-125.0, 30.0, -95.0, 45.0))
+        self.build()
+        row = self.conn.execute("SELECT ST_XMin(geom) AS w, ST_XMax(geom) AS e, ST_YMin(geom) AS s, "
+                                "ST_YMax(geom) AS n FROM radar_zones WHERE day = %s AND layer = 'outer'",
+                                (SUMMER,)).fetchone()
+        half = 0.005
+        for name, want in (("w", -109.7 - half), ("e", -101.4 + half), ("s", 36.5 - half), ("n", 41.5 + half)):
+            with self.subTest(edge=name):
+                self.assertAlmostEqual(row[name], want, places=6)
+
+    def test_warnings_touching_the_day_only_at_its_edges_make_no_outer_layer(self):
+        self.anchored_day()
+        load = self.cover()
+        self.add_warning(load, begin=START - timedelta(hours=1), end=START)
+        self.add_warning(load, begin=END, end=END + timedelta(hours=1))
+        got = self.build()
+        self.assertEqual(got["warnings_used"], 0)
+        self.assertNotIn("outer", got["areas"])
+
+    def test_a_warning_far_from_the_box_counts_but_leaves_no_outer_layer(self):
+        self.anchored_day()
+        self.add_warning(self.cover(), box=(-90.2, 35.0, -90.0, 35.2))
+        got = self.build()
+        self.assertEqual(got["warnings_used"], 1)
+        self.assertNotIn("outer", got["areas"])
+
+    def test_a_warning_belongs_to_the_day_if_valid_at_any_moment_of_it(self):
+        self.anchored_day()
+        load = self.cover()
+        minute = timedelta(minutes=1)
+        inside = [("starts in the last minute", END - minute, END + timedelta(hours=1)),
+                  ("ends in the first minute", START - timedelta(hours=1), START + minute),
+                  ("spans the whole day", START - timedelta(hours=1), END + timedelta(hours=1))]
+        outside = [("ends exactly as the day starts", START - timedelta(hours=1), START),
+                   ("begins exactly as the day ends", END, END + timedelta(hours=1)),
+                   ("the day before", START - timedelta(hours=5), START - timedelta(hours=4))]
+        for _, begin, end in inside + outside:
+            self.add_warning(load, begin=begin, end=end)
+        self.assertEqual(self.build()["warnings_used"], len(inside))
+
+    def test_a_rebuild_after_the_warnings_arrive_adds_the_outer_layer(self):
+        self.anchored_day()
+        self.assertNotIn("outer", self.build()["areas"])
+        self.add_warning(self.cover())
+        self.assertIn("outer", self.build()["areas"])
+
+    def test_the_states_setting_decides_which_fetch_counts(self):
+        self.anchored_day()
+        self.add_warning(self.cover(states="CO,WY"))
+        self.assertIsNone(self.build()["warnings_used"])
+        self.conn.execute("SELECT set_config('app.current_emp_id', (SELECT emp_id::text FROM users ORDER BY emp_id LIMIT 1), true)")
+        self.conn.execute("UPDATE settings SET storm_states = 'WY,CO'")
+        self.assertEqual(self.build()["warnings_used"], 1)
+
+    def test_a_fetch_that_ended_too_soon_after_the_day_does_not_count(self):
+        self.anchored_day()
+        self.add_warning(self.cover(end=END + timedelta(hours=1)))
+        self.assertIsNone(self.build()["warnings_used"])
+
+    # -- the roles that run it ------------------------------------------------------------
+
+    def test_the_ingest_and_app_roles_can_build_a_day_with_the_outer_layer(self):
+        self.anchored_day()
+        self.add_warning(self.cover())
+        for role in ("hail_ingest", "hail_app"):
+            with self.subTest(role=role):
+                self.conn.execute(f"SET LOCAL ROLE {role}")
+                try:
+                    got = self.build()
+                finally:
+                    self.conn.execute("RESET ROLE")
+                self.assertEqual(got["warnings_used"], 1)
+                self.assertIn("outer", got["areas"])
 
     # -- refusals -------------------------------------------------------------------------
 

@@ -17,7 +17,7 @@ import tempfile
 from datetime import date, datetime, timezone
 
 from hailsys.db import get_connection
-from hailsys.radar import fetch, load, zones
+from hailsys.radar import fetch, load, warnings, zones
 from hailsys.tuning import DISPLAY_TZ
 
 
@@ -30,6 +30,8 @@ def parse_args(argv=None):
                         help="delete the day and everything built from it, then fetch it again")
     parser.add_argument("--set", type=int, dest="set_id", default=None,
                         help="parameter set to build with, default the newest")
+    parser.add_argument("--no-warnings", action="store_true",
+                        help="do not fetch the NWS warning polygons, so no outer layer unless already held")
     args = parser.parse_args(argv)
     if args.rebuild and args.refetch:
         parser.error("--rebuild and --refetch do not go together")
@@ -49,19 +51,23 @@ def main(argv=None):
             if args.refetch:
                 load.delete_day(conn, args.day)
             status = "stored"
-            if not args.rebuild:
-                with tempfile.TemporaryDirectory() as folder:
+            with tempfile.TemporaryDirectory() as folder:
+                if not args.rebuild:
                     status = load.load_day(conn, args.day, DISPLAY_TZ, folder,
                                            box=load.crop_box(conn), run_id=run_id)
-                loaded, missing = status == "loaded", status == "missing"
-            print(f"{args.day}: file {status}")
+                    loaded, missing = status == "loaded", status == "missing"
+                print(f"{args.day}: file {status}")
+                if not args.no_warnings:
+                    print(f"  warnings: {warnings.ensure_day(conn, args.day, DISPLAY_TZ, folder, run_id=run_id)}")
             if status != "missing":
                 built = zones.build_day(conn, args.day, DISPLAY_TZ, set_id=args.set_id)
                 print(f"  set {built['set_id']}: {built['cells_over_threshold']} cells over the threshold, "
                       f"{built['patches']} patches, {built['patches_anchored']} anchored "
                       f"by {built['anchor_reports']} reports")
-                for layer in ("core", "margin", "radar_indicated"):
+                for layer in ("core", "margin", "radar_indicated", "outer"):
                     print(f"  {layer:16s}{built['areas'].get(layer, 0):10.1f} km2")
+                print("  warnings overlapping the day: "
+                      + ("not loaded, no outer layer" if built["warnings_used"] is None else str(built["warnings_used"])))
             load.finish_run(conn, run_id, loaded=int(loaded), missing=int(missing))
             conn.commit()
         except Exception as exc:

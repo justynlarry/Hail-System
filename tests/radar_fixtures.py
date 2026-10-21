@@ -99,3 +99,75 @@ def grib(samples, depth=16, filters=None, *, ni=NI, template=41, nbits=None, bit
 def write(path, data, gz=False):
     with (gzip.open(path, "wb") if gz else open(path, "wb")) as f:
         f.write(data)
+
+
+# -- IEM warning shapefile (hailsys/radar/warnings.py) ------------------------------------------
+
+import io
+import zipfile
+
+SQUARE = [(-105.0, 40.0), (-105.0, 40.1), (-104.9, 40.1), (-104.9, 40.0), (-105.0, 40.0)]
+BOWTIE = [(0.0, 0.0), (1.0, 1.0), (1.0, 0.0), (0.0, 1.0), (0.0, 0.0)]
+
+_DBF_FIELDS = [("WFO", 3), ("ISSUED", 12), ("EXPIRED", 12), ("PHENOM", 2), ("GTYPE", 1), ("SIG", 1),
+               ("ETN", 4), ("POLY_BEG", 12), ("POLY_END", 12), ("PROD_ID", 36), ("VTEC_YR", 4)]
+
+
+def warning(wfo="BOU", phenom="SV", sig="W", gtype="P", etn=1, year=1999, begin="199901011200",
+            end="199901011230", issued="199901011200", expired="199901011300", product="p1",
+            ring=SQUARE, deleted=False, kind=5, parts=1):
+    """One record for shapefile_zip().  ring None with kind 0 writes a null shape."""
+    return {"row": {"WFO": wfo, "ISSUED": issued, "EXPIRED": expired, "PHENOM": phenom, "GTYPE": gtype,
+                    "SIG": sig, "ETN": str(etn), "POLY_BEG": begin, "POLY_END": end,
+                    "PROD_ID": product, "VTEC_YR": str(year)},
+            "ring": ring, "deleted": deleted, "kind": kind, "parts": parts}
+
+
+def _dbf(records):
+    header = 32 + 32 * len(_DBF_FIELDS) + 1
+    size = 1 + sum(width for _, width in _DBF_FIELDS)
+    out = bytearray(struct_pack_dbf(len(records), header, size))
+    for name, width in _DBF_FIELDS:
+        out += name.encode().ljust(11, b"\0") + b"C" + bytes(4) + bytes([width, 0]) + bytes(14)
+    out += b"\x0d"
+    for rec in records:
+        out += b"*" if rec["deleted"] else b" "
+        for name, width in _DBF_FIELDS:
+            out += rec["row"][name].encode("latin-1").ljust(width)[:width]
+    return bytes(out)
+
+
+def struct_pack_dbf(count, header, size):
+    return b"\x03" + bytes(3) + struct.pack("<IHH", count, header, size) + bytes(20)
+
+
+def _shp(records):
+    body = bytearray()
+    for number, rec in enumerate(records, 1):
+        ring = rec["ring"] or []
+        if rec["kind"] == 5:
+            xs = [p[0] for p in ring] or [0]
+            ys = [p[1] for p in ring] or [0]
+            content = struct.pack("<i4d2i", 5, min(xs), min(ys), max(xs), max(ys), rec["parts"], len(ring))
+            content += struct.pack(f"<{rec['parts']}i", *([0] * rec["parts"]))
+            content += b"".join(struct.pack("<2d", x, y) for x, y in ring)
+        else:
+            content = struct.pack("<i", rec["kind"]) + bytes(40)
+        body += struct.pack(">ii", number, len(content) // 2) + content
+    head = struct.pack(">i", 9994) + bytes(20) + struct.pack(">i", (100 + len(body)) // 2)
+    head += struct.pack("<ii", 1000, 5) + bytes(64)
+    return head + bytes(body)
+
+
+def shapefile_zip(records, path=None):
+    """An IEM style export zip (.shp and .dbf; .shx and the rest are not read).  Returns bytes,
+    or writes to path."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as z:
+        z.writestr("wwa_test.shp", _shp(records))
+        z.writestr("wwa_test.dbf", _dbf(records))
+    data = buffer.getvalue()
+    if path:
+        with open(path, "wb") as f:
+            f.write(data)
+    return data

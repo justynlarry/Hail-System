@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 import urllib.error
+from pathlib import Path
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -37,6 +38,34 @@ class TestStamp(unittest.TestCase):
                          datetime(2026, 6, 9, 5, 0, tzinfo=UTC))
         self.assertEqual(fetch.day_stamp(date(2026, 6, 8), UTC),
                          datetime(2026, 6, 9, 0, 0, tzinfo=UTC))
+
+
+class TestDayWindow(unittest.TestCase):
+    def test_summer_day_runs_0600_to_0600_utc(self):
+        start, end = fetch.day_window(date(2026, 6, 8), DENVER)
+        self.assertEqual((start.astimezone(UTC), end.astimezone(UTC)),
+                         (datetime(2026, 6, 8, 6, tzinfo=UTC), datetime(2026, 6, 9, 6, tzinfo=UTC)))
+
+    def test_winter_day_runs_0700_to_0700_utc(self):
+        start, end = fetch.day_window(date(2026, 1, 15), DENVER)
+        self.assertEqual((start.astimezone(UTC), end.astimezone(UTC)),
+                         (datetime(2026, 1, 15, 7, tzinfo=UTC), datetime(2026, 1, 16, 7, tzinfo=UTC)))
+
+    def test_spring_forward_day_is_23_hours(self):
+        start, end = fetch.day_window(date(2026, 3, 8), DENVER)
+        self.assertEqual((end.astimezone(UTC) - start.astimezone(UTC)).total_seconds() / 3600, 23)
+
+    def test_fall_back_day_is_25_hours(self):
+        start, end = fetch.day_window(date(2026, 11, 1), DENVER)
+        self.assertEqual((end.astimezone(UTC) - start.astimezone(UTC)).total_seconds() / 3600, 25)
+
+    def test_the_end_is_the_stamp_of_the_file_for_that_day(self):
+        day = date(2026, 6, 8)
+        self.assertEqual(fetch.day_window(day, DENVER)[1].astimezone(UTC), fetch.day_stamp(day, DENVER))
+
+    def test_the_zone_is_an_argument(self):
+        start, end = fetch.day_window(date(2026, 6, 8), UTC)
+        self.assertEqual((start, end), (datetime(2026, 6, 8, tzinfo=UTC), datetime(2026, 6, 9, tzinfo=UTC)))
 
 
 class TestKey(unittest.TestCase):
@@ -94,7 +123,7 @@ class TestDownload(unittest.TestCase):
     def test_saves_the_file_and_leaves_no_part_file(self):
         size, _ = self.run_download(_Response(b"abc"))
         self.assertEqual(size, 3)
-        self.assertEqual(open(self.dest, "rb").read(), b"abc")
+        self.assertEqual(Path(self.dest).read_bytes(), b"abc")
         self.assertEqual(os.listdir(self.dir.name), ["f.gz"])
 
     def test_retries_a_connection_reset_then_succeeds(self):
@@ -114,7 +143,7 @@ class TestDownload(unittest.TestCase):
     def test_a_short_body_is_retried_and_never_kept(self):
         _, opener = self.run_download(_Response(b"ab", length=3), _Response(b"abc"))
         self.assertEqual(opener.calls, 2)
-        self.assertEqual(open(self.dest, "rb").read(), b"abc")
+        self.assertEqual(Path(self.dest).read_bytes(), b"abc")
 
     def test_gives_up_after_the_last_attempt(self):
         with self.assertRaisesRegex(fetch.FetchError, "gave up after 3 attempts"):

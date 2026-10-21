@@ -869,7 +869,7 @@ SELECT pg_temp.expect('radar_zones a core zone can be added',
        ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)), 90)$q$, 'ok');
 SELECT pg_temp.expect('radar_zones layer must be known',
   $q$INSERT INTO radar_zones (day, set_id, layer, geom, area_km2)
-     VALUES ('1999-01-01', 1, 'outer',
+     VALUES ('1999-01-01', 1, 'inner',
        ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)), 90)$q$, '23514');
 SELECT pg_temp.expect('radar_zones a layer is stored once per build',
   $q$INSERT INTO radar_zones (day, set_id, layer, geom, area_km2)
@@ -890,6 +890,59 @@ SELECT pg_temp.expect('radar_zones needs a build row',
        ('1999-01-05', 1, 'margin',
        ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)), 90)$q$, '23503');
 
+SELECT pg_temp.expect('settings storm_states must be upper case two letter codes',
+  $q$UPDATE settings SET storm_states = 'co'$q$, '23514');
+SELECT pg_temp.expect('settings storm_states must have no spaces',
+  $q$UPDATE settings SET storm_states = 'CO, WY'$q$, '23514');
+SELECT pg_temp.expect('settings a storm_states change is logged to settings_history',
+  $q$DO $do$ BEGIN
+       PERFORM set_config('app.current_emp_id', (SELECT emp_id::text FROM users ORDER BY emp_id LIMIT 1), true);
+       UPDATE settings SET storm_states = 'CO,WY';
+       IF NOT EXISTS (SELECT 1 FROM settings_history WHERE storm_states = 'CO,WY') THEN
+           RAISE EXCEPTION 'not logged';
+       END IF;
+     END $do$$q$, 'ok');
+SELECT pg_temp.expect('warning_loads a load can be added',
+  $q$INSERT INTO warning_loads (window_start, window_end, states, polygons_seen, polygons_new)
+     VALUES ('1999-01-01 00:00+00', '1999-01-03 00:00+00', 'CO', 2, 2)$q$, 'ok');
+SELECT pg_temp.expect('warning_loads new polygons cannot exceed polygons seen',
+  $q$INSERT INTO warning_loads (window_start, window_end, states, polygons_seen, polygons_new)
+     VALUES ('1999-01-01 00:00+00', '1999-01-03 00:00+00', 'CO', 1, 2)$q$, '23514');
+SELECT pg_temp.expect('warning_loads the window must run forward',
+  $q$INSERT INTO warning_loads (window_start, window_end, states, polygons_seen, polygons_new)
+     VALUES ('1999-01-03 00:00+00', '1999-01-01 00:00+00', 'CO', 0, 0)$q$, '23514');
+SELECT pg_temp.expect('warning_loads states must be well formed',
+  $q$INSERT INTO warning_loads (window_start, window_end, states, polygons_seen, polygons_new)
+     VALUES ('1999-01-01 00:00+00', '1999-01-03 00:00+00', 'Colorado', 0, 0)$q$, '23514');
+SELECT pg_temp.expect('warning_polygons a polygon can be added',
+  $q$INSERT INTO warning_polygons (wfo, phenomena, significance, eventid, vtec_year, poly_begin, poly_end, load_id, geom)
+     VALUES ('BOU', 'SV', 'W', 1, 1999, '1999-01-01 12:00+00', '1999-01-01 12:30+00',
+       (SELECT max(load_id) FROM warning_loads), ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)))$q$, 'ok');
+SELECT pg_temp.expect('warning_polygons a polygon version is stored once',
+  $q$INSERT INTO warning_polygons (wfo, phenomena, significance, eventid, vtec_year, poly_begin, poly_end, load_id, geom)
+     VALUES ('BOU', 'SV', 'W', 1, 1999, '1999-01-01 12:00+00', '1999-01-01 12:45+00',
+       (SELECT max(load_id) FROM warning_loads), ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)))$q$, '23505');
+SELECT pg_temp.expect('warning_polygons only severe thunderstorm and tornado',
+  $q$INSERT INTO warning_polygons (wfo, phenomena, significance, eventid, vtec_year, poly_begin, poly_end, load_id, geom)
+     VALUES ('BOU', 'FF', 'W', 2, 1999, '1999-01-01 12:00+00', '1999-01-01 12:30+00',
+       (SELECT max(load_id) FROM warning_loads), ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)))$q$, '23514');
+SELECT pg_temp.expect('warning_polygons the polygon must end after it begins',
+  $q$INSERT INTO warning_polygons (wfo, phenomena, significance, eventid, vtec_year, poly_begin, poly_end, load_id, geom)
+     VALUES ('BOU', 'SV', 'W', 3, 1999, '1999-01-01 12:30+00', '1999-01-01 12:30+00',
+       (SELECT max(load_id) FROM warning_loads), ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)))$q$, '23514');
+SELECT pg_temp.expect('warning_polygons geometry must be valid',
+  $q$INSERT INTO warning_polygons (wfo, phenomena, significance, eventid, vtec_year, poly_begin, poly_end, load_id, geom)
+     VALUES ('BOU', 'SV', 'W', 4, 1999, '1999-01-01 12:00+00', '1999-01-01 12:30+00',
+       (SELECT max(load_id) FROM warning_loads), 'SRID=4326;MULTIPOLYGON(((0 0,1 1,1 0,0 1,0 0)))'::geometry)$q$, '23514');
+SELECT pg_temp.expect('warning_polygons needs a load row',
+  $q$INSERT INTO warning_polygons (wfo, phenomena, significance, eventid, vtec_year, poly_begin, poly_end, load_id, geom)
+     VALUES ('BOU', 'SV', 'W', 5, 1999, '1999-01-01 12:00+00', '1999-01-01 12:30+00', -1, ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)))$q$, '23503');
+SELECT pg_temp.expect('radar_zones an outer layer can be added',
+  $q$INSERT INTO radar_zones (day, set_id, layer, geom, area_km2)
+     VALUES ('1999-01-01', 1, 'outer', ST_Multi(ST_MakeEnvelope(-105, 40, -104.9, 40.1, 4326)), 90)$q$, 'ok');
+SELECT pg_temp.expect('radar_zone_builds warnings used cannot be negative',
+  $q$UPDATE radar_zone_builds SET warnings_used = -1 WHERE day = '1999-01-01'$q$, '23514');
+
 ROLLBACK;
 
 -- Nothing should have survived.
@@ -902,6 +955,12 @@ SELECT (SELECT count(*) FROM email_templates) AS templates,
        (SELECT count(*) FROM drip_campaigns) + (SELECT count(*) FROM drip_steps)
          + (SELECT count(*) FROM drip_recipients) + (SELECT count(*) FROM drip_listing_checks)
          + (SELECT count(*) FROM drip_step_pulls) + (SELECT count(*) FROM drip_step_runs) AS drip_rows,
-       (SELECT count(*) FROM radar_runs) + (SELECT count(*) FROM radar_days)
-         + (SELECT count(*) FROM radar_cells) + (SELECT count(*) FROM radar_parameter_sets) - 1
-         + (SELECT count(*) FROM radar_zone_builds) + (SELECT count(*) FROM radar_zones) AS radar_rows;
+       (SELECT count(*) FROM radar_days WHERE day < '2000-01-01')
+         + (SELECT count(*) FROM radar_cells WHERE day < '2000-01-01')
+         + (SELECT count(*) FROM radar_zone_builds WHERE day < '2000-01-01')
+         + (SELECT count(*) FROM radar_zones WHERE day < '2000-01-01')
+         + (SELECT count(*) FROM radar_parameter_sets WHERE name LIKE 'guard-test%')
+         + (SELECT count(*) FROM warning_loads WHERE window_start < '2000-01-01')
+         + (SELECT count(*) FROM warning_polygons WHERE vtec_year = 1999) AS radar_rows,
+       (SELECT storm_states FROM settings) AS storm_states_after,
+       (SELECT count(*) FROM settings_history WHERE storm_states = 'CO,WY') AS history_rows_left;

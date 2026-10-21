@@ -229,6 +229,17 @@ class LoadTest(unittest.TestCase):
         self.assertIsNone(self.day_row())
         self.assertEqual(os.listdir(self.dir.name), [])
 
+    # -- the roles that run it ------------------------------------------------------------
+
+    def test_the_ingest_role_can_make_the_box_and_load_a_day(self):
+        self.conn.execute("SET LOCAL ROLE hail_ingest")
+        try:
+            self.assertGreater(load.crop_box(self.conn)[0], load.crop_box(self.conn)[1])
+            self.assertEqual(self.load(), "loaded")
+            self.assertEqual(load.delete_day(self.conn, DAY), None)
+        finally:
+            self.conn.execute("RESET ROLE")
+
     # -- runs and deleting ----------------------------------------------------------------
 
     def test_a_run_is_started_and_finished(self):

@@ -6133,6 +6133,12 @@ docstring).
 **When:** before the nightly radar job (slice 4): add the run command to `docs/command-ref.md`, or give these
 tests a role of their own.
 
+**Update 2026-10-21 (slice 3):** 90 tests now skip under `hail_app` (the warning tests joined). Running as
+`hail_admin` hid a real bug: `current_states` read `settings WHERE id = 1`, but `hail_ingest` may read only the
+`storm_states` column, so the first real run as `hail_ingest` failed with "permission denied for table
+settings". Fixed, and tests that run the flows under `SET LOCAL ROLE hail_ingest` and `hail_app` now cover it
+(they fail with the bug put back). The admin-only tests are still not in the standard command.
+
 ## 242. `.env` line 35 is not a valid shell variable name
 
 **Status:** open (filed 2026-10-21)
@@ -6143,3 +6149,15 @@ Read single values with `grep '^NAME=' .env | cut -d= -f2-` meanwhile.
 
 **When:** the next time `.env` is edited: rename it to `PERMIT_STACK_API` and change the one place that reads it.
 Consider rotating that key.
+
+## 243. `settings.storm_states` has no admin-page field
+
+**Status:** open, accepted (filed 2026-10-21, Phase 5b slice 3)
+
+`sql/050` adds `settings.storm_states` (default `CO`), the states whose NWS warnings the radar layers fetch. It
+changes only by an admin `UPDATE` on `settings` (logged to `settings_history` by the trigger, tested in
+`sql/guard_test.sql`). CLAUDE.md says anything an operator may change has an admin-page access point; the
+developer accepted the gap for a few sessions (2026-10-21).
+
+**When:** Phase 5b slice 7 (admin settings for the radar layers), together with the threshold, margin and
+report radius. Not yet used by the IEM report ingest (item 238).

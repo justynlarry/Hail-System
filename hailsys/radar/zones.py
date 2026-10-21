@@ -4,6 +4,8 @@ core            patches of hail at or above the threshold that have an actionabl
                 within report_radius_km
 margin          margin_km around the core, outside it
 radar_indicated patches no report is near, outside core and margin
+outer           the day's NWS warning polygons (sql/050), clipped to the crop box, outside the
+                other three.  Only when warnings are loaded for the day, else no outer layer.
 
 All geometry is PostGIS, a cell is its 0.01 degree square, patches are 8-neighbor groups,
 distances and the margin buffer use geography, so there is no projection or zone constant
@@ -12,8 +14,8 @@ commit to the caller.  Nothing here reads or writes email, listings, or matches.
 """
 
 
-from datetime import datetime, time, timedelta
-
+from hailsys.radar import warnings
+from hailsys.radar.fetch import day_window
 from hailsys.radar.mesh import MM_PER_INCH, STEP
 
 # Two cells touch, diagonals included, when their centres are within 0.0142 degrees.  A
@@ -87,12 +89,13 @@ FROM near
 
 _BUILD_SQL = """
 INSERT INTO radar_zone_builds (day, set_id, built_by, window_start, window_end,
-    cells_over_threshold, patches, patches_anchored, anchor_reports)
+    cells_over_threshold, patches, patches_anchored, anchor_reports, warnings_used)
 SELECT %(day)s, %(set_id)s, %(user_id)s, %(start)s, %(end)s,
-        (SELECT count(*) FROM radar_work),
-        (SELECT count(DISTINCT patch) FROM radar_work),
-        (SELECT count(DISTINCT patch) FrOM radar_work WHERE anchored),
-        (SELECT count(*) FROM radar_anchor_reports)
+       (SELECT count(*) FROM radar_work),
+       (SELECT count(DISTINCT patch) FROM radar_work),
+       (SELECT count(DISTINCT patch) FROM radar_work WHERE anchored),
+       (SELECT count(*) FROM radar_anchor_reports),
+       %(warnings_used)s::int
 """
 
 
@@ -124,21 +127,45 @@ FROM shaped
 WHERE NOT ST_IsEmpty(g) AND ST_Area(g::geography) > 0
 """
 
+# A warning belongs to the day if its polygon was valid at any time in it.
+_WARNINGS_SQL = """
+SELECT count(*) AS n FROM warning_polygons
+WHERE poly_begin < %(end)s AND poly_end > %(start)s
+"""
+
+# The outer layer, the day's warning polygons, clipped to the crop box (half a cell wider than
+# the box edge cells' centres), outside the layers already built.
+_OUTER_SQL = """
+INSERT INTO radar_zones (day, set_id, layer, geom, area_km2)
+WITH warn AS (
+    SELECT ST_Union(geom) AS g FROM warning_polygons
+    WHERE poly_begin < %(end)s AND poly_end > %(start)s
+), box AS (
+    SELECT ST_MakeEnvelope(box_lon_min - %(half)s, box_lat_min - %(half)s,
+                           box_lon_max + %(half)s, box_lat_max + %(half)s, 4326) AS g
+    FROM radar_days WHERE day = %(day)s
+), taken AS (
+    SELECT COALESCE(ST_Union(geom), ST_GeomFromText('GEOMETRYCOLLECTION EMPTY', 4326)) AS g
+    FROM radar_zones WHERE day = %(day)s AND set_id = %(set_id)s
+), shaped AS (
+    SELECT ST_Multi(ST_CollectionExtract(
+               ST_Difference(ST_Intersection(warn.g, box.g), taken.g), 3)) AS g
+    FROM warn, box, taken
+    WHERE warn.g IS NOT NULL
+)
+SELECT %(day)s, %(set_id)s, 'outer', g, ST_Area(g::geography) / 1000000.0
+FROM shaped
+WHERE NOT ST_IsEmpty(g) AND ST_Area(g::geography) > 0
+"""
+
 
 _SUMMARY_SQL = """
-SELECT b.cells_over_threshold, b.patches, b.patches_anchored, b.anchor_reports,
+SELECT b.cells_over_threshold, b.patches, b.patches_anchored, b.anchor_reports, b.warnings_used,
         COALESCE((SELECT jsonb_object_agg(z.layer, z.area_km2)
                 FROM radar_zones z WHERE z.day = b.day AND z.set_id = b.set_id), '{}'::jsonb) AS areas
 FROM radar_zone_builds b
 WHERE b.day = %(day)s AND b.set_id = %(set_id)s
 """
-
-
-def day_window(day, tz):
-    """UTC-aware start and end of local date 'day', from local midnight to the next."""
-    start = datetime.combine(day, time.min, tzinfo=tz)
-    end = datetime.combine(day + timedelta(days=1), time.min, tzinfo=tz)
-    return start, end
 
 
 def build_day(conn, day, tz, *, set_id=None, user_id=None):
@@ -162,6 +189,8 @@ def build_day(conn, day, tz, *, set_id=None, user_id=None):
             "threshold_mm": float(chosen["hail_threshold_in"]) * MM_PER_INCH,
             "margin_m": float(chosen["margin_km"]) * 1000.0,
             "radius_m": float(chosen["report_radius_km"]) * 1000.0}
+    held = warnings.covered(conn, start, end, warnings.current_states(conn))
+    args["warnings_used"] = conn.execute(_WARNINGS_SQL, args).fetchone()["n"] if held else None
 
     conn.execute(_DELETE_ZONES_SQL, args)
     conn.execute(_DELETE_BUILD_SQL, args)
@@ -170,6 +199,8 @@ def build_day(conn, day, tz, *, set_id=None, user_id=None):
     conn.execute(_WORK_SQL, args)
     conn.execute(_BUILD_SQL, args)
     conn.execute(_ZONES_SQL, args)
+    if held:
+        conn.execute(_OUTER_SQL, args)
     summary = conn.execute(_SUMMARY_SQL, args).fetchone()
     conn.execute("DROP TABLE radar_work, radar_anchor_reports")
     return {"set_id": chosen["set_id"], **summary}

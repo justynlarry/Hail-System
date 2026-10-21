@@ -38,6 +38,13 @@ def day_stamp(day, tz):
     return end.astimezone(timezone.utc)
 
 
+def day_window(day, tz):
+    """UTC-aware start and end of local date 'day', from local midnight to the next."""
+    start = datetime.combine(day, clock(0), tzinfo=tz)
+    end = datetime.combine(day + timedelta(days=1), clock(0), tzinfo=tz)
+    return start, end
+
+
 def source_key(stamp):
     """Key inside the bucket for a UTC stamp."""
     text = stamp.strftime("%Y%m%d-%H%M%S")
