@@ -3610,7 +3610,7 @@ Items 1 to 3 are the work; item 2 is the largest.
 
 ## 239. The analysis MESH decoder cannot read 8-bit files, and S3 resets connections
 
-**Status:** resolved 2026-10-21 (found in Phase 5b slice 0; fixed in slice 1, commit below)
+**Status:** resolved 2026-10-21 (found in Phase 5b slice 0; fixed in slice 1, `c5e346a`)
 
 `docs/analysis/storm-shape-mesh-2026-10/storm_shape/mesh/mesh_lib.py` asserts `nbits == 16` and unfilters PNG
 rows assuming 2-byte samples. The `MESH_Max_60min` file stamped 2023-05-10 16:00 UTC is packed at 8 bits and
