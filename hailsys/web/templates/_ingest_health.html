@@ -78,7 +78,8 @@
         <summary>Radar detail</summary>
         <p>{{ '{:,}'.format(rh.held) }} {{ 'day' if rh.held == 1 else 'days' }} of radar loaded{% if rh.oldest_day %}
            ({{ rh.oldest_day.strftime('%Y-%m-%d') }} to {{ rh.newest_day.strftime('%Y-%m-%d') }}){% endif %},
-           {{ '{:,}'.format(rh.missing) }} missing from NOAA,
+           {{ '{:,}'.format(rh.missing) }} missing from NOAA{% if rh.suspect %},
+           {{ '{:,}'.format(rh.suspect) }} set aside as suspect (impossible values in NOAA's file){% endif %},
            zones built for {{ '{:,}'.format(rh.built) }}.</p>
 
         <div class="table-scroll">

@@ -47,7 +47,7 @@ def days_between(first, last, floor=FIRST_RADAR_DAY):
 
 
 def day_status(conn, day):
-    """'loaded', 'missing', or None if the day was never fetched."""
+    """'loaded', 'missing', 'suspect', or None if the day was never fetched."""
     row = conn.execute(_STATUS_SQL, {"day": day}).fetchone()
     return row["status"] if row else None
 
@@ -78,7 +78,7 @@ def preload_warnings(conn, first, last, tz, directory, *, run_id=None, now=None,
 
 
 def _one_day(conn, day, tz, directory, *, box, run_id, set_id, fetch_new, now, fetch_kw):
-    """Returns (result, built): result is 'loaded', 'missing', 'held' or 'absent'."""
+    """Returns (result, built): result is 'loaded', 'missing', 'suspect', 'held' or 'absent'."""
     held = day_status(conn, day)
     if held is None:
         if not fetch_new:
@@ -98,10 +98,10 @@ def run_days(conn, days, tz, directory, *, run_id, fetch_new=True, set_id=None, 
     """Do each local date in 'days', in the order given, a transaction each.
     
     fetch_new False builds zones only for days already held ('absent' otherwise).  Returns
-    {'loaded', 'missing', 'held', 'absent', 'built': counts, 'failed': [(day, message)]}.
+    {'loaded', 'missing', 'suspect', 'held', 'absent', 'built': counts, 'failed': [(day, message)]}.
     'pause' seconds are waited after each day that used the network.
     """
-    out = {"loaded": 0, "missing": 0, "held": 0, "absent": 0, "built": 0, "failed": []}
+    out = {"loaded": 0, "missing": 0, "suspect": 0, "held": 0, "absent": 0, "built": 0, "failed": []}
     if fetch_new and box is None:
         box = load.crop_box(conn)
     for n, day in enumerate(days, 1):
@@ -117,7 +117,7 @@ def run_days(conn, days, tz, directory, *, run_id, fetch_new=True, set_id=None, 
         out[result] += 1
         out["built"] += built
         log.info("%s %s%s (%d of %d)", day, result, ", built" if built else "", n, len(days))
-        if pause and result in ("loaded", "missing"):
+        if pause and result in ("loaded", "missing", "suspect"):
             sleep(pause)
     return out
 
@@ -148,7 +148,7 @@ def run(conn, mode, days, tz, directory, *, fetch_new=True, preload=True, set_id
     if out["failed"]:
         shown = "; ".join(f"{day} {message}" for day, message in out["failed"][:FAILURES_SHOWN])
         error = f"{len(out['failed'])} of {len(days)} days failed: {shown}"
-    load.finish_run(conn, run_id, loaded=out["loaded"], missing=out["missing"], built=out["built"],
-                    failed=len(out["failed"]), error=error)
+    load.finish_run(conn, run_id, loaded=out["loaded"], missing=out["missing"], suspect=out["suspect"],
+                    built=out["built"], failed=len(out["failed"]), error=error)
     conn.commit()
     return {**out, "run_id": run_id}

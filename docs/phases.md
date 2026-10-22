@@ -323,7 +323,7 @@ the `storm_states` setting. Slice 4: the nightly and weekly jobs, backfill, `sta
 Days page line, the ingest image rebuilt; the backfill from 2020-10-14 ran 2026-10-22 (2,197 days held, 2 absent at
 NOAA) and the timers are installed. Slice 5: `/map/radar.geojson`, the four map layers with a day picker, toggles and
 legend on the Territory page, the circle radius from the setting (item 216), and a default report type of HAIL on Storm
-Days, Territory and the map. **Not built:** the plausibility ceiling for bad MESH values (item 247, next), slice 6
+Days, Territory and the map. A plausibility ceiling (10 in) sets aside days with impossible MESH values (item 247, built). **Not built:** slice 6
 (findings panel, including the listings in each layer), slice 7 (admin fields for the thresholds, margin, radius and `storm_states`; the rebuild
 button; the calibration run), slice 8 (inspection data, when RBI delivers it).
 

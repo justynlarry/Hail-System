@@ -95,9 +95,9 @@ class BuildTest(unittest.TestCase):
     def add_day(self, day, status="loaded"):
         self.conn.execute(
             "INSERT INTO radar_days (day, run_id, status, stamp_utc, source_key, box_lat_max, box_lat_min, "
-            "box_lon_min, box_lon_max, floor_mm, cells_in_box) VALUES (%s, %s, %s, now(), 'k', "
-            "41.5, 36.5, -109.7, -101.4, 12.7, %s)",
-            (day, self.run_id, status, 1000 if status == "loaded" else None))
+            "box_lon_min, box_lon_max, floor_mm, cells_in_box, max_mm) VALUES (%s, %s, %s, now(), 'k', "
+            "41.5, 36.5, -109.7, -101.4, 12.7, %s, %s)",
+            (day, self.run_id, status, None if status == "missing" else 1000, 1007.7 if status == "suspect" else None))
 
     def add_cells(self, day, cells):
         for row, col, mm in cells:
@@ -503,6 +503,11 @@ class BuildTest(unittest.TestCase):
 
     def test_a_missing_day_is_refused(self):
         self.add_day(SUMMER, status="missing")
+        with self.assertRaisesRegex(zones.ZoneError, "no radar file loaded"):
+            self.build()
+
+    def test_a_suspect_day_is_refused(self):
+        self.add_day(SUMMER, status="suspect")
         with self.assertRaisesRegex(zones.ZoneError, "no radar file loaded"):
             self.build()
 

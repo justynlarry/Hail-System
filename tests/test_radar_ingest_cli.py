@@ -161,7 +161,7 @@ def _connection(conn):
     yield conn
 
 
-RESULT = {"run_id": 9, "loaded": 2, "missing": 1, "held": 3, "absent": 0, "built": 5, "failed": []}
+RESULT = {"run_id": 9, "loaded": 2, "missing": 1, "suspect": 4, "held": 3, "absent": 0, "built": 5, "failed": []}
 
 
 @unittest.skipIf(MISSING, f"imports unavailable: {MISSING}")
@@ -204,7 +204,7 @@ class MainTest(unittest.TestCase):
 
     def test_the_summary_line(self):
         _, out, _, _ = self.main(["nightly"])
-        self.assertEqual(out.strip(), "run 9: 3 days: loaded 2, missing 1, held 3, absent 0, built 5, failed 0")
+        self.assertEqual(out.strip(), "run 9: 3 days: loaded 2, missing 1, suspect 4, held 3, absent 0, built 5, failed 0")
 
     def test_failed_days_make_the_exit_status_one_and_are_named_on_stderr(self):
         result = {**RESULT, "failed": [(date(2026, 6, 7), "FetchError: boom")]}

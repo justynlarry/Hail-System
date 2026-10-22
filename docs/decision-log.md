@@ -7346,3 +7346,96 @@ counts equal on all four days); one real nightly run through the baked image.
 5 mile match radius for matches, nothing from the radar.
 
 **Related:** items 216, 238, 243, 247; decision log 2026-10-14, 2026-10-20, 2026-10-22 (above).
+
+
+## 2026-10-22 — What the radar supports, and the direction for combining it with the IEM reports
+
+**Why now:** the developer asked (2026-10-22) whether the radar has been checked against more than one source, so that the
+system can say "weather reports indicate hail of x in fell within y miles of this house; that does not mean the roof is damaged, but
+it is worth a look", and then asked for pulls and matches that use IEM reports and radar together. This entry records the
+evidence, what may be said, the direction, and what is still open. **Nothing is built from the direction yet.**
+
+**Evidence (checked 2026-10-22; sources in `docs/analysis/`, numbers from the six-year backfill unless marked):**
+- IEM hail reports against NEXRAD Level-III hail detections (NCEI SWDI, 2016 to 2025, 2,538 reports): 92 to 94% have a radar
+  signature within 5 miles and 30 minutes, and public, trained-spotter and CoCoRaHS reports agree at the same rate
+  (`radar-verification-2026-09.md`; decision log 2026-09-16).
+- IEM reports against MESH: 485 of 536 (90%) in the 60-storm study have 1.00 in or more within 5 km; across the backfill, of
+  1,662 reports of 1 in or more in the coverage box, **82% have MESH of 1.00 in or more within 5 km, 91% at 0.75 in, 98% at
+  0.50 in**; 76% of actionable hail reports fall inside a core or margin.
+- Independent ground observers (mPING under its research licence, and CoCoRaHS), neither used to build the zones: the share
+  of ground reports that were 1 in or more falls core 52%, margin 34%, warnings 13%, rest 6% (CoCoRaHS alone 60, 33, 20, 10).
+  Only 7 independent observations fell in the radar-indicated (unreported) areas of that study, none of them large hail.
+- **Not independent, so not counted as extra proof:** SHI and POSH are MESH in other forms; NCEI Storm Events is 99% copies of the
+  IEM reports; NEXRAD detections and MESH come from the same radars (they are independent of ground reports, not of each other).
+- **2026-06-08, with timing:** the radar swath centroid moves west to east from lon -104.79 (21 to 22 UTC) to -101.87 (03 to 04
+  UTC), about 40 km/h, in step with the reports (Golden 21:03, Parker 21:31, Kiowa 22:02 to 23:31, Kit Carson County 02:00 UTC); the
+  radar also shows a second, southern cell that matches the second report cluster. Of 47 reports of 1 in or more, 21 had 1.00 in or
+  more within 5 km in the report's own hour and 1 only in a neighbouring hour. The misses were mostly 0.5 to 0.97 in, and on the west
+  (Golden) side the radar read low.
+- **Size is not supported.** Where MESH says at least t within 5 km, the share of nearby ground reports of at least t is 86% at 1.0
+  in, 45% at 1.5, 26% at 2.0, 18% at 2.5, 7% at 3.0; the radar value is above the report on 68% of pairs (median 1.25 times), and
+  the rank correlation with reported size is 0.41. The largest reports are also missed: of reports of 2.5 in or more, 31% have MESH
+  of 2.5 in or more. (This extends the 2026-09-16 finding that NEXRAD `MAXSIZE` correlates with reported size at r = 0.24 to 0.38.)
+- Agreement by region, reports of 1 in or more with MESH of 1.00 in or more within 5 km: west of lon -105.05 80%, metro 78%,
+  Elizabeth/Kiowa side 84%, plains 88%.
+- **50 storm days (2026-10-22):** a seeded random sample (seed 2026) of 50 of the 82 core days with at least 8 hail reports spanning
+  at least 1.5 h, using the hourly `MESH_Max_60min` files (a file stamped H covers the hour before H) from 1 h before the first
+  report to 2 h after the last. **Timing:** of 1,056 reports of 1 in or more, **79%** had MESH of 1.00 in or more within 5 km in the
+  report's own hour, 11% had 0.75 to 1.0 in, 3% had it only in a neighbouring hour, and 8% had none of 0.75 in within one hour either
+  side. So radar and reports agree on *when* for about 90% (93% within an hour), not only on where. **Motion:** 44 of 50 days gave a
+  radar track (the centroid of the largest connected swath each hour, followed hour to hour, at least 3 hours); 9 of those were slow
+  or stalled (under 15 km/h). Of the 35 moving 15 km/h or more, **71% moved eastward and 69% headed between east and south** (60 to
+  180 degrees); the median heading was 145 degrees (southeast) at 30 km/h (19 mph). By compass: E 8, SE 9, S 8, N 4, SW 2, NE 1,
+  W 1, NW 1. Front Range hail storms in this sample move from the northwest toward the east-southeast: "west to east" is right in
+  direction, though south-east is as common as due east. Caveats: the track is a swath centroid and can jump between cells; the sample
+  is days with many reports; storm motion and hail-swath growth are not the same thing.
+
+**What may be said (rule, until a later entry changes it):**
+1. **With an IEM report:** "a hail report of x inches was filed y miles from this address on [date]" is supported, and is what
+   the system does now.
+2. **From radar alone:** at most "weather radar indicated hail of at least 1 inch within about 3 miles (5 km) of this address on
+   [date]". A threshold, not a size; the 5 km is the tolerance tested. Never a radar size above the threshold, never "at your
+   property", never damage. This is not used in any email yet (staff only, decision log 2026-10-20 and 2026-10-22).
+3. A certainty ranking is a ranking of likelihood that hail fell nearby, not a statement that a roof is damaged.
+
+**Does it work in reverse? (developer's question).** Partly. The radar catches hail the reports do not: only 12% of 1 in radar
+patches have a report within 5 km, though they hold half the hail area (how much of that is over empty land has not been measured). The reports also catch hail the
+radar does not: **18% of reports of 1 in or more have no MESH of 1.00 in within 5 km, 9% none of 0.75 in, 2% none of 0.50 in**
+(5% of all hail reports have none of 0.50 in); smaller reports are caught less (49% at 1.00 in, 67% at 0.75 in). Each source misses
+some of what the other sees, which is the case for using both.
+
+**Tuning the radar (developer's question about the radius).** The lever is the hail threshold more than the distance. Share of
+reports of 1 in or more caught by MESH of at least T within R km: T = 1.00 in: 73% at 3 km, 82% at 5, 87% at 8, 91% at 12; T = 0.75
+in: 85, 91, 95, 98; T = 0.50 in: 94, 98, 99, 99. **Recall only:** a lower threshold also adds radar area with no report, and
+precision needs independent ground points. So the thresholds stay placeholders in `radar_parameter_sets`; the next parameter set to
+build and compare is 0.75 in (everything else equal), judged on recall, layer areas and independent ground points. CoCoRaHS terms
+(item 210) have to be read before it is used beyond the existing internal check.
+
+**Direction (developer, 2026-10-22), not yet designed or built:**
+1. **Radar-derived zip codes for RentCast pulls, marked as such.** Every zip, pull, listing and match carries its basis:
+   `report`, `radar` or `both`. Nothing radar-derived may look like an IEM report.
+2. **Pulls and matches that use IEM and radar together:** pull the zips where hail is indicated by either source, then rank the
+   listings by how likely hail fell at them: the highest level for a spot at the centre of an IEM report that lies in the core
+   (highest, not certain); less for the light radar at the edge of the 5 mile report circle. This is a change to the 2026-10-20 plan,
+   point 3 (pulls and matching unchanged until inspection data exists and a further entry decides): the developer wants the design
+   now, without waiting for inspections. Until a design is agreed and built, pulls and matching are unchanged.
+3. **Tune the radar threshold** as above (parameter set 2: 0.75 in), through the calibration run (Phase 5b slice 7).
+4. **A plausibility ceiling of 10 in (254 mm)** on MESH values, a day above it recorded `suspect` (item 247, agreed and built the same day).
+5. **A motion check on 50 storm days** from the hourly radar files, to confirm west-to-east movement beyond the one storm
+   (done 2026-10-22, result below under "50 storm days").
+
+**What exists today that this builds on:** a match requires an IEM report (`storm_listing_matches.iem_id` is NOT NULL, unique on
+`(iem_id, listing_id, radius_used)`); a pull is keyed by storm date and report type, with an optional `iem_id`; the zips of a pull
+come from `report_zip_distances`; `send_log` points at a match. A radar-only match therefore needs schema work, not a new query.
+
+**Open design questions (for the entry that decides):**
+- Tier definition: a table of report proximity (centre / inside the radius / edge) against radar layer (core / margin /
+  radar-indicated / warnings / none), with the cut-offs held in the versioned parameter set so inspections can move them.
+- Which radar layers may add zips to a pull (core and margin; radar-indicated only on request), and the minimum overlap of a zip with
+  a layer.
+- Cost: RentCast bills per zip, so radar-only zips are opt-in at the pull estimate, shown separately with their call count.
+- Where provenance lives: `basis` and `tier` on matches, a basis per zip on the pull and the call log, and what a send can filter by.
+- Wording per basis in any email (rule 1 and 2 above), and who reviews it.
+
+**Related:** items 205, 206, 207, 208, 210, 211, 215, 243, 247; decision log 2026-09-16 (two entries), 2026-10-20, 2026-10-21,
+2026-10-22 (the entries above); `docs/analysis/radar-verification-2026-09.md`, `radar-areas-2026-10/`, `weather-sources-2026-10/`.

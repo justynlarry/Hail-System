@@ -30,6 +30,7 @@ _RUNS_SQL = """
 _DAYS_SQL = """
     SELECT count(*) FILTER (WHERE status = 'loaded') AS held,
            count(*) FILTER (WHERE status = 'missing') AS missing,
+           count(*) FILTER (WHERE status = 'suspect') AS suspect,
            min(day) FILTER (WHERE status = 'loaded') AS oldest_day,
            max(day) FILTER (WHERE status = 'loaded') AS newest_day,
            (SELECT count(DISTINCT day) FROM radar_zone_builds) AS built
@@ -61,6 +62,7 @@ def fetch_health(conn, *, now, stale_after):
         "runs": runs,
         "held": days["held"],
         "missing": days["missing"],
+        "suspect": days["suspect"],
         "built": days["built"],
         "oldest_day": days["oldest_day"],
         "newest_day": days["newest_day"],

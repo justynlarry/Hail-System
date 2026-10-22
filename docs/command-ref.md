@@ -66,6 +66,8 @@ calls RentCast, or touches pulls and matching; NOAA radar and IEM warnings are p
   again), and cannot start before 2020-10-14, where NOAA's archive begins. `warnings` fills the NWS
   warnings back to the first stored report for the years before the radar.
 - A day that fails is rolled back and named at the end; the run goes on and ends `failed`, exit status 1.
+- A day whose file holds a value above 10 in (254 mm) is recorded `suspect` and neither stored nor drawn (item 247); re-fetch it with
+  `radar_day.py DAY --refetch` if NOAA ever corrects the file.
 - A long backfill outlives a shell that closes only if it was started detached:
   `docker compose run -d --rm ingest python3 scripts/radar_ingest.py backfill`, then
   `docker logs -f <container>`. Started attached from a shell that ends, the container keeps running but

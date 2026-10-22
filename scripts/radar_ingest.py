@@ -118,7 +118,7 @@ def main(argv=None):
         days = pick_days(conn, args, now)
         out = ingest.run(conn, args.mode, days, DISPLAY_TZ, folder,
                          fetch_new=args.mode != "rebuild", pause=getattr(args, "pause", 0.0), now=now)
-    print(f"run {out['run_id']}: {len(days)} days: loaded {out['loaded']}, missing {out['missing']}, "
+    print(f"run {out['run_id']}: {len(days)} days: loaded {out['loaded']}, missing {out['missing']}, suspect {out['suspect']}, "
           f"held {out['held']}, absent {out['absent']}, built {out['built']}, failed {len(out['failed'])}")
     for day, message in out["failed"]:
         print(f"  failed {day}: {message}", file=sys.stderr)

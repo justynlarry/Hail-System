@@ -16,6 +16,12 @@ from hailsys.radar import fetch, mesh
 # set may ask for a threshold below it.
 FLOOR_IN = 0.50
 FLOOR_MM = FLOOR_IN * mesh.MM_PER_INCH
+# Fixed limit, like the floor:  no hail larger than about 8 in (203 mm) has been measured, so a MESH
+# value above 10 inches is NOAA's processing, not hail.  A day with any cell above it is recorded
+# 'suspect' with no cells.
+CEILING_IN = 10.0
+CEILING_MM = CEILING_IN * mesh.MM_PER_INCH
+
 
 # The crop box is the coverage extent plus this much on every side.  Fixed, a zone margin is at 
 # most 50 km (sql/048) and a degree of latitude is 111 km, so half a degree holds any margin
@@ -53,8 +59,8 @@ _START_SQL = "INSERT INTO radar_runs (run_mode) VALUES (%(mode)s) RETURNING run_
 _FINISH_SQL = """
 UPDATE radar_runs
 SET run_status = %(status)s, finished_at = now(), days_loaded = %(loaded)s,
-    days_missing = %(missing)s, days_built = %(built)s, days_failed = %(failed)s,
-    error_detail = %(error)s
+    days_missing = %(missing)s, days_suspect = %(suspect)s, days_built = %(built)s,
+    days_failed = %(failed)s, error_detail = %(error)s
 WHERE run_id = %(run_id)s
 """
 
@@ -81,8 +87,8 @@ def start_run(conn, mode):
     return conn.execute(_START_SQL, {"mode": mode}).fetchone()["run_id"]
 
 
-def finish_run(conn, run_id, *, loaded, missing, built=0, failed=0, error=None):
-    conn.execute(_FINISH_SQL, {"run_id": run_id, "loaded": loaded, "missing": missing,
+def finish_run(conn, run_id, *, loaded, missing, suspect=0, built=0, failed=0, error=None):
+    conn.execute(_FINISH_SQL, {"run_id": run_id, "loaded": loaded, "missing": missing, "suspect": suspect,
                                "built": built, "failed": failed,
                                "error": error, "status": "failed" if error else "complete"})
 
@@ -94,9 +100,9 @@ def delete_day(conn, day):
 
 
 def load_day(conn, day, tz, directory, *, box, run_id, now=None, **fetch_kw):
-    """Fetch, decode and store local date 'day'.  Returns 'loaded', 'missing' or 'skipped'.
+    """Fetch, decode and store local date 'day'.  Returns 'loaded', 'missing', 'suspect' or 'skipped'.
     
-    'skipped' means the day is already in radar_days (loaded or missing), use delete_day first
+    'skipped' means the day is already in radar_days (loaded, missing or suspect), use delete_day first
     to fetch it again.  LoadError if the file is not the one asked for, or NOAA has no file
     but the stamp is too recent to call it missing.  Other errors (FetchError, MeshError)
     propagate.  Downloaded file is deleted either way.
@@ -125,6 +131,11 @@ def load_day(conn, day, tz, directory, *, box, run_id, now=None, **fetch_kw):
     if decoded["valid_time"] != stamp:
         raise LoadError(f"The file for {day} says it is valid {decoded['valid_time']:%Y-%m-%d %H:%MZ}, "
                         f"not {stamp:%Y-%m-%d %H:%MZ}.")
+    if decoded["max_mm"] is not None and decoded["max_mm"] > CEILING_MM:
+        conn.execute(_DAY_SQL, {**args, "status": "suspect", "stamp": stamp, "key": key,
+                                "cells_in_box": decoded["cells_in_box"], "cells_stored": 0,
+                                "max_mm": decoded["max_mm"]})
+        return "suspect"
     cells = decoded["cells"]
     conn.execute(_DAY_SQL, {**args, "status": "loaded", "stamp": stamp, "key": key,
                             "cells_in_box": decoded["cells_in_box"], "cells_stored": len(cells),

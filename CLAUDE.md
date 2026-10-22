@@ -112,8 +112,10 @@ reaches an email, an export, a pull or the matcher.
 - **The map (slice 5).** The Territory page has a Radar day picker, a layer toggle box and a legend; the layers come
   from `/map/radar.geojson` (staff only, read only, `hailsys/queries/radar_map.py`). The circle radius is the match
   radius setting (item 216, resolved). Storm Days, Territory and the map open on HAIL (`DEFAULT_REPORT_TEXT`, item 238).
+  A MESH value above 10 in (254 mm) is NOAA's processing, not hail: such a day is recorded `suspect` and not drawn (item 247).
 - **Not built:** the findings panel, admin fields for the radar settings (item 243), calibration, inspection data, and
-  the plausibility ceiling for bad MESH values (item 247). The radar database tests need `hail_admin` (item 241).
+  combining the radar with the IEM reports for pulls and matches (direction recorded in the decision log 2026-10-22, not
+  designed). The radar database tests need `hail_admin` (item 241).
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
 with CSV export → 3 RentCast listings → 4 accounts → 5 email → 5b radar layers

@@ -140,6 +140,7 @@ cmd_radar() {
     psql_run "
         SELECT count(*) FILTER (WHERE status = 'loaded') AS days_held,
                count(*) FILTER (WHERE status = 'missing') AS days_missing,
+               count(*) FILTER (WHERE status = 'suspect') AS days_suspect,
                min(day) FILTER (WHERE status = 'loaded') AS oldest,
                max(day) FILTER (WHERE status = 'loaded') AS newest
         FROM radar_days;"

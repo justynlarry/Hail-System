@@ -952,6 +952,25 @@ SELECT pg_temp.expect('radar_runs days built cannot be negative',
 SELECT pg_temp.expect('radar_runs days failed cannot be negative',
   $q$INSERT INTO radar_runs (run_mode, days_failed) VALUES ('nightly', -1)$q$, '23514');
 
+SELECT pg_temp.expect('radar_days a suspect day keeps its evidence and no cells',
+  $q$INSERT INTO radar_days (day, run_id, status, stamp_utc, source_key, box_lat_max, box_lat_min, box_lon_min,
+       box_lon_max, floor_mm, cells_in_box, cells_stored, max_mm)
+     VALUES ('1999-02-01', (SELECT max(run_id) FROM radar_runs), 'suspect', now(), 'k', 2, 1, 1, 2, 12.7, 100, 0, 1007.7)$q$, 'ok');
+SELECT pg_temp.expect('radar_days a suspect day cannot hold cells',
+  $q$INSERT INTO radar_days (day, run_id, status, stamp_utc, source_key, box_lat_max, box_lat_min, box_lon_min,
+       box_lon_max, floor_mm, cells_in_box, cells_stored, max_mm)
+     VALUES ('1999-02-02', (SELECT max(run_id) FROM radar_runs), 'suspect', now(), 'k', 2, 1, 1, 2, 12.7, 100, 5, 1007.7)$q$, '23514');
+SELECT pg_temp.expect('radar_days a suspect day must say what made it suspect',
+  $q$INSERT INTO radar_days (day, run_id, status, stamp_utc, source_key, box_lat_max, box_lat_min, box_lon_min,
+       box_lon_max, floor_mm, cells_in_box, cells_stored)
+     VALUES ('1999-02-03', (SELECT max(run_id) FROM radar_runs), 'suspect', now(), 'k', 2, 1, 1, 2, 12.7, 100, 0)$q$, '23514');
+SELECT pg_temp.expect('radar_days an unknown status is still refused',
+  $q$INSERT INTO radar_days (day, run_id, status, stamp_utc, source_key, box_lat_max, box_lat_min, box_lon_min,
+       box_lon_max, floor_mm, cells_in_box)
+     VALUES ('1999-02-04', (SELECT max(run_id) FROM radar_runs), 'doubtful', now(), 'k', 2, 1, 1, 2, 12.7, 100)$q$, '23514');
+SELECT pg_temp.expect('radar_runs days suspect cannot be negative',
+  $q$INSERT INTO radar_runs (run_mode, days_suspect) VALUES ('nightly', -1)$q$, '23514');
+
 ROLLBACK;
 
 -- Nothing should have survived.

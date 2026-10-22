@@ -64,6 +64,10 @@ class LoadTest(unittest.TestCase):
     def setUpClass(cls):
         # building the file takes a moment, do it once
         cls.good = fx.grib(CELLS, 16, when=WHEN)
+        # mm = (x - 10) / 10, so x = 2550 is exactly 254.0 mm (the ceiling) and 2551 is 254.1
+        cls.at_ceiling = fx.grib({**CELLS, (13, 106): 2550}, 16, when=WHEN)
+        cls.over = fx.grib({**CELLS, (13, 106): 2551}, 16, when=WHEN)
+        cls.impossible = fx.grib({(12, 105): 300, (13, 106): 10176}, 16, when=WHEN)        # 1,016.6 mm
 
     def setUp(self):
         import psycopg
@@ -239,6 +243,61 @@ class LoadTest(unittest.TestCase):
             self.assertEqual(load.delete_day(self.conn, DAY), None)
         finally:
             self.conn.execute("RESET ROLE")
+
+    # -- the plausibility ceiling (item 247) ----------------------------------------------------
+
+    def test_the_ceiling_is_ten_inches_and_above_the_floor(self):
+        self.assertEqual((load.CEILING_IN, load.CEILING_MM), (10.0, 254.0))
+        self.assertGreater(load.CEILING_MM, load.FLOOR_MM)
+
+    def test_a_value_exactly_at_the_ceiling_is_hail(self):
+        self.assertEqual(self.load(_fake_fetch(self.at_ceiling)), "loaded")
+        self.assertIn((13, 106), [(c["grid_row"], c["grid_col"]) for c in self.cells()])
+
+    def test_a_value_just_over_the_ceiling_makes_the_day_suspect(self):
+        self.assertEqual(self.load(_fake_fetch(self.over)), "suspect")
+
+    def test_a_suspect_day_keeps_its_evidence_and_stores_no_cells(self):
+        self.assertEqual(self.load(_fake_fetch(self.impossible)), "suspect")
+        row = self.day_row()
+        self.assertEqual((row["status"], row["cells_stored"], row["cells_in_box"], row["stamp_utc"]),
+                         ("suspect", 0, 11 * 31, STAMP))
+        self.assertAlmostEqual(row["max_mm"], 1016.6, places=1)
+        self.assertEqual(row["source_key"], fetch.source_key(STAMP))
+        self.assertEqual(self.cells(), [])
+
+    def test_the_good_cells_of_a_suspect_day_are_not_stored_either(self):
+        self.load(_fake_fetch(self.over))
+        self.assertEqual(self.cells(), [])
+
+    def test_the_download_of_a_suspect_day_is_deleted(self):
+        self.load(_fake_fetch(self.over))
+        self.assertEqual(os.listdir(self.dir.name), [])
+
+    def test_a_suspect_day_is_held_and_not_fetched_again(self):
+        self.load(_fake_fetch(self.over))
+        seen = []
+        self.assertEqual(self.load(_fake_fetch(self.good, seen=seen)), "skipped")
+        self.assertEqual(seen, [])
+
+    def test_a_suspect_day_can_be_fetched_again_once_deleted(self):
+        self.load(_fake_fetch(self.over))
+        load.delete_day(self.conn, DAY)
+        self.assertEqual(self.load(_fake_fetch(self.good)), "loaded")
+        self.assertEqual(self.day_row()["status"], "loaded")
+
+    def test_the_ingest_role_can_record_a_suspect_day(self):
+        self.conn.execute("SET LOCAL ROLE hail_ingest")
+        try:
+            self.assertEqual(self.load(_fake_fetch(self.over)), "suspect")
+        finally:
+            self.conn.execute("RESET ROLE")
+
+    def test_a_run_records_its_suspect_days(self):
+        load.finish_run(self.conn, self.run_id, loaded=1, missing=2, suspect=3)
+        run = self.conn.execute("SELECT days_loaded, days_missing, days_suspect FROM radar_runs WHERE run_id = %s",
+                                (self.run_id,)).fetchone()
+        self.assertEqual((run["days_loaded"], run["days_missing"], run["days_suspect"]), (1, 2, 3))
 
     # -- runs and deleting ----------------------------------------------------------------
 

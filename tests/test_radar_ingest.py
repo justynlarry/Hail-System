@@ -103,7 +103,12 @@ def _grib(when):
     return fx.grib(CELLS, 16, when=when)
 
 
-def _fake_fetch_day(calls, fail=None, gone=()):
+@lru_cache(maxsize=None)
+def _bad_grib(when):
+    return fx.grib({**CELLS, (13, 106): 10176}, 16, when=when)          # one impossible cell, 1,016.6 mm
+
+
+def _fake_fetch_day(calls, fail=None, gone=(), suspect=()):
     """A fetch_day writing a synthetic file stamped for the day asked.  fail: {day: exception}."""
     def fake(day, tz, directory, **kw):
         calls.append(day)
@@ -114,7 +119,8 @@ def _fake_fetch_day(calls, fail=None, gone=()):
         stamp = fetch.day_stamp(day, tz)
         key = fetch.source_key(stamp)
         path = os.path.join(directory, os.path.basename(key))
-        fx.write(path, _grib((stamp.year, stamp.month, stamp.day, stamp.hour, stamp.minute, 0)), gz=True)
+        when = (stamp.year, stamp.month, stamp.day, stamp.hour, stamp.minute, 0)
+        fx.write(path, (_bad_grib if day in suspect else _grib)(when), gz=True)
         return path, stamp, key
     return fake
 
@@ -160,8 +166,8 @@ class RunTest(unittest.TestCase):
 
     # -- helpers --------------------------------------------------------------------------
 
-    def patches(self, fail=None, gone=(), data=None, download_fail=None):
-        p1 = mock.patch.object(load.fetch, "fetch_day", _fake_fetch_day(self.calls, fail, gone))
+    def patches(self, fail=None, gone=(), data=None, download_fail=None, suspect=()):
+        p1 = mock.patch.object(load.fetch, "fetch_day", _fake_fetch_day(self.calls, fail, gone, suspect))
         p2 = mock.patch.object(warnings.fetch, "download", _fake_download(self.urls, data, download_fail))
         p1.start(), p2.start()
         self.addCleanup(p1.stop)
@@ -222,6 +228,32 @@ class RunTest(unittest.TestCase):
         self.assertEqual((got["loaded"], got["missing"], got["built"]), (1, 1, 1))
         self.assertEqual(self.table("SELECT status FROM radar_days WHERE day = %s", D2)[0]["status"], "missing")
         self.assertEqual(self.count("radar_zone_builds"), 1)
+
+    def test_a_suspect_day_is_counted_apart_recorded_and_not_built(self):
+        self.patches(suspect=(D2,))
+        got = self.run_days([D1, D2, D3])
+        self.assertEqual((got["loaded"], got["suspect"], got["missing"], got["built"], got["failed"]), (2, 1, 0, 2, []))
+        row = self.table("SELECT status, cells_stored, max_mm FROM radar_days WHERE day = %s", D2)[0]
+        self.assertEqual((row["status"], row["cells_stored"]), ("suspect", 0))
+        self.assertAlmostEqual(row["max_mm"], 1016.6, places=1)
+        self.assertEqual(self.table("SELECT count(*) AS n FROM radar_zone_builds WHERE day = %s", D2)[0]["n"], 0)
+        self.assertEqual(self.table("SELECT count(*) AS n FROM radar_cells WHERE day = %s", D2)[0]["n"], 0)
+
+    def test_a_suspect_day_is_held_not_fetched_again_and_not_rebuilt(self):
+        self.patches(suspect=(D2,))
+        self.run_days([D1, D2])
+        self.calls.clear()
+        got = self.run_days([D1, D2])
+        self.assertEqual((got["held"], got["suspect"], got["built"]), (2, 0, 1))
+        self.assertEqual(self.calls, [])
+        rebuilt = self.run_days([D1, D2], fetch_new=False)
+        self.assertEqual((rebuilt["held"], rebuilt["built"]), (2, 1))
+
+    def test_the_pause_is_taken_after_a_suspect_day_too(self):
+        self.patches(suspect=(D1, D2))
+        slept = []
+        self.run_days([D1, D2], pause=0.5, sleep=slept.append)
+        self.assertEqual(slept, [0.5, 0.5])
 
     def test_a_missing_day_already_held_is_not_asked_for_again_or_counted(self):
         self.patches(gone=(D2,))
@@ -361,6 +393,13 @@ class RunTest(unittest.TestCase):
         start = fetch.day_window(D1, DENVER)[0] - warnings.PAD
         end = fetch.day_window(D1, DENVER)[1] + warnings.PAD
         self.assertEqual(self.urls[0], warnings.request_url("CO", start, end))
+
+    def test_a_run_with_a_suspect_day_is_complete_and_counts_it(self):
+        self.patches(suspect=(D2,))
+        out, run = self.run_job()
+        self.assertEqual((run["run_status"], run["days_loaded"], run["days_suspect"], run["days_built"],
+                          run["days_failed"], run["error_detail"]), ("complete", 2, 1, 2, 0, None))
+        self.assertEqual(out["suspect"], 1)
 
     def test_the_warnings_are_fetched_before_the_days(self):
         self.patches()

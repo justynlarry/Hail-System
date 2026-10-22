@@ -38,7 +38,7 @@ class FakeConn:
     """cursor() context whose execute() remembers the SQL and whose fetch* answer by what was asked."""
     def __init__(self, last_ok=None, started=False, runs=(), days=None):
         self.last_ok, self.started, self.runs = last_ok, started, list(runs)
-        self.days = days or {"held": 0, "missing": 0, "oldest_day": None, "newest_day": None, "built": 0}
+        self.days = days or {"held": 0, "missing": 0, "suspect": 0, "oldest_day": None, "newest_day": None, "built": 0}
         self.sql = []
 
     def cursor(self):
@@ -87,11 +87,11 @@ class QueryTest(unittest.TestCase):
         self.assertEqual((got["healthy"], got["started"]), (False, True))
 
     def test_the_counts_and_runs_are_passed_through(self):
-        days = {"held": 7, "missing": 2, "oldest_day": date(2024, 5, 20), "newest_day": date(2026, 6, 8), "built": 5}
+        days = {"held": 7, "missing": 2, "suspect": 3, "oldest_day": date(2024, 5, 20), "newest_day": date(2026, 6, 8), "built": 5}
         runs = [{"run_id": 3}]
         got = self.health(days=days, runs=runs)
-        self.assertEqual((got["held"], got["missing"], got["built"], got["oldest_day"], got["newest_day"], got["runs"]),
-                         (7, 2, 5, date(2024, 5, 20), date(2026, 6, 8), runs))
+        self.assertEqual((got["held"], got["missing"], got["suspect"], got["built"], got["oldest_day"], got["newest_day"], got["runs"]),
+                         (7, 2, 3, 5, date(2024, 5, 20), date(2026, 6, 8), runs))
         self.assertEqual(got["stale_after"], STALE_AFTER)
 
     def test_only_a_completed_nightly_counts_as_the_last_ok(self):
@@ -111,7 +111,7 @@ class DatabaseTest(unittest.TestCase):
         with psycopg.connect(row_factory=dict_row) as conn:
             got = radar.fetch_health(conn, now=datetime.now(UTC), stale_after=STALE_AFTER)
         self.assertEqual(set(got), {"healthy", "started", "last_ok", "age", "stale_after", "runs", "held", "missing",
-                                    "built", "oldest_day", "newest_day"})
+                                    "suspect", "built", "oldest_day", "newest_day"})
         self.assertIsInstance(got["held"], int)
         self.assertLessEqual(len(got["runs"]), 5)
         if got["runs"]:
@@ -131,6 +131,8 @@ class BuiltRowsTest(unittest.TestCase):
         self.addCleanup(self.conn.rollback)
         if not self.conn.execute("SELECT has_table_privilege('radar_parameter_sets', 'INSERT') AS ok").fetchone()["ok"]:
             self.skipTest("needs a role that can insert radar rows (hail_admin)")
+        # Real nightly runs may exist; set them aside inside this transaction (rolled back) so the tests see none.
+        self.conn.execute("UPDATE radar_runs SET run_mode = 'manual' WHERE run_mode = 'nightly'")
         self.before = self.health()
 
     def health(self):
@@ -173,8 +175,7 @@ class BuiltRowsTest(unittest.TestCase):
         self.assertEqual((got["healthy"], got["started"]), (False, True))
 
     def test_only_a_nightly_makes_it_started(self):
-        if self.before["started"]:
-            self.skipTest("a nightly already exists in this database")
+        self.assertFalse(self.before["started"])
         self.add_run("manual", "complete", hours_ago=1)
         self.assertFalse(self.health()["started"])
         self.add_run("nightly", "running")
@@ -184,6 +185,19 @@ class BuiltRowsTest(unittest.TestCase):
         ids = [self.add_run("manual", "complete", hours_ago=h) for h in range(1, 9)]
         runs = self.health()["runs"]
         self.assertEqual([r["run_id"] for r in runs], sorted(ids, reverse=True)[:5])
+
+    def test_suspect_days_are_counted_apart_from_held_and_missing_and_stay_out_of_the_range(self):
+        run = self.add_run("manual", "complete", hours_ago=1)
+        self.add_day(date(1999, 6, 8), run)
+        self.conn.execute(
+            "INSERT INTO radar_days (day, run_id, status, stamp_utc, source_key, box_lat_max, box_lat_min, box_lon_min, "
+            "box_lon_max, floor_mm, cells_in_box, cells_stored, max_mm) VALUES ('2099-01-01', %s, 'suspect', now(), 'k', "
+            "2, 1, 1, 2, 12.7, 5, 0, 1007.7)", (run,))
+        got = self.health()
+        self.assertEqual(got["suspect"], self.before["suspect"] + 1)
+        self.assertEqual(got["held"], self.before["held"] + 1)
+        self.assertEqual(got["missing"], self.before["missing"])
+        self.assertEqual(got["newest_day"], self.before["newest_day"])           # the 2099 suspect day is not in the range
 
     def test_days_held_missing_range_and_built(self):
         run = self.add_run("manual", "complete", hours_ago=1)
@@ -203,6 +217,7 @@ class BuiltRowsTest(unittest.TestCase):
         got = self.health()
         self.assertEqual(got["held"], self.before["held"] + 2)
         self.assertEqual(got["missing"], self.before["missing"] + 2)
+        self.assertEqual(got["suspect"], self.before["suspect"])
         self.assertEqual(got["built"], self.before["built"] + 1)
         self.assertEqual(got["oldest_day"], min(self.before["oldest_day"] or date(1999, 6, 8), date(1999, 6, 8)))
         self.assertEqual(got["newest_day"], max(self.before["newest_day"] or date(1999, 6, 9), date(1999, 6, 9)))
@@ -218,7 +233,7 @@ def iem_health(**over):
 
 def radar_health(**over):
     base = {"healthy": True, "started": True, "last_ok": NOW - timedelta(hours=3), "age": timedelta(hours=3),
-            "stale_after": STALE_AFTER, "runs": [], "held": 2198, "missing": 4, "built": 2190,
+            "stale_after": STALE_AFTER, "runs": [], "held": 2198, "missing": 4, "suspect": 0, "built": 2190,
             "oldest_day": date(2020, 10, 14), "newest_day": date(2026, 10, 20)}
     base.update(over)
     return base
@@ -285,6 +300,12 @@ class PageTest(unittest.TestCase):
         self.assertIn("zones built for 2,190", text)
         self.assertIn("<td>rebuild</td>", text)
         self.assertIn("2026-10-22 04:31", text)               # 10:31 UTC in Denver, shown in Denver time
+
+    def test_suspect_days_are_named_only_when_there_are_some(self):
+        none = self.render(radar=radar_health())
+        self.assertNotIn("suspect", none)
+        some = self.render(radar=radar_health(suspect=2))
+        self.assertIn("2 set aside as suspect (impossible values in NOAA's file)", some)
 
     def test_a_failed_run_shows_its_note_cut_to_160_characters(self):
         note = "5 of 5 days failed: " + "x" * 400

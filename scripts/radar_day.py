@@ -59,7 +59,7 @@ def main(argv=None):
                 print(f"{args.day}: file {status}")
                 if not args.no_warnings:
                     print(f"  warnings: {warnings.ensure_day(conn, args.day, DISPLAY_TZ, folder, run_id=run_id)}")
-            if status != "missing":
+            if status not in ("missing", "suspect"):
                 built = zones.build_day(conn, args.day, DISPLAY_TZ, set_id=args.set_id)
                 print(f"  set {built['set_id']}: {built['cells_over_threshold']} cells over the threshold, "
                       f"{built['patches']} patches, {built['patches_anchored']} anchored "
@@ -68,7 +68,7 @@ def main(argv=None):
                     print(f"  {layer:16s}{built['areas'].get(layer, 0):10.1f} km2")
                 print("  warnings overlapping the day: "
                       + ("not loaded, no outer layer" if built["warnings_used"] is None else str(built["warnings_used"])))
-            load.finish_run(conn, run_id, loaded=int(loaded), missing=int(missing))
+            load.finish_run(conn, run_id, loaded=int(loaded), missing=int(missing), suspect=int(status == "suspect"))
             conn.commit()
         except Exception as exc:
             conn.rollback()

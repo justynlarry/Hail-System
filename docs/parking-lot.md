@@ -6215,7 +6215,7 @@ day's box with `crop_box`, and add a `radar_ingest.py` mode that refetches the d
 
 ## 247. NOAA's MESH file holds impossible values on two days, which draw as false "radar-indicated" hail
 
-**Status:** open (filed 2026-10-22, Phase 5b; fix agreed by the developer the same day, being built)
+**Status:** resolved 2026-10-22 (filed and fixed the same day, Phase 5b)
 
 Found while summarising the six-year backfill. `radar_days.max_mm` for **2022-01-03** and **2022-01-11** is 1,007.7 mm
 (39.7 in); no hail has been measured above about 8 in (203 mm). 2022-01-03 has 1,854 cells above 10 in (227 distinct values,
@@ -6233,6 +6233,13 @@ suspicion.
 with any cell above it is recorded with status `suspect`: no cells, no zones, shown in the status line and the picker, and
 rebuilds and the nightly job leave it alone. Cold-season days stay, and the findings panel will flag them.
 
-**When:** before the findings panel (slice 6), so its numbers are clean.
+**Fixed 2026-10-22** (`sql/052`; `hailsys/radar/load.py` `CEILING_IN`/`CEILING_MM`; ingest, scripts and status updated). A day with a value above
+10 in (254 mm, exactly 254.0 mm still counts as hail) is recorded `suspect`: it keeps `max_mm` and `cells_in_box`, stores no cells and builds no zones;
+it counts as held (the nightly does not retry it, the weekly rebuild skips it), and runs, `status.sh radar` and the Storm Days radar detail show a
+suspect count. 2022-01-03 and 2022-01-11 were re-fetched (`radar_day.py --refetch`) and are now `suspect`; their cells and the false 2,397 km² and
+27 km² radar-indicated zones are gone. Tests: `tests/test_radar_load.py` (the boundary at 254.0 and 254.1 mm, the evidence kept, a day not fetched again,
+a re-fetch after delete), `test_radar_ingest.py`, `test_radar_health.py`, `test_radar_zones.py`, and `sql/guard_test.sql`.
+
+**Not fixed, still open:** the cold-season days (December to March) with MESH of 1 in or more and no report. The findings panel (slice 6) will flag them.
 
 **Related:** items 211, 239, 240; `docs/analysis/mesh-window-2026-10/`; decision log 2026-10-22.
