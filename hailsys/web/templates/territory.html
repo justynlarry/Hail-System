@@ -48,7 +48,7 @@
     </span>
 
     <button type="submit">Apply</button>
-    <a href="{{ url_for('main.export_csv') }}?{{ request.query_string.decode() }}">Download CSV</a>
+    <a href="{{ url_for('main.export_csv') }}?{{ export_query }}">Download CSV</a>
 </form>
 
 {% if not rows %}
@@ -99,7 +99,7 @@
             </tbody>
         </table>
     </div>
-    <div class="split-map"><div id="map"></div></div>
+    <div class="split-map">{% include "_map_panel.html" %}</div>
 </div>
 <p class="note">
     A report within range of zips in two cities counts under both, so reports here
@@ -141,7 +141,7 @@
 </div>
 </div>
 <div class="split-map">
-<div id="map"></div>
+{% include "_map_panel.html" %}
 </div>
 </div>
 {% endif %}

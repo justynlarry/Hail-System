@@ -1,0 +1,13 @@
+[Unit]
+Description=Rebuild the last 30 days of radar zones on Sundays at 11:30 UTC, after the IEM replay at 11:00
+Documentation=file:///home/hail-user/hail-system/docs/hail-consolidated.md
+
+[Timer]
+OnCalendar=Sun *-*-* 11:30:00
+
+Persistent=true
+AccuracySec=1min
+Unit=radar_weekly_rebuild.service
+
+[Install]
+WantedBy=timers.target

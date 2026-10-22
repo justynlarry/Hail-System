@@ -82,7 +82,7 @@ addresses.
   admin-only `/templates` editor (`hailsys/web/emailtpl.py`) builds, previews, saves and retires block
   templates; its JavaScript is checked in a Node container (item 222). A golden test pins the block-built
   `hail_alert` to the shipped file. The built-in template still renders from its files (item 220). Not on
-  the production box: `sql/039` to `047`. `sql/045` to `047` are the drip-campaign settings and tables (item 204, in progress: the campaign screens at `/campaigns` and the follow-up part of the `/send` confirm page exist; no campaign has been run yet, the dev rehearsal is piece 7). The editor's "Send a test to <your address>" button
+  the production box: `sql/039` to `051`. `sql/045` to `047` are the drip-campaign settings and tables (item 204, in progress: the campaign screens at `/campaigns` and the follow-up part of the `/send` confirm page exist; no campaign has been run yet, the dev rehearsal is piece 7). The editor's "Send a test to <your address>" button
   (`testsend.py`, `email_test_sends`) emails the draft to the clicking admin only, three Constant Contact
   calls, at most 5 an hour; it is not a send. The editor has a formatting guide, a toolbar on the rich text boxes (`templates.js`)
   and a two-column layout with the preview beside the form.
@@ -96,6 +96,24 @@ addresses.
 - **Before a production send.** Items 129, 183 (the paid account), 189 (the eligibility
   gate) and 96 (the sending domain), and a production box that has the code. Provider
   chosen 2026-10-06: Constant Contact (decision log, item 119).
+
+What exists for Phase 5b so far, as of 2026-10-22, on `hail-dev` only (decision log 2026-10-20 waived "do not
+build ahead" for this phase). Radar layers for the territory page, internal and staff only: nothing radar-derived
+reaches an email, an export, a pull or the matcher.
+- **Data and zones.** `sql/048` to `051`; `hailsys/radar/` decodes NOAA's public MRMS `MESH_Max_1440min` file (the one
+  stamped at the local midnight that ends the day, 2020-10-14 on), stores the cells, and builds four layers per
+  day in PostGIS: core, margin, radar-indicated, and outer (NWS warning polygons). Thresholds live in the
+  append-only `radar_parameter_sets` (newest row in use); `settings.storm_states` names the warning states.
+- **Jobs.** `scripts/radar_ingest.py` (`nightly`, `rebuild`, `backfill`, `warnings`), `scripts/radar_day.py` for one
+  day; `systemd/radar_*` timers at 10:30 UTC nightly and Sundays 11:30 (installed and enabled on `hail-dev`, 2026-10-22); `scripts/status.sh
+  radar` and a line on the Storm Days page. The `ingest` image now imports `hailsys/db.py`, `tuning.py` and
+  `hailsys/radar/`, so rebuild it after changes to them.
+  The backfill ran 2026-10-22: 2,197 days held, 2020-10-14 to 2026-10-21 (2 absent at NOAA).
+- **The map (slice 5).** The Territory page has a Radar day picker, a layer toggle box and a legend; the layers come
+  from `/map/radar.geojson` (staff only, read only, `hailsys/queries/radar_map.py`). The circle radius is the match
+  radius setting (item 216, resolved). Storm Days, Territory and the map open on HAIL (`DEFAULT_REPORT_TEXT`, item 238).
+- **Not built:** the findings panel, admin fields for the radar settings (item 243), calibration, inspection data, and
+  the plausibility ceiling for bad MESH values (item 247). The radar database tests need `hail_admin` (item 241).
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
 with CSV export → 3 RentCast listings → 4 accounts → 5 email → 5b radar layers
@@ -174,6 +192,9 @@ These have already bitten us. Do not re-discover them.
   Its shapefile truncates field names to 10 characters (`PRODUCT_ID` arrives as `PROD_ID`).
 - NCEI Storm Events times are local **standard** time all year (`CZ_TIMEZONE` `MST-7`): an hour off
   Denver summer time if read as local.
+- IEM's JSON API `sbw_interval.geojson` **silently ignores** `states=`, `state=` and `phenomena=` and returns every
+  warning in the country (620 for two days); only repeated `wfo=` filters it. The shapefile export `watchwarn.py`
+  honours `states=`. Radar uses the shapefile.
 - HRRR u/v winds are **grid-relative**: rotate to true north (about -4 degrees near 104 W). eccodes names
   the 10 m wind `10u`/`10v`, not `u`/`v`, so a lookup on `u` silently drops it.
 

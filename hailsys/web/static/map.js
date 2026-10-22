@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', function () {
     pane: 'counties',
     interactive: false,
     style: function (feature) {
-      return{
+      return {
         color: COUNTY_COLORS[feature.properties.county_fips.charCodeAt(2) % COUNTY_COLORS.length],
         weight: .25,
         fillColor: '#999',      // overridden by .map-county in style.css, per theme
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   fetch('/static/colorado_counties.geojson')
     .then(function (r) { return r.json(); })
-    .then(function (data) {counties.addData(data); })
+    .then(function (data) { counties.addData(data); })
     .catch(function (err) { console.error('counties load failed', err); });
 
 
@@ -55,6 +55,24 @@ document.addEventListener('DOMContentLoaded', function () {
     })
     .catch(function (err) { console.error('coverage load failed', err); });
 
+  // Panes, bottom to top.  The radar layers sit above the coverage (400) and below the report circles
+  // and points, and are not interactive, so the mouse reaches the points and the zip tooltips under them.
+  const RADAR_ORDER = ['outer', 'radar_indicated', 'margin', 'core'];
+  const RADAR_CLASS = {
+    outer: 'radar-warnings', radar_indicated: 'radar-indicated', margin: 'radar-margin', core: 'radar-core',
+  };
+  const RADAR_LABEL = {
+    outer: 'NWS warnings', radar_indicated: 'Radar-indicated', margin: 'Margin', core: 'Core',
+  };
+  RADAR_ORDER.forEach(function (name, i) {
+    map.createPane('radar-' + name);
+    map.getPane('radar-' + name).style.zIndex = 410 + i * 10;
+  });
+  map.createPane('report-circles');
+  map.getPane('report-circles').style.zIndex = 450;
+  map.createPane('report-points');
+  map.getPane('report-points').style.zIndex = 460;
+
   // Keys are report_source_norm values (upper/trim), the top 5 sources by
   // report_count in reference/sources.csv. report_source itself is free
   // text with inconsistent case, so it is never the match key.
@@ -69,6 +87,11 @@ document.addEventListener('DOMContentLoaded', function () {
   const circles = L.layerGroup().addTo(map);
   const points = L.layerGroup().addTo(map);
 
+  // The circle claims the match radius, which is a setting.  The server sends it in metres; with no
+  // number the circles are left out rather than drawn at a guess (item 216).
+  const matchRadiusM = parseFloat(container.dataset.matchRadiusM);
+  if (!(matchRadiusM > 0)) console.error('map: no match radius from the server, circles not drawn');
+
   const params = new URLSearchParams(window.location.search);
   fetch('/map/points.geojson?' + params)
     .then(function (r) { return r.json(); })
@@ -80,20 +103,90 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // L.circle takes metres and draws a true circle on the ground.
         // L.circleMarker takes pixels and would grow as you zoom out,
-        // which would be a lie about how far 5 miles is.
-        circles.addLayer(L.circle([lat, lon], {
-          radius: 8046.72,
-          color: color, weight: 1, fillOpacity: 0.05,
-          interactive: false,
-        }));
+        // which would be a lie about how far the radius is.
+        if (matchRadiusM > 0) {
+          circles.addLayer(L.circle([lat, lon], {
+            pane: 'report-circles', radius: matchRadiusM,
+            color: color, weight: 1, fillOpacity: 0.05,
+            interactive: false,
+          }));
+        }
 
         // Formatted by hailsys/formatting.py; the raw p.magnitude stays in the
         // feature for anything that sorts or sizes by it.
         points.addLayer(L.circleMarker([lat, lon], {
+          pane: 'report-points',
           radius: 5, color: color, fillColor: color, fillOpacity: 0.9, weight: 1,
         }).bindTooltip(p.local_time + '<br>' + p.report_text + ' ' + p.magnitude_display +
                        '<br>' + p.report_source));
       });
     })
     .catch(function (err) { console.error('points load failed', err); });
+
+  // Radar layers (Phase 5b), staff only.  Colours come from style.css by class, per theme.
+  const radar = {};
+  RADAR_ORDER.forEach(function (name) {
+    radar[name] = L.geoJSON(null, {
+      pane: 'radar-' + name, interactive: false,
+      style: { weight: 1, fillOpacity: 0.3, className: RADAR_CLASS[name] },
+    }).addTo(map);
+  });
+
+  L.control.layers(null, {
+    'Report circles': circles,
+    'Report points': points,
+    'Core': radar.core,
+    'Margin': radar.margin,
+    'Radar-indicated': radar.radar_indicated,
+    'NWS warnings': radar.outer,
+  }, { collapsed: false }).addTo(map);
+
+  const picker = document.getElementById('radar-day');
+  const status = document.getElementById('radar-status');
+
+  function km2(n) {
+    return n.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ' km²';
+  }
+
+  // One line for the layers on the map now:  largest claim first, the areas of the union.
+  function describe(data) {
+    const parts = [];
+    ['core', 'margin', 'radar_indicated', 'outer'].forEach(function (name) {
+      data.features.forEach(function (f) {
+        if (f.properties.layer === name) parts.push(RADAR_LABEL[name] + ' ' + km2(f.properties.area_km2));
+      });
+    });
+    let text = parts.length ? parts.join(' · ') : 'Nothing to draw for this selection.';
+    if (data.days.length > 1) text += ' (' + data.days.length + ' days)';
+    if (data.built_with_other_set.length) {
+      text += ' ' + data.built_with_other_set.length + ' day(s) were built with an older parameter set and are not shown.';
+    }
+    return text;
+  }
+
+  function loadRadar() {
+    if (!picker) return;
+    const q = new URLSearchParams(window.location.search);
+    q.delete('day');
+    if (picker.value !== 'all') q.set('day', picker.value);
+    fetch(container.dataset.radarUrl + '?' + q)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        RADAR_ORDER.forEach(function (name) { radar[name].clearLayers(); });
+        data.features.forEach(function (f) { radar[f.properties.layer].addData(f); });
+        if (status) status.textContent = describe(data);
+      })
+      .catch(function (err) {
+        console.error('radar load failed', err);
+        if (status) status.textContent = 'The radar layers could not be loaded.';
+      });
+  }
+
+  if (picker) {
+    picker.addEventListener('change', loadRadar);
+    loadRadar();
+  }
 });

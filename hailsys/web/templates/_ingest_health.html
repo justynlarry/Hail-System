@@ -50,4 +50,61 @@
         </p>
         {% endif %}
     </details>
+
+{% if radar_health %}
+{% set rh = radar_health %}
+{% if rh.healthy %}
+    <p class="health-ok">
+        Radar layers OK — last nightly completed
+        {{ (rh.age.total_seconds() // 3600) | int }} hours ago.
+    </p>
+{% elif not rh.started %}
+    <p>
+        Radar layers — the nightly job has not run yet.
+        {{ rh.held }} {{ 'day' if rh.held == 1 else 'days' }} loaded.
+    </p>
+{% else %}
+    <p class="health-stale">
+        {% if rh.last_ok %}
+        Radar layers STALE — no nightly has completed in
+        {{ (rh.age.total_seconds() // 3600) | int }} hours.
+        {% else %}
+        Radar layers STALE — no nightly run has ever completed.
+        {% endif %}
+    </p>
+{% endif %}
+
+    <details>
+        <summary>Radar detail</summary>
+        <p>{{ '{:,}'.format(rh.held) }} {{ 'day' if rh.held == 1 else 'days' }} of radar loaded{% if rh.oldest_day %}
+           ({{ rh.oldest_day.strftime('%Y-%m-%d') }} to {{ rh.newest_day.strftime('%Y-%m-%d') }}){% endif %},
+           {{ '{:,}'.format(rh.missing) }} missing from NOAA,
+           zones built for {{ '{:,}'.format(rh.built) }}.</p>
+
+        <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>Run</th><th>Mode</th><th>Status</th>
+                    <th>Loaded</th><th>Missing</th><th>Built</th><th>Failed</th>
+                    <th>Finished</th><th>Note</th></tr>
+            </thead>
+            <tbody>
+            {% for r in rh.runs %}
+                <tr>
+                    <td>{{ r.run_id }}</td>
+                    <td>{{ r.run_mode }}</td>
+                    <td>{{ r.run_status }}</td>
+                    <td>{{ r.days_loaded }}</td>
+                    <td>{{ r.days_missing }}</td>
+                    <td>{{ r.days_built }}</td>
+                    <td>{{ r.days_failed }}</td>
+                    <td>{{ r.finished_at.astimezone(display_tz).strftime('%Y-%m-%d %H:%M') if r.finished_at else '—' }}</td>
+                    <td>{{ r.error_detail[:160] if r.error_detail else '' }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </details>
+{% endif %}
 </div>

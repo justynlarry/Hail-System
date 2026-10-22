@@ -315,6 +315,18 @@ Decision log 2026-10-14 ("Radar layers on the territory page") and 2026-10-20.
 - Hail only. No new Colorado or Denver constants: time zone, state and map bounds come from settings and data
   (item 238 lists the ones that already exist)
 
+**Progress, 2026-10-22 (on `hail-dev` only):** slices 0 to 5 are built and tested. Slice 0 settled which
+`MESH_Max_1440min` file covers a Denver day (decision log 2026-10-21). Slice 1: the GRIB2 decoder (8- and 16-bit
+packing) and fetcher. Slice 2: the zone builder (core, margin, radar-indicated) and `radar_day.py`, checked
+against an independent implementation on four storm days. Slice 3: NWS warning polygons and the outer layer,
+the `storm_states` setting. Slice 4: the nightly and weekly jobs, backfill, `status.sh radar` and the Storm
+Days page line, the ingest image rebuilt; the backfill from 2020-10-14 ran 2026-10-22 (2,197 days held, 2 absent at
+NOAA) and the timers are installed. Slice 5: `/map/radar.geojson`, the four map layers with a day picker, toggles and
+legend on the Territory page, the circle radius from the setting (item 216), and a default report type of HAIL on Storm
+Days, Territory and the map. **Not built:** the plausibility ceiling for bad MESH values (item 247, next), slice 6
+(findings panel, including the listings in each layer), slice 7 (admin fields for the thresholds, margin, radius and `storm_states`; the rebuild
+button; the calibration run), slice 8 (inspection data, when RBI delivers it).
+
 **Done when:** for a historical storm day, the four layers draw on the territory page and agree with
 the 2026-10 analysis for that day (`docs/analysis/radar-areas-2026-10/`). The tier settings change the
 layers from the admin page. Nothing radar-derived reaches an email or an export.

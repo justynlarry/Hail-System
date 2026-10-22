@@ -1014,6 +1014,41 @@ jobs, and nothing sends by itself: every step starts with a person's click.
 
 ---
 
+## Radar layers (Phase 5b)
+
+`sql/048_radar_tables.sql`, `049_radar_zones.sql`, `050_radar_warnings.sql`, `051_radar_job.sql`, applied to
+`hail-dev` only. Internal display for staff on the territory page (decision log 2026-10-14, 2026-10-20,
+2026-10-21, 2026-10-22): nothing here reaches an email, an export, a pull or the matcher. The code is
+`hailsys/radar/` (`mesh.py` decodes NOAA's GRIB2 file, `fetch.py` downloads it, `load.py` stores the cells,
+`zones.py` builds the layers in PostGIS, `warnings.py` stores NWS polygons, `ingest.py` runs days).
+The source is NOAA's public MRMS `MESH_Max_1440min` file stamped at the local midnight that ends the day (decision log
+2026-10-21), from 2020-10-14.
+
+| Table | What it holds | Rules in the database |
+|---|---|---|
+| `radar_parameter_sets` | `set_id`, `name`, `hail_threshold_in` (0.50 to 4.00), `margin_km` (0 to 50), `report_radius_km` (0 to 50), `created_at/by` | Append-only (trigger). The **newest row is in use**; to go back, add a row. Row 1 is the analysis placeholder 1.00 in, 3 km, 5 km (`created_by` NULL, written by the migration) until inspection data sets them (items 207, 208). Zones record the `set_id` they were built with |
+| `radar_runs` | `run_id`, `run_mode` (`nightly`, `backfill`, `manual`, `rebuild`), `started_at`, `finished_at`, `run_status` (`running`, `complete`, `failed`), `days_loaded`, `days_missing`, `days_built`, `days_failed`, `error_detail` | A finished run needs `finished_at`. A run with failed days ends `failed` and names the first 20 in `error_detail`. `hail_ingest` may update it |
+| `radar_days` | PK `day` (a date in the display time zone), `run_id`, `status` (`loaded` or `missing`), `stamp_utc`, `source_key`, the crop box (`box_lat_max/min`, `box_lon_min/max`), `floor_mm`, `cells_in_box`, `cells_stored`, `max_mm`, `fetched_at` | `missing` means NOAA had no file and is kept so a backfill does not ask again, it holds no cells. Delete the row to fetch the day again. The box is the active `coverage_zips` extent plus 0.5 degrees on the grid; **a day keeps the box it was loaded with** (item 246) |
+| `radar_cells` | PK `(day, grid_row, grid_col)`, `mm`, `geom` (point, 4326, the cell centre) | Only cells at or above 0.50 in (12.7 mm), a fixed floor in code that no parameter set can go under. ~174 bytes a row with its index. Zones are built from these, so a changed threshold needs no download |
+| `radar_zone_builds` | PK `(day, set_id)`, `built_at/by` (`built_by` NULL for a job), the UTC `window_start/end`, `cells_over_threshold`, `patches`, `patches_anchored`, `anchor_reports`, `warnings_used` | One per day and parameter set. A day with no hail still gets a row (so "none" differs from "not built"). `warnings_used` is NULL when the day's warnings were not fetched, which is not "no warnings" |
+| `radar_zones` | PK `(day, set_id, layer)`, `layer` (`core`, `margin`, `radar_indicated`, `outer`), `geom` (multipolygon, valid), `area_km2` (spherical, from geography) | Derived data: a rebuild deletes the day's zones and writes them again. An empty layer has no row. Layers never overlap. See below |
+| `warning_loads` | `load_id`, `window_start/end`, `states`, `fetched_at`, `run_id`, `polygons_seen`, `polygons_new` | One per IEM fetch. A day is **covered** when a load for the current `storm_states` spans the whole day and ran at least 2 hours after it ended; only then does a build add the outer layer |
+| `warning_polygons` | PK `(wfo, phenomena, significance, eventid, vtec_year, poly_begin)`, `poly_end`, `issued`, `expires`, `product_id`, `load_id`, `geom` | Severe thunderstorm (`SV`) and tornado (`TO`) warnings, storm-based polygons only; one row per polygon version. A warning belongs to a local day if its polygon was valid at any time in it. Self-intersecting polygons are made valid on the way in. Held from 2004 |
+
+**The layers** (built by `zones.build_day` for one day): hail cells at or above the threshold are grouped into
+8-neighbour patches; a patch with a cell within `report_radius_km` of an actionable report that day (the matcher's
+own rule, so wind reports count) is anchored. *core* is the anchored patches; *margin* is `margin_km` around the core,
+outside it; *radar_indicated* is the unanchored patches outside both; *outer* is the day's warning polygons,
+clipped to the crop box, outside the other three. The zone logic was checked against an independent
+Python implementation on four real storm days (patch, anchored and report counts equal, core area within 0.2%).
+
+**Grants:** `hail_app` has `SELECT` on all eight, and `INSERT, DELETE` on `radar_zone_builds` and `radar_zones`.
+`hail_ingest` has `SELECT, INSERT, UPDATE` on `radar_runs`; `SELECT, INSERT, DELETE` on `radar_days`, `radar_cells`,
+`radar_zone_builds` and `radar_zones`; `SELECT` on `radar_parameter_sets` and `coverage_zips`; `SELECT, INSERT` on the
+two warning tables. `sql/guard_test.sql` holds the rules as tests.
+
+---
+
 ## Address search
 
 Added by `sql/031_address_search.sql` (decision log 2026-10-01).
@@ -1139,6 +1174,7 @@ invalidation to get wrong across Gunicorn workers.
 | `contact_email` | `TEXT NOT NULL`, `CHECK` an address (one `@`, no spaces) — added `sql/042_email_images_and_settings.sql`. The contact line at the foot of the email. Moved from the `EMAIL_CONTACT_EMAIL` environment variable; the column default is the value it had |
 | `schedule_url` | `TEXT NOT NULL`, `CHECK` starts `https://` — added `042`. The "Schedule a new inspection" link. Was `EMAIL_SCHEDULE_URL`. The renderer also refuses free-hosting domains (`render.check_url`) |
 | `from_name`, `from_email`, `reply_to` | `TEXT NOT NULL` — added `042`. The sender identity passed to Constant Contact (`emailconfig.load_sender`). Were `CC_FROM_NAME`, `CC_FROM_EMAIL`, `CC_REPLY_TO`. **`from_email` must be a verified sender in the Constant Contact account**, or its campaigns are refused; the admin page says so beside the field. One sender for everyone; a per-user choice is item 194 |
+| `storm_states` | `TEXT NOT NULL DEFAULT 'CO'`, `CHECK` two-letter upper case codes separated by commas, no spaces — added `sql/050_radar_warnings.sql` (Phase 5b). The states whose NWS warnings the radar layers fetch (`CO,WY` for two). Not yet used by the IEM report ingest (item 238). **No admin-page field yet**, an admin `UPDATE` changes it and the trigger logs it (item 243). `hail_ingest` may read this column and no other |
 | `rentcast_monthly_quota` | `INTEGER NOT NULL DEFAULT 1000`, `CHECK` `> 0` — added `023`. Requests included per billing period. **Warn and allow**: the pull estimate warns when a pull would exceed it, and nothing blocks (decision-log 2026-09-23, "RentCast quota…") |
 
 Plus a table-level `CHECK` `match_within_zip_radius`:
@@ -1182,6 +1218,7 @@ freshness settings, snapshotting all seven values that resulted (five before `03
 | `rentcast_billing_day`, `rentcast_monthly_quota` | Nullable — added `023`. **NULL on rows written before `023`**, not backfilled: a default would assert a value nobody recorded. The admin page shows them as "—" |
 | `listing_freshness_days` | `SMALLINT`, nullable — added `sql/028`. **NULL on rows written before `028`**, not backfilled, for the same reason |
 | `drip_max_followups`, `drip_max_gap_days` | `SMALLINT`, nullable — added `045`. **NULL on rows written before `045`**, not backfilled |
+| `storm_states` | `TEXT`, nullable — added `sql/050`. **NULL on rows written before `050`**, not backfilled |
 | `match_max_age_days`, `email_cap_days` | `SMALLINT`, nullable — added `sql/038`. **NULL on rows written before `038`**, not backfilled, for the same reason |
 | `contact_email`, `schedule_url`, `from_name`, `from_email`, `reply_to` | `TEXT`, nullable — added `sql/042`. **NULL on rows written before `042`**, not backfilled, for the same reason |
 

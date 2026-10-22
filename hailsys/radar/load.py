@@ -53,7 +53,8 @@ _START_SQL = "INSERT INTO radar_runs (run_mode) VALUES (%(mode)s) RETURNING run_
 _FINISH_SQL = """
 UPDATE radar_runs
 SET run_status = %(status)s, finished_at = now(), days_loaded = %(loaded)s,
-    days_missing = %(missing)s, error_detail = %(error)s
+    days_missing = %(missing)s, days_built = %(built)s, days_failed = %(failed)s,
+    error_detail = %(error)s
 WHERE run_id = %(run_id)s
 """
 
@@ -80,8 +81,9 @@ def start_run(conn, mode):
     return conn.execute(_START_SQL, {"mode": mode}).fetchone()["run_id"]
 
 
-def finish_run(conn, run_id, *, loaded, missing, error=None):
+def finish_run(conn, run_id, *, loaded, missing, built=0, failed=0, error=None):
     conn.execute(_FINISH_SQL, {"run_id": run_id, "loaded": loaded, "missing": missing,
+                               "built": built, "failed": failed,
                                "error": error, "status": "failed" if error else "complete"})
 
 

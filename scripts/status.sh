@@ -126,20 +126,54 @@ cmd_nightly() {
     return 1
 }
 
+
+# The radar jobs, same test as cmd_nightly on their own table.  Before the first nightly has
+# run (backfill still going, timer not yet installed) this says STALE, which is true.
+cmd_radar() {
+    echo "== Radar layers =="
+    psql_run "
+        SELECT run_id, run_mode, run_status, days_loaded, days_missing, days_built,
+               days_failed, finished_at
+          FROM radar_runs
+        ORDER BY run_id DESC
+        LIMIT 5;"
+    psql_run "
+        SELECT count(*) FILTER (WHERE status = 'loaded') AS days_held,
+               count(*) FILTER (WHERE status = 'missing') AS days_missing,
+               min(day) FILTER (WHERE status = 'loaded') AS oldest,
+               max(day) FILTER (WHERE status = 'loaded') AS newest
+        FROM radar_days;"
+    local fresh
+    fresh=$(psql_run "
+        SELECT coalesce(max(finished_at) > now() - interval '$STALE_HOURS hours', false)
+          FROM radar_runs
+        WHERE run_mode = 'nightly' AND run_status = 'complete';" -tA)
+    fresh=${fresh//[[:space:]]/}
+
+    if [[ $fresh == t ]]; then
+        echo "OK: a nightly radar run has completed in the last ${STALE_HOURS}h."
+        return 0
+    fi
+    echo "STALE: no nightly radar run has completed in the last ${STALE_HOURS}h." >&2
+    return 1
+}
+
+
+
 # Which paths make each image out of date.  Only `ingest` bakes code that
 # unattended jobs run; web, app and loader read the working tree through bind
 # mounts (command-ref.md, "Which services see your edits"), so for them only
 # the build inputs count.  The ingest list is the import closure of
-# scripts/iem_ingest.py and iem_backfill.py plus hailsys/logconfig.py, which
+# scripts/iem_ingest.py, iem_backfill.py and radar_ingest.py plus hailsys/logconfig.py, which
 # configure_logging() imports lazily.  Derive it again if ingest gains an
 # import, or this goes quietly out of date:
 #   docker compose run --rm ingest python -c "import sys; \
-#     sys.path.insert(0,'scripts'); import iem_ingest, iem_backfill, \
+#     sys.path.insert(0,'scripts'); import iem_ingest, iem_backfill, radar_ingest, \
 #     hailsys.logconfig; print(sorted(m for m in sys.modules \
 #     if m.startswith('hailsys')))"
 image_paths() {
     case $1 in
-        ingest)  echo "hailsys/__init__.py hailsys/iem hailsys/logconfig.py scripts/iem_ingest.py scripts/iem_backfill.py requirements.txt docker/ingest.Dockerfile" ;;
+        ingest)  echo "hailsys/__init__.py hailsys/iem hailsys/radar hailsys/db.py hailsys/tuning.py hailsys/logconfig.py scripts/iem_ingest.py scripts/iem_backfill.py scripts/radar_ingest.py requirements.txt docker/ingest.Dockerfile" ;;
         app|web) echo "requirements.txt docker/app.Dockerfile" ;;
         loader)  echo "docker/loader.Dockerfile" ;;
     esac
@@ -184,14 +218,15 @@ cmd_images() {
 
 usage() {
     cat <<EOF
-usage: status.sh [runs|data|rejects|nightly|images|all]
+usage: status.sh [runs|data|rejects|nightly|radar|images|all]
 
   runs     the last five ingest runs and their counts
   data     how many reports are stored, and how recent
   rejects  reject reasons across the last ten runs
   nightly  when a nightly run last succeeded; exits 1 if that is stale
+  radar    the last five radar runs, days held, and whether a nightly radar run is fresh;  exits 1 if stale
   images   whether each Docker image is behind the code or files it depends on
-  all      all of the above (default), exiting 1 if nightly is stale
+  all      all of the above (default), exiting 1 if the IEM nightly is stale (radar shown, not counted)
 
 environment: DB_SERVICE=$DB_SERVICE DB_USER=$DB_USER DB_NAME=$DB_NAME STALE_HOURS=$STALE_HOURS
 EOF
@@ -201,7 +236,7 @@ main() {
     local cmd=${1:-all}
     case $cmd in
         -h|--help|help) usage; exit 0 ;;
-        runs|data|rejects|nightly|images|all) ;;
+        runs|data|rejects|nightly|radar|images|all) ;;
         *) usage >&2; die "unknown command '$cmd'" ;;
     esac
 
@@ -213,6 +248,7 @@ main() {
         data)    cmd_data ;;
         rejects) cmd_rejects ;;
         nightly) cmd_nightly ;;
+        radar)   cmd_radar ;;
         images)  cmd_images ;;
         all)
             local rc=0
@@ -220,6 +256,7 @@ main() {
             cmd_data;    echo
             cmd_rejects; echo
             cmd_images;  echo
+            cmd_radar || true; echo
             # Nightly runs last so its verdict is the last thing on screen, and
             # its status becomes the script's. `|| rc=$?` is what keeps set -e
             # from exiting here before the message is useful.

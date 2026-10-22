@@ -7288,3 +7288,61 @@ golden test.
 
 **Related:** item 211 (this does not resolve it: the two NOAA products agree with each other here; the
 open difference is against a maximum built from Iowa State's 2-minute files); `phases.md` Phase 5b.
+
+
+## 2026-10-22 — How the radar job runs, and what the 5b tables look like
+
+**Decision (developer, 2026-10-21 and 2026-10-22), Phase 5b slices 2 to 4 as built:**
+1. **Thresholds are an append-only table, not `settings` columns.** `radar_parameter_sets` (hail threshold, margin,
+   report radius); the newest row is in use; zones record the `set_id` they were built with. This replaces the
+   2026-10-20 plan of `settings` rows with history, because calibration needs old sets kept to compare them. Row 1 is
+   the analysis placeholder (1.00 in, 3 km, 5 km) until inspections set it (items 207, 208).
+2. **What anchors a core is the matcher's own "actionable" rule,** which includes wind reports, because that is what
+   the 60-storm evidence used (developer, 2026-10-21). Revisit in the calibration run.
+3. **Warnings** are NWS severe thunderstorm and tornado storm-based polygons from IEM's shapefile export, for the states in
+   `settings.storm_states` (default `CO`; no bounding box exists). They are held from 2004-01-26, the first stored
+   report; polygons exist from 2004. A day's outer layer is stored only for days with radar (2020-10-14 on); older
+   days will show the circle and the raw polygons (slice 5). The admin page does not edit `storm_states` yet
+   (developer accepted the gap, item 243, slice 7).
+4. **A day is finished two hours after its local midnight.** The nightly job (10:30 UTC) loads any of the last 3 finished
+   days not yet held and rebuilds their zones; a weekly job (Sundays 11:30 UTC) rebuilds the last 30 days from stored
+   cells, to pick up late-entered reports (developer, 2026-10-22: no other window for now). Backfill runs newest
+   first and skips days held.
+5. **A failed day is rolled back and the run goes on,** ending `failed` with the days named, so one bad file cannot
+   stop a 2,198-day backfill. A 404 from NOAA is recorded `missing` only if the stamp is over 6 hours old.
+6. **The crop box is the coverage extent plus 0.5 degrees,** wide enough for the 50 km maximum margin. Hail past it is
+   clipped (item 240). A day keeps the box it was loaded with (item 246).
+7. **The `ingest` image now imports `db.py`, `tuning.py` and `hailsys/radar/`** (the 2026-10-02 closure was only the IEM
+   files). It was rebuilt 2026-10-22 and the old image kept as `hail-system-ingest:before-radar`.
+
+**Checked:** the zone logic against an independent Python implementation on four real storm days (patch, anchored and
+report counts equal, core area within 0.2%); a hand-made wide warning fetch against the padded one-day fetch (polygon
+counts equal on all four days); one real nightly run through the baked image.
+
+**Related:** items 205, 206, 207, 208, 211, 238, 239, 240, 241, 243; decision log 2026-10-14, 2026-10-20, 2026-10-21;
+`phases.md` Phase 5b.
+
+
+## 2026-10-22 — The radar layers on the Territory map, and the Hail default
+
+**Decision (developer, 2026-10-22), Phase 5b slice 5 as built:**
+1. **Both the old and the new picture are on by default:** report circles and points, and the four radar layers
+   (core, margin, radar-indicated, NWS warnings). Each has a toggle in a box on the map. The warnings layer is the
+   largest by far (a median of 30 times the core on the 195 storm days with a core), drawn pale and underneath;
+   hiding it by default stays an option.
+2. **A Radar day picker** offers each day in the window that has something to draw, plus "All days in window" (a union
+   of the days, kept at the developer's request). It opens on the newest day with a radar core, else the newest built
+   day, else the newest with warnings. Days before 2020-10-14 offer the raw NWS polygons only.
+3. **Zones are not interactive,** so report points and zip tooltips under them still work. The areas are in a status
+   line under the picker. Colours: core dark red, margin orange, radar-indicated blue and dashed, warnings grey.
+4. **Only the parameter set in use is drawn;** days built with an older set are named, not drawn.
+5. **Staff only, and not in anything that leaves the building:** a test fails if the radar appears in email, matching,
+   RentCast or Constant Contact code, in any CSV or export route, or in a pull, match or send route.
+6. **Storm Days, Territory and the map open on HAIL** (`DEFAULT_REPORT_TEXT`, item 238) until a type is chosen; "All"
+   is still a choice, and Download CSV carries the type the page shows.
+7. **The circle radius is the match radius setting** (item 216).
+
+**Pulls and matching are unchanged** (decision log 2026-10-20, point 3): they use the 5 mile zip radius for pulls and the
+5 mile match radius for matches, nothing from the radar.
+
+**Related:** items 216, 238, 243, 247; decision log 2026-10-14, 2026-10-20, 2026-10-22 (above).

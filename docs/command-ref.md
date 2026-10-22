@@ -25,25 +25,55 @@ it without rebuilding executes whatever code was current at the last build,
 against the live database, with no warning.
 
     docker compose build ingest   # after a change to anything it imports
-                                  # (hailsys/iem/, hailsys/logconfig.py,
-                                  # scripts/iem_*.py) or to requirements.txt
+                                  # (hailsys/iem/, hailsys/radar/, hailsys/db.py,
+                                  # hailsys/tuning.py, hailsys/logconfig.py,
+                                  # scripts/iem_*.py, scripts/radar_*.py) or to
+                                  # requirements.txt
 
 `scripts/status.sh images` says which images are behind the files they depend
 on, and names the files. `web` and `app` need a rebuild only when
 `requirements.txt` or `docker/app.Dockerfile` changes.
 
 The scheduled ingest jobs -- nightly `iem_ingest.timer` and weekly
-`iem_weekly_replay.timer` -- deliberately do NOT build first: an unattended
+`iem_weekly_replay.timer`, and the radar jobs `radar_ingest.timer` and
+`radar_weekly_rebuild.timer` -- deliberately do NOT build first: an unattended
 job should run a known artifact, not whatever is half-finished in the
 working tree. The cost is that ingest code changes require a manual rebuild
 to take effect. This is a choice, not an oversight.
 
-`ingest` imports only `hailsys/iem/common.py`, `hailsys/iem/parse.py` and
-`hailsys/logconfig.py` (checked 2026-10-02 by importing both scripts and listing
-`sys.modules`; it does NOT import `db.py` or `tuning.py`, which this paragraph
-used to say). A change elsewhere in the package therefore does not make the
-ingest image stale. `scripts/status.sh images` holds that list; re-derive it
-if ingest gains an import.
+`ingest` imports `hailsys/iem/` (`common.py`, `parse.py`), `hailsys/logconfig.py` and, since the radar
+jobs (2026-10-22), `hailsys/db.py`, `hailsys/tuning.py` and the whole `hailsys/radar/` package (checked
+2026-10-22 by importing `iem_ingest`, `iem_backfill` and `radar_ingest` and listing `sys.modules`; before
+the radar jobs it imported only the IEM files and `logconfig.py`, checked 2026-10-02). A change elsewhere in
+the package therefore does not make the ingest image stale. `scripts/status.sh images` holds that list;
+re-derive it if ingest gains an import. The image before the radar jobs is still tagged
+`hail-system-ingest:before-radar` (rollback: `docker tag hail-system-ingest:before-radar
+hail-system-ingest:latest`).
+
+### Radar jobs (Phase 5b)
+
+`scripts/radar_ingest.py` runs in the baked `ingest` image as `hail_ingest`. Nothing here sends anything,
+calls RentCast, or touches pulls and matching; NOAA radar and IEM warnings are public and cost nothing.
+
+    docker compose run --rm ingest python3 scripts/radar_ingest.py nightly            # last 3 finished days (timer, 10:30 UTC)
+    docker compose run --rm ingest python3 scripts/radar_ingest.py rebuild --days 30  # zones again, no downloads (weekly timer, Sun 11:30 UTC)
+    docker compose run --rm ingest python3 scripts/radar_ingest.py backfill [--from D] [--to D] [--limit N]
+    docker compose run --rm ingest python3 scripts/radar_ingest.py warnings [--from D] [--to D]
+    docker compose run --rm ingest python3 scripts/radar_day.py 2026-06-08 [--rebuild|--refetch] [--set N] [--no-warnings]
+
+- A day is *finished* two hours after its local midnight (the warnings rule), so the newest day a run touches
+  is yesterday's. Backfill goes newest first, skips days already held (so it can be stopped and started
+  again), and cannot start before 2020-10-14, where NOAA's archive begins. `warnings` fills the NWS
+  warnings back to the first stored report for the years before the radar.
+- A day that fails is rolled back and named at the end; the run goes on and ends `failed`, exit status 1.
+- A long backfill outlives a shell that closes only if it was started detached:
+  `docker compose run -d --rm ingest python3 scripts/radar_ingest.py backfill`, then
+  `docker logs -f <container>`. Started attached from a shell that ends, the container keeps running but
+  its output is lost to that shell (it is still in `docker logs` until it exits).
+- `scripts/status.sh radar` (own exit status, 1 if no nightly radar run completed in 30 hours) and the
+  radar line on the Storm Days page show the state.
+- Do not run `tests/test_radar_ingest.py` while a radar job runs: its cleanup deletes the newest
+  `radar_runs` rows (item 245). The radar database tests need `hail_admin`, see item 241.
 
 Cost us a false test result on 2026-09-24: the same workstate check
 returned a pre-migration answer through `app` and the correct one through

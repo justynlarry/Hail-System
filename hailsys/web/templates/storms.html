@@ -49,7 +49,7 @@
         </span>
 
         <button type="submit">Apply</button>
-        <a href="{{ url_for('main.export_csv') }}?{{ request.query_string.decode() }}">Download CSV</a>
+        <a href="{{ url_for('main.export_csv') }}?{{ export_query }}">Download CSV</a>
     </form>
 {% if rows %}
     <div class="table-scroll">

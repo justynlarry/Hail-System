@@ -1,0 +1,39 @@
+{# The Territory map and its radar controls.  match_radius_m is the radius setting in metres, the circles on
+   the map are drawn from it (item 216).  The layers are staff only and read only:  nothing here reaches an
+   email, an export, a pull or the matcher. #}
+{% macro count(n, word) %}{{ n }} {{ word }}{{ '' if n == 1 else 's' }}{% endmacro %}
+
+{% if radar_days %}
+<div class="radar-controls">
+    <label for="radar-day">Radar day</label>
+    <select id="radar-day">
+        <option value="all" {% if not radar_default %}selected{% endif %}>All days in window ({{ radar_days | length }})</option>
+        {% for r in radar_days %}
+        <option value="{{ r.day.isoformat() }}" {% if r.day == radar_default %}selected{% endif %}>{{ r.day.isoformat() }} — {% if r.built %}core {{ '{:,.0f}'.format(r.core_km2) }} km², {{ count(r.warnings, 'warning') }}{% else %}{{ count(r.warnings, 'warning') }}, no radar{% endif %}</option>
+        {% endfor %}
+    </select>
+</div>
+<p id="radar-status" class="note"></p>
+{% else %}
+<p class="note">No radar or NWS warnings in this window.</p>
+{% endif %}
+
+<div id="map" data-match-radius-m="{{ match_radius_m }}" data-radar-url="{{ url_for('main.map_radar') }}"></div>
+
+{% if radar_days %}
+<details class="radar-legend-box" open>
+    <summary>Radar layers</summary>
+    <ul class="radar-legend">
+        <li><span class="swatch swatch-core"></span>
+            <span><strong>Core</strong> — radar hail of {{ '{:.2f}'.format(radar_set.hail_threshold_in) }} in or more with a report within {{ '{:g}'.format(radar_set.report_radius_km) }} km</span></li>
+        <li><span class="swatch swatch-margin"></span>
+            <span><strong>Margin</strong> — {{ '{:g}'.format(radar_set.margin_km) }} km around the core</span></li>
+        <li><span class="swatch swatch-indicated"></span>
+            <span><strong>Radar-indicated</strong> — radar hail with no report near it</span></li>
+        <li><span class="swatch swatch-warnings"></span>
+            <span><strong>NWS warnings</strong> — severe thunderstorm and tornado warning polygons for the day, outside the layers above</span></li>
+    </ul>
+    <p class="note">Circles show the match radius around each report. Zones use parameter set {{ radar_set.set_id }}
+       ({{ radar_set.name }}). Staff only: not used for emails, exports, pulls or matching.</p>
+</details>
+{% endif %}

@@ -3598,6 +3598,9 @@ warnings cover the whole country.
    its own calibration; the Phase 5b parameter sets are built so it can have one.
 5. **Brand and content.** "Roof Brokers has certified roofs for Denver Metro real estate agents" in the
    built-in template and `blocks.py`; sender, images and addresses are already settings (item 203).
+6. **List defaults.** `DEFAULT_REPORT_TEXT = "HAIL"` in `hailsys/web/views.py`: Storm Days, Territory and the map's
+   points open on HAIL (developer, 2026-10-22; "All" is still a choice). A market with no `HAIL` report type would
+   open on empty pages. Move it into settings with the rest.
 
 **Rule for new work:** no new constant of this kind (decision log 2026-10-20). Phase 5b takes the time zone,
 state and bounds from settings and data.
@@ -3981,7 +3984,7 @@ commercial use is allowed, and on what terms. If it is research only, mPING stay
 
 ## 216. The territory map draws a fixed 5-mile circle, not the configured radius
 
-**Status:** open (filed 2026-10-14)
+**Status:** resolved 2026-10-22 (Phase 5b slice 5; filed 2026-10-14)
 
 `hailsys/web/static/map.js:85` draws every report's circle with a hard-coded `radius: 8046.72` (5 miles).
 Both radii are admin settings (`settings.default_zip_radius_miles` and `default_match_radius_miles`,
@@ -3994,8 +3997,10 @@ still shows 5-mile circles**, and a staff member reading the map is told the wro
 comment on that line says a pixel-sized marker "would be a lie about how far 5 miles is"; the
 hard-coded radius is the same lie in a different form.
 
-**Fix (not applied):** send the radius with the points from the server (the match radius is the one the
-circle claims to show) and draw it in metres. No hard-coded radius in the page.
+**Fix (applied 2026-10-22):** the Territory view sends `match_radius_m` (from `settings.default_match_radius_miles`) as
+`data-match-radius-m` on the map, and `map.js` draws every circle from it; with no number it draws none and logs an
+error. No hard-coded radius is left in the page. Tests: `tests/test_radar_map_web.py` (a changed setting changes the
+attribute) and `tests/js/map_check.js` (the radius used is the one sent, none guessed, no `8046` in the source).
 
 **When:** the next edit to `map.js` (the radar layers planned after Phase 5 will touch it), or before
 anyone changes a radius on the admin page, whichever comes first.
@@ -6161,3 +6166,73 @@ developer accepted the gap for a few sessions (2026-10-21).
 
 **When:** Phase 5b slice 7 (admin settings for the radar layers), together with the threshold, margin and
 report radius. Not yet used by the IEM report ingest (item 238).
+
+
+## 244. `ingest.run` forwarded all its keyword arguments to the downloads
+
+**Status:** resolved 2026-10-22 (found by the first real nightly run, fixed in Phase 5b slice 4)
+
+`hailsys/radar/ingest.py` `run(..., **kw)` passed every extra keyword to both `preload_warnings` and `run_days`.
+`scripts/radar_ingest.py` passes `pause`, so the first real nightly (run 4454) failed with `TypeError: download() got
+an unexpected keyword argument 'pause'`; `box` and `set_id` would have been forwarded to the downloads the same way. The
+tests had never passed `pause` to `run`, and ran the day loop and the warnings fetch with stubs that accepted
+anything.
+
+**Fixed:** `run` names `set_id`, `box`, `pause` and `sleep` (day loop only); `**network` (attempts, backoff,
+timeout) goes to every download. `tests/test_radar_ingest.py` now has tests that fail with the old behaviour. The
+failed run's row is kept, as history.
+
+**Related:** items 241, 245; `docs/command-ref.md` "Radar jobs".
+
+## 245. The radar ingest tests commit, and their cleanup collides with a live radar job
+
+**Status:** open (filed 2026-10-22, Phase 5b slice 4)
+
+The job commits after each day, so `tests/test_radar_ingest.py` commits too (on 1999 dates) and cleans up on a
+separate connection. The cleanup `DELETE FROM radar_runs WHERE run_id > <newest when the test started>` also matches
+a live job's run row; the delete fails on the days that reference it, so the test errors and may leave rows. A test
+run during a nightly or a backfill is therefore unsafe. A warning is in the test's docstring and in `command-ref.md`.
+
+**When:** before any automated test run (a scheduled one, or CI), or when the tests are next edited: track the run
+ids the tests create instead of deleting by id range.
+
+**Related:** items 241, 244.
+
+## 246. A radar day keeps the crop box it was loaded with
+
+**Status:** open, accepted (filed 2026-10-22, Phase 5b slice 4)
+
+`load.crop_box` makes the box from the active `coverage_zips` when a run starts, and `radar_days` stores the box a
+day was loaded with. If coverage zips are added later, days already held keep their older, smaller box, so their
+cells and zones stop at the old edge even where the new zips are (the same straight-edge effect as item 240). Nothing
+detects it. `load.delete_day` and a refetch (`radar_day.py --refetch`) fix a day; there is no command for all days.
+
+**When:** the next time coverage zips are added, or when a second territory is set up (item 238): compare each held
+day's box with `crop_box`, and add a `radar_ingest.py` mode that refetches the days that differ.
+
+**Related:** items 238, 240; `hailsys/radar/ingest.py` docstring.
+
+
+## 247. NOAA's MESH file holds impossible values on two days, which draw as false "radar-indicated" hail
+
+**Status:** open (filed 2026-10-22, Phase 5b; fix agreed by the developer the same day, being built)
+
+Found while summarising the six-year backfill. `radar_days.max_mm` for **2022-01-03** and **2022-01-11** is 1,007.7 mm
+(39.7 in); no hail has been measured above about 8 in (203 mm). 2022-01-03 has 1,854 cells above 10 in (227 distinct values,
+spread over lat 38.18 to 41.49, lon -106.22 to -103.22, in January) and 2022-01-11 has 27. They are in NOAA's file: the decoder and
+loader store what the file says (the decoder matches the analysis decoder, `tests/test_radar_mesh.py` golden test). Effect:
+a false `radar_indicated` zone of 2,397 km² on 01-03 and 27 km² on 01-11, about 3% of the 73,685 km² of that layer over six
+years. No `core` is affected (no report anchors them). The next largest values are 8.8 in (2026-08-08) and 7.0 in (2026-06-22),
+plausible for MESH, which reads high.
+
+Also noted, not part of the fix: 28 cold-season days (December to March) have MESH of 1 in or more, nearly all with no report
+near them. Some may be real late-winter hail; some may be the same kind of false echo. Treat their `radar_indicated` zones with
+suspicion.
+
+**Fix agreed (developer, 2026-10-22):** a fixed plausibility ceiling of 10 in (254 mm) in code, like the 0.50 in floor. A day
+with any cell above it is recorded with status `suspect`: no cells, no zones, shown in the status line and the picker, and
+rebuilds and the nightly job leave it alone. Cold-season days stay, and the findings panel will flag them.
+
+**When:** before the findings panel (slice 6), so its numbers are clean.
+
+**Related:** items 211, 239, 240; `docs/analysis/mesh-window-2026-10/`; decision log 2026-10-22.

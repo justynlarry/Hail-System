@@ -943,6 +943,15 @@ SELECT pg_temp.expect('radar_zones an outer layer can be added',
 SELECT pg_temp.expect('radar_zone_builds warnings used cannot be negative',
   $q$UPDATE radar_zone_builds SET warnings_used = -1 WHERE day = '1999-01-01'$q$, '23514');
 
+SELECT pg_temp.expect('radar_runs a rebuild run can be added',
+  $q$INSERT INTO radar_runs (run_mode) VALUES ('rebuild')$q$, 'ok');
+SELECT pg_temp.expect('radar_runs an unknown run mode is refused',
+  $q$INSERT INTO radar_runs (run_mode) VALUES ('hourly')$q$, '23514');
+SELECT pg_temp.expect('radar_runs days built cannot be negative',
+  $q$INSERT INTO radar_runs (run_mode, days_built) VALUES ('nightly', -1)$q$, '23514');
+SELECT pg_temp.expect('radar_runs days failed cannot be negative',
+  $q$INSERT INTO radar_runs (run_mode, days_failed) VALUES ('nightly', -1)$q$, '23514');
+
 ROLLBACK;
 
 -- Nothing should have survived.

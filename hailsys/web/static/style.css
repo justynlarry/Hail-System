@@ -42,6 +42,10 @@
   --map-coverage-fill: #eee;
   --map-coverage-stroke: #888;
   --map-county-fill: #999;
+  --radar-core: #b2182b;
+  --radar-margin: #ef8a62;
+  --radar-indicated: #2166ac;
+  --radar-warnings: #7f7f7f;
 }
 
 /* Dark theme.  Selected by theme.js setting data-theme on <html>: the
@@ -85,6 +89,10 @@
   --map-coverage-fill: #5b6b7d;
   --map-coverage-stroke: #6b7a8c;
   --map-county-fill: #3a4552;
+  --radar-core: #ff7b7b;
+  --radar-margin: #ffab76;
+  --radar-indicated: #6baed6;
+  --radar-warnings: #b0b8c0;
 }
 
 * { box-sizing: border-box; }
@@ -953,6 +961,24 @@ body.login-page {
 .leaflet-container { background: var(--map-bg); }
 path.map-coverage { fill: var(--map-coverage-fill); stroke: var(--map-coverage-stroke); }
 path.map-county { fill: var(--map-county-fill); }
+
+/* Radar layers (Phase 5b).  Fill and stroke by class so each theme sets its own colours; the
+   radar-indicated layer is dashed so it never depends on colour alone. */
+path.radar-core       { fill: var(--radar-core);       stroke: var(--radar-core); }
+path.radar-margin     { fill: var(--radar-margin);     stroke: var(--radar-margin); }
+path.radar-indicated  { fill: var(--radar-indicated);  stroke: var(--radar-indicated); stroke-dasharray: 6 4; }
+path.radar-warnings   { fill: var(--radar-warnings);   stroke: var(--radar-warnings); fill-opacity: 0.12; }
+
+.radar-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+.radar-controls select { max-width: 100%; }
+.radar-legend { list-style: none; margin: .5rem 0 0; padding: 0; font-size: .85rem; }
+.radar-legend li { display: flex; align-items: baseline; gap: .5rem; margin-bottom: .2rem; }
+.radar-legend .swatch { flex: none; width: 1.1rem; height: .7rem; border: 2px solid; opacity: .85; }
+.radar-legend .swatch-core      { background: var(--radar-core);      border-color: var(--radar-core); }
+.radar-legend .swatch-margin    { background: var(--radar-margin);    border-color: var(--radar-margin); }
+.radar-legend .swatch-indicated { background: var(--radar-indicated); border-color: var(--radar-indicated); border-style: dashed; }
+.radar-legend .swatch-warnings  { background: var(--radar-warnings);  border-color: var(--radar-warnings); opacity: .5; }
+:root[data-theme="dark"] .leaflet-control-layers { background: var(--surface); color: var(--text); }
 
 /* Leaflet ships white popups, tooltips and controls. */
 :root[data-theme="dark"] .leaflet-popup-content-wrapper,

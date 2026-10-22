@@ -4,7 +4,7 @@ import re
 
 from datetime import datetime, timedelta, timezone
 from itertools import groupby
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlencode
 
 from flask import flash, g, redirect, Blueprint, render_template, abort, request, session, url_for, Response
 
@@ -15,7 +15,7 @@ from hailsys.rentcast.estimate import estimate_pull
 from hailsys.web.jobs import start_pull, PullInProgress
 from hailsys.db import get_connection
 from hailsys.formatting import csv_safe, magnitude
-from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest, ccstate
+from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest, ccstate, radar, radar_map
 from hailsys.tuning import (
     DISPLAY_TZ,
     RECENT_PULL_WINDOW_DAYS,
@@ -29,6 +29,9 @@ bp = Blueprint("main", __name__)
 DAY_RANGES = (30, 90, 365)
 MAX_RANGE_DAYS = 400
 DEFAULT_DAYS = 30
+# The report type the two list pages and the map show until someone picks on.  "All"
+# is still the empty choice
+DEFAULT_REPORT_TEXT = "HAIL"
 GROUP_BYS = ("zip", "city")
 POINTS_SQL_LIMIT = 2000
 FEED_PANEL_LIMIT = 5
@@ -120,6 +123,29 @@ def _actionable_from_args():
         return "actionable" in request.args
     return True
 
+def _report_type_from_args():
+    """The ?type= filter for the list pages and the map, None for all types.
+    
+    Until the form is submitted (or a link names a type) it is DEFAULT_REPORT_TEXT
+    the same way "actionable_only" defaults on: choosing 'All' sends type= empty on a 
+    submitted form and stays ALL.
+    """
+    if "submitted" in request.args or "type" in request.args:
+        return request.args.get("type") or None
+    return DEFAULT_REPORT_TEXT
+
+
+def _export_query(report_text):
+    """The page's query string for its Download CSV link, with the type it is actually showing.
+    
+    The default type is not in the URL, and a download without one would be every type.
+    """
+    query = request.query_string.decode()
+    if "type" not in request.args and report_text:
+        query += ("&" if query else "") + urlencode({"type": report_text})
+    return query
+
+
 def _dnc_from_args():
     """Suppressed agents are excluded unless explicitly asked for.
 
@@ -182,7 +208,7 @@ def index():
     today = datetime.now(DISPLAY_TZ).date()
     start_day, end_day, window_start, window_end = _window_from_args()
     _flash_if_clamped()
-    report_text = request.args.get("type") or None
+    report_text = _report_type_from_args()
     actionable_only = _actionable_from_args()
 
     try:
@@ -256,6 +282,11 @@ def index():
             now=datetime.now(timezone.utc),
             stale_after=INGEST_STALE_AFTER,
         )
+        radar_health = radar.fetch_health(
+            conn,
+            now=datetime.now(timezone.utc),
+            stale_after=INGEST_STALE_AFTER,
+        )
         cc = ccstate.fetch_state(conn)
         
 
@@ -267,10 +298,12 @@ def index():
     return render_template(
         "storms.html",
         rows=rows,
+        radar_health=radar_health,
         types=types,
         start_day=start_day,
         end_day=end_day,
         selected_type=report_text,
+        export_query=_export_query(report_text),
         actionable_only=actionable_only,
         feed=feed,
         feed_since=since,
@@ -384,7 +417,7 @@ def territory():
 
     start_day, end_day, window_start, window_end = _window_from_args()
     _flash_if_clamped()
-    report_text = request.args.get("type") or None
+    report_text = _report_type_from_args()
     actionable_only = _actionable_from_args()
 
     with get_connection() as conn:
@@ -407,6 +440,13 @@ def territory():
                 actionable_only=actionable_only,
             )
         types = storms.fetch_report_types(conn)
+        radar_days = radar_map.picker_days(conn, start_day, end_day)
+        radar_set = radar_map.in_use_set(conn)
+    # The day the map opens on:  the newest with a radar core (a real storm), else the newest with
+    # zones built, else the newest with anything.
+    radar_default = (next((r["day"] for r in radar_days if r["core_km2"] > 0), None)
+                     or next((r["day"] for r in radar_days if r["built"]), None)
+                     or (radar_days[0]["day"] if radar_days else None))
 
     return render_template(
         "territory.html",
@@ -417,6 +457,11 @@ def territory():
         start_day=start_day,
         end_day=end_day,
         selected_type=report_text,
+        export_query=_export_query(report_text),
+        radar_days=radar_days,
+        radar_set=radar_set,
+        radar_default=radar_default,
+        match_radius_m=round(miles_to_metres(g.settings["match_radius_miles"]), 1),
         actionable_only=actionable_only,
     )
 
@@ -427,7 +472,7 @@ def territory_days():
     if not area_name:
         abort(400)
     _, _, window_start, window_end = _window_from_args()
-    report_text = request.args.get("type") or None
+    report_text = _report_type_from_args()
     actionable_only = _actionable_from_args()
 
     with get_connection() as conn:
@@ -471,7 +516,7 @@ def export_csv():
 @login_required
 def map_points():
     _, _, window_start, window_end = _window_from_args()
-    report_text = request.args.get("type") or None
+    report_text = _report_type_from_args()
     actionable_only = _actionable_from_args()
 
     with get_connection() as conn:
@@ -509,6 +554,26 @@ def map_points():
             for r in rows
         ],
     }
+
+
+@bp.route("/map/radar.geojson")
+@login_required
+def map_radar():
+    """The radar layers for the Territory map.  Staff only, read only, and nothing reaches email
+    or export.  ?day=YYYY-MM-DD is one local day inside th ewindow; without it, every day in
+    the window that has anything to draw.
+    """
+    start_day, end_day, _, _ = _window_from_args()
+    with get_connection() as conn:
+        if "day" in request.args:
+            day = _parse_day(request.args["day"])
+            if day is None or not start_day <= day <= end_day:
+                abort(400)
+            days = [day]
+        else:
+            days = [r["day"] for r in radar_map.picker_days(conn, start_day, end_day)]
+        return radar_map.zones_geojson(conn, days)
+
 
 @bp.route("/pull/estimate")
 @role_required("sender", "admin")

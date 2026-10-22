@@ -329,6 +329,25 @@ any literal SQL that names it, which is why `010` grants `CONNECT` through
   because the container's `app` user and the host's `hail-user` are both
   `uid 1000` — see §7.
 
+### systemd units — radar, 2026-10-22
+
+Two more units, `systemd/radar_ingest.*` and `systemd/radar_weekly_rebuild.*`, same pattern as the IEM pair
+(`Requires=docker.service`, `Type=oneshot`, `User=hail-user`, `Persistent=true`, the baked `ingest` image):
+
+- **`radar_ingest.timer`** — `OnCalendar=*-*-* 10:30:00` UTC, half an hour after the IEM ingest so the
+  day's reports are in. Runs `radar_ingest.py nightly`: loads any of the last 3 finished days not yet held,
+  fetches their NWS warnings, and rebuilds their zones (which picks up reports IEM added late).
+  `TimeoutStartSec=1800`.
+- **`radar_weekly_rebuild.timer`** — `OnCalendar=Sun *-*-* 11:30:00`, half an hour after the IEM replay.
+  Runs `radar_ingest.py rebuild --days 30`: zones again for the last 30 days from the stored cells, no
+  downloads, for reports the weekly replay found.
+
+`tests/test_systemd_units.py` checks every unit file in the folder for the slips that stop a unit starting
+(user and group, the timer's `Unit=` name, the command's script and mode). **Status 2026-10-22: installed and
+enabled on `hail-dev`; the first scheduled nightly run is 2026-10-23 10:30 UTC. One nightly run was made by hand through
+the baked image first.** To install on another host: `sudo cp systemd/radar_* /etc/systemd/system/`, `sudo systemctl
+daemon-reload`, `sudo systemctl enable --now radar_ingest.timer radar_weekly_rebuild.timer`.
+
 ### systemd units — 2026-09-11
 
 Two timers installed and armed on `hail-dev`, `systemd/*.service` and

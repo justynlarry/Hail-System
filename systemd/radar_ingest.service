@@ -1,0 +1,27 @@
+[Unit]
+Description=Nightly radar layers job (NOAA hail radar and NWS warnings)
+Documentation=file:///home/hail-user/hail-system/docs/hail-consolidated.md
+
+# Same as iem_ingest.service:  Requires= so there is no degraded mode.
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+User=hail-user
+Group=hail-user
+
+WorkingDirectory=/home/hail-user/hail-system
+Environment=HOME=/home/hail-user
+
+ExecStart=/usr/bin/docker compose run --rm ingest python3 scripts/radar_ingest.py nightly
+
+TimeoutStartSec=1800
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

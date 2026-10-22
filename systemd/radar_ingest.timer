@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the nightly radar job at 10:30 UTC, after the IEM ingest at 10:00
+Documentation=file:///home/hail-user/hail-system/docs/hail-consolidated.md
+
+[Timer]
+OnCalendar=*-*-* 10:30:00
+
+Persistent=true
+AccuracySec=1min
+Unit=radar_ingest.service
+
+[Install]
+WantedBy=timers.target
