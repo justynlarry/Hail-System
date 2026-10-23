@@ -18,7 +18,8 @@
 <p class="note">No radar or NWS warnings in this window.</p>
 {% endif %}
 
-<div id="map" data-match-radius-m="{{ match_radius_m }}" data-radar-url="{{ url_for('main.map_radar') }}"></div>
+<div id="map" data-match-radius-m="{{ match_radius_m }}" data-radar-url="{{ url_for('main.map_radar') }}"
+     data-findings-url="{{ url_for('main.territory_findings') }}"></div>
 
 {% if radar_days %}
 <details class="radar-legend-box" open>
@@ -36,4 +37,7 @@
     <p class="note">Circles show the match radius around each report. Zones use parameter set {{ radar_set.set_id }}
        ({{ radar_set.name }}). Staff only: not used for emails, exports, pulls or matching.</p>
 </details>
+
+{# Filled by map.js for the radar day picked:  the findings fragment, or a line saying to pick a day. #}
+<div id="findings" class="findings" aria-live="polite"></div>
 {% endif %}

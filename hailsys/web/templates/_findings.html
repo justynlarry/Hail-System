@@ -1,0 +1,103 @@
+{# The findings panel under the Territory map (Phase 5b, slice 6), for one local day and the parameter set in use.
+   An HTML fragment, fetched by map.js when a radar day is picked.  Staff only and read only: counts, never an
+   address, an agent or an email, and nothing here reaches an email, an export, a pull or the matcher.  It ranks where
+   hail likely fell;  it does not say a roof is damaged.
+
+   Context: day, overview, reports, flags, circles (None without radar zones), matrix (None without radar zones),
+   tiers (the DRAFT letters), bands, matrix_rows, match_radius_miles, radar_set. #}
+{% set flag_text = {
+    'suspect_day': 'Suspect day: the NOAA file for this day holds a value above the plausibility ceiling, so no radar is stored or drawn.',
+    'older_set': 'This day was built with an older parameter set, so no radar numbers are shown. Rebuild it to see them.',
+    'no_radar': 'No radar zones for this day (missing at NOAA, not fetched yet, or not built).',
+    'no_reports': 'No actionable hail reports this day.',
+    'cold_season_unreported': 'Radar-indicated hail from October to March with no report anywhere: more likely a radar artefact than hail.',
+} %}
+{% set layer_label = {
+    'core': 'Core', 'margin': 'Margin', 'radar_indicated': 'Radar-indicated', 'outer': 'NWS warnings only', 'none': 'None of these',
+} %}
+{% set band_label = {'le_1': '1 mi or less', '1_3': '1 to 3 mi', '3_5': '3 to 5 mi', 'over_5': 'None within 5 mi'} %}
+
+<h3>Findings for {{ day.isoformat() }}</h3>
+<p class="note">A ranking of where hail likely fell, from radar and reports. It does not say any roof is damaged.</p>
+
+{% if flags %}
+<ul class="findings-flags">
+    {% for f in flags %}<li class="note warning">{{ flag_text[f] }}</li>{% endfor %}
+</ul>
+{% endif %}
+
+<h4>The day at a glance</h4>
+<table class="findings-table">
+    <tbody>
+        <tr><th scope="row">Actionable hail reports</th>
+            <td class="num">{{ reports.total }}</td></tr>
+        <tr><th scope="row">Largest reported</th>
+            <td class="num">{% if reports.largest_in is none %}none{% else %}{{ '{:g}'.format(reports.largest_in) }} in{% endif %}</td></tr>
+        <tr><th scope="row">Radar maximum (MESH, not a hail size)</th>
+            <td class="num">{% if overview.status == 'suspect' %}suspect: out of range
+                {%- elif overview.max_in is none %}none{% else %}{{ '{:g}'.format(overview.max_in) }} in{% endif %}</td></tr>
+        {% if overview.built %}
+        <tr><th scope="row">Radar patches, near a report</th>
+            <td class="num">{{ overview.patches }}, {{ overview.patches_anchored }}</td></tr>
+        {% for name in ['core', 'margin', 'radar_indicated', 'outer'] %}
+        <tr><th scope="row">{{ layer_label[name] if name != 'outer' else 'NWS warnings' }} area</th>
+            <td class="num">{{ '{:,.0f}'.format(overview.areas_km2[name]) }} km²</td></tr>
+        {% endfor %}
+        {% endif %}
+        <tr><th scope="row">NWS warning polygons that day</th>
+            <td class="num">{{ overview.warnings }}</td></tr>
+    </tbody>
+</table>
+
+{% if overview.built %}
+<h4>Reports against the layers</h4>
+<table class="findings-table">
+    <thead><tr><th>Highest layer a report falls in</th><th class="num">Reports</th></tr></thead>
+    <tbody>
+        {% for name in matrix_rows %}
+        <tr><td>{{ layer_label[name] }}</td><td class="num">{{ reports.by_layer[name] }}</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+<p class="note">Each report is counted once, in the highest layer it is in. Radar-indicated is, by definition, radar hail with
+   no report within {{ '{:g}'.format(radar_set.report_radius_km) }} km, so it holds no reports.</p>
+
+<h4>Report circles against the radar</h4>
+{% if circles.confirmed_share is none %}
+<p>No actionable reports, so no circles.</p>
+{% else %}
+<p>{{ '{:.0f}'.format(circles.confirmed_share * 100) }}% of the circle area ({{ '{:,.0f}'.format(circles.circle_km2) }} km²,
+   {{ '{:g}'.format(match_radius_miles) }} mi around each report) lies in the radar's core or margin.</p>
+{% endif %}
+<p>{{ '{:,.0f}'.format(circles.beyond_km2) }} km² of core and margin lies outside every circle: radar hail no report covers.</p>
+{% endif %}
+
+{% if matrix %}
+<h4>Held listings by radar layer and distance to the nearest report</h4>
+<table class="findings-table matrix">
+    <thead>
+        <tr><th>Radar layer at the address</th>
+            {% for b in bands %}<th class="num">{{ band_label[b] }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+        {% for name in matrix_rows %}
+        <tr><td>{{ layer_label[name] }}</td>
+            {% for b in bands %}
+            <td class="num">{{ '{:,}'.format(matrix.cells[name][b]) }}{% if tiers[name][b] and matrix.cells[name][b] %} <span class="tier" title="DRAFT tier">{{ tiers[name][b] }}</span>{% endif %}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<p class="note">{{ '{:,}'.format(matrix.total) }} houses placed. The small letters are a <strong>draft</strong> ranking
+   (report proximity plus radar layer, A highest), not decided and not used for anything. Whether radar with no report
+   within 5 miles is capped is still open.</p>
+<p class="note">Houses with an Active listing that is not New Construction on a property that is not Land, as of each
+   listing's last pull, not as of the storm day. A relisted house counts once.
+   {% if matrix.outside_box or matrix.no_location %}Not placed: {{ '{:,}'.format(matrix.outside_box) }} outside this day's radar area,
+   {{ '{:,}'.format(matrix.no_location) }} with no coordinates.{% endif %}</p>
+{% endif %}
+
+<p class="note">Circles, bands and the report counts use hail reports only. A radar patch is counted as near a report if any
+   wind report is also within {{ '{:g}'.format(radar_set.report_radius_km) }} km, so the zones can reflect wind reports the
+   hail counts above leave out. Parameter set {{ radar_set.set_id }} ({{ radar_set.name }}).</p>

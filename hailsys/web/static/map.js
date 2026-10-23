@@ -143,6 +143,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const picker = document.getElementById('radar-day');
   const status = document.getElementById('radar-status');
+  const findingsBox = document.getElementById('findings');
+  let findingsRequest = 0;   // the newest request wins when the picker is changed quickly
 
   function km2(n) {
     return n.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ' km²';
@@ -185,8 +187,35 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   }
 
+  // The findings panel (slice 6) for the picked day.  The server sends HTML, so there is nothing to format here.
+  // 'All days' has no findings and says so.
+  function loadFindings() {
+    if (!findingsBox || !picker) return;
+    const mine = ++findingsRequest;
+    if (picker.value === 'all') {
+      findingsBox.textContent = 'Pick a single radar day to see its findings.';
+      return;
+    }
+    findingsBox.textContent = 'Loading findings…';
+    const q = new URLSearchParams(window.location.search);
+    q.set('day', picker.value);
+    fetch(container.dataset.findingsUrl + '?' + q)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function (html) {
+        if (mine === findingsRequest) findingsBox.innerHTML = html;
+      })
+      .catch(function (err) {
+        console.error('findings load failed', err);
+        if (mine === findingsRequest) findingsBox.textContent = 'The findings could not be loaded.';
+      });
+  }
+
   if (picker) {
-    picker.addEventListener('change', loadRadar);
+    picker.addEventListener('change', function () { loadRadar(); loadFindings(); });
     loadRadar();
+    loadFindings();
   }
 });

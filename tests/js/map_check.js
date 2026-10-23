@@ -4,7 +4,8 @@
 // What it pins: the circles use the radius the server sent (item 216) and are left out with none; the panes stack
 // counties < radar layers (outer, radar-indicated, margin, core) < circles < points; the picker asks for its day
 // and keeps the page's own query string; a change replaces the layers; the status line says what is drawn; and a
-// failed load says so instead of leaving a stale map.
+// failed load says so instead of leaving a stale map.  Slice 6: the findings panel is fetched for the picked day with
+// the page's query string, says to pick a day for 'all', ignores an answer that arrives late, and says so on failure.
 const fs = require('fs');
 const src = fs.readFileSync('/s/map.js', 'utf8');
 let failures = 0;
@@ -31,10 +32,12 @@ function makeEnv(o) {
   const picker = o.noPicker ? null : {value: o.pickerValue || 'all', handlers: {},
                                       addEventListener(t, f) { this.handlers[t] = f; }};
   const container = {dataset: o.dataset};
+  const findingsBox = o.noFindings ? null : {textContent: '', innerHTML: ''};
+  st.findingsPending = [];
   let ready;
   const document = {
     addEventListener(t, f) { if (t === 'DOMContentLoaded') ready = f; },
-    getElementById(id) { return {map: container, 'radar-day': picker, 'radar-status': o.noPicker ? null : status}[id] || null; },
+    getElementById(id) { return {map: container, 'radar-day': picker, 'radar-status': o.noPicker ? null : status, findings: findingsBox}[id] || null; },
   };
   const bodies = o.bodies || {};
   const fetchImpl = (url) => {
@@ -46,6 +49,12 @@ function makeEnv(o) {
       const r = o.radarSequence ? o.radarSequence.shift() : bodies.radar;
       return Promise.resolve({ok: o.radarOk !== false, json: () => Promise.resolve(r)});
     }
+    if (url.startsWith('/territory/findings')) {
+      if (o.findingsReject) return Promise.reject(new Error('network'));
+      const reply = (html) => ({ok: o.findingsOk !== false, text: () => Promise.resolve(html)});
+      if (o.findingsManual) return new Promise(res => st.findingsPending.push({url, resolve: (html) => res(reply(html))}));
+      return Promise.resolve(reply(o.findingsHtml || '<h3>Findings</h3>'));
+    }
     return Promise.reject(new Error('unexpected ' + url));
   };
   const console_ = {error() { st.errors.push([...arguments].join(' ')); }, log: console.log};
@@ -54,7 +63,7 @@ function makeEnv(o) {
     new Function('L', 'document', 'window', 'fetch', 'console', 'URLSearchParams', src)(L, document, window, fetchImpl, console_, URLSearchParams);
     ready(); await tick();
   };
-  return {st, picker, status, container, run};
+  return {st, picker, status, container, run, findingsBox};
 }
 
 const POINT = (lon, lat) => ({type: 'Feature', geometry: {type: 'Point', coordinates: [lon, lat]},
@@ -62,7 +71,7 @@ const POINT = (lon, lat) => ({type: 'Feature', geometry: {type: 'Point', coordin
 const FEATURE = (layer, km2) => ({type: 'Feature', properties: {layer, area_km2: km2, parts: 1}, geometry: {type: 'Polygon', coordinates: []}});
 const RADAR = (layers, days = ['2026-06-08'], other = []) => ({type: 'FeatureCollection', features: layers.map(([l, a]) => FEATURE(l, a)),
   days, built_with_other_set: other, set: {set_id: 1}});
-const DS = {matchRadiusM: '8046.7', radarUrl: '/map/radar.geojson'};
+const DS = {matchRadiusM: '8046.7', radarUrl: '/map/radar.geojson', findingsUrl: '/territory/findings'};
 
 (async () => {
   check(!/8046|1609\.344|5 miles/.test(src), 'no hard-coded radius left in map.js');
@@ -100,7 +109,8 @@ const DS = {matchRadiusM: '8046.7', radarUrl: '/map/radar.geojson'};
   e.st.fetches.length = 0;
   e.picker.handlers.change();
   await tick();
-  check(e.st.fetches.length === 1 && e.st.fetches[0] === '/map/radar.geojson?days=90&type=HAIL&day=2026-06-01', 'a change asks for the new day only');
+  const radarFetches = e.st.fetches.filter(u => u.startsWith('/map/radar.geojson'));
+  check(radarFetches.length === 1 && radarFetches[0] === '/map/radar.geojson?days=90&type=HAIL&day=2026-06-01', 'a change asks the radar for the new day only');
   check(radarGroups.every(g => g.cleared >= 1), 'a change clears every radar layer first');
   check(by('core').features.length === 1, 'and does not pile features up');
 
@@ -149,6 +159,84 @@ const DS = {matchRadiusM: '8046.7', radarUrl: '/map/radar.geojson'};
     check(e.st.circles.length === 0 && e.st.markers.length === 1 && e.st.errors.some(s => s.includes('no match radius')),
           'radius ' + JSON.stringify(bad) + ': no circles guessed, error logged, points still drawn');
   }
+
+  // ---- the findings panel (slice 6)
+  e = makeEnv({dataset: DS, pickerValue: '2026-06-08', search: '?days=90&type=HAIL&day=stale', findingsHtml: '<h3>Findings for 2026-06-08</h3>',
+               bodies: {radar: RADAR([['core', 100]])}});
+  await e.run();
+  check(e.st.fetches.includes('/territory/findings?days=90&type=HAIL&day=2026-06-08'), 'findings ask for the picked day, replacing a stale day= and keeping the rest');
+  check(e.findingsBox.innerHTML === '<h3>Findings for 2026-06-08</h3>', 'the fragment is put in the findings box');
+
+  e.picker.value = '2026-06-01';
+  e.st.fetches.length = 0;
+  e.picker.handlers.change();
+  await tick();
+  check(e.st.fetches.includes('/territory/findings?days=90&type=HAIL&day=2026-06-01') && e.st.fetches.includes('/map/radar.geojson?days=90&type=HAIL&day=2026-06-01'),
+        'a change reloads the findings and the radar together');
+
+  e = makeEnv({dataset: DS, pickerValue: 'all', search: '?days=30', bodies: {radar: RADAR([['core', 100]])}});
+  await e.run();
+  check(!e.st.fetches.some(u => u.startsWith('/territory/findings')), '"all" does not ask for findings');
+  check(e.findingsBox.textContent === 'Pick a single radar day to see its findings.', '"all" tells the user to pick a day');
+
+  e = makeEnv({dataset: DS, pickerValue: '2026-06-08', findingsManual: true, bodies: {radar: RADAR([])}});
+  await e.run();
+  check(e.findingsBox.textContent === 'Loading findings…', 'a slow answer shows a loading line');
+  e.picker.value = '2026-06-09';
+  e.picker.handlers.change();
+  await tick();
+  check(e.st.findingsPending.length === 2, 'two requests are in flight');
+  e.st.findingsPending[1].resolve('<p>newer</p>');
+  await tick();
+  e.st.findingsPending[0].resolve('<p>older</p>');
+  await tick();
+  check(e.findingsBox.innerHTML === '<p>newer</p>', 'an older answer that arrives last does not overwrite the newer one');
+
+  e = makeEnv({dataset: DS, pickerValue: '2026-06-08', findingsManual: true, bodies: {radar: RADAR([])}});
+  await e.run();
+  e.picker.value = 'all';
+  e.picker.handlers.change();
+  e.st.findingsPending[0].resolve('<p>late</p>');
+  await tick();
+  check(e.findingsBox.textContent === 'Pick a single radar day to see its findings.' && e.findingsBox.innerHTML === '',
+        'an answer for a day that is no longer picked is dropped after switching to "all"');
+
+  // a failure of a request that is no longer the newest must not wipe the newer answer
+  e = makeEnv({dataset: DS, pickerValue: '2026-06-08', findingsManual: true, bodies: {radar: RADAR([])}});
+  await e.run();
+  e.picker.value = '2026-06-09';
+  e.picker.handlers.change();
+  await tick();
+  e.st.findingsPending[1].resolve('<p>newer</p>');
+  await tick();
+  e.st.findingsPending[0].resolve('<p>x</p>');       // the older one comes back as an HTTP 500 below
+  await tick();
+  check(e.findingsBox.innerHTML === '<p>newer</p>', 'the older answer does not replace the newer one (control for the failure case)');
+  e = makeEnv({dataset: DS, pickerValue: '2026-06-08', findingsManual: true, findingsOk: false, bodies: {radar: RADAR([])}});
+  await e.run();
+  e.picker.value = '2026-06-09';
+  e.picker.handlers.change();
+  await tick();
+  e.findingsBox.textContent = 'newer text';
+  e.st.findingsPending[0].resolve('<p>boom</p>');
+  await tick();
+  check(e.findingsBox.textContent === 'newer text' || e.findingsBox.textContent === 'Loading findings…',
+        'a stale request that fails does not overwrite the newer request\'s box');
+
+  e = makeEnv({dataset: DS, pickerValue: '2026-06-08', findingsOk: false, bodies: {radar: RADAR([])}});
+  await e.run();
+  check(e.findingsBox.textContent === 'The findings could not be loaded.' && e.st.errors.some(s => s.includes('findings load failed')), 'an HTTP error is shown and logged');
+  e = makeEnv({dataset: DS, pickerValue: '2026-06-08', findingsReject: true, bodies: {radar: RADAR([])}});
+  await e.run();
+  check(e.findingsBox.textContent === 'The findings could not be loaded.', 'a network failure is shown');
+  check(e.status.textContent === 'Nothing to draw for this selection.', 'and the radar status is unaffected by it');
+
+  e = makeEnv({dataset: DS, pickerValue: '2026-06-08', noFindings: true, bodies: {radar: RADAR([])}});
+  await e.run();
+  check(!e.st.fetches.some(u => u.startsWith('/territory/findings')), 'with no findings box nothing is requested and nothing throws');
+  e = makeEnv({dataset: DS, noPicker: true, bodies: {points: {features: []}}});
+  await e.run();
+  check(!e.st.fetches.some(u => u.startsWith('/territory/findings')), 'with no picker the findings are never requested');
 
   console.log(failures ? failures + ' FAILED' : 'all ok');
   process.exit(failures ? 1 : 0);

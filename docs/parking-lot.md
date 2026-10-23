@@ -3601,6 +3601,10 @@ warnings cover the whole country.
 6. **List defaults.** `DEFAULT_REPORT_TEXT = "HAIL"` in `hailsys/web/views.py`: Storm Days, Territory and the map's
    points open on HAIL (developer, 2026-10-22; "All" is still a choice). A market with no `HAIL` report type would
    open on empty pages. Move it into settings with the rest.
+7. **The cold season.** `COLD_SEASON_MONTHS = (10, 11, 12, 1, 2, 3)` in `hailsys/queries/findings.py` (added 2026-10-23,
+   slice 6): the months in which radar hail with no report anywhere that day is flagged on the findings panel as more likely a
+   radar artefact than hail. October to March is Front Range reasoning (developer, 2026-10-23); another market's hail season,
+   and its winter radar artefacts, differ. Move it into settings, per market, with the rest.
 
 **Rule for new work:** no new constant of this kind (decision log 2026-10-20). Phase 5b takes the time zone,
 state and bounds from settings and data.
@@ -3782,7 +3786,12 @@ That is the ground truth that everything in items 205 and 206 is waiting for.
 
 **What the export must contain.**
 - **Every inspection, including the no-damage ones.** Without the zeros, damage rates cannot be
-  computed.
+  computed. **Why this matters most (owner, 2026-10-22; developer, 2026-10-23):** two houses next door to each other can
+  get the same storm, one roof totalled and the other undamaged. No weather source resolves that (MESH is a 1 km grid,
+  and hail swaths are patchy at the scale of a block), so the likelihood levels can only rank areas and can never
+  predict a roof. A file of jobs won or damage found alone would make every level look better than it is; the
+  no-damage inspections are what let the damage rate per level be measured honestly. Ask RBI for them explicitly,
+  and for the roof's age and material where recorded (RentCast `year_built` is the only national roof-age proxy).
 - **The inspector's estimate of the damage's age.** Older damage can be wrongly attributed to a newer
   storm, and the damage-age estimate is the only guard against it.
 - The address (exact, not a zip), the inspection date and the rating.
@@ -6301,3 +6310,55 @@ value above 254 mm is re-fetched (`radar_day.py --refetch`) as item 247 did, and
 same check applies to the wider box.
 
 **Related:** items 246, 247; decision log 2026-10-22.
+
+## 251. The findings panel's listing matrix takes about 8 seconds a day
+
+**Status:** open, not urgent (filed 2026-10-23, Phase 5b slice 6)
+
+`findings.listing_matrix` (`hailsys/queries/findings.py`) places about 19,700 held houses by radar layer and by distance to
+the nearest actionable report. Measured on `hail-dev` under `hail_app`: 2024-05-30 in 7.3 s, 2023-06-21 in 8.2 s, a day
+with no hail in 1.0 s. The panel loads it when a radar day is picked and shows "Loading findings…" meanwhile; the page
+stays usable. The first version ran for over two minutes: Postgres folded the single-use `layers` and `reports` CTEs into
+the per-house subqueries and redid the `ST_Union` for every house. They are now `MATERIALIZED` (commented in the SQL).
+What is left is probably the distance subquery, about 20,000 houses against about 85 reports on the spheroid; not
+profiled. The cost grows with houses times reports, and 19,715 is only the listings from 36 pulls on 27 storm days.
+
+**Ideas, none tried:** cut reports to those within a degree box of the house before the spheroid distance; cache the
+matrix per day and parameter set (it only changes with a pull or a rebuild); compute it when a pull finishes.
+
+**When:** the panel is too slow in daily use, or before anyone but the developer uses it, or when the held listings
+grow by several times (more pulls, a second market).
+
+**Related:** items 238, 250; slice 6 in `docs/phases.md`.
+
+## 252. Slice 6 (findings panel): built; mutation check found one real bug, three survivors accepted
+
+**Status:** resolved 2026-10-23 for the build (uncommitted when filed); three mutation survivors and one coverage limit
+accepted, open with the triggers below.
+
+Built 2026-10-23: `hailsys/queries/findings.py`, `/territory/findings`, `_findings.html`, the box in `_map_panel.html`, the
+picker hook in `map.js`, `style.css`; tests `test_findings.py` (62), `test_findings_web.py` (20), the isolation tests in
+`test_radar_map_web.py` (now also forbidding email, matching, RentCast and export code from importing `findings`, and
+allowing only `territory_findings` to use it), and 49 checks in `tests/js/map_check.js`. Default suite 2026-10-23: 1,875 tests,
+1 known error (`test_iem_parse.TestSharedTypecodes`).
+
+**Mutation check (64 mutations, one at a time):** 47 killed at the first pass, 17 survived. 14 survivors were real test gaps
+and are closed with new tests, each confirmed killed. **One was a real bug** the tests would have missed: after a new parameter
+set is added every day keeps its old build, so `day_overview` called a day built with both sets "older set"
+(`built_with_other and not built`); fixed by a test before it shipped.
+
+**Accepted survivors:**
+- `x.miles <= 1` and `<= 3` against `<` (the matrix band edges): a point exactly 1 or 3 miles away cannot be reproduced to the
+  last digit on a spheroid, so the tests pin both sides of each edge to within 1 to 2 m, not the edge itself. The convention
+  (the upper edge belongs to the lower band) is commented above `BANDS`.
+- Removing `@login_required` from `territory_findings`: an equivalent mutant, the global `require_login` before-request guard
+  already covers every route; the decorator stays for consistency with its siblings.
+
+**Accepted limit:** there is no active viewer account on `hail-dev`, so the "every role may read it" tests cover only the roles
+that exist (admin so far). The route is `login_required`, the same as the map's radar route; viewer access itself is not
+verified.
+
+**When:** the band edges, if "within 1 mile" ever carries a contractual or advertised meaning; the viewer limit, when a viewer
+account exists on `hail-dev` and before any production use.
+
+**Related:** items 238 (7), 250, 251; `docs/phases.md` Phase 5b.

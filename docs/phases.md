@@ -323,8 +323,12 @@ the `storm_states` setting. Slice 4: the nightly and weekly jobs, backfill, `sta
 Days page line, the ingest image rebuilt; the backfill from 2020-10-14 ran 2026-10-22 (2,197 days held, 2 absent at
 NOAA) and the timers are installed. Slice 5: `/map/radar.geojson`, the four map layers with a day picker, toggles and
 legend on the Territory page, the circle radius from the setting (item 216), and a default report type of HAIL on Storm
-Days, Territory and the map. A plausibility ceiling (10 in) sets aside days with impossible MESH values (item 247, built). **Not built:** slice 6
-(findings panel, including the listings in each layer), slice 7 (admin fields for the thresholds, margin, radius and `storm_states`; the rebuild
+Days, Territory and the map. A plausibility ceiling (10 in) sets aside days with impossible MESH values (item 247, built).
+**Slice 6 built 2026-10-23** (items 251, 252): a findings panel under the Territory map for the picked radar day (`/territory/findings`,
+`hailsys/queries/findings.py`): the day at a glance, reports against the layers, the report circles against the radar, and a
+matrix of held houses by radar layer against distance to the nearest actionable hail report, with the draft tier letters as a labelled
+annotation; flags for suspect, older-set and no-radar days, no reports, and cold-season unreported radar hail. Staff only, read only.
+**Not built:** slice 7 (admin fields for the thresholds, margin, radius and `storm_states`; the rebuild
 button; the calibration run), slice 8 (inspection data, when RBI delivers it).
 
 **Done when:** for a historical storm day, the four layers draw on the territory page and agree with

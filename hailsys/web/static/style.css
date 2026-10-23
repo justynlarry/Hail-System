@@ -1092,3 +1092,14 @@ path.radar-warnings   { fill: var(--radar-warnings);   stroke: var(--radar-warni
   .tpl-right { position: static; }
   .tpl-frame { height: 600px; }
 }
+
+/* Findings panel under the Territory map (Phase 5b, slice 6) */
+.findings { margin-top: 1rem; }
+.findings h3 { margin: 0 0 .25rem; }
+.findings h4 { margin: 1rem 0 .25rem; }
+.findings-table { width: auto; max-width: 100%; }
+.findings-table tbody th { text-align: left; font-weight: 400; color: var(--muted); padding: .35rem .75rem .35rem 0; }
+.findings-table td { padding: .35rem .75rem; }
+.findings-flags { list-style: none; margin: 0; padding: 0; }
+.findings .tier { font-size: .7rem; font-weight: 600; color: var(--muted); vertical-align: super; }
+.findings .matrix { display: block; overflow-x: auto; }

@@ -15,7 +15,7 @@ from hailsys.rentcast.estimate import estimate_pull
 from hailsys.web.jobs import start_pull, PullInProgress
 from hailsys.db import get_connection
 from hailsys.formatting import csv_safe, magnitude
-from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest, ccstate, radar, radar_map
+from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest, ccstate, radar, radar_map, findings
 from hailsys.tuning import (
     DISPLAY_TZ,
     RECENT_PULL_WINDOW_DAYS,
@@ -573,6 +573,42 @@ def map_radar():
         else:
             days = [r["day"] for r in radar_map.picker_days(conn, start_day, end_day)]
         return radar_map.zones_geojson(conn, days)
+
+
+@bp.route("/territory/findings")
+@login_required
+def territory_findings():
+    """The findings panel under the Territory map.  An HTML fragment for one radar day.  Staff only and
+    read only, counts and no addresses.  ?day= is required and needs to lie inside the page's window, as for
+    /map/radar.geojson.  The circles and the listing matrix need radar zones under the parameter set in
+    use and are left out for a day without them, the flags say why.
+    """
+    start_day, end_day, _, _, = _window_from_args()
+    day = _parse_day(request.args.get("day"))
+    if day is None or not start_day <= day <= end_day:
+        abort(400)
+    with get_connection() as conn:
+        overview = findings.day_overview(conn, day)
+        reports = findings.reports_by_layer(conn, day)
+        circles = matrix = None
+        if overview["built"]:
+            circles = findings.circle_coverage(conn, day, miles_to_metres(g.settings["match_radius_miles"]))
+            matrix = findings.listing_matrix(conn, day)
+        radar_set = radar_map.in_use_set(conn)
+    return render_template(
+        "_findings.html",
+        day=day,
+        overview=overview,
+        reports=reports,
+        flags=findings.day_flags(overview, reports, day),
+        circles=circles,
+        matrix=matrix,
+        tiers=findings.draft_tiers(),
+        bands=findings.BANDS,
+        matrix_rows=findings.MATRIX_ROWS,
+        match_radius_miles=g.settings["match_radius_miles"],
+        radar_set=radar_set,
+    )
 
 
 @bp.route("/pull/estimate")
