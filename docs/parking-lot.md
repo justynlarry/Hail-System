@@ -6372,13 +6372,28 @@ account exists on `hail-dev` and before any production use.
 
 ## 253. CoCoRaHS nightly ingest: where the data comes from, and whether absence can be recorded
 
-**Status:** open (filed 2026-10-23, from the design entry of the same date)
+**Status:** open (filed 2026-10-23, from the design entry of the same date; source question answered 2026-10-23, absence question open)
 
 The likelihood-map design (decision log 2026-10-23, point 7) needs a nightly, idempotent CoCoRaHS ingest. The precision study used CSV
 exports pulled by hand on the workstation; nothing yet says how a nightly job gets the same data (an export URL, an API, rate limits, key
 or terms), whether the export carries the entry time (the late-entry rebuild needs it), or whether the daily precipitation reports, which have a
 hail field, can say where hail did **not** fall. If absence can be recorded, "neither" and "radar only" areas could be checked directly, which
 no source does today. The usage policy (CC BY 4.0, attribution when displayed) is read by the fetch tool only; the developer has not read it in full.
+
+**Answered 2026-10-23 (two small public requests, no key):** the source is CoCoRaHS's own export,
+`data.cocorahs.org/cocorahs/export/exportreports.aspx`, with `ReportType` (Hail, Daily, Multi-Day, SigWx), `Format=csv`, `State`, `StartDate`,
+`EndDate`, `ReportDateType` (Report Date or Report Timestamp), `TimesInGMT` and a date-format code. A one-day Colorado Hail request (2024-05-30)
+returned HTTP 200 and 25 reports in the same columns as the study files, each with `EntryDateTime` and `DateTimeStamp`, so the late-entry
+rebuild has the entry time. The `Report Timestamp` mode looks meant for changes and late entries; untested, confirm in phase 1. No rate limit,
+terms or automated-use text appears on the export page, and the fetch tool could show only the home-page summary of the usage policy (free to
+governments, academia and the private sector; CC BY 4.0; acknowledge the source when displaying); the full policy page may say more about
+automated use, which is the practical reason for the developer's own read. The nightly job would make one request a night for one state,
+identify itself with a contact in the User-Agent, and cache the result.
+
+**Absence, partly answered:** the Daily export has precipitation and snow columns only (`TotalPrecipAmt`, `NewSnowDepth`, ...), no hail field, so
+"no hail fell here" cannot be read directly. It does show where observers are: 905 Colorado stations filed a daily report on 2024-05-30 against 25
+hail reports. A station inside a radar core that filed rain but no hail report is weak evidence that no hail fell there (weak because observers do
+not always file hail). A script to measure that is `docs/analysis/cocorahs-station-coverage-2026-10/` (to run on the workstation).
 
 **When:** before design phase 1 starts (CoCoRaHS ingest), and before any CoCoRaHS text reaches an email.
 
