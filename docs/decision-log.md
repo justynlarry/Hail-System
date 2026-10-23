@@ -7607,3 +7607,42 @@ to look first; they are not percentages.
   the full policy stays a precaution before any CoCoRaHS-sourced wording reaches an email, not a blocker.
 
 **Related:** items 207, 208, 210, 238, 243, 250, 252, 253; decision log 2026-10-20, 2026-10-22 (both), 2026-10-23 (the entry above).
+
+## 2026-10-23 — Phase 5c starts: the hail-likelihood map, internal; the pull, match and send steps wait
+
+**Decision (developer, 2026-10-23):**
+1. **Phase 5c starts alongside the rest of Phase 5.** This waives "do not build ahead of the current phase" for step 1 of the design
+   (decision log 2026-10-23, point 11) only, on the same grounds as 2026-10-20: what is left of Phase 5 (items 129, 183, 189, 96 and the
+   production box) is outside our hands, and step 1 is internal display that cannot send anything or spend RentCast money. It is named
+   Phase 5c, not "phase 1", to keep it apart from the project's Phase 1.
+2. **Step 1 scope:**
+   - the CoCoRaHS ingest, nightly and idempotent, with its own table (item 253 settles the source);
+   - the likelihood zones per storm day (Agree, One source, Context) built from the stored radar zones, the report circles and the
+     CoCoRaHS points;
+   - a layer on the Territory map beside the radar layers, staff only;
+   - a versioned likelihood parameter set holding the level lookup table (layer by distance band to level), the distances and the minimum
+     overlap, editable on the admin page and logged to `settings_history` (the 2026-10-20 configurability rule applies in full);
+   - the backtest with one source hidden (design point 9), with the bar at about 80% unless the developer changes it.
+3. **Steps 2 to 4 are not started.** Pulls from the zones (`pull_zips`, the estimate by level), matches with `basis` and `level` (the
+   Option A schema change), and sends by level each need their own waiver entry first, and step 3 also needs the backtest passed. **Pulls
+   and matching are unchanged** until those entries. This narrows 2026-10-20 point 3, which said pulls and matching stay unchanged until
+   inspection data exists: the design now allows steps 2 to 4 without inspection data, but only through their own entries.
+4. **Nothing radar- or CoCoRaHS-derived reaches an email, an export, a pull or the matcher.** The isolation tests are extended to cover each
+   new module before anything else uses it. Radar is still described only as "hail of at least 1 inch within about 3 miles", and levels are
+   never given as probabilities.
+5. **Outside calls.** The only new one is the CoCoRaHS export, free, one request a night for one state, identified in the User-Agent. The
+   contact string is a setting on the admin page, not a code constant. RentCast is not called. The 2026-10-20 point 6 condition (a new
+   source's terms are read first) is met: the CoCoRaHS terms were read on 2026-10-22 (CC BY 4.0, free to the private sector, attribution when
+   displayed) and accepted by the developer on 2026-10-23. Attribution appears on the map layer.
+6. **Per market.** New code adds no Colorado or Denver constant: the state list, time zone, thresholds, distances, cold-season months and
+   level table are settings or data (item 238).
+
+**Done when:** for a historical storm day the likelihood layer draws on the Territory page and its areas agree with the backtest; hiding
+any one source leaves that source's points of 1 in or more mostly in Agree or One source (about 80%, by year and region); an admin can change
+the level table and distances from the admin page and the change is logged; nothing from 5c is reachable from an email, an export, a pull
+or the matcher (tested).
+
+**Why:** the design (2026-10-23) is decided and its open questions answered, the items waiting on others are not ours to move, and step 1
+is the part that touches no money- or mail-touching path. It also produces the backtest that gates steps 2 and 3.
+
+**Related:** items 207, 208, 210, 238, 243, 252, 253; decision log 2026-10-20, 2026-10-22 (both), 2026-10-23 (both); `phases.md` Phase 5b and 5c.

@@ -113,13 +113,22 @@ reaches an email, an export, a pull or the matcher.
   from `/map/radar.geojson` (staff only, read only, `hailsys/queries/radar_map.py`). The circle radius is the match
   radius setting (item 216, resolved). Storm Days, Territory and the map open on HAIL (`DEFAULT_REPORT_TEXT`, item 238).
   A MESH value above 10 in (254 mm) is NOAA's processing, not hail: such a day is recorded `suspect` and not drawn (item 247).
-- **Not built:** the findings panel, admin fields for the radar settings (item 243), calibration, inspection data, and
-  combining the radar with the IEM reports for pulls and matches (direction recorded in the decision log 2026-10-22, not
-  designed). The radar database tests need `hail_admin` (item 241).
+- **The findings panel (slice 6, built 2026-10-23, items 251 and 252).** Under the map, for the radar day picked:
+  `/territory/findings`, `hailsys/queries/findings.py`, `_findings.html`. The day at a glance, reports against the layers, the report
+  circles against core and margin, and a matrix of held houses by radar layer against distance to the nearest actionable hail
+  report, with the draft tier letters as a labelled annotation. Staff only, read only, counts and no addresses. About 8 s a day.
+- **Not built:** admin fields for the radar settings (item 243), the rebuild-all-days action and calibration (slice 7), inspection data
+  (slice 8). The radar database tests need `hail_admin` (item 241).
+
+**Phase 5c — the hail-likelihood map and unified pull.** Design accepted 2026-10-23 (decision log "Design: one hail-likelihood map per
+storm day, one pull from it", with the developer's answers); **step 1 only** (the CoCoRaHS ingest, likelihood zones, a staff-only map
+layer, a versioned parameter set, the backtest) was waived in the same day ("Phase 5c starts"), internal, and **nothing is built yet.**
+Pulls and matching are unchanged: steps 2 to 4 (pulls from the zones, matches with `basis` and `level`, sends by level) each need their own
+waiver entry first, and nothing CoCoRaHS- or likelihood-derived may reach an email, an export, a pull or the matcher until then.
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
 with CSV export → 3 RentCast listings → 4 accounts → 5 email → 5b radar layers
-on the territory page (internal) → 6 pilot → 7 rollout.
+on the territory page (internal) → 5c likelihood map (step 1 internal; pull, match and send steps wait) → 6 pilot → 7 rollout.
 
 Do not build ahead of the current phase.
 
