@@ -161,20 +161,51 @@ cmd_radar() {
 
 
 
+# The CoCoRaHS job, same test as cmd_radar on its own table.  A "complete" run can still have
+# rejected lines or have found nothing, so the counts are shown, not just the verdict.
+cmd_cocorahs() {
+    echo "== CoCoRaHS hail reports =="
+    psql_run "
+        SELECT run_id, run_mode, run_status, loads, reports_seen, reports_new,
+               reports_changed, reports_rejected, finished_at
+          FROM cocorahs_runs
+        ORDER BY run_id DESC
+        LIMIT 5;"
+    psql_run "
+        SELECT count(*)                       AS reports,
+               count(DISTINCT station_number) AS stations,
+               min(observed_at)               AS oldest,
+               max(observed_at)               AS newest
+        FROM cocorahs_hail_reports;"
+    local fresh
+    fresh=$(psql_run "
+        SELECT coalesce(max(finished_at) > now() - interval '$STALE_HOURS hours', false)
+          FROM cocorahs_runs
+        WHERE run_mode = 'nightly' AND run_status = 'complete';" -tA)
+    fresh=${fresh//[[:space:]]/}
+
+    if [[ $fresh == t ]]; then
+        echo "OK: a nightly CoCoRaHS run has completed in the last ${STALE_HOURS}h."
+        return 0
+    fi
+    echo "STALE: no nightly CoCoRaHS run has completed in the last ${STALE_HOURS}h." >&2
+    return 1
+}
+
 # Which paths make each image out of date.  Only `ingest` bakes code that
 # unattended jobs run; web, app and loader read the working tree through bind
 # mounts (command-ref.md, "Which services see your edits"), so for them only
 # the build inputs count.  The ingest list is the import closure of
-# scripts/iem_ingest.py, iem_backfill.py and radar_ingest.py plus hailsys/logconfig.py, which
+# scripts/iem_ingest.py, iem_backfill.py, radar_ingest.py and cocorahs_ingest.py plus hailsys/logconfig.py, which
 # configure_logging() imports lazily.  Derive it again if ingest gains an
 # import, or this goes quietly out of date:
 #   docker compose run --rm ingest python -c "import sys; \
-#     sys.path.insert(0,'scripts'); import iem_ingest, iem_backfill, radar_ingest, \
+#     sys.path.insert(0,'scripts'); import iem_ingest, iem_backfill, radar_ingest, cocorahs_ingest, \
 #     hailsys.logconfig; print(sorted(m for m in sys.modules \
 #     if m.startswith('hailsys')))"
 image_paths() {
     case $1 in
-        ingest)  echo "hailsys/__init__.py hailsys/iem hailsys/radar hailsys/db.py hailsys/tuning.py hailsys/logconfig.py scripts/iem_ingest.py scripts/iem_backfill.py scripts/radar_ingest.py requirements.txt docker/ingest.Dockerfile" ;;
+        ingest)  echo "hailsys/__init__.py hailsys/iem hailsys/radar hailsys/cocorahs hailsys/db.py hailsys/tuning.py hailsys/logconfig.py scripts/iem_ingest.py scripts/cocorahs_ingest.py scripts/iem_backfill.py scripts/radar_ingest.py requirements.txt docker/ingest.Dockerfile" ;;
         app|web) echo "requirements.txt docker/app.Dockerfile" ;;
         loader)  echo "docker/loader.Dockerfile" ;;
     esac
@@ -219,13 +250,14 @@ cmd_images() {
 
 usage() {
     cat <<EOF
-usage: status.sh [runs|data|rejects|nightly|radar|images|all]
+usage: status.sh [runs|data|rejects|nightly|radar|cocorahs|images|all]
 
   runs     the last five ingest runs and their counts
   data     how many reports are stored, and how recent
   rejects  reject reasons across the last ten runs
   nightly  when a nightly run last succeeded; exits 1 if that is stale
   radar    the last five radar runs, days held, and whether a nightly radar run is fresh;  exits 1 if stale
+  cocorahs the last five CoCoRaHS runs, reports stored, and whether a nightly run is fresh;  exits 1 if stale
   images   whether each Docker image is behind the code or files it depends on
   all      all of the above (default), exiting 1 if the IEM nightly is stale (radar shown, not counted)
 
@@ -237,7 +269,7 @@ main() {
     local cmd=${1:-all}
     case $cmd in
         -h|--help|help) usage; exit 0 ;;
-        runs|data|rejects|nightly|radar|images|all) ;;
+        runs|data|rejects|nightly|radar|cocorahs|images|all) ;;
         *) usage >&2; die "unknown command '$cmd'" ;;
     esac
 
@@ -250,6 +282,7 @@ main() {
         rejects) cmd_rejects ;;
         nightly) cmd_nightly ;;
         radar)   cmd_radar ;;
+        cocorahs) cmd_cocorahs ;;
         images)  cmd_images ;;
         all)
             local rc=0
@@ -258,6 +291,7 @@ main() {
             cmd_rejects; echo
             cmd_images;  echo
             cmd_radar || true; echo
+            cmd_cocorahs || true; echo
             # Nightly runs last so its verdict is the last thing on screen, and
             # its status becomes the script's. `|| rc=$?` is what keeps set -e
             # from exiting here before the message is useful.

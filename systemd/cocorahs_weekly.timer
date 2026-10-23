@@ -1,0 +1,13 @@
+[Unit]
+Description=Replay the last 30 days of CoCoRaHS reports on Sundays at 12:00 UTC, after the radar rebuild at 11:30
+Documentation=file:///home/hail-user/hail-system/docs/hail-consolidated.md
+
+[Timer]
+OnCalendar=Sun *-*-* 12:00:00
+
+Persistent=true
+AccuracySec=1min
+Unit=cocorahs_weekly.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the nightly CoCoRaHS job at 11:00 UTC, after the radar job at 10:30
+Documentation=file:///home/hail-user/hail-system/docs/hail-consolidated.md
+
+[Timer]
+OnCalendar=*-*-* 11:00:00
+
+Persistent=true
+AccuracySec=1min
+Unit=cocorahs_ingest.service
+
+[Install]
+WantedBy=timers.target
