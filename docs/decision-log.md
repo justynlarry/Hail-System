@@ -7549,8 +7549,8 @@ entry above); `docs/analysis/weather-sources-2026-10/`, `docs/analysis/radar-tim
 
 ## 2026-10-23 — Design: one hail-likelihood map per storm day, one pull from it (proposed)
 
-**Status:** accepted as the design by the developer 2026-10-23 ("this looks good"); the open questions at the end are still the
-developer's to answer. **Nothing is built.** Pulls and matching are unchanged until a phase below is started, each with its own waiver entry (as
+**Status:** accepted as the design by the developer 2026-10-23 ("this looks good"), with the six open questions answered the same day
+(below). **Nothing is built.** Pulls and matching are unchanged until a phase below is started, each with its own waiver entry (as
 2026-10-20). This takes the "direction, not yet designed" of the 2026-10-22 and 2026-10-23 entries and makes it a design.
 
 **Rules that stay.** Every pull is started by a person and nothing sends automatically. Radar is described only as "hail of at least 1
@@ -7596,8 +7596,14 @@ to look first; they are not percentages.
     backtest (internal, no pulls); (2) pulls from the zones (`pull_zips`, estimate by level); (3) matches with `basis` and `level`;
     (4) sends by level.
 
-**Open, for the developer:** (a) Option A or B. (b) The default floor, and whether Context is in. (c) The backtest bar. (d) Motion in
-version 1 or later (recommended later). (e) The minimum zip overlap (recommended: any intersection with a level, the overlap shown on the
-estimate). (f) Whether phases 2 and 3 wait for the developer's own read of the CoCoRaHS policy.
+**Decided by the developer, 2026-10-23:**
+- (a) **Option A:** extend `storm_listing_matches`.
+- (b) **Default pull floor:** Agree and One source are included; the Context level (NWS warning areas only) is opt-in on the estimate page.
+- (c) **Backtest bar:** about 80% of the hidden source's points of 1 in or more landing in Agree or One source ("that sounds right").
+- (d) **Motion:** later, not in version 1.
+- (e) **Minimum zip overlap:** any overlap at all, with the amount shown on the estimate page.
+- (f) **CoCoRaHS policy:** phases 2 and 3 do not wait for it. The terms were read by the fetch tool on 2026-10-22 (CC BY 4.0, free to the private
+  sector, attribution when displayed, "as is"), which the developer reads as permissive, closer to IEM than to mPING. The developer's own read of
+  the full policy stays a precaution before any CoCoRaHS-sourced wording reaches an email, not a blocker.
 
 **Related:** items 207, 208, 210, 238, 243, 250, 252, 253; decision log 2026-10-20, 2026-10-22 (both), 2026-10-23 (the entry above).
