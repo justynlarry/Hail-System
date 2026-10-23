@@ -6243,3 +6243,32 @@ a re-fetch after delete), `test_radar_ingest.py`, `test_radar_health.py`, `test_
 **Not fixed, still open:** the cold-season days (December to March) with MESH of 1 in or more and no report. The findings panel (slice 6) will flag them.
 
 **Related:** items 211, 239, 240; `docs/analysis/mesh-window-2026-10/`; decision log 2026-10-22.
+
+## 248. The radar timing study's opening line counts days skipped by `--limit` as "already done"
+
+**Status:** open, cosmetic (analysis script only; the results are unaffected)
+
+Found in the two-day trial on thor, 2026-10-22. With `--limit 2` and an empty `--out`, `radar_study.py` printed
+"495 days listed, 2 to do (493 already done)" when no day had been run. The count is `len(set(days)) - len(todo)` at
+`docs/analysis/radar-timing-study-2026-10/radar_study.py:337`, worked out after the limit has cut `todo` down, so days
+left out by the limit are reported as done. The full run without `--limit` printed the right count ("493 to do (2 already
+done)").
+
+**When:** the next edit to `radar_study.py`, or before it is reused for another study.
+
+**Related:** `docs/analysis/radar-timing-study-2026-10/README.md`.
+
+## 249. The radar timing study drops neighbouring hours at the local-day boundary, and its CSV does not give its units
+
+**Status:** open, minor (analysis script; the summary's results are not changed in substance)
+
+Found reading the 495-day run on thor, 2026-10-22. `radar_study.py` loads only the 24 hourly files of a report's local day
+(`docs/analysis/radar-timing-study-2026-10/radar_study.py:105`); the report's own hour is chosen at `:189` and its neighbours at
+`:192`, so near local midnight they fall among the previous or next day's files and are treated as missing. In that run: 5 reports
+with no own-hour value (all stamped exactly 06:00 UTC, local midnight, so their own file is the last of the day before), 26 with no
+hour-before value and 64 with no hour-after value (a few of these are NOAA's 12 missing files). Separately, the radar columns of
+`reports_timing.csv` (`prev_*`, `own_*`, `next_*`) are in mm while `mag` is in inches, and the header does not say so.
+
+**When:** with item 248, at the next edit to `radar_study.py`, or before it is reused for another study.
+
+**Related:** item 248; `docs/analysis/radar-timing-study-2026-10/README.md`.
