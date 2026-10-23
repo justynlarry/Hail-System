@@ -122,7 +122,10 @@ reaches an email, an export, a pull or the matcher.
 
 **Phase 5c — the hail-likelihood map and unified pull.** Design accepted 2026-10-23 (decision log "Design: one hail-likelihood map per
 storm day, one pull from it", with the developer's answers); **step 1 only** (the CoCoRaHS ingest, likelihood zones, a staff-only map
-layer, a versioned parameter set, the backtest) was waived in the same day ("Phase 5c starts"), internal, and **nothing is built yet.**
+layer, a versioned parameter set, the backtest) was waived in the same day ("Phase 5c starts"), internal. **Built so far (2026-10-23, `hail-dev` only): the CoCoRaHS ingest (step 1a)** — `sql/053`,
+`hailsys/cocorahs/`, `scripts/cocorahs_ingest.py` (`nightly` by report timestamp, `weekly` by report date, `backfill`), timers at 11:00 UTC
+nightly and Sunday 12:00 UTC, `scripts/status.sh cocorahs`; Colorado backfilled from 2020-10-15 (2,729 reports). Not built: likelihood zones,
+the map layer, the parameter set, the backtest.
 Pulls and matching are unchanged: steps 2 to 4 (pulls from the zones, matches with `basis` and `level`, sends by level) each need their own
 waiver entry first, and nothing CoCoRaHS- or likelihood-derived may reach an email, an export, a pull or the matcher until then.
 
@@ -208,6 +211,10 @@ These have already bitten us. Do not re-discover them.
   honours `states=`. Radar uses the shapefile.
 - HRRR u/v winds are **grid-relative**: rotate to true north (about -4 degrees near 104 W). eccodes names
   the 10 m wind `10u`/`10v`, not `u`/`v`, so a lookup on `u` silently drops it.
+- The CoCoRaHS hail export's header has 24 columns and **`MoreRainThanHail` appears twice**. A dict reader keeps one and
+  silently drops the other, so `hailsys/cocorahs/parse.py` reads by position and refuses any header that is not exactly
+  the expected one. `NA` means missing, never 0. A station's daily report covers the 24 hours ending about 7 AM on its
+  date, so storm day D is read from the D+1 report.
 
 ## Conventions
 

@@ -3605,6 +3605,10 @@ warnings cover the whole country.
    slice 6): the months in which radar hail with no report anywhere that day is flagged on the findings panel as more likely a
    radar artefact than hail. October to March is Front Range reasoning (developer, 2026-10-23); another market's hail season,
    and its winter radar artefacts, differ. Move it into settings, per market, with the rest.
+8. **`storm_states` now feeds two jobs.** The radar warnings (Phase 5b) and, since 2026-10-23, the CoCoRaHS ingest
+   (`hailsys/cocorahs/ingest.py`, `states()`), read `settings.storm_states`. A new state needs a CoCoRaHS backfill
+   (`scripts/cocorahs_ingest.py backfill`) as well as the radar warnings backfill. The IEM report ingest still
+   uses the `IEM_STATE` constant (point 1). The CoCoRaHS export is public and keyless, so a new state costs requests, not money.
 
 **Rule for new work:** no new constant of this kind (decision log 2026-10-20). Phase 5b takes the time zone,
 state and bounds from settings and data.

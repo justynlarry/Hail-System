@@ -338,12 +338,13 @@ layers from the admin page. Nothing radar-derived reaches an email or an export.
 ---
 
 ## Phase 5c — The hail-likelihood map and the unified pull
-**Design accepted 2026-10-23; step 1 waived in (decision log 2026-10-23, "Phase 5c starts"). Nothing built yet.** Steps 2 to 4 each need their
+**Design accepted 2026-10-23; step 1 waived in (decision log 2026-10-23, "Phase 5c starts"). Step 1a built 2026-10-23: the CoCoRaHS ingest.** Steps 2 to 4 each need their
 own waiver entry first.
 
 The design is the decision log entry "Design: one hail-likelihood map per storm day, one pull from it" (2026-10-23), with the developer's
 answers to its six open questions.
-1. **The map (started, internal):** the CoCoRaHS nightly ingest (item 253 settles the source), likelihood zones per storm day (Agree, One
+1. **The map (started, internal):** the CoCoRaHS nightly ingest (built and backfilled for Colorado 2026-10-23, `sql/053`,
+   `hailsys/cocorahs/`; item 253 settles the source), likelihood zones per storm day (Agree, One
    source, Context), a staff-only layer on the Territory map, a versioned likelihood parameter set editable on the admin page, and the backtest
    with one source hidden (bar about 80%).
 2. **Pulls (not started):** the zip list from the union of zips overlapping the chosen levels (default Agree and One source; Context opt-in), any
