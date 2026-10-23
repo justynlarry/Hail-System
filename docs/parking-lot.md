@@ -6369,3 +6369,17 @@ verified.
 account exists on `hail-dev` and before any production use.
 
 **Related:** items 238 (7), 250, 251; `docs/phases.md` Phase 5b.
+
+## 253. CoCoRaHS nightly ingest: where the data comes from, and whether absence can be recorded
+
+**Status:** open (filed 2026-10-23, from the design entry of the same date)
+
+The likelihood-map design (decision log 2026-10-23, point 7) needs a nightly, idempotent CoCoRaHS ingest. The precision study used CSV
+exports pulled by hand on the workstation; nothing yet says how a nightly job gets the same data (an export URL, an API, rate limits, key
+or terms), whether the export carries the entry time (the late-entry rebuild needs it), or whether the daily precipitation reports, which have a
+hail field, can say where hail did **not** fall. If absence can be recorded, "neither" and "radar only" areas could be checked directly, which
+no source does today. The usage policy (CC BY 4.0, attribution when displayed) is read by the fetch tool only; the developer has not read it in full.
+
+**When:** before design phase 1 starts (CoCoRaHS ingest), and before any CoCoRaHS text reaches an email.
+
+**Related:** items 205, 210, 215; decision log 2026-10-23.

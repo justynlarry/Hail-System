@@ -7546,3 +7546,58 @@ item 250).
 
 **Related:** items 205, 206, 208, 210, 215, 243, 246, 247, 250; decision log 2026-10-14, 2026-10-20, 2026-10-22 (the radar
 entry above); `docs/analysis/weather-sources-2026-10/`, `docs/analysis/radar-timing-study-2026-10/`.
+
+## 2026-10-23 — Design: one hail-likelihood map per storm day, one pull from it (proposed)
+
+**Status:** accepted as the design by the developer 2026-10-23 ("this looks good"); the open questions at the end are still the
+developer's to answer. **Nothing is built.** Pulls and matching are unchanged until a phase below is started, each with its own waiver entry (as
+2026-10-20). This takes the "direction, not yet designed" of the 2026-10-22 and 2026-10-23 entries and makes it a design.
+
+**Rules that stay.** Every pull is started by a person and nothing sends automatically. Radar is described only as "hail of at least 1
+inch within about 3 miles (5 km)": never a radar size, never "at your property", never damage, never a probability. The levels rank where
+to look first; they are not percentages.
+
+1. **Evidence.** Two independent kinds: radar (MESH) and ground observers (IEM reports and CoCoRaHS, with CoCoRaHS-sourced IEM reports
+   removed as duplicates). Warnings are context. Motion shapes an area and is not a vote, since it comes from the same radar. Ground-hail
+   rates (CoCoRaHS precision study, 2026-10-23): radar and a report 37%, radar alone 16%, a report alone 16%, neither 1%.
+2. **The map.** One per local storm day and parameter set, built after the nightly radar job from the stored zones plus report circles.
+   Four levels: **Agree** (radar core or margin and an actionable ground report within the circle); **One source** (a radar-indicated
+   area, or a report circle outside the radar zones); **Context** (an NWS warning only); **None**. At house level the level comes from
+   the findings matrix (radar layer at the address against distance to the nearest report): the draft A/B/C ladder becomes a versioned
+   lookup table (layer by band to level) in a parameter set, editable on the admin page and logged to `settings_history`, not a code constant.
+3. **One pull.** The zip list is the union of zips overlapping any level at or above a floor chosen on the estimate page, from
+   `zcta_boundaries` (national). One pull per storm day, which fits the existing one-running-pull-per-storm unique index. A new
+   `pull_zips (pull_id, zcta5, basis, best_level)` records why each zip was pulled. The estimate shows zips and calls by level; quota
+   warn-and-allow is unchanged. Default floor One source, with Context opt-in (warning areas are about 30 times the core area and 19 times
+   less dense in large hail).
+4. **Matches (schema), recommended Option A, the developer decides.** Extend `storm_listing_matches`: `iem_id` and `distance_miles`
+   nullable; add `storm_date`, `basis` (`report`, `radar`, `both`), `level`, `layer`, `set_id`; replace the unique key with two partial
+   unique indexes; check that `basis = 'report'` needs `iem_id`. `send_log` keeps pointing at `match_id`, so the send path, eligibility
+   and drips are unchanged; the risk is code that reads `iem_id` and must handle NULL. Option B, a separate matches table, leaves the
+   old one alone but needs a second foreign key on the append-only `send_log`, which is riskier.
+5. **Wording by basis.** Report: the existing wording. Radar only: the 1-inch-within-3-miles rule. CoCoRaHS: "a trained volunteer
+   observer reported ...", with attribution (CC BY 4.0); the developer reads the usage policy in full before any CoCoRaHS-sourced text
+   reaches an email. Marketing writes the templates later; template choice follows the level.
+6. **Sends.** All levels can be pulled and matched; `/send` selects by level. Replies, unsubscribes and complaints are measured per level,
+   a calibration signal before inspection data arrives.
+7. **CoCoRaHS ingest.** A nightly, idempotent `cocorahs_reports` table (station, observed and entered time, location, hail size) with
+   attribution on the map; late entries are caught by the weekly rebuild. Not checked: where the nightly data comes from, and whether the
+   daily precipitation reports can record absence (item 253).
+8. **Motion.** None in version 1. It affects only report-only areas and needs the hourly MESH files, which are not stored (only the daily
+   file). The backtest says whether it earns its place.
+9. **Backtest before any pull is built on this.** Rebuild each historical day with one source hidden and check what share of the hidden
+   source's points of 1 in or more fall in Agree or One source, by year and region. The bar is the developer's. Suggested: the hidden
+   source's recall at least about 80% (radar currently catches 79% of reports of 1 in or more in their own hour, 495-day study).
+10. **Other markets.** The sources, the method and the schema are national, and another metro needs no inspection data to start. Each
+    market gets its own settings (state list, time zone, thresholds, distances, cold-season months, level table) and a recall check
+    against its own reports before its levels are trusted (item 238). Whether a roof was damaged cannot come from any weather source (the
+    owner's two neighbouring houses, item 207); `year_built` is the only national roof-age proxy and is not in version 1.
+11. **Phases, each ending in a stop for the developer's decision:** (1) CoCoRaHS ingest, likelihood zones, a map layer and the
+    backtest (internal, no pulls); (2) pulls from the zones (`pull_zips`, estimate by level); (3) matches with `basis` and `level`;
+    (4) sends by level.
+
+**Open, for the developer:** (a) Option A or B. (b) The default floor, and whether Context is in. (c) The backtest bar. (d) Motion in
+version 1 or later (recommended later). (e) The minimum zip overlap (recommended: any intersection with a level, the overlap shown on the
+estimate). (f) Whether phases 2 and 3 wait for the developer's own read of the CoCoRaHS policy.
+
+**Related:** items 207, 208, 210, 238, 243, 250, 252, 253; decision log 2026-10-20, 2026-10-22 (both), 2026-10-23 (the entry above).
