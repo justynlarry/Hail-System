@@ -6272,3 +6272,25 @@ hour-before value and 64 with no hour-after value (a few of these are NOAA's 12 
 **When:** with item 248, at the next edit to `radar_study.py`, or before it is reused for another study.
 
 **Related:** item 248; `docs/analysis/radar-timing-study-2026-10/README.md`.
+
+## 250. Four more daily MESH files hold values above 10 in; check whether hail-dev loaded them
+
+**Status:** open, to check on hail-dev
+
+Found in the CoCoRaHS precision study on thor, 2026-10-23 (`~/hail-analysis/cocorahs_precision/`), which decodes the daily
+`MESH_Max_1440min` file over the box lat 37 to 41.5, lon -106.3 to -101.4 (wider than hail-dev's crop box). Cells above 254 mm:
+- 2020-12-23: 125 cells, max 415 mm, lat 40.85 to 41.49, lon -105.44 to -104.92;
+- 2020-12-28: 417 cells, max 596 mm, lat 40.07 to 41.36, lon -105.75 to -104.19;
+- 2022-07-31: 3 cells, max 326 mm, about lat 40.95, lon -102.93;
+- 2024-08-22: 1 cell, max 368 mm, lat 37.12, lon -102.59.
+
+The hourly `MESH_Max_60min` files flag the same four days (timing study, 5 hourly files). Item 247 found only 2022-01-03 and
+2022-01-11 in `radar_days`, presumably because the bad cells on these four days lie outside hail-dev's crop box (item 246). The two
+December 2020 days are on the northern Front Range and may overlap it; if so, hail-dev is drawing false radar hail on them. Not
+checked: thor has no database.
+
+**When:** the next session on hail-dev. Check `radar_days.status` and `max_mm` for these four days; any that is `loaded` with a
+value above 254 mm is re-fetched (`radar_day.py --refetch`) as item 247 did, and becomes `suspect`. If the coverage zips grow, the
+same check applies to the wider box.
+
+**Related:** items 246, 247; decision log 2026-10-22.

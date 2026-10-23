@@ -7389,6 +7389,28 @@ evidence, what may be said, the direction, and what is still open. **Nothing is 
   W 1, NW 1. Front Range hail storms in this sample move from the northwest toward the east-southeast: "west to east" is right in
   direction, though south-east is as common as due east. Caveats: the track is a swath centroid and can jump between cells; the sample
   is days with many reports; storm motion and hail-swath growth are not the same thing.
+- **495 days, all hours (2026-10-22, run on the workstation, `docs/analysis/radar-timing-study-2026-10/`):** every local day from
+  2020-10-15 to 2026-10-21 with radar hail of 1 in or more or any hail report (495; the two item 247 days left out), all 24 hourly
+  `MESH_Max_60min` files per day (11,880; 12 missing at NOAA, 5 above the 10 in ceiling), against the 3,002 IEM hail reports in the
+  coverage box. **Timing:** of 2,318 reports of 1 in or more, **79%** had MESH of 1.00 in or more within 5 km in their own hour, 10%
+  had 0.75 to 1.0 in, 6% had 0.50 to 0.75 in, 2% had 0.75 in only in a neighbouring hour, and **3%** had none of 0.75 in within an
+  hour either side (32 of those 78 had no MESH at all within 8 km, more likely a misplaced or mistimed report than a radar miss).
+  Of reports with radar hail within an hour, 85% had the highest value in their own hour (the hour before 171, after 146, so no
+  consistent offset). Own-hour recall by threshold and distance: 1.00 in 70 / 79 / 84% at 3 / 5 / 8 km; 0.75 in 83 / 89 / 92%.
+  **Size:** where MESH says at least 1.0 in, 85% of nearby reports are 1 in or more; at 2.0 in, 27% are 2.0 in or more; radar above
+  the report on 66% (median 1.23 times); rank correlation 0.40; reports of 3 in or more have a median MESH of 2.08 in. **Region**
+  (1.00 in, own hour, 5 km): west of -105.05 77%, -105.05 to -104.5 (Front Range) **74%**, -104.5 to -103.9 82%, east 83%; 41 of the
+  78 misses are in the Front Range band. **Month:** April 63% (43 reports), May 77%, June 74%, July and August 86%. **Motion:** 478
+  tracks moving 15 km/h or more on 194 days, median 33 km/h (21 mph) heading 129 degrees; 81% eastward, 69% between east and south;
+  the same every year 2021 to 2026 (eastward 75 to 87%, median heading 122 to 136 degrees). 57 slow or stalled. This confirms the
+  50-day sample on six times the reports. Script caveats: items 248, 249.
+
+  **What it means for the direction (Claude's reading, 2026-10-22, not a decision):** (a) timing agrees to the hour, and the daily
+  file catches as much as the hourly match (82% against 79%), so pulls need no hourly radar; (b) size stays unsupported, so a tier
+  uses the radar layer and the distance to a report, never a radar size; (c) a report must stand on its own (`basis = report`),
+  since 3% have no radar near them; (d) the radar is weakest on the Front Range, where RBI works and reports are densest, so a report
+  without radar there should not be ranked down, and radar-only zips add most out east; (e) the study measures recall from reports
+  only. How often hail really fell in radar-only areas (precision, the cost question for radar-only zips) is still open.
 
 **What may be said (rule, until a later entry changes it):**
 1. **With an IEM report:** "a hail report of x inches was filed y miles from this address on [date]" is supported, and is what
@@ -7439,3 +7461,88 @@ come from `report_zip_distances`; `send_log` points at a match. A radar-only mat
 
 **Related:** items 205, 206, 207, 208, 210, 211, 215, 243, 247; decision log 2026-09-16 (two entries), 2026-10-20, 2026-10-21,
 2026-10-22 (the entries above); `docs/analysis/radar-verification-2026-09.md`, `radar-areas-2026-10/`, `weather-sources-2026-10/`.
+
+
+## 2026-10-23 — A hail-likelihood map from IEM, MESH and CoCoRaHS, and storm motion
+
+**Why now:** the developer asked (2026-10-23) whether the system can use all the weather sources together, cross-referenced, to
+say "we think hail of x inches fell within y miles of this point": for each storm, the IEM reports, the radar (MESH) and CoCoRaHS
+each say where hail fell; the system combines them, with the storm's direction, into a high-likelihood area and a moderate one
+(the margin), and pulls RentCast listings from those areas. Asked whether this is a reasonable model to move the system to,
+given the research so far. This entry records the direction, the evidence for it, and what is not yet decided. **Nothing is
+built from it, and pulls and matching are unchanged until a design entry is agreed.**
+
+**Direction (developer, 2026-10-23), not yet designed:**
+1. For each storm day, the system builds a hail-likelihood map from every source: IEM reports, MESH, CoCoRaHS, and the storm's
+   motion.
+2. Where the sources agree the likelihood is high; with one source, or at the edges, moderate; otherwise low.
+3. The six years of history are used to set and check those levels.
+4. RentCast pulls come from the high and moderate areas, ranked, each pull still started by a person (unchanged rule: RentCast
+   calls are never automatic). The map itself may build nightly; nothing sends email automatically.
+
+This takes the 2026-10-22 direction (pulls and matches from IEM and radar together, with a `basis` and a tier) and adds
+CoCoRaHS and motion to it.
+
+**Evidence: the CoCoRaHS precision study (2026-10-23, run on the workstation, `~/hail-analysis/cocorahs_precision/`, not in
+the repo).** Every CoCoRaHS hail report in the coverage box (lat 37 to 41.5, lon -106.3 to -101.4), 2020-10-15 to 2026-10-21:
+2,384 points from 429 stations on 492 days. Each against the daily `MESH_Max_1440min` for its Denver day (max within 3, 5, 8 km) and
+against IEM hail reports within 5 km the same day, **leaving out the IEM reports whose source is CoCoRaHS** (the same observation
+relayed, 68 in the box; 69 points had one within 1 km). 677 daily files (672 read, 1 missing at NOAA, 4 above the 10 in ceiling:
+item 250).
+- **Largest stone by agreement, radar MESH of 1.00 in or more within 5 km:**
+
+  | Evidence within 5 km | Points | 1 in or more | 0.75 in or more | Median |
+  |---|---|---|---|---|
+  | Radar and an IEM report | 338 | **37%** | 51% | 0.75 in |
+  | Radar only | 224 | **16%** | 31% | 0.50 in |
+  | IEM report only (any size) | 153 | 16% | 31% | 0.50 in |
+  | Neither | 1,669 | 1% | 4% | 0.25 in |
+
+  At a radar threshold of 0.75 in: radar and report 35% (388 points), radar only 11% (395), report only 13% (103), neither 1%
+  (1,498).
+- **Recall, from an independent ground source:** of 188 CoCoRaHS points of 1 in or more, 71 / 78 / 83% had MESH of 1.00 in or
+  more within 3 / 5 / 8 km and 86% had 0.75 in within 5 km, the same as the IEM reports (79 to 82%); 72% had an independent IEM
+  report within 5 km; 14 had neither radar of 0.75 in nor a report.
+- **The ground evidence is thin away from people.** Of the radar cell-days of 1.00 in or more, 41,443 have an IEM report within
+  5 km and 343,891 do not; any CoCoRaHS hail point lies within 5 km of 11% of the first and **1%** of the second (at 0.75 in:
+  62,301 and 705,184 cell-days, the same 11% and 1%). The 224 radar-only points lean to where observers live: 111 in the Front
+  Range band (lon -105.05 to -104.5), 34 east of -103.9.
+- **By year, radar only, share of 1 in or more:** 2021 0% (12 points), 2022 14% (16), 2023 23% (78), 2024 8% (28), 2025 18% (59),
+  2026 12% (31). CoCoRaHS is not thinner in 2025 and 2026 over the full year (496 and 251 points in the box); item 210's
+  "thinner" was the 60-storm sample.
+- **Terms:** the CoCoRaHS data usage policy (read 2026-10-22, through a fetch tool, not yet read in full by the developer):
+  data free to governments, academia, the private sector and the public; Creative Commons Attribution 4.0; source to be
+  acknowledged when displayed; "as is". So, unlike mPING (research licence, item 215), CoCoRaHS may be used beyond the internal check.
+
+**What the evidence supports (Claude's reading, 2026-10-23, not a decision):**
+1. **A ranking with measured rates is supported now.** The table above is a calibration of a three-level map: two sources
+   agreeing (37% of ground hail points 1 in or more), one source (16%, and radar only and report only are the same), none (1%).
+2. **Size comes only from the ground.** MESH says "1 in or more", not "x in" (rank correlation 0.40, decision log 2026-10-22). The
+   supported sentence is "hail of 1 in or more likely fell in this area; the largest report nearby was x in, y miles away", within
+   the "what may be said" rules of 2026-10-22.
+3. **Motion should come from the radar, not the wind forecast.** HRRR 500 mb wind came within 30 degrees of a storm's fitted
+   direction on 26% of storms (item 210, Part B); the hourly MESH tracks give the motion directly (2026-10-22: median 129 degrees, 81%
+   eastward). Its use is to stretch a lone report's area along the track where the radar shows no swath, not to move a swath the
+   radar already shows.
+4. **The levels are a ranking, not a probability.** No source records where hail did not fall, so "high" cannot yet be given as a
+   percentage. RBI's inspection results by level (Phase 5b slice 7, calibration) are what would turn the ranking into probabilities.
+5. **CoCoRaHS timing:** median entry delay 0.7 h, 90% within 20.5 h (2023, item 210), so a next-morning map has most of it, and a
+   later rebuild picks up the rest.
+6. **Cost:** radar-only and report-only areas are about half as likely as agreeing areas to have 1 in hail at a ground point, and
+   radar-only area is about eight times the report-backed area. Radar-only zips belong opt-in at the pull estimate, shown with
+   their call count.
+
+**Open, for the design entry:**
+- The level table: sources (IEM, MESH, CoCoRaHS, motion) against levels, the distances, and whether CoCoRaHS small hail may lower a
+  level; held in the versioned parameter set (`radar_parameter_sets` or a successor) so inspections can move it.
+- How motion shapes a report's area (length and width of the stretch), and its source (the hourly MESH track, or the report sequence).
+- A CoCoRaHS ingest (nightly, idempotent, attribution shown on the map) and its table.
+- Which levels a pull may use, the minimum overlap of a zip with a level, and what the estimate shows.
+- `basis` and level on matches: a match now requires an IEM report (`storm_listing_matches.iem_id` NOT NULL), so this is schema work.
+- **A backtest before building pulls on it:** rebuild each historical day's map with one source hidden, and check that the hidden
+  source's points of 1 in or more fall mostly in the high level, by year and region.
+- Whether the daily precipitation reports from CoCoRaHS (with a hail field) can record absence; not checked.
+- The phase: this widens Phase 5b (radar layers, internal) into pulls and matching, which the 2026-10-22 entry also does.
+
+**Related:** items 205, 206, 208, 210, 215, 243, 246, 247, 250; decision log 2026-10-14, 2026-10-20, 2026-10-22 (the radar
+entry above); `docs/analysis/weather-sources-2026-10/`, `docs/analysis/radar-timing-study-2026-10/`.
