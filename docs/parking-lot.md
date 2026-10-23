@@ -3853,7 +3853,13 @@ nothing now and makes item 208 repeatable later.
    RadarQualityIndex (not in the original list) is the candidate for the mountains question; also
    not tested.
 3. **CoCoRaHS:** 79% agreement; 6 large-hail points that reports and MESH both missed across 60 storms;
-   thinner in 2025–2026.
+   thinner in 2025–2026 in that sample (not over the full year: 496 and 251 points in the box in 2025 and
+   2026; decision log 2026-10-23).
+   **Terms read 2026-10-22** (data usage policy, https://www.cocorahs.org/Content.aspx?page=datausagepolicy,
+   read through a fetch tool; the developer to read it once in full): data freely available to governments,
+   academia, the private sector and the public; Creative Commons Attribution 4.0; the source to be
+   acknowledged when displayed; provided "as is". So CoCoRaHS may be used beyond the internal check, with
+   attribution on any map or page that shows it. Six-year precision study: decision log 2026-10-23.
 4. **mPING:** 90% agreement; 3 missed points, 7 confirmations beyond the circles. **Research licence
    only** (item 215).
 5. **NCEI Storm Events:** a 99% duplicate of our IEM hail reports; no value.
@@ -3862,7 +3868,8 @@ nothing now and makes item 208 repeatable later.
 7. **Commercial hail maps:** out of scope, not assessed.
 
 **Still open:** rotation tracks; RadarQualityIndex for the mountains; a 1 km small-hail test for
-lowering confidence; terms of use for every source (none read).
+lowering confidence; terms of use for the other sources (CoCoRaHS read 2026-10-22, above; mPING is
+research only, item 215).
 
 **When:** reopen for any of the open points above if item 206's prototype or item 208's calibration
 needs it.
