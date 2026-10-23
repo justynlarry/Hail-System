@@ -6291,7 +6291,7 @@ hour-before value and 64 with no hour-after value (a few of these are NOAA's 12 
 
 ## 250. Four more daily MESH files hold values above 10 in; check whether hail-dev loaded them
 
-**Status:** open, to check on hail-dev
+**Status:** resolved 2026-10-23 (checked on hail-dev and fixed with `radar_day.py --refetch`; no code change)
 
 Found in the CoCoRaHS precision study on thor, 2026-10-23 (`~/hail-analysis/cocorahs_precision/`), which decodes the daily
 `MESH_Max_1440min` file over the box lat 37 to 41.5, lon -106.3 to -101.4 (wider than hail-dev's crop box). Cells above 254 mm:
@@ -6305,7 +6305,14 @@ The hourly `MESH_Max_60min` files flag the same four days (timing study, 5 hourl
 December 2020 days are on the northern Front Range and may overlap it; if so, hail-dev is drawing false radar hail on them. Not
 checked: thor has no database.
 
-**When:** the next session on hail-dev. Check `radar_days.status` and `max_mm` for these four days; any that is `loaded` with a
+**Result, 2026-10-23 (hail-dev):** 2020-12-23 (415.3 mm, 16.4 in) and 2020-12-28 (596.1 mm, 23.5 in) were `loaded` with their false
+zones built (14 and 62 patches, none near a report): both lie inside the crop box. Each was re-fetched (runs 9080 and 9081) and is now
+`suspect`, with its cells, zones and builds gone; no `loaded` day is above 254 mm (2,194 loaded, 4 suspect, 2 missing). 2022-07-31
+(max 1.5 in) and 2024-08-22 (max 1.9 in) hold ordinary values inside the box, the bad cells being outside it (item 246), so they were
+left alone. The ingest image's radar code was checked byte for byte against the repo before the refetch (its "STALE" flag was
+file timestamps only). Why they were `loaded` at all is not established: they were fetched on 2026-10-22, the day the ceiling was added.
+
+**When (as filed):** the next session on hail-dev. Check `radar_days.status` and `max_mm` for these four days; any that is `loaded` with a
 value above 254 mm is re-fetched (`radar_day.py --refetch`) as item 247 did, and becomes `suspect`. If the coverage zips grow, the
 same check applies to the wider box.
 
@@ -6333,7 +6340,7 @@ grow by several times (more pulls, a second market).
 
 ## 252. Slice 6 (findings panel): built; mutation check found one real bug, three survivors accepted
 
-**Status:** resolved 2026-10-23 for the build (uncommitted when filed); three mutation survivors and one coverage limit
+**Status:** resolved 2026-10-23 for the build (`30e126a`); three mutation survivors and one coverage limit
 accepted, open with the triggers below.
 
 Built 2026-10-23: `hailsys/queries/findings.py`, `/territory/findings`, `_findings.html`, the box in `_map_panel.html`, the
