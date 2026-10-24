@@ -124,8 +124,11 @@ reaches an email, an export, a pull or the matcher.
 storm day, one pull from it", with the developer's answers); **step 1 only** (the CoCoRaHS ingest, likelihood zones, a staff-only map
 layer, a versioned parameter set, the backtest) was waived in the same day ("Phase 5c starts"), internal. **Built so far (2026-10-23, `hail-dev` only): the CoCoRaHS ingest (step 1a)** — `sql/053`,
 `hailsys/cocorahs/`, `scripts/cocorahs_ingest.py` (`nightly` by report timestamp, `weekly` by report date, `backfill`), timers at 11:00 UTC
-nightly and Sunday 12:00 UTC, `scripts/status.sh cocorahs`; Colorado backfilled from 2020-10-15 (2,729 reports). Not built: likelihood zones,
-the map layer, the parameter set, the backtest.
+nightly and Sunday 12:00 UTC, `scripts/status.sh cocorahs`; Colorado backfilled from 2020-10-15 (2,729 reports).
+**Step 1b (2026-10-24): the likelihood zones** — `sql/054` (`likelihood_parameter_sets`, `likelihood_level_rules`, `likelihood_builds`, `likelihood_zones`),
+`sql/055` (`likelihood_runs`), `hailsys/likelihood/` (`build.py`, `ingest.py`), `scripts/likelihood_ingest.py` (`nightly`, `rebuild`, `backfill`),
+timers at 11:30 UTC and Sunday 12:30 UTC, `scripts/status.sh likelihood`; all 2,195 loaded radar days built. A day's levels (Agree, One source,
+Context) come from the radar layer and the distance to the nearest hail report (IEM and CoCoRaHS), by the set's rules; hail reports only (item 254). Not built: the map layer, the admin fields for the parameter set, the backtest.
 Pulls and matching are unchanged: steps 2 to 4 (pulls from the zones, matches with `basis` and `level`, sends by level) each need their own
 waiver entry first, and nothing CoCoRaHS- or likelihood-derived may reach an email, an export, a pull or the matcher until then.
 
