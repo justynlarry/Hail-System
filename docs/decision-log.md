@@ -7646,3 +7646,36 @@ or the matcher (tested).
 is the part that touches no money- or mail-touching path. It also produces the backtest that gates steps 2 and 3.
 
 **Related:** items 207, 208, 210, 238, 243, 252, 253; decision log 2026-10-20, 2026-10-22 (both), 2026-10-23 (both); `phases.md` Phase 5b and 5c.
+
+## 2026-10-24 — Evidence: CoCoRaHS station coverage, and what it says about absence
+
+**Evidence (run on the workstation 2026-10-23, `~/station-coverage-out/`; `summary.txt` is in
+`docs/analysis/cocorahs-station-coverage-2026-10/`, the 2.7 MB `station_days.csv` and per-day files stay on the workstation).** Every
+CoCoRaHS station that filed the daily precipitation report covering a storm day, against that day's `MESH_Max_1440min` (max within 3, 5 and
+8 km) and against independent IEM hail reports (CoCoRaHS-sourced ones removed as duplicates): 675 days, 499,348 station-days from 1,723
+stations (median 732 reporting a day), 2,248 hail filings. The question was item 253's: can absence be recorded?
+
+1. **Observers barely cover the radar-only area.** Radar MESH of 1.00 in or more with no independent report within 5 km: 8% of its area has
+   any reporting station within 5 km, and 1% has a hail filing. With an independent report: 32% and 11%. CoCoRaHS cannot confirm or refute
+   most of the radar-only area.
+2. **Dry stations are rare, so the absence signal is thin.** Under MESH of 1.00 in or more within 5 km, 3 to 5% of station-days are dry
+   (0.00), against 47% in the 0 to 0.50 in baseline. A dry station is the strongest absence evidence there is, but there are too few.
+3. **Observers file hail rarely, even where hail is confirmed.** Radar and an independent report: 16% of station-days have a hail filing;
+   radar only: 6%. The rate climbs with the radar (0% under 0.50 in, 13% of wet-or-hail station-days at 1.50 in or more). A wet station with no
+   hail filing is weak evidence of no hail.
+4. **Radar-only is not much likelier to be dry than confirmed areas** (5% against 3%). Nearby rain neither proves hail nor shows a false alarm.
+5. **Observers' large hail mostly has radar behind it.** Of 171 filings of 1 in or more, MESH of 1.00 in or more was within 3, 5 and 8 km for
+   68%, 75% and 81%. A quarter have none within 5 km: radar misses some hail, observers overstate some sizes, or both; this study cannot
+   say which.
+
+**Fits the precision study (2026-10-23):** the ordering is the same (radar and a report about 2.7 times the station-day hail rate of radar only,
+against 37% and 16% of points of 1 in or more there). The units differ (points against station-days), so the percentages are not comparable.
+
+**Decision (developer, 2026-10-24):** CoCoRaHS is **not** used to record absence. Coverage is 8% of the radar-only area and dry stations are
+4 to 5% of station-days, so no level is lowered, and no area is removed, because an observer nearby filed rain or nothing. Radar-only stays
+**One source**, and its honest number stays the precision study's 16% (hail of 1 in or more at CoCoRaHS points). CoCoRaHS hail filings count as
+ground evidence, which is how the design already uses them. The station list may still be shown as context (where observers are), staff only.
+Item 253's absence question is answered on that basis. If the ingest later holds Daily reports for every station-day, absence can be reopened
+with its own item; the Daily export is not ingested today.
+
+**Related:** items 205, 253; decision log 2026-10-23 (design points 7 and 9, and the precision study); `docs/analysis/cocorahs-station-coverage-2026-10/`.

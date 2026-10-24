@@ -6376,7 +6376,7 @@ account exists on `hail-dev` and before any production use.
 
 ## 253. CoCoRaHS nightly ingest: where the data comes from, and whether absence can be recorded
 
-**Status:** open (filed 2026-10-23, from the design entry of the same date; source question answered 2026-10-23, absence question open)
+**Status:** resolved 2026-10-24 (filed 2026-10-23, from the design entry of the same date; source answered 2026-10-23; absence answered 2026-10-24: CoCoRaHS is not usable as an absence signal; the ingest itself is built, `51ec755`)
 
 The likelihood-map design (decision log 2026-10-23, point 7) needs a nightly, idempotent CoCoRaHS ingest. The precision study used CSV
 exports pulled by hand on the workstation; nothing yet says how a nightly job gets the same data (an export URL, an API, rate limits, key
@@ -6398,6 +6398,12 @@ identify itself with a contact in the User-Agent, and cache the result.
 "no hail fell here" cannot be read directly. It does show where observers are: 905 Colorado stations filed a daily report on 2024-05-30 against 25
 hail reports. A station inside a radar core that filed rain but no hail report is weak evidence that no hail fell there (weak because observers do
 not always file hail). A script to measure that is `docs/analysis/cocorahs-station-coverage-2026-10/` (to run on the workstation).
+
+**Absence, answered 2026-10-24 (the station-coverage study, `summary.txt` in that folder):** it cannot be used as a level. Only 8% of the
+radar-only area (MESH of 1.00 in or more, no independent report) has any reporting station within 5 km, against 32% where a report exists;
+only 3 to 5% of station-days under such radar are dry; and observers file hail on 16% of station-days even where radar and an independent
+report agree (6% radar only). A wet station with no filing is weak, and a dry one is rare. Decision log 2026-10-24. **Revisit:** if the
+Daily export is ever ingested for every station-day, or a second state with denser coverage is added.
 
 **When:** before design phase 1 starts (CoCoRaHS ingest), and before any CoCoRaHS text reaches an email.
 

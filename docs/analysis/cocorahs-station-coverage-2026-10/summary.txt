@@ -1,0 +1,45 @@
+== CoCoRaHS stations against the daily MESH, 2020-10-15 to 2026-10-21, coverage box
+   days: 675 ({'ok': 672, 'missing': 1, 'suspect': 2});  station-days 499348 from 1723 stations;  hail filings among them: 2248
+   stations with a daily precipitation value per day: median 732, min 611, max 913
+   hail filed by a station with no daily report that day: 63
+
+== A. Radar hail area and the observers near it (cells 0.01 deg, about 0.94 km2; observers within 5 km)
+   MESH >= 1.00 in, with an independent report within 5 km cells    41443   any reporting station   32%   a wet station   32%   a hail filing   11%
+   MESH >= 1.00 in, radar only                             cells   343891   any reporting station    8%   a wet station    8%   a hail filing    1%
+   MESH >= 0.75 in, with an independent report within 5 km cells    62301   any reporting station   34%   a wet station   33%   a hail filing   11%
+   MESH >= 0.75 in, radar only                             cells   705184   any reporting station    9%   a wet station    8%   a hail filing    1%
+
+== B. Station-days by the largest MESH within 5 km: dry, wet with no hail, or hail filed
+   MESH within 5 km (in)                 days
+   0.00 to 0.50                        477853  dry   47%  wet no hail   52%  hail    0%   hail among wet or hail:    0%  (n 251924)
+   0.50 to 0.75                          9890  dry    6%  wet no hail   90%  hail    4%   hail among wet or hail:    4%  (n 9282)
+   0.75 to 1.00                          4378  dry    6%  wet no hail   89%  hail    5%   hail among wet or hail:    5%  (n 4124)
+   1.00 to 1.50                          3700  dry    4%  wet no hail   88%  hail    8%   hail among wet or hail:    8%  (n 3554)
+   1.50 or more                          1806  dry    4%  wet no hail   83%  hail   12%   hail among wet or hail:   13%  (n 1726)
+
+== C. Station-days with MESH >= 1.00 in within 5 km, by whether an independent IEM report is within 5 km
+   radar and report                      1866  dry    3%  wet no hail   81%  hail   16%   hail among wet or hail:   17%  (n 1818)
+   radar only                            3640  dry    5%  wet no hail   90%  hail    6%   hail among wet or hail:    6%  (n 3462)
+   radar only, MESH within 3 km          1869  dry    4%  wet no hail   89%  hail    7%   hail among wet or hail:    7%  (n 1803)
+   radar only, MESH within 8 km          7041  dry    7%  wet no hail   89%  hail    4%   hail among wet or hail:    5%  (n 6555)
+
+== C. Station-days with MESH >= 0.75 in within 5 km, by whether an independent IEM report is within 5 km
+   radar and report                      2412  dry    3%  wet no hail   83%  hail   14%   hail among wet or hail:   15%  (n 2349)
+   radar only                            7472  dry    6%  wet no hail   89%  hail    5%   hail among wet or hail:    5%  (n 7055)
+   radar only, MESH within 3 km          4148  dry    4%  wet no hail   90%  hail    6%   hail among wet or hail:    7%  (n 3992)
+   radar only, MESH within 8 km         13529  dry    7%  wet no hail   89%  hail    4%   hail among wet or hail:    4%  (n 12543)
+
+== D. Radar only (MESH >= 1.00 in within 5 km, no independent report within 5 km), by year and region
+   2020                                     0  dry    --  wet no hail    --  hail    --   hail among wet or hail:    --  (n 0)
+   2021                                   229  dry    7%  wet no hail   88%  hail    5%   hail among wet or hail:    5%  (n 213)
+   2022                                   380  dry    4%  wet no hail   92%  hail    4%   hail among wet or hail:    4%  (n 364)
+   2023                                  1121  dry    4%  wet no hail   90%  hail    6%   hail among wet or hail:    6%  (n 1074)
+   2024                                   457  dry    3%  wet no hail   91%  hail    6%   hail among wet or hail:    6%  (n 442)
+   2025                                   780  dry    4%  wet no hail   88%  hail    7%   hail among wet or hail:    8%  (n 746)
+   2026                                   673  dry    7%  wet no hail   88%  hail    4%   hail among wet or hail:    5%  (n 623)
+   Front Range band (lon -105.05 to -104.5)    1317  dry    6%  wet no hail   87%  hail    7%   hail among wet or hail:    8%  (n 1244)
+   east of lon -103.9                    1225  dry    5%  wet no hail   93%  hail    3%   hail among wet or hail:    3%  (n 1167)
+   Dec to Mar                               8  dry   75%  wet no hail   25%  hail    0%   hail among wet or hail:    0%  (n 2)
+
+== E. Hail filings (largest stone) against the radar at the station
+   hail filings of 1 in or more: 171;  MESH >= 1.00 in within 3/5/8 km: 68% / 75% / 81%
