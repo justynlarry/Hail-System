@@ -7679,3 +7679,23 @@ Item 253's absence question is answered on that basis. If the ingest later holds
 with its own item; the Daily export is not ingested today.
 
 **Related:** items 205, 253; decision log 2026-10-23 (design points 7 and 9, and the precision study); `docs/analysis/cocorahs-station-coverage-2026-10/`.
+
+## 2026-10-24 — Evidence: top hail areas over the last five years
+
+**Evidence (read-only queries on `hail-dev`, `docs/analysis/top-hail-areas-2026-10/`).** Zips and counties ranked by distinct storm days (Denver
+local date) of hail of 1.00 in or more, the `report_types` floor, from IEM Local Storm Reports only, 2021-10-24 to 2026-10-24: 2,131 reports on
+215 storm days. A report counts for a zip when it falls inside it (`report_zip_distances.distance_m = 0`). The radar layers and CoCoRaHS are not used.
+
+1. **In territory, Calhan (80808, 16 storm days) and Peyton (80831, 14) lead**, then Colorado Springs zips (80911, 80915, 80908, 80909),
+   Elizabeth, Elbert and Fountain, with Greeley 10th.
+2. **El Paso, Weld and Yuma are the top three counties** by reports (338, 162, 162).
+3. **Seven in-territory zips sit on 8 to 10 storm days** (ranks 3 to 9), so their order is not a real difference. Five years is 215 storm days;
+   one or two storm days is noise.
+4. **Against the full record (2004 to 2026):** Fort Collins (80524, 80525) fell out of the territory top ten, and Lincoln passed Kit Carson in the
+   county ranking.
+5. **The whole-state list is eastern-plains zips outside `coverage_zips`** (80758 first, 24 storm days). Large, sparsely populated zips and
+   active spotters inflate report counts; this counts reports, not hail intensity.
+
+**Decision:** none. A read-only look at the archive; it changes no setting, pull, match or send.
+
+**Related:** `docs/analysis/top-hail-areas-2026-10/`; decision log 2026-10-23 (the hail-likelihood map, which would replace report counts with likelihood).
