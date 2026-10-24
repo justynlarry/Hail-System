@@ -1,0 +1,13 @@
+[Unit]
+Description=Rebuild the last 30 days of likelihood zones on Sundays at 12:30 UTC, after the CoCoRaHS replay at 12:00
+Documentation=file:///home/hail-user/hail-system/docs/hail-consolidated.md
+
+[Timer]
+OnCalendar=Sun *-*-* 12:30:00
+
+Persistent=true
+AccuracySec=1min
+Unit=likelihood_weekly.service
+
+[Install]
+WantedBy=timers.target

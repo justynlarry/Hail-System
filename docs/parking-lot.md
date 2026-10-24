@@ -6408,3 +6408,24 @@ Daily export is ever ingested for every station-day, or a second state with dens
 **When:** before design phase 1 starts (CoCoRaHS ingest), and before any CoCoRaHS text reaches an email.
 
 **Related:** items 205, 210, 215; decision log 2026-10-23.
+
+## 254. The radar zones anchor a patch on any roof-relevant report, wind and snow included
+
+**Status:** open, not urgent (filed 2026-10-24, found while writing `hailsys/likelihood/build.py`, Phase 5c step 1b)
+
+`hailsys/radar/zones.py` `_REPORTS_SQL` has no `report_text` filter: a radar patch is "anchored" (core) by any report that is roof
+relevant and at or above its type's minimum. That is 12 types (`report_types.roof_relevant`): HAIL, but also TSTM WND GST, TSTM WND DMG,
+DOWNBURST, TORNADO, LANDSPOUT, HIGH SUST WINDS, NON-TSTM WND, HEAVY SNOW and the ice types. Checked 2026-10-24: 9,347 roof-relevant
+non-hail reports since 2020-10-15. A damaging-wind report within 5 km of a patch of radar hail makes it core, and its margin follows. The
+findings panel (slice 6) and the new likelihood build count HAIL reports only, so the radar layers and the likelihood levels can disagree on
+a day with wind reports. `tests/test_likelihood_build.py` pins the difference (a wind report anchors the radar zones, not the likelihood build).
+
+The radar layers are staff-only context and nothing sends from them, so this is a labelling question, not a harm. It matters when thresholds
+are calibrated (slice 7) and if the likelihood map is read beside the radar layer.
+
+**Options, none chosen:** filter `_REPORTS_SQL` to the picked report text (hail by default) and rebuild all days (2,194, the rebuild-all
+action of slice 7); or keep it and say on the legend that "core" means "a roof-relevant report within 5 km".
+
+**When:** before the radar thresholds are calibrated (slice 7), or if the likelihood layer looks wrong beside the radar layer.
+
+**Related:** items 205, 252; decision log 2026-10-23 (design); `docs/phases.md` Phase 5b and 5c.

@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the nightly likelihood job at 11:30 UTC, after the radar (10:30) and CoCoRaHS (11:00) jobs
+Documentation=file:///home/hail-user/hail-system/docs/hail-consolidated.md
+
+[Timer]
+OnCalendar=*-*-* 11:30:00
+
+Persistent=true
+AccuracySec=1min
+Unit=likelihood_ingest.service
+
+[Install]
+WantedBy=timers.target

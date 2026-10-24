@@ -1,0 +1,27 @@
+[Unit]
+Description=Weekly likelihood rebuild (the last 30 days, picks up late CoCoRaHS entries)
+Documentation=file:///home/hail-user/hail-system/docs/hail-consolidated.md
+
+# Same as iem_ingest.service:  Requires= so there is no degraded mode.
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+User=hail-user
+Group=hail-user
+
+WorkingDirectory=/home/hail-user/hail-system
+Environment=HOME=/home/hail-user
+
+ExecStart=/usr/bin/docker compose run --rm ingest python3 scripts/likelihood_ingest.py rebuild --days 30
+
+TimeoutStartSec=1800
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

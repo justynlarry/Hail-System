@@ -29,7 +29,8 @@ sys.path.insert(0, str(ROOT))
 MENTION = re.compile(r"hailsys[./]cocorahs|cocorahs_|import[^\n]*\bcocorahs\b|scripts/cocorahs", re.I)
 
 # The only places allowed to name CoCoRaHS.  Paths relative to the repo root; a folder ends with "/".
-ALLOWED = ("hailsys/cocorahs/", "scripts/cocorahs_ingest.py")
+# hailsys/likelihood/ reads the CoCoRaHS table to build the zones (step 1b, decision log 2026-10-23 "Phase 5c starts").
+ALLOWED = ("hailsys/cocorahs/", "hailsys/likelihood/", "scripts/cocorahs_ingest.py")
 
 # Packages the CoCoRaHS code must never import (it has no business there, and nothing there may be reached from it).
 FORBIDDEN = ("hailsys.email", "hailsys.matching", "hailsys.rentcast", "hailsys.constantcontact", "hailsys.web",
@@ -100,7 +101,7 @@ class IsolationTest(unittest.TestCase):
                 self.assertIsNone(MENTION.search(path.read_text()))
 
     def test_the_cocorahs_code_imports_nothing_from_the_send_side_or_the_web(self):
-        for path in source_files("hailsys/cocorahs/*.py", "scripts/cocorahs_ingest.py"):
+        for path in source_files("hailsys/cocorahs/*.py", "hailsys/likelihood/*.py", "scripts/cocorahs_ingest.py"):
             with self.subTest(path=relative(path)):
                 for mod in imported_modules(path):
                     self.assertFalse(any(mod == bad or mod.startswith(bad + ".") for bad in FORBIDDEN), mod)
