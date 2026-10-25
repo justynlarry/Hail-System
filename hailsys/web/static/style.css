@@ -46,6 +46,9 @@
   --radar-margin: #ef8a62;
   --radar-indicated: #2166ac;
   --radar-warnings: #7f7f7f;
+  --lk-agree: #54278f;
+  --lk-one: #807dba;
+  --lk-context: #9e9ac8;
 }
 
 /* Dark theme.  Selected by theme.js setting data-theme on <html>: the
@@ -93,6 +96,9 @@
   --radar-margin: #ffab76;
   --radar-indicated: #6baed6;
   --radar-warnings: #b0b8c0;
+  --lk-agree: #bcbddc;
+  --lk-one: #9e9ac8;
+  --lk-context: #756bb1;
 }
 
 * { box-sizing: border-box; }
@@ -969,6 +975,12 @@ path.radar-margin     { fill: var(--radar-margin);     stroke: var(--radar-margi
 path.radar-indicated  { fill: var(--radar-indicated);  stroke: var(--radar-indicated); stroke-dasharray: 6 4; }
 path.radar-warnings   { fill: var(--radar-warnings);   stroke: var(--radar-warnings); fill-opacity: 0.12; }
 
+/* Hail likelihood levels (Phase 5c):  one purple family, darkest where radar and a report agree.  The levels also
+   differ by outline (solid, dashed, dotted) so they never depend on colour alone. */
+path.lk-agree   { fill: var(--lk-agree);   stroke: var(--lk-agree); }
+path.lk-one     { fill: var(--lk-one);     stroke: var(--lk-one);     stroke-dasharray: 6 4; }
+path.lk-context { fill: var(--lk-context); stroke: var(--lk-context); stroke-dasharray: 1 4; fill-opacity: 0.12; }
+
 .radar-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .5rem; }
 .radar-controls select { max-width: 100%; }
 .radar-legend { list-style: none; margin: .5rem 0 0; padding: 0; font-size: .85rem; }
@@ -978,6 +990,9 @@ path.radar-warnings   { fill: var(--radar-warnings);   stroke: var(--radar-warni
 .radar-legend .swatch-margin    { background: var(--radar-margin);    border-color: var(--radar-margin); }
 .radar-legend .swatch-indicated { background: var(--radar-indicated); border-color: var(--radar-indicated); border-style: dashed; }
 .radar-legend .swatch-warnings  { background: var(--radar-warnings);  border-color: var(--radar-warnings); opacity: .5; }
+.radar-legend .swatch-lk-agree   { background: var(--lk-agree);   border-color: var(--lk-agree); }
+.radar-legend .swatch-lk-one     { background: var(--lk-one);     border-color: var(--lk-one);     border-style: dashed; }
+.radar-legend .swatch-lk-context { background: var(--lk-context); border-color: var(--lk-context); border-style: dotted; opacity: .5; }
 :root[data-theme="dark"] .leaflet-control-layers { background: var(--surface); color: var(--text); }
 
 /* Leaflet ships white popups, tooltips and controls. */

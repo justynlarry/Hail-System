@@ -17,7 +17,7 @@ ingest read all four and write only builds and zones (insert and delete), never 
 
 import os
 import unittest
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 UTC = timezone.utc
 LAYERS = ("core", "margin", "radar_indicated", "outer", "none")
@@ -49,8 +49,13 @@ class LikelihoodSchemaTest(unittest.TestCase):
         if not self.conn.execute("SELECT has_table_privilege('likelihood_builds', 'INSERT') AS ok").fetchone()["ok"]:
             self.skipTest("needs a role that can insert likelihood rows (hail_admin)")
         self.radar_set = self.conn.execute("SELECT max(set_id) AS s FROM radar_parameter_sets").fetchone()["s"]
-        self.day = self.conn.execute(
-            "SELECT day FROM radar_days WHERE status = 'loaded' ORDER BY day DESC LIMIT 1").fetchone()["day"]
+        # A day of its own:  the real days have real builds now, and a test must not collide with them.
+        run = self.conn.execute("INSERT INTO radar_runs (run_mode) VALUES ('manual') RETURNING run_id").fetchone()["run_id"]
+        self.day = date(1999, 6, 8)
+        self.conn.execute(
+            "INSERT INTO radar_days (day, run_id, status, stamp_utc, source_key, box_lat_max, box_lat_min, "
+            "box_lon_min, box_lon_max, floor_mm, cells_in_box) VALUES (%s, %s, 'loaded', now(), 'k', "
+            "41.5, 36.5, -109.7, -101.4, 12.7, 1000)", (self.day, run))
         self.set_id = self.conn.execute("SELECT min(set_id) AS s FROM likelihood_parameter_sets").fetchone()["s"]
 
     def refused(self, sql, args=()):

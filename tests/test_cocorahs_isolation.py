@@ -30,7 +30,9 @@ MENTION = re.compile(r"hailsys[./]cocorahs|cocorahs_|import[^\n]*\bcocorahs\b|sc
 
 # The only places allowed to name CoCoRaHS.  Paths relative to the repo root; a folder ends with "/".
 # hailsys/likelihood/ reads the CoCoRaHS table to build the zones (step 1b, decision log 2026-10-23 "Phase 5c starts").
-ALLOWED = ("hailsys/cocorahs/", "hailsys/likelihood/", "scripts/cocorahs_ingest.py")
+# hailsys/queries/likelihood_map.py and the map panel show the staff-only layer and name the size floor column.
+ALLOWED = ("hailsys/cocorahs/", "hailsys/likelihood/", "hailsys/queries/likelihood_map.py",
+           "hailsys/web/templates/_map_panel.html", "scripts/cocorahs_ingest.py")
 
 # Packages the CoCoRaHS code must never import (it has no business there, and nothing there may be reached from it).
 FORBIDDEN = ("hailsys.email", "hailsys.matching", "hailsys.rentcast", "hailsys.constantcontact", "hailsys.web",
@@ -97,6 +99,8 @@ class IsolationTest(unittest.TestCase):
 
     def test_the_export_and_match_queries_never_name_it(self):
         for path in source_files("hailsys/queries/*.py"):
+            if allowed(path):
+                continue
             with self.subTest(path=relative(path)):
                 self.assertIsNone(MENTION.search(path.read_text()))
 

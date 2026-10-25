@@ -14,12 +14,36 @@
     </select>
 </div>
 <p id="radar-status" class="note"></p>
+<p id="likelihood-status" class="note"></p>
 {% else %}
 <p class="note">No radar or NWS warnings in this window.</p>
 {% endif %}
 
 <div id="map" data-match-radius-m="{{ match_radius_m }}" data-radar-url="{{ url_for('main.map_radar') }}"
-     data-findings-url="{{ url_for('main.territory_findings') }}"></div>
+     data-findings-url="{{ url_for('main.territory_findings') }}"
+     data-likelihood-url="{{ url_for('main.map_likelihood') }}"></div>
+
+{% if radar_days and likelihood_set %}
+<details class="radar-legend-box likelihood-legend-box" open>
+    <summary>Hail likelihood</summary>
+    <ul class="radar-legend">
+        <li><span class="swatch swatch-lk-agree"></span>
+            <span><strong>Agree</strong> — radar and ground reports point to hail here</span></li>
+        <li><span class="swatch swatch-lk-one"></span>
+            <span><strong>One source</strong> — radar hail with no report near it, or a ground report with no radar behind it</span></li>
+        <li><span class="swatch swatch-lk-context"></span>
+            <span><strong>Context</strong> — inside an NWS warning area and nothing else points to hail (off until ticked)</span></li>
+    </ul>
+    <p class="note">The levels rank where to look first; they are not probabilities. Radar means hail of
+       {{ '{:g}'.format(radar_set.hail_threshold_in) }} in or more within about {{ '{:g}'.format(radar_set.report_radius_km) }} km of a report.
+       Ground reports are NWS storm reports (via IEM) and hail reports of {{ '{:g}'.format(likelihood_set.cocorahs_min_in) }} in or more
+       from CoCoRaHS volunteer observers (<a href="https://www.cocorahs.org" rel="noopener">CoCoRaHS</a>, CC BY 4.0).
+       Distances are measured to the nearest such report: {{ '{:g}'.format(likelihood_set.band_1_mi) }},
+       {{ '{:g}'.format(likelihood_set.band_2_mi) }} and {{ '{:g}'.format(likelihood_set.band_3_mi) }} miles.
+       Likelihood set {{ likelihood_set.set_id }} ({{ likelihood_set.name }}). Staff only: not used for emails,
+       exports, pulls or matching.</p>
+</details>
+{% endif %}
 
 {% if radar_days %}
 <details class="radar-legend-box" open>
@@ -32,7 +56,7 @@
         <li><span class="swatch swatch-indicated"></span>
             <span><strong>Radar-indicated</strong> — radar hail with no report near it</span></li>
         <li><span class="swatch swatch-warnings"></span>
-            <span><strong>NWS warnings</strong> — severe thunderstorm and tornado warning polygons for the day, outside the layers above</span></li>
+            <span><strong>NWS warnings</strong> — severe thunderstorm and tornado warning polygons for the day, outside the layers above (off until ticked)</span></li>
     </ul>
     <p class="note">Circles show the match radius around each report. Zones use parameter set {{ radar_set.set_id }}
        ({{ radar_set.name }}). Staff only: not used for emails, exports, pulls or matching.</p>

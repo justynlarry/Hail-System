@@ -33,11 +33,12 @@ function makeEnv(o) {
                                       addEventListener(t, f) { this.handlers[t] = f; }};
   const container = {dataset: o.dataset};
   const findingsBox = o.noFindings ? null : {textContent: '', innerHTML: ''};
+  const likelihoodStatus = o.noPicker ? null : {textContent: ''};
   st.findingsPending = [];
   let ready;
   const document = {
     addEventListener(t, f) { if (t === 'DOMContentLoaded') ready = f; },
-    getElementById(id) { return {map: container, 'radar-day': picker, 'radar-status': o.noPicker ? null : status, findings: findingsBox}[id] || null; },
+    getElementById(id) { return {map: container, 'radar-day': picker, 'radar-status': o.noPicker ? null : status, findings: findingsBox, 'likelihood-status': likelihoodStatus}[id] || null; },
   };
   const bodies = o.bodies || {};
   const fetchImpl = (url) => {
@@ -48,6 +49,10 @@ function makeEnv(o) {
       if (o.radarReject) return Promise.reject(new Error('network'));
       const r = o.radarSequence ? o.radarSequence.shift() : bodies.radar;
       return Promise.resolve({ok: o.radarOk !== false, json: () => Promise.resolve(r)});
+    }
+    if (url.startsWith('/map/likelihood.geojson')) {
+      if (o.likelihoodReject) return Promise.reject(new Error('network'));
+      return Promise.resolve({ok: o.likelihoodOk !== false, json: () => Promise.resolve(bodies.likelihood || LIKELIHOOD([]))});
     }
     if (url.startsWith('/territory/findings')) {
       if (o.findingsReject) return Promise.reject(new Error('network'));
@@ -63,7 +68,7 @@ function makeEnv(o) {
     new Function('L', 'document', 'window', 'fetch', 'console', 'URLSearchParams', src)(L, document, window, fetchImpl, console_, URLSearchParams);
     ready(); await tick();
   };
-  return {st, picker, status, container, run, findingsBox};
+  return {st, picker, status, container, run, findingsBox, likelihoodStatus};
 }
 
 const POINT = (lon, lat) => ({type: 'Feature', geometry: {type: 'Point', coordinates: [lon, lat]},
@@ -71,7 +76,10 @@ const POINT = (lon, lat) => ({type: 'Feature', geometry: {type: 'Point', coordin
 const FEATURE = (layer, km2) => ({type: 'Feature', properties: {layer, area_km2: km2, parts: 1}, geometry: {type: 'Polygon', coordinates: []}});
 const RADAR = (layers, days = ['2026-06-08'], other = []) => ({type: 'FeatureCollection', features: layers.map(([l, a]) => FEATURE(l, a)),
   days, built_with_other_set: other, set: {set_id: 1}});
-const DS = {matchRadiusM: '8046.7', radarUrl: '/map/radar.geojson', findingsUrl: '/territory/findings'};
+const LK_FEATURE = (level, km2) => ({type: 'Feature', properties: {level, area_km2: km2, parts: 1}, geometry: {type: 'Polygon', coordinates: []}});
+const LIKELIHOOD = (levels, days = ['2026-06-08'], other = []) => ({type: 'FeatureCollection', features: levels.map(([l, a]) => LK_FEATURE(l, a)),
+  days, built_with_other_set: other, set: {set_id: 1}});
+const DS = {matchRadiusM: '8046.7', radarUrl: '/map/radar.geojson', findingsUrl: '/territory/findings', likelihoodUrl: '/map/likelihood.geojson'};
 
 (async () => {
   check(!/8046|1609\.344|5 miles/.test(src), 'no hard-coded radius left in map.js');
@@ -93,13 +101,14 @@ const DS = {matchRadiusM: '8046.7', radarUrl: '/map/radar.geojson', findingsUrl:
   check(e.st.fetches.includes('/map/points.geojson?days=90&type=HAIL&day=stale'), 'points are fetched with the page query string');
   check(e.st.fetches.includes('/map/radar.geojson?days=90&type=HAIL&day=2026-06-08'), 'radar asks for the picked day, replacing a stale day= and keeping the rest');
   const radarGroups = e.st.geo.filter(g => g.opts.pane && g.opts.pane.startsWith('radar-'));
-  check(radarGroups.length === 4 && radarGroups.every(g => g.opts.interactive === false && g.map), 'four radar layers, non-interactive, on the map');
+  check(radarGroups.length === 4 && radarGroups.every(g => g.opts.interactive === false), 'four radar layers, non-interactive');
   const by = (p) => radarGroups.find(g => g.opts.pane === 'radar-' + p);
+  check(by('core').map && by('margin').map && by('radar_indicated').map && !by('outer').map, 'core, margin and radar-indicated start on, NWS warnings start off');
   check(by('core').features.length === 1 && by('outer').features.length === 1 && by('margin').features.length === 0, 'features go to their own layers');
   check(by('radar_indicated').opts.style.className === 'radar-indicated' && by('outer').opts.style.className === 'radar-warnings', 'layer classes match style.css');
   check(e.status.textContent === 'Core 1,803 km² · NWS warnings 14,895 km²', 'status line lists the areas, core first: ' + e.status.textContent);
   const names = Object.keys(e.st.controls[0].overlays);
-  check(JSON.stringify(names) === JSON.stringify(['Report circles', 'Report points', 'Core', 'Margin', 'Radar-indicated', 'NWS warnings']), 'layer control offers the six toggles');
+  check(JSON.stringify(names) === JSON.stringify(['Report circles', 'Report points', 'Agree', 'One source', 'Context (warnings only)', 'Core', 'Margin', 'Radar-indicated', 'NWS warnings']), 'layer control offers the nine toggles');
   check(e.st.controls[0].overlays['Core'] === by('core') && e.st.controls[0].overlays['NWS warnings'] === by('outer'), 'toggles are wired to the right layers');
   check(e.st.controls[0].opts.collapsed === false, 'layer control starts open');
   check(e.st.groups.every(g => g.map), 'circles and points are on by default');
@@ -124,6 +133,44 @@ const DS = {matchRadiusM: '8046.7', radarUrl: '/map/radar.geojson', findingsUrl:
   e = makeEnv({dataset: DS, pickerValue: 'all', search: '?days=30&day=2026-06-01', bodies: {radar: RADAR([['core', 100]])}});
   await e.run();
   check(e.st.fetches.includes('/map/radar.geojson?days=30'), '"all" drops a day= left in the page URL');
+
+  // ---- hail likelihood (Phase 5c)
+  e = makeEnv({dataset: DS, pickerValue: '2026-06-08', search: '?days=90&day=stale',
+               bodies: {radar: RADAR([]), likelihood: LIKELIHOOD([['one_source', 2036.4], ['agree', 1308.2], ['context', 11774]])}});
+  await e.run();
+  const lk = (n) => e.st.geo.find(g => g.opts.pane === 'likelihood-' + n);
+  const zl = (n) => e.st.panes[n].style.zIndex;
+  check(e.st.fetches.includes('/map/likelihood.geojson?days=90&day=2026-06-08'), 'likelihood asks for the picked day and keeps the page query');
+  check(['context', 'one_source', 'agree'].every(n => lk(n) && lk(n).opts.interactive === false), 'three likelihood layers, non-interactive');
+  check(lk('agree').map && lk('one_source').map && !lk('context').map, 'Agree and One source start on, Context starts off');
+  check(lk('agree').opts.style.className === 'lk-agree' && lk('one_source').opts.style.className === 'lk-one'
+        && lk('context').opts.style.className === 'lk-context', 'likelihood classes match style.css');
+  check(lk('agree').features.length === 1 && lk('one_source').features.length === 1 && lk('context').features.length === 1, 'features go to their level');
+  check(zl('counties') < zl('likelihood-context') && zl('likelihood-context') < zl('likelihood-one_source')
+        && zl('likelihood-one_source') < zl('likelihood-agree') && zl('likelihood-agree') < zl('radar-outer'),
+        'panes stack counties < context < one source < agree < radar layers');
+  check(e.likelihoodStatus.textContent === 'Likelihood: Agree 1,308 km² · One source 2,036 km² · Context 11,774 km²',
+        'likelihood status lists agree first: ' + e.likelihoodStatus.textContent);
+  e.picker.value = '2026-06-01';
+  e.st.fetches.length = 0;
+  e.picker.handlers.change();
+  await tick();
+  check(e.st.fetches.filter(u => u.startsWith('/map/likelihood.geojson')).length === 1, 'a change asks for the new day once');
+  check(lk('agree').cleared >= 1 && lk('agree').features.length === 1, 'a change replaces the likelihood layers');
+
+  e = makeEnv({dataset: DS, pickerValue: 'all', bodies: {radar: RADAR([]), likelihood: LIKELIHOOD([], ['2026-06-08'], ['2026-05-01', '2026-05-02'])}});
+  await e.run();
+  check(e.likelihoodStatus.textContent === 'Likelihood: nothing to draw for this selection. 2 day(s) were built with an older set and are not shown.',
+        'an empty likelihood says so and names older-set days: ' + e.likelihoodStatus.textContent);
+
+  e = makeEnv({dataset: DS, pickerValue: '2026-06-08', likelihoodReject: true, bodies: {radar: RADAR([['core', 100]])}});
+  await e.run();
+  check(e.likelihoodStatus.textContent === 'The hail-likelihood layers could not be loaded.', 'a failed likelihood load says so');
+  check(e.status.textContent === 'Core 100 km²', 'and the radar line is untouched');
+
+  e = makeEnv({dataset: {...DS, likelihoodUrl: undefined}, pickerValue: '2026-06-08', bodies: {radar: RADAR([])}});
+  await e.run();
+  check(!e.st.fetches.some(u => u.startsWith('/map/likelihood.geojson')), 'with no likelihood url the page just skips it');
 
   // ---- colours by source
   e = makeEnv({dataset: DS, pickerValue: 'all', bodies: {radar: RADAR([]), points: {features: [

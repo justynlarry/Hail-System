@@ -15,7 +15,7 @@ from hailsys.rentcast.estimate import estimate_pull
 from hailsys.web.jobs import start_pull, PullInProgress
 from hailsys.db import get_connection
 from hailsys.formatting import csv_safe, magnitude
-from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest, ccstate, radar, radar_map, findings
+from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest, ccstate, radar, radar_map, findings, likelihood_map
 from hailsys.tuning import (
     DISPLAY_TZ,
     RECENT_PULL_WINDOW_DAYS,
@@ -442,6 +442,7 @@ def territory():
         types = storms.fetch_report_types(conn)
         radar_days = radar_map.picker_days(conn, start_day, end_day)
         radar_set = radar_map.in_use_set(conn)
+        likelihood_set = likelihood_map.in_use_set(conn)
     # The day the map opens on:  the newest with a radar core (a real storm), else the newest with
     # zones built, else the newest with anything.
     radar_default = (next((r["day"] for r in radar_days if r["core_km2"] > 0), None)
@@ -460,6 +461,7 @@ def territory():
         export_query=_export_query(report_text),
         radar_days=radar_days,
         radar_set=radar_set,
+        likelihood_set=likelihood_set,
         radar_default=radar_default,
         match_radius_m=round(miles_to_metres(g.settings["match_radius_miles"]), 1),
         actionable_only=actionable_only,
@@ -573,6 +575,25 @@ def map_radar():
         else:
             days = [r["day"] for r in radar_map.picker_days(conn, start_day, end_day)]
         return radar_map.zones_geojson(conn, days)
+
+
+@bp.route("/map/likelihood.geojson")
+@login_required
+def map_likelihood():
+    """The hail-likelihood levels for the Territory map.  Staff only, read only, and nothing reaches email, an
+    export, a pull or the matcher.  ?day=YYYY-MM-DD is one local day inside the window;  without it, every
+    day the radar picker offers.
+    """
+    start_day, end_day, _, _ = _window_from_args()
+    with get_connection() as conn:
+        if "day" in request.args:
+            day = _parse_day(request.args["day"])
+            if day is None or not start_day <= day <= end_day:
+                abort(400)
+            days = [day]
+        else:
+            days = [r["day"] for r in radar_map.picker_days(conn, start_day, end_day)]
+        return likelihood_map.zones_geojson(conn, days)
 
 
 @bp.route("/territory/findings")

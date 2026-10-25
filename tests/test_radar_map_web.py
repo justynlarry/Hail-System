@@ -283,7 +283,9 @@ class IsolationTest(unittest.TestCase):
 
     RADAR_NAMES = re.compile(r"hailsys\.radar|radar_map|queries import[^\n]*\bradar\b|radar_zones|radar_cells|radar_days|"
                              r"radar_zone_builds|warning_polygons|warning_loads|radar_parameter_sets|"
-                             r"queries\.findings|queries import[^\n]*\bfindings\b")
+                             r"queries\.findings|queries import[^\n]*\bfindings\b|"
+                             r"hailsys\.likelihood|likelihood_map|likelihood_zones|likelihood_builds|"
+                             r"likelihood_parameter_sets|likelihood_level_rules|likelihood_runs")
 
     def files(self, *globs):
         out = []
@@ -300,7 +302,7 @@ class IsolationTest(unittest.TestCase):
                     self.assertIsNone(self.RADAR_NAMES.search(path.read_text()))
 
     def test_the_other_query_modules_never_mention_the_radar(self):
-        radar = {"radar.py", "radar_map.py", "findings.py"}   # findings.py is the slice 6 panel, staff only
+        radar = {"radar.py", "radar_map.py", "findings.py", "likelihood_map.py"}   # findings.py is the slice 6 panel, staff only
         for path in self.files("hailsys/queries/*.py"):
             if path.name not in radar:
                 with self.subTest(path=path.name):
@@ -315,7 +317,7 @@ class IsolationTest(unittest.TestCase):
                 with self.subTest(route=node.name):
                     names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
                     names |= {n.attr for n in ast.walk(node) if isinstance(n, ast.Attribute)}
-                    self.assertFalse(names & {"radar", "radar_map", "zones_geojson", "picker_days", "findings"}, names)
+                    self.assertFalse(names & {"radar", "radar_map", "zones_geojson", "picker_days", "findings", "likelihood_map"}, names)
         self.assertGreaterEqual(seen, 4)
 
     def test_the_pull_and_match_routes_do_not_touch_the_radar(self):
@@ -327,7 +329,7 @@ class IsolationTest(unittest.TestCase):
                 with self.subTest(route=node.name):
                     names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
                     names |= {n.attr for n in ast.walk(node) if isinstance(n, ast.Attribute)}
-                    self.assertFalse(names & {"radar", "radar_map", "zones_geojson", "picker_days", "findings"}, names)
+                    self.assertFalse(names & {"radar", "radar_map", "zones_geojson", "picker_days", "findings", "likelihood_map"}, names)
         self.assertGreaterEqual(seen, 3)
 
     def test_only_the_findings_route_uses_the_findings_reads(self):
@@ -348,7 +350,17 @@ class IsolationTest(unittest.TestCase):
                 for n in ast.walk(node):
                     if isinstance(n, ast.Name) and n.id == "radar_map":
                         users.add(node.name)
-        self.assertEqual(users, {"territory", "map_radar", "territory_findings"})
+        self.assertEqual(users, {"territory", "map_radar", "map_likelihood", "territory_findings"})
+
+    def test_only_the_territory_view_and_the_likelihood_route_use_the_likelihood_reads(self):
+        tree = ast.parse((ROOT / "hailsys/web/views.py").read_text())
+        users = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                for n in ast.walk(node):
+                    if isinstance(n, ast.Name) and n.id == "likelihood_map":
+                        users.add(node.name)
+        self.assertEqual(users, {"territory", "map_likelihood"})
 
 
 if __name__ == "__main__":

@@ -68,6 +68,13 @@ document.addEventListener('DOMContentLoaded', function () {
     map.createPane('radar-' + name);
     map.getPane('radar-' + name).style.zIndex = 410 + i * 10;
   });
+  const LIKELIHOOD_ORDER = ['context', 'one_source', 'agree'];
+  const LIKELIHOOD_CLASS = { context: 'lk-context', one_source: 'lk-one', agree: 'lk-agree' };
+  const LIKELIHOOD_LABEL = { context: 'Context', one_source: 'One source', agree: 'Agree' };
+  LIKELIHOOD_ORDER.forEach(function (name, i) {
+    map.createPane('likelihood-' + name);
+    map.getPane('likelihood-' + name).style.zIndex = 402 + i * 2;
+  });
   map.createPane('report-circles');
   map.getPane('report-circles').style.zIndex = 450;
   map.createPane('report-points');
@@ -125,16 +132,31 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Radar layers (Phase 5b), staff only.  Colours come from style.css by class, per theme.
   const radar = {};
+  // The NWS warnings start off:  the likelihood Context layer shows the same areas, less the parts near a hail report.
   RADAR_ORDER.forEach(function (name) {
     radar[name] = L.geoJSON(null, {
       pane: 'radar-' + name, interactive: false,
       style: { weight: 1, fillOpacity: 0.3, className: RADAR_CLASS[name] },
-    }).addTo(map);
+    });
+    if (name !== 'outer') radar[name].addTo(map);
+  });
+
+  // Hail likelihood (Phase 5c), staff only.  Context covers whole warning areas, so it starts off.
+  const likelihood = {};
+  LIKELIHOOD_ORDER.forEach(function (name) {
+    likelihood[name] = L.geoJSON(null, {
+      pane: 'likelihood-' + name, interactive: false,
+      style: { weight: 1, fillOpacity: 0.35, className: LIKELIHOOD_CLASS[name] },
+    });
+    if (name !== 'context') likelihood[name].addTo(map);
   });
 
   L.control.layers(null, {
     'Report circles': circles,
     'Report points': points,
+    'Agree': likelihood.agree,
+    'One source': likelihood.one_source,
+    'Context (warnings only)': likelihood.context,
     'Core': radar.core,
     'Margin': radar.margin,
     'Radar-indicated': radar.radar_indicated,
@@ -144,6 +166,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const picker = document.getElementById('radar-day');
   const status = document.getElementById('radar-status');
   const findingsBox = document.getElementById('findings');
+  const likelihoodStatus = document.getElementById('likelihood-status');
   let findingsRequest = 0;   // the newest request wins when the picker is changed quickly
 
   function km2(n) {
@@ -187,6 +210,41 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   }
 
+  function describeLikelihood(data) {
+    const parts = [];
+    ['agree', 'one_source', 'context'].forEach(function (name) {
+      data.features.forEach(function (f) {
+        if (f.properties.level === name) parts.push(LIKELIHOOD_LABEL[name] + ' ' + km2(f.properties.area_km2));
+      });
+    });
+    let text = parts.length ? 'Likelihood: ' + parts.join(' · ') : 'Likelihood: nothing to draw for this selection.';
+    if (data.built_with_other_set.length) {
+      text += ' ' + data.built_with_other_set.length + ' day(s) were built with an older set and are not shown.';
+    }
+    return text;
+  }
+
+  function loadLikelihood() {
+    if (!picker || !container.dataset.likelihoodUrl) return;
+    const q = new URLSearchParams(window.location.search);
+    q.delete('day');
+    if (picker.value !== 'all') q.set('day', picker.value);
+    fetch(container.dataset.likelihoodUrl + '?' + q)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        LIKELIHOOD_ORDER.forEach(function (name) { likelihood[name].clearLayers(); });
+        data.features.forEach(function (f) { likelihood[f.properties.level].addData(f); });
+        if (likelihoodStatus) likelihoodStatus.textContent = describeLikelihood(data);
+      })
+      .catch(function (err) {
+        console.error('likelihood load failed', err);
+        if (likelihoodStatus) likelihoodStatus.textContent = 'The hail-likelihood layers could not be loaded.';
+      });
+  }
+
   // The findings panel (slice 6) for the picked day.  The server sends HTML, so there is nothing to format here.
   // 'All days' has no findings and says so.
   function loadFindings() {
@@ -214,8 +272,9 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   if (picker) {
-    picker.addEventListener('change', function () { loadRadar(); loadFindings(); });
+    picker.addEventListener('change', function () { loadRadar(); loadLikelihood(); loadFindings(); });
     loadRadar();
+    loadLikelihood();
     loadFindings();
   }
 });
