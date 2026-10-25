@@ -346,7 +346,7 @@ answers to its six open questions.
 1. **The map (started, internal; the Territory map layer built 2026-10-25):** the CoCoRaHS nightly ingest (built and backfilled for Colorado 2026-10-23, `sql/053`,
    `hailsys/cocorahs/`; item 253 settles the source), likelihood zones per storm day (Agree, One
    source, Context; built for every loaded radar day 2026-10-24, `sql/054` and `055`, `hailsys/likelihood/`), a staff-only layer on the Territory map (built, `/map/likelihood.geojson`), a versioned likelihood parameter set editable on the admin page, and the backtest
-   with one source hidden (bar about 80%; ran 2026-10-25: CoCoRaHS 85%, IEM 63.5%, item 255).
+   with one source hidden (bar about 80%; ran 2026-10-25 and passed on the zip-overlap measure: IEM 88.7%, CoCoRaHS 93.5%, item 255).
 2. **Pulls (not started):** the zip list from the union of zips overlapping the chosen levels (default Agree and One source; Context opt-in), any
    overlap at all, one pull per storm day, `pull_zips (pull_id, zcta5, basis, best_level)`, the estimate shown by level.
 3. **Matches (not started, needs the backtest passed):** Option A, `storm_listing_matches` extended with a nullable `iem_id` and `basis`, `level`,

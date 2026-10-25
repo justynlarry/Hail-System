@@ -2,6 +2,35 @@ Backtest, points of 1 in or more, days 2020-10-15 to 2026-10-21
 
 Points inside each day's radar crop box (the denominator; outside it no layer can exist).
 
+Three measures, overall (zip hit = the report's zip overlaps Agree or One source)
+group                        points  at point  within 5km  in a zip  zip hit
+cocorahs                        168     85.1%       91.1%       168    93.5%
+iem                            1617     63.5%       86.9%      1617    88.7%
+
+Three measures, by year
+group                        points  at point  within 5km  in a zip  zip hit
+cocorahs 2021                    17     94.1%       94.1%        17    94.1%
+cocorahs 2022                    12     91.7%       91.7%        12    91.7%
+cocorahs 2023                    80     88.8%       95.0%        80    96.2%
+cocorahs 2024                    20     90.0%       95.0%        20   100.0%
+cocorahs 2025                    22     81.8%       90.9%        22    90.9%
+cocorahs 2026                    17     52.9%       64.7%        17    76.5%
+iem 2021                        150     57.3%       79.3%       150    80.7%
+iem 2022                         91     69.2%       89.0%        91    94.5%
+iem 2023                        600     67.7%       90.3%       600    89.8%
+iem 2024                        213     73.2%       92.0%       213    93.4%
+iem 2025                        308     54.9%       84.4%       308    88.0%
+iem 2026                        255     57.6%       81.2%       255    85.5%
+
+Three measures, by region
+group                        points  at point  within 5km  in a zip  zip hit
+cocorahs east                    11     81.8%       90.9%        11    90.9%
+cocorahs front_range            110     88.2%       91.8%       110    95.5%
+cocorahs other                   47     78.7%       89.4%        47    89.4%
+iem east                        417     67.4%       89.2%       417    96.6%
+iem front_range                 831     63.1%       86.8%       831    84.8%
+iem other                       369     60.2%       84.6%       369    88.3%
+
 Overall
 group                        points   agree  one_src  context   none   recall
 cocorahs                        168     100       43       11     14    85.1%

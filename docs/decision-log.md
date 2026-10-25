@@ -7719,4 +7719,13 @@ tested against Agree and One source. Only points inside the day's radar crop box
 **Decision:** none yet. No rule, band or threshold changes; step 3 (matches with a level) needs the backtest passed, so it stays closed. Item 255 is
 the follow-up.
 
-**Related:** items 254, 255; decision log 2026-10-23 (design, bar about 80%).
+**Decision (developer, 2026-10-25):** the bar is the **zip-overlap measure**: a hidden report counts when its zip overlaps Agree or One source (any
+overlap, the way step 2's pull would take it). The 80% figure came from radar studies with a 5 km tolerance, and the pull works by zip, so an exact-point
+test was the wrong yardstick. **Result: IEM hidden 88.7% (1,617 points), CoCoRaHS hidden 93.5% (168). The bar is met.** The same points two other ways:
+exact point 63.5% and 85.1%; within 5 km of the report 86.9% and 91.1%. By year all are 80% or more except IEM 2021 (80.7%, just over) and
+CoCoRaHS 2026 (76.5%, 17 points). The exact-point IEM misses are radar hail of 1 in or more 3 to 8 km away (`misses.txt`: 77.5% within 3 km,
+84.6% within 5 km, 88.6% within 8 km). Caution: the zip measure is generous on large plains zips (IEM east 96.6%, Front Range 84.8%). No rule, band or
+threshold changes. Step 3 (matches with a level) no longer waits on this criterion but still needs its own waiver entry; nothing from the likelihood
+map reaches a pull, match or send. Item 255 resolved.
+
+**Related:** items 254, 255; decision log 2026-10-23 (design, bar about 80%); `docs/analysis/likelihood-backtest-2026-10/`.

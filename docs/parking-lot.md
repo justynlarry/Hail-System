@@ -6432,7 +6432,7 @@ action of slice 7); or keep it and say on the legend that "core" means "a roof-r
 
 ## 255. Backtest: the likelihood zones recover 63.5% of hidden IEM hail, under the 80% bar
 
-**Status:** open (filed 2026-10-25, found by `docs/analysis/likelihood-backtest-2026-10/backtest.py`, Phase 5c step 1)
+**Status:** resolved 2026-10-25 (filed 2026-10-25, found by `docs/analysis/likelihood-backtest-2026-10/backtest.py`, Phase 5c step 1; closed by the developer's choice of the zip-overlap bar)
 
 With IEM hidden from the anchors and each day rebuilt (rolled back), 1,027 of 1,617 IEM hail reports of 1 in or more inside the day's radar crop
 box landed in Agree or One source: 63.5%, against the bar of about 80% (decision log 2026-10-23). The misses are mostly Context (527): a
@@ -6448,3 +6448,13 @@ read.
 **When:** before slice 7 proposes a parameter set, and before step 3 (matches with a level) is waived in, which needs the backtest passed.
 
 **Related:** items 254, 243; decision log 2026-10-25 (Evidence: likelihood backtest); `docs/analysis/likelihood-backtest-2026-10/summary.txt`.
+
+**Resolution (2026-10-25).** The developer chose the bar as the zip-overlap measure (the hidden report's zip overlaps Agree or One source,
+any overlap, as step 2's pull would take it), because the 80% figure came from radar studies with a 5 km tolerance and the pull works by zip.
+Result, points inside the crop box: IEM hidden **88.7%** (1,617 points), CoCoRaHS hidden **93.5%** (168). The other two measures sit beside it:
+at the exact point 63.5% and 85.1%; within 5 km of the report 86.9% and 91.1%. By year every figure is 80% or more except IEM 2021 at 80.7%
+(just over) and CoCoRaHS 2026 at 76.5% (17 points). The IEM misses at the exact point are radar hail of 1 in or more lying 3 to 8 km away
+(`misses.txt`): location imprecision, not a hole in the rules.
+
+**Still open, a caution only:** the zip measure is generous on large plains zips (IEM east 96.6%, against 84.8% on the Front Range). If step 2
+bases its estimate on zip size, re-check by area. **When:** when step 2 (pulls from the zones) is waived in.

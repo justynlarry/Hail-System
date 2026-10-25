@@ -68,7 +68,17 @@ SELECT ST_X(p.geom) AS lon, ST_Y(p.geom) AS lat, p.size_in,
        -- the crop box the day's radar was cut to: outside it no layer can exist, so a miss there is out of scope
        (SELECT ST_Intersects(p.geom, ST_MakeEnvelope(d.box_lon_min - %(half)s, d.box_lat_min - %(half)s,
                                                      d.box_lon_max + %(half)s, d.box_lat_max + %(half)s, 4326))
-        FROM radar_days d WHERE d.day = %(day)s) AS inbox
+        FROM radar_days d WHERE d.day = %(day)s) AS inbox,
+       -- the zip the report is in overlaps Agree or One source (any overlap, as the pull would take it);
+       -- NULL when the point is in no ZCTA
+       (SELECT bool_or(EXISTS (SELECT 1 FROM likelihood_zones z
+                               WHERE z.day = %(day)s AND z.set_id = %(set_id)s
+                                 AND z.level IN ('agree', 'one_source') AND ST_Intersects(z.geom, b.geom)))
+        FROM zcta_boundaries b WHERE ST_Intersects(b.geom, p.geom)) AS zip_hit,
+       -- Agree or One source within 5 km of the report itself
+       EXISTS (SELECT 1 FROM likelihood_zones z
+               WHERE z.day = %(day)s AND z.set_id = %(set_id)s AND z.level IN ('agree', 'one_source')
+                 AND ST_DWithin(z.geom::geography, p.geom::geography, 5000)) AS near5
 FROM pts p
 """
 
@@ -131,7 +141,7 @@ def main(argv=None):
                 if not n:
                     continue
                 for r in hidden_build(conn, day, source, args.min_in, args.set_id):
-                    per_point.append((source, day, r["lon"], r["lat"], r["size_in"], r["level"], r["inbox"]))
+                    per_point.append((source, day, r["lon"], r["lat"], r["size_in"], r["level"], r["inbox"], r["zip_hit"], r["near5"]))
                 done += 1
                 if args.limit and done >= args.limit:
                     break
@@ -139,13 +149,14 @@ def main(argv=None):
 
     with open(args.out / "points.csv", "w", newline="") as fh:
         w = csv.writer(fh)
-        w.writerow(["hidden_source", "day", "lon", "lat", "size_in", "level", "inbox", "region"])
-        for s, d, lon, lat, size, level, inbox in per_point:
-            w.writerow([s, d, f"{lon:.5f}", f"{lat:.5f}", size, level, int(inbox), region_of(lon, regions)])
+        w.writerow(["hidden_source", "day", "lon", "lat", "size_in", "level", "inbox", "zip_hit", "near5", "region"])
+        for s, d, lon, lat, size, level, inbox, zip_hit, near5 in per_point:
+            w.writerow([s, d, f"{lon:.5f}", f"{lat:.5f}", size, level, int(inbox),
+                        "" if zip_hit is None else int(zip_hit), int(near5), region_of(lon, regions)])
 
     def table(title, key, only_inbox=True):
         groups = collections.defaultdict(collections.Counter)
-        for s, d, lon, lat, size, level, inbox in per_point:
+        for s, d, lon, lat, size, level, inbox, zip_hit, near5 in per_point:
             if only_inbox and not inbox:
                 continue
             groups[key(s, d, lon)][level] += 1
@@ -158,9 +169,33 @@ def main(argv=None):
                          f"{hit / n:>9.1%}")
         return "\n".join(lines)
 
+    def measures(title, key):
+        # The same points three ways: at the point, within 5 km of the point, and the zip the point is in.
+        groups = collections.defaultdict(lambda: collections.Counter())
+        for s, d, lon, lat, size, level, inbox, zip_hit, near5 in per_point:
+            if not inbox:
+                continue
+            c = groups[key(s, d, lon)]
+            c["n"] += 1
+            c["point"] += level in ("agree", "one_source")
+            c["near5"] += bool(near5)
+            if zip_hit is not None:
+                c["zips"] += 1
+                c["zip"] += bool(zip_hit)
+        lines = [title, f"{'group':<28}{'points':>7}{'at point':>10}{'within 5km':>12}{'in a zip':>10}{'zip hit':>9}"]
+        for k in sorted(groups):
+            c = groups[k]
+            zip_rate = f"{c['zip'] / c['zips']:.1%}" if c["zips"] else "-"
+            lines.append(f"{k:<28}{c['n']:>7}{c['point'] / c['n']:>10.1%}{c['near5'] / c['n']:>12.1%}"
+                         f"{c['zips']:>10}{zip_rate:>9}")
+        return "\n".join(lines)
+
     text = "\n\n".join([
         f"Backtest, points of {args.min_in:g} in or more, days {args.first} to {args.last}",
         "Points inside each day's radar crop box (the denominator; outside it no layer can exist).",
+        measures("Three measures, overall (zip hit = the report's zip overlaps Agree or One source)", lambda s, d, lon: s),
+        measures("Three measures, by year", lambda s, d, lon: f"{s} {d.year}"),
+        measures("Three measures, by region", lambda s, d, lon: f"{s} {region_of(lon, regions)}"),
         table("Overall", lambda s, d, lon: s),
         table("Overall, every point including outside the box", lambda s, d, lon: s, only_inbox=False),
         table("By year", lambda s, d, lon: f"{s} {d.year}"),
