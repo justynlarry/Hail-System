@@ -1,0 +1,37 @@
+Backtest, points of 1 in or more, days 2020-10-15 to 2026-10-21
+
+Points inside each day's radar crop box (the denominator; outside it no layer can exist).
+
+Overall
+group                        points   agree  one_src  context   none   recall
+cocorahs                        168     100       43       11     14    85.1%
+iem                            1617     302      725      527     63    63.5%
+
+Overall, every point including outside the box
+group                        points   agree  one_src  context   none   recall
+cocorahs                        199     101       43       11     44    72.4%
+iem                            2284     302      725      527    730    45.0%
+
+By year
+group                        points   agree  one_src  context   none   recall
+cocorahs 2021                    17      11        5        0      1    94.1%
+cocorahs 2022                    12       9        2        0      1    91.7%
+cocorahs 2023                    80      54       17        4      5    88.8%
+cocorahs 2024                    20      11        7        1      1    90.0%
+cocorahs 2025                    22       8       10        2      2    81.8%
+cocorahs 2026                    17       7        2        4      4    52.9%
+iem 2021                        150      30       56       48     16    57.3%
+iem 2022                         91      20       43       24      4    69.2%
+iem 2023                        600     141      265      177     17    67.7%
+iem 2024                        213      62       94       52      5    73.2%
+iem 2025                        308      25      144      125     14    54.9%
+iem 2026                        255      24      123      101      7    57.6%
+
+By region
+group                        points   agree  one_src  context   none   recall
+cocorahs east                    11       6        3        1      1    81.8%
+cocorahs front_range            110      68       29        7      6    88.2%
+cocorahs other                   47      26       11        3      7    78.7%
+iem east                        417      14      267      122     14    67.4%
+iem front_range                 831     236      288      272     35    63.1%
+iem other                       369      52      170      133     14    60.2%

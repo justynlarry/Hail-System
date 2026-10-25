@@ -7699,3 +7699,24 @@ local date) of hail of 1.00 in or more, the `report_types` floor, from IEM Local
 **Decision:** none. A read-only look at the archive; it changes no setting, pull, match or send.
 
 **Related:** `docs/analysis/top-hail-areas-2026-10/`; decision log 2026-10-23 (the hail-likelihood map, which would replace report counts with likelihood).
+
+## 2026-10-25 — Evidence: likelihood backtest (one source hidden)
+
+**Evidence (`docs/analysis/likelihood-backtest-2026-10/`, run on `hail-dev`, every build rolled back so the stored zones are unchanged).** For each
+source and each storm day with its points of 1 in or more, the day was rebuilt with that source hidden from the anchors, then each hidden point was
+tested against Agree and One source. Only points inside the day's radar crop box count; outside it no layer can exist (667 of 2,284 IEM points).
+
+| Hidden source | Points | Agree | One source | Context | None | In Agree or One source |
+|---|---|---|---|---|---|---|
+| CoCoRaHS | 168 (80 days) | 100 | 43 | 11 | 14 | **85.1%** |
+| IEM | 1,617 (254 days) | 302 | 725 | 527 | 63 | **63.5%** |
+
+1. **CoCoRaHS meets the bar** (about 80%); by year 82% to 94% except 2026 (53%, 17 points); Front Range 88%, east 82%. A small sample.
+2. **IEM misses it.** The misses are mostly Context: a report inside a warning area where radar shows less than 1 in. The zones are not leaving
+   holes; radar is missing or misplacing the stone, as the precision study's 75% at 5 km would suggest.
+3. **Not yet known:** whether IEM's location and size imprecision explains it (item 255).
+
+**Decision:** none yet. No rule, band or threshold changes; step 3 (matches with a level) needs the backtest passed, so it stays closed. Item 255 is
+the follow-up.
+
+**Related:** items 254, 255; decision log 2026-10-23 (design, bar about 80%).

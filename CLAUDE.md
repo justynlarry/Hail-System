@@ -128,7 +128,7 @@ nightly and Sunday 12:00 UTC, `scripts/status.sh cocorahs`; Colorado backfilled 
 **Step 1b (2026-10-24): the likelihood zones** — `sql/054` (`likelihood_parameter_sets`, `likelihood_level_rules`, `likelihood_builds`, `likelihood_zones`),
 `sql/055` (`likelihood_runs`), `hailsys/likelihood/` (`build.py`, `ingest.py`), `scripts/likelihood_ingest.py` (`nightly`, `rebuild`, `backfill`),
 timers at 11:30 UTC and Sunday 12:30 UTC, `scripts/status.sh likelihood`; all 2,195 loaded radar days built. A day's levels (Agree, One source,
-Context) come from the radar layer and the distance to the nearest hail report (IEM and CoCoRaHS), by the set's rules; hail reports only (item 254). Not built: the map layer, the admin fields for the parameter set, the backtest.
+Context) come from the radar layer and the distance to the nearest hail report (IEM and CoCoRaHS), by the set's rules; hail reports only (item 254). **The staff-only map layer (2026-10-25)** on the Territory page (`/map/likelihood.geojson`, `hailsys/queries/likelihood_map.py`; Agree and One source on, Context off; the radar NWS warnings layer is now off until ticked). The backtest ran 2026-10-25: 85% for CoCoRaHS hidden, 63.5% for IEM hidden, under the bar (item 255). Not built: the admin fields for the parameter set.
 Pulls and matching are unchanged: steps 2 to 4 (pulls from the zones, matches with `basis` and `level`, sends by level) each need their own
 waiver entry first, and nothing CoCoRaHS- or likelihood-derived may reach an email, an export, a pull or the matcher until then.
 

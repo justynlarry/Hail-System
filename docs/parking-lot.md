@@ -6429,3 +6429,22 @@ action of slice 7); or keep it and say on the legend that "core" means "a roof-r
 **When:** before the radar thresholds are calibrated (slice 7), or if the likelihood layer looks wrong beside the radar layer.
 
 **Related:** items 205, 252; decision log 2026-10-23 (design); `docs/phases.md` Phase 5b and 5c.
+
+## 255. Backtest: the likelihood zones recover 63.5% of hidden IEM hail, under the 80% bar
+
+**Status:** open (filed 2026-10-25, found by `docs/analysis/likelihood-backtest-2026-10/backtest.py`, Phase 5c step 1)
+
+With IEM hidden from the anchors and each day rebuilt (rolled back), 1,027 of 1,617 IEM hail reports of 1 in or more inside the day's radar crop
+box landed in Agree or One source: 63.5%, against the bar of about 80% (decision log 2026-10-23). The misses are mostly Context (527): a
+hail report inside a warning area where radar shows less than 1 in. Only 63 fall in "none". By year 55% to 73%; Front Range 63%, east 67%. With
+CoCoRaHS hidden the figure is 85.1% (143 of 168, 80 days), a pass. Reports outside the crop box (667 of 2,284 IEM points) are out of scope and are
+not counted.
+
+Not yet known: whether IEM's imprecise locations and sizes explain the gap, and what a wider radar tolerance would do.
+
+**Next:** split the IEM recall by report size and by the nearest radar value within 5 km. The rules, bands and thresholds are not changed until that is
+read.
+
+**When:** before slice 7 proposes a parameter set, and before step 3 (matches with a level) is waived in, which needs the backtest passed.
+
+**Related:** items 254, 243; decision log 2026-10-25 (Evidence: likelihood backtest); `docs/analysis/likelihood-backtest-2026-10/summary.txt`.
