@@ -187,6 +187,8 @@
   </form>
 </section>
 
+{% include "_hail_zones.html" %}
+
 <section id="email">
   <h2>Email</h2>
   <form method="post" action="{{ url_for('admin.update_email_settings') }}" class="admin-form">

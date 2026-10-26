@@ -12,7 +12,10 @@ parameter sets and rules are append-only;  a set needs a real radar set, a CoCoR
 edges;  a rule's layer, band and level are known and there is one per layer and band;  a build needs a loaded radar
 day and a real set, has ordered window and non-negative counts, and one per day and set;  a zone has a known level
 (never 'none'), a valid MultiPolygon and a positive area, and belongs to a build;  and the grants:  both app and
-ingest read all four and write only builds and zones (insert and delete), never the sets or rules.
+ingest read all four and write only builds and zones (insert and delete).
+The ingest role never writes the sets or rules;  the app role (the admin page, sql/056) may add them but never
+update, delete or truncate;  a set cannot be committed without its 20 rules;  a rule can only be added in the
+transaction that adds its set.
 """
 
 import os
@@ -289,12 +292,55 @@ class LikelihoodSchemaTest(unittest.TestCase):
                 self.assertFalse(self.priv(role, table, "UPDATE"), f"{role} {table} UPDATE")
                 self.assertFalse(self.priv(role, table, "TRUNCATE"), f"{role} {table} TRUNCATE")
 
-    def test_neither_role_can_write_the_sets_or_the_rules(self):
-        for role in ("hail_app", "hail_ingest"):
-            for table in ("likelihood_parameter_sets", "likelihood_level_rules"):
-                for p in ("INSERT", "UPDATE", "DELETE", "TRUNCATE"):
-                    self.assertFalse(self.priv(role, table, p), f"{role} {table} {p}")
+    def test_the_ingest_role_never_writes_the_sets_or_the_rules(self):
+        for table in ("likelihood_parameter_sets", "likelihood_level_rules"):
+            for p in ("INSERT", "UPDATE", "DELETE", "TRUNCATE"):
+                self.assertFalse(self.priv("hail_ingest", table, p), f"hail_ingest {table} {p}")
 
+    def test_the_app_role_may_add_sets_and_rules_but_never_change_or_remove_them(self):
+        # sql/056:  the admin page adds a radar set, a likelihood set and its 20 rules.
+        for table in ("radar_parameter_sets", "likelihood_parameter_sets", "likelihood_level_rules"):
+            self.assertTrue(self.priv("hail_app", table, "INSERT"), f"hail_app {table} INSERT")
+            for p in ("UPDATE", "DELETE", "TRUNCATE"):
+                self.assertFalse(self.priv("hail_app", table, p), f"hail_app {table} {p}")
+
+    # -- a set is whole (sql/056) -----------------------------------------------------------
+
+    def add_rules(self, set_id, count):
+        pairs = [(layer, band) for layer in LAYERS for band in BANDS][:count]
+        for layer, band in pairs:
+            self.conn.execute("INSERT INTO likelihood_level_rules (set_id, layer, band, level) "
+                              "VALUES (%s, %s, %s, 'context')", (set_id, layer, band))
+
+    def commit_check(self):
+        """Run the deferred checks now, as a commit would."""
+        self.conn.execute("SET CONSTRAINTS ALL IMMEDIATE")
+
+    def test_a_set_with_all_twenty_rules_passes_the_commit_check(self):
+        new = self.new_set().fetchone()["set_id"]
+        self.add_rules(new, 20)
+        self.commit_check()
+
+    def test_a_set_with_no_rules_or_too_few_fails_the_commit_check(self):
+        import psycopg
+        for count in (0, 1, 19):
+            with self.subTest(rules=count):
+                new = self.new_set().fetchone()["set_id"]
+                self.add_rules(new, count)
+                with self.assertRaises(psycopg.errors.CheckViolation) as ctx:
+                    self.commit_check()
+                self.assertIn("needs 20", str(ctx.exception))
+                self.conn.rollback()
+                self.setUp()
+
+    def test_a_rule_cannot_be_added_to_an_older_set(self):
+        # The seeded set was made in an earlier transaction.  The pair tried is already taken, so this also
+        # shows the guard fires before the primary key does (it is a BEFORE trigger).
+        import psycopg
+        with self.assertRaises(psycopg.errors.RestrictViolation) as ctx:
+            self.conn.execute("INSERT INTO likelihood_level_rules (set_id, layer, band, level) "
+                              "VALUES (%s, 'core', 'le_1', 'agree')", (self.set_id,))
+        self.assertIn("transaction that adds set", str(ctx.exception))
 
 if __name__ == "__main__":
     unittest.main()

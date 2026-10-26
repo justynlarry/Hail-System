@@ -117,7 +117,11 @@ reaches an email, an export, a pull or the matcher.
   `/territory/findings`, `hailsys/queries/findings.py`, `_findings.html`. The day at a glance, reports against the layers, the report
   circles against core and margin, and a matrix of held houses by radar layer against distance to the nearest actionable hail
   report, with the draft tier letters as a labelled annotation. Staff only, read only, counts and no addresses. About 8 s a day.
-- **Not built:** admin fields for the radar settings (item 243), the rebuild-all-days action and calibration (slice 7), inspection data
+- **Slice 7 (built 2026-10-26, items 243 and 256):** the admin page's Hail zones section sets the radar threshold, margin and report radius, the
+  CoCoRaHS size floor, the three distance edges, the 20-level grid and `storm_states`, adds each change as a new set (`sql/056`,
+  `hailsys/queries/likelihoodadmin.py`, `_hail_zones.html`), lists the sets with "use these values again", and has a "try it on a day" button
+  that builds one day both ways and keeps nothing. A rebuild of earlier days is still a command the page names.
+- **Not built:** the rebuild-all-days button and calibration, inspection data
   (slice 8). The radar database tests need `hail_admin` (item 241).
 
 **Phase 5c — the hail-likelihood map and unified pull.** Design accepted 2026-10-23 (decision log "Design: one hail-likelihood map per
@@ -128,7 +132,7 @@ nightly and Sunday 12:00 UTC, `scripts/status.sh cocorahs`; Colorado backfilled 
 **Step 1b (2026-10-24): the likelihood zones** — `sql/054` (`likelihood_parameter_sets`, `likelihood_level_rules`, `likelihood_builds`, `likelihood_zones`),
 `sql/055` (`likelihood_runs`), `hailsys/likelihood/` (`build.py`, `ingest.py`), `scripts/likelihood_ingest.py` (`nightly`, `rebuild`, `backfill`),
 timers at 11:30 UTC and Sunday 12:30 UTC, `scripts/status.sh likelihood`; all 2,195 loaded radar days built. A day's levels (Agree, One source,
-Context) come from the radar layer and the distance to the nearest hail report (IEM and CoCoRaHS), by the set's rules; hail reports only (item 254). **The staff-only map layer (2026-10-25)** on the Territory page (`/map/likelihood.geojson`, `hailsys/queries/likelihood_map.py`; Agree and One source on, Context off; the radar NWS warnings layer is now off until ticked). The backtest ran 2026-10-25: passed on the zip-overlap measure, IEM hidden 88.7% and CoCoRaHS hidden 93.5% (item 255 resolved; exact-point 63.5% and 85.1%). Not built: the admin fields for the parameter set.
+Context) come from the radar layer and the distance to the nearest hail report (IEM and CoCoRaHS), by the set's rules; hail reports only (item 254). **The staff-only map layer (2026-10-25)** on the Territory page (`/map/likelihood.geojson`, `hailsys/queries/likelihood_map.py`; Agree and One source on, Context off; the radar NWS warnings layer is now off until ticked). The backtest ran 2026-10-25: passed on the zip-overlap measure, IEM hidden 88.7% and CoCoRaHS hidden 93.5% (item 255 resolved; exact-point 63.5% and 85.1%). **The admin fields for the parameter set (slice 7, 2026-10-26)** are on the admin page (see Phase 5b). Step 1 is built.
 Pulls and matching are unchanged: steps 2 to 4 (pulls from the zones, matches with `basis` and `level`, sends by level) each need their own
 waiver entry first, and nothing CoCoRaHS- or likelihood-derived may reach an email, an export, a pull or the matcher until then.
 

@@ -31,8 +31,11 @@ MENTION = re.compile(r"hailsys[./]cocorahs|cocorahs_|import[^\n]*\bcocorahs\b|sc
 # The only places allowed to name CoCoRaHS.  Paths relative to the repo root; a folder ends with "/".
 # hailsys/likelihood/ reads the CoCoRaHS table to build the zones (step 1b, decision log 2026-10-23 "Phase 5c starts").
 # hailsys/queries/likelihood_map.py and the map panel show the staff-only layer and name the size floor column.
+# hailsys/queries/likelihoodadmin.py and the admin page's hail-zone section edit the parameter set (slice 7),
+# whose size floor column is cocorahs_min_in;  they read and write sets only, no reports.
 ALLOWED = ("hailsys/cocorahs/", "hailsys/likelihood/", "hailsys/queries/likelihood_map.py",
-           "hailsys/web/templates/_map_panel.html", "scripts/cocorahs_ingest.py")
+           "hailsys/queries/likelihoodadmin.py", "hailsys/web/templates/_map_panel.html",
+           "hailsys/web/templates/_hail_zones.html", "scripts/cocorahs_ingest.py")
 
 # Packages the CoCoRaHS code must never import (it has no business there, and nothing there may be reached from it).
 FORBIDDEN = ("hailsys.email", "hailsys.matching", "hailsys.rentcast", "hailsys.constantcontact", "hailsys.web",

@@ -2,12 +2,12 @@ import psycopg
 
 from flask import Blueprint, flash, g, redirect, render_template, request, url_for
 
-from hailsys.queries import quota, dncimport, ccstate, emailadmin
+from hailsys.queries import quota, dncimport, ccstate, emailadmin, likelihoodadmin
 from hailsys.db import get_connection
 from hailsys.web.auth import MIN_PASSWORD_LENGTH, hash_password, require_role
 from hailsys.tuning import DISPLAY_TZ, denver_day_bounds
 from decimal import Decimal, InvalidOperation
-from datetime import datetime
+from datetime import date, datetime
 from hailsys.email import emailconfig
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -15,6 +15,7 @@ admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 METRES_PER_MILE = 1609.344
 HISTORY_LIMIT = 20
 ROLES = ("admin", "sender", "viewer")
+ZONE_NUMBER_FIELDS = likelihoodadmin.RADAR_KEYS + likelihoodadmin.LIKELIHOOD_KEYS
 
 UNIQUE_MESSAGES = {
     "users_user_name_key": "That user name is already taken.",
@@ -60,7 +61,28 @@ def _admin_only():
     # user is allowed.
     return require_role("admin")
 
-def _render_admin(form=None, status=200):
+
+def _zone_form_from(row):
+    """A parameter set as the hail-zone form shows it:  numbers as text, the grid, a blank name
+    (the admin has to say why, for the history)."""
+    out = {key: str(row[key]) for key in ZONE_NUMBER_FIELDS}
+    out["name"] = ""
+    out["rules"] = dict(row["rules"])
+    return out
+
+
+def _zone_form_from_request():
+    """The hail-zone form as typed.  The 20 levels arrive as rule_<layer>_<band>."""
+    values = {key: request.form.get(key, "") for key in ZONE_NUMBER_FIELDS}
+    values["name"] = request.form.get("name", "")
+    values["rules"] = {
+        (layer, band): request.form.get(f"rule_{layer}_{band}", "")
+        for layer in likelihoodadmin.LAYERS for band in likelihoodadmin.BANDS}
+    return values
+
+
+
+def _render_admin(form=None, status=200, zone_form=None, trial=None, trial_day=None):
     """Admin Page.  Failed POST re-renders with typed values in the
     form so admin doesn't retype everything, password fields are 
     never echoed back.
@@ -119,6 +141,19 @@ def _render_admin(form=None, status=200):
         cc = ccstate.fetch_state(conn)
         images = emailadmin.fetch_images(conn)
 
+        zone_sets = likelihoodadmin.history(conn)
+        unbuilt = likelihoodadmin.unbuilt_days(conn)
+        storm_states = likelihoodadmin.storm_states(conn)
+        suggested_day = likelihoodadmin.suggest_day(conn)
+
+    # "Use these values again" is a link, not a write, it fills the form from an older set and the 
+    # admin reviews it, names it, and saves.
+    if zone_form is None and zone_sets:
+        wanted = request.args.get("use_set", type=int)
+        zone_form = _zone_form_from(
+            next((s for s in zone_sets if s["set_id"] == wanted), zone_sets[0]))
+
+
     return render_template(
         "admin.html",
         users=users,
@@ -133,6 +168,15 @@ def _render_admin(form=None, status=200):
         cc=cc,
         images=images,
         required_images=emailconfig.REQUIRED_IMAGES,
+        zone_sets=zone_sets,
+        zone_form=zone_form,
+        unbuilt=unbuilt,
+        storm_states=storm_states,
+        zone_layers=likelihoodadmin.LAYERS,
+        zone_bands=likelihoodadmin.BANDS,
+        zone_levels=likelihoodadmin.LEVELS,
+        trial=trial,
+        try_day=trial_day or suggested_day,
     ), status
 
 def _user_action(sql, params, ok_message):
@@ -324,6 +368,54 @@ def update_settings():
               f"listings fresh for {freshness_days} days. "
               f"Campaigns: up to {drip_followups} follow-ups, gaps up to {drip_gap} days.")
     return redirect(url_for("admin.index"))
+
+
+@admin_bp.route("/hail-zones", methods=["POST"])
+def update_hail_zones():
+    values = _zone_form_from_request()
+    try:
+        with get_connection() as conn:
+            result = likelihoodadmin.save(conn, g.user["emp_id"], values)
+            conn.commit()
+    except likelihoodadmin.SetAdminError as exc:
+        flash(str(exc))
+        return _render_admin(zone_form=values, status=400)
+    flash(f"Saved hail-zone set {result['set_id']}.  It is in use now.  The nightly job builds "
+          "with it, and the map draws only days built with it.  Rebuild the earlier days "
+          "(see the box in Hail zones).")
+    return redirect(url_for("admin.index") + "#hail-zones")
+
+
+@admin_bp.route("/hail-zones/try", methods=["POST"])
+def try_hail_zones():
+    values = _zone_form_from_request()
+    try:
+        day = date.fromisoformat(request.form.get("day", ""))
+    except ValueError:
+        flash("Pick a day to try it on.")
+        return _render_admin(zone_form=values, status=400)
+    try:
+        with get_connection() as conn:
+            trial = likelihoodadmin.try_day(conn, g.user["emp_id"], values, day)
+    except likelihoodadmin.SetAdminError as exc:
+        flash(str(exc))
+        return _render_admin(zone_form=values, status=400, trial_day=day)
+    return _render_admin(zone_form=values, trial=trial, trial_day=day)
+
+
+
+@admin_bp.route("/hail-zones/states", methods=["POST"])
+def update_storm_states():
+    try:
+        with get_connection() as conn:
+            states = likelihoodadmin.save_storm_states(
+                conn, g.user["emp_id"], request.form.get("storm_states", ""))
+            conn.commit()
+    except likelihoodadmin.SetAdminError as exc:
+        flash(str(exc))
+    else:
+        flash(f"Storm states set to {states}.  It applies to warnings fetched from now on.")
+    return redirect(url_for("admin.index") + "#hail-zones")
 
 
 def _email_action(write, ok_message):

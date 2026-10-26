@@ -7729,3 +7729,19 @@ threshold changes. Step 3 (matches with a level) no longer waits on this criteri
 map reaches a pull, match or send. Item 255 resolved.
 
 **Related:** items 254, 255; decision log 2026-10-23 (design, bar about 80%); `docs/analysis/likelihood-backtest-2026-10/`.
+
+## 2026-10-26 — Slice 7: the hail-zone parameter sets get an admin page
+
+**Built (`hail-dev`, internal, staff only).** The admin page's Hail zones section edits the radar threshold, margin and report radius, the CoCoRaHS size
+floor, the three distance edges, the 20-level grid and `settings.storm_states`. A change is a new append-only set, in use at once; the history is the log
+(`created_at`, `created_by`), and "use these values again" refills the form from an older set. "Try it on a day" builds one day with the proposed numbers and
+with the set in use inside a transaction and rolls it back. `sql/056` gives `hail_app` `INSERT` on the three set tables and adds two guards in the database:
+a likelihood set cannot commit without its 20 rules, and a rule can only be added in the transaction that adds its set.
+
+1. **A rebuild stays a command** (developer, 2026-10-26: "command for now"). The page names the days waiting and the commands: `radar_ingest.py rebuild --days 2300`
+   after a radar change (`backfill` skips days already held), then `likelihood_ingest.py backfill`. A button is a later piece.
+2. **The isolation allow-list** (`tests/test_cocorahs_isolation.py`) gained `hailsys/queries/likelihoodadmin.py` and `_hail_zones.html`, which name the
+   size-floor column `cocorahs_min_in`; they read and write sets only, no reports. A test pins that only `hailsys/web/admin.py` imports the module.
+3. Nothing from the map or the sets reaches an email, an export, a pull or the matcher. Steps 2 to 4 of Phase 5c still need their own waivers.
+
+**Related:** items 243 (resolved), 255, 256; decision log 2026-10-23 and 2026-10-25.

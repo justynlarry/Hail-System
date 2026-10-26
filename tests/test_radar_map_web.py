@@ -302,11 +302,19 @@ class IsolationTest(unittest.TestCase):
                     self.assertIsNone(self.RADAR_NAMES.search(path.read_text()))
 
     def test_the_other_query_modules_never_mention_the_radar(self):
-        radar = {"radar.py", "radar_map.py", "findings.py", "likelihood_map.py"}   # findings.py is the slice 6 panel, staff only
+        # findings.py is the slice 6 panel, staff only;  likelihoodadmin.py edits the parameter sets (slice 7, admin only)
+        radar = {"radar.py", "radar_map.py", "findings.py", "likelihood_map.py", "likelihoodadmin.py"}
         for path in self.files("hailsys/queries/*.py"):
             if path.name not in radar:
                 with self.subTest(path=path.name):
                     self.assertIsNone(self.RADAR_NAMES.search(path.read_text()))
+
+    def test_only_the_admin_blueprint_uses_the_parameter_set_editor(self):
+        users = set()
+        for path in self.files("hailsys/**/*.py"):
+            if path.name != "likelihoodadmin.py" and "likelihoodadmin" in path.read_text():
+                users.add(str(path.relative_to(ROOT)))
+        self.assertEqual(users, {"hailsys/web/admin.py"} if users else set())
 
     def test_no_csv_or_export_route_touches_the_radar(self):
         tree = ast.parse((ROOT / "hailsys/web/views.py").read_text())

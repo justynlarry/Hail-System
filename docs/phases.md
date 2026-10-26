@@ -328,8 +328,9 @@ Days, Territory and the map. A plausibility ceiling (10 in) sets aside days with
 `hailsys/queries/findings.py`): the day at a glance, reports against the layers, the report circles against the radar, and a
 matrix of held houses by radar layer against distance to the nearest actionable hail report, with the draft tier letters as a labelled
 annotation; flags for suspect, older-set and no-radar days, no reports, and cold-season unreported radar hail. Staff only, read only.
-**Not built:** slice 7 (admin fields for the thresholds, margin, radius and `storm_states`; the rebuild
-button; the calibration run), slice 8 (inspection data, when RBI delivers it).
+**Slice 7 built 2026-10-26** (items 243 and 256): the admin page's Hail zones section edits the radar threshold, margin and radius, the CoCoRaHS
+size floor, the distance edges, the 20-level grid and `storm_states` as new append-only sets (`sql/056`), with a history, "use these values again" and a
+"try it on a day" button. **Not built:** the rebuild button (a command the page names) and the calibration run; slice 8 (inspection data, when RBI delivers it).
 
 **Done when:** for a historical storm day, the four layers draw on the territory page and agree with
 the 2026-10 analysis for that day (`docs/analysis/radar-areas-2026-10/`). The tier settings change the
@@ -345,7 +346,7 @@ The design is the decision log entry "Design: one hail-likelihood map per storm 
 answers to its six open questions.
 1. **The map (started, internal; the Territory map layer built 2026-10-25):** the CoCoRaHS nightly ingest (built and backfilled for Colorado 2026-10-23, `sql/053`,
    `hailsys/cocorahs/`; item 253 settles the source), likelihood zones per storm day (Agree, One
-   source, Context; built for every loaded radar day 2026-10-24, `sql/054` and `055`, `hailsys/likelihood/`), a staff-only layer on the Territory map (built, `/map/likelihood.geojson`), a versioned likelihood parameter set editable on the admin page, and the backtest
+   source, Context; built for every loaded radar day 2026-10-24, `sql/054` and `055`, `hailsys/likelihood/`), a staff-only layer on the Territory map (built, `/map/likelihood.geojson`), a versioned likelihood parameter set editable on the admin page (built 2026-10-26, slice 7), and the backtest
    with one source hidden (bar about 80%; ran 2026-10-25 and passed on the zip-overlap measure: IEM 88.7%, CoCoRaHS 93.5%, item 255).
 2. **Pulls (not started):** the zip list from the union of zips overlapping the chosen levels (default Agree and One source; Context opt-in), any
    overlap at all, one pull per storm day, `pull_zips (pull_id, zcta5, basis, best_level)`, the estimate shown by level.

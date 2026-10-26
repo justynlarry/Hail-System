@@ -1,0 +1,138 @@
+{# The hail-zone parameter sets (Phase 5c, slice 7).  Admin only.  Nothing here reaches an email, an
+   export, a pull or the matcher.  A set is never edited:  saving adds a new one and it is in use at once. #}
+{% set layer_names = {'core': 'Core', 'margin': 'Margin', 'radar_indicated': 'Radar-indicated',
+                      'outer': 'NWS warning only', 'none': 'No radar layer'} %}
+{% set level_names = {'agree': 'Agree', 'one_source': 'One source', 'context': 'Context',
+                      'none': 'None (not drawn)'} %}
+<section id="hail-zones">
+  <h2>Hail zones</h2>
+  <p class="note">These numbers decide the Agree, One source and Context areas on the Territory map. The
+    levels rank where to look first; they are not probabilities. Saving adds a new set, never edits one,
+    and the newest set is in use at once. The map draws only days built with the set in use.</p>
+
+  {% if unbuilt.likelihood or unbuilt.radar %}
+  <div class="note">
+    <strong>Days waiting for a rebuild:</strong>
+    {{ unbuilt.radar }} for the radar layers, {{ unbuilt.likelihood }} for the hail zones. Run these on the
+    server, radar first (the hail zones take about a second a day):
+    <pre>{% if unbuilt.radar %}docker compose run --rm ingest python3 scripts/radar_ingest.py rebuild --days 2300
+{% endif %}docker compose run --rm ingest python3 scripts/likelihood_ingest.py backfill</pre>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('admin.update_hail_zones') }}" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <table class="settings-table">
+      <tbody>
+        {% for key, label, unit, step, low, high, help in [
+            ('hail_threshold_in', 'Radar hail threshold', 'in', '0.01', '0.5', '4',
+             'Radar hail at or above this counts. A change rebuilds the radar layers too.'),
+            ('margin_km', 'Margin around the core', 'km', '0.1', '0', '50', ''),
+            ('report_radius_km', 'Report radius', 'km', '0.1', '0', '50',
+             'How near a report must be to make radar hail Core.'),
+            ('cocorahs_min_in', 'CoCoRaHS size floor', 'in', '0.01', '0.5', '4',
+             'The smallest observer hail report that counts as a report.'),
+            ('band_1_mi', 'Distance band 1 ends at', 'mi', '0.1', '0.1', '50',
+             'Distances to the nearest hail report, in miles. They must grow.'),
+            ('band_2_mi', 'Distance band 2 ends at', 'mi', '0.1', '0.1', '50', ''),
+            ('band_3_mi', 'Distance band 3 ends at', 'mi', '0.1', '0.1', '50', '')] %}
+        <tr><th><label for="{{ key }}">{{ label }}</label></th>
+            <td><input id="{{ key }}" name="{{ key }}" type="number" step="{{ step }}"
+                       min="{{ low }}" max="{{ high }}" value="{{ zone_form[key] }}" required> {{ unit }}
+                {% if help %}<br><small>{{ help }}</small>{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h3>Level for each layer and distance</h3>
+    <table class="settings-table">
+      <thead>
+        <tr><th></th>
+          <th>Up to band 1</th><th>Band 1 to 2</th><th>Band 2 to 3</th><th>Beyond band 3</th></tr>
+      </thead>
+      <tbody>
+        {% for layer in zone_layers %}
+        <tr><th>{{ layer_names[layer] }}</th>
+          {% for band in zone_bands %}
+          <td><select name="rule_{{ layer }}_{{ band }}" aria-label="{{ layer_names[layer] }}, {{ band }}">
+              {% for level in zone_levels %}
+              <option value="{{ level }}" {% if zone_form.rules[(layer, band)] == level %}selected{% endif %}>{{ level_names[level] }}</option>
+              {% endfor %}
+          </select></td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <p><label for="zone_name">Name this change</label>
+       <input id="zone_name" name="name" type="text" maxlength="100" size="50"
+              value="{{ zone_form.name }}" placeholder="What changed and why" required></p>
+    <p><label for="trial_day">Try on a day</label>
+       <input id="trial_day" name="day" type="date" value="{{ try_day.isoformat() if try_day else '' }}">
+       <button type="submit" formaction="{{ url_for('admin.try_hail_zones') }}" formnovalidate>
+         Try on this day</button><br>
+       <small>Builds that day with these numbers and with the set in use, shows both, and keeps
+       nothing. It takes a couple of seconds.</small></p>
+    <button type="submit">Save as a new set</button>
+  </form>
+
+  {% if trial %}
+  <h3>Trial for {{ trial.day.isoformat() }}</h3>
+  {% if not trial.changed %}
+  <p class="note">These numbers are the set in use, so both columns are the same.</p>
+  {% endif %}
+  <table class="settings-table">
+    <thead>
+      <tr><th></th><th>Set in use ({{ trial.current.set_id }})</th><th>These numbers</th><th>Change</th></tr>
+    </thead>
+    <tbody>
+      {% for key, name in [('agree', 'Agree'), ('one_source', 'One source'), ('context', 'Context')] %}
+      {% set a = trial.current.areas.get(key, 0) %}
+      {% set b = trial.proposed.areas.get(key, 0) %}
+      <tr><th>{{ name }}</th><td>{{ '{:,.0f}'.format(a) }} km²</td>
+          <td>{{ '{:,.0f}'.format(b) }} km²</td><td>{{ '{:+,.0f}'.format(b - a) }} km²</td></tr>
+      {% endfor %}
+      <tr><th>Hail reports used</th>
+          <td>{{ trial.current.iem_reports + trial.current.cocorahs_reports }}</td>
+          <td>{{ trial.proposed.iem_reports + trial.proposed.cocorahs_reports }}</td><td></td></tr>
+      <tr><th>Radar patches (with a report near)</th>
+          <td>{{ trial.current.patches }} ({{ trial.current.patches_anchored }})</td>
+          <td>{{ trial.proposed.patches }} ({{ trial.proposed.patches_anchored }})</td><td></td></tr>
+    </tbody>
+  </table>
+  <p class="note">Nothing was saved. To keep these numbers, name the change and save it above.</p>
+  {% endif %}
+
+  <h3>Sets so far</h3>
+  <table class="settings-table">
+    <thead>
+      <tr><th>Set</th><th>Saved</th><th>By</th><th>Name</th><th>Radar</th><th>Floor</th><th>Bands (mi)</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for s in zone_sets %}
+      <tr>
+        <td>{{ s.set_id }}{% if loop.first %} (in use){% endif %}</td>
+        <td>{{ s.created_at.astimezone(display_tz).strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>{{ s.created_by_name or 'migration' }}</td>
+        <td>{{ s.name }}</td>
+        <td>{{ s.hail_threshold_in }} in, {{ s.margin_km }} km, {{ s.report_radius_km }} km</td>
+        <td>{{ s.cocorahs_min_in }} in</td>
+        <td>{{ s.band_1_mi }}, {{ s.band_2_mi }}, {{ s.band_3_mi }}</td>
+        <td>{% if not loop.first %}<a href="{{ url_for('admin.index', use_set=s.set_id) }}#hail-zones">Use these values again</a>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>Warning states</h3>
+  <form method="post" action="{{ url_for('admin.update_storm_states') }}" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p><label for="storm_states">States whose NWS warnings are fetched</label>
+       <input id="storm_states" name="storm_states" type="text" value="{{ storm_states }}"
+              size="12" required>
+       <button type="submit">Save states</button><br>
+       <small>Two-letter codes separated by commas, for example CO,WY. The change is logged in the
+       settings history and applies to warnings fetched from now on.</small></p>
+  </form>
+</section>

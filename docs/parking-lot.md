@@ -6177,7 +6177,8 @@ Consider rotating that key.
 
 ## 243. `settings.storm_states` has no admin-page field
 
-**Status:** open, accepted (filed 2026-10-21, Phase 5b slice 3)
+**Status:** resolved 2026-10-26 (filed 2026-10-21, Phase 5b slice 3; closed by slice 7: the admin page's Hail zones section edits it, logged to
+`settings_history`)
 
 `sql/050` adds `settings.storm_states` (default `CO`), the states whose NWS warnings the radar layers fetch. It
 changes only by an admin `UPDATE` on `settings` (logged to `settings_history` by the trigger, tested in
@@ -6458,3 +6459,18 @@ at the exact point 63.5% and 85.1%; within 5 km of the report 86.9% and 91.1%. B
 
 **Still open, a caution only:** the zip measure is generous on large plains zips (IEM east 96.6%, against 84.8% on the Front Range). If step 2
 bases its estimate on zip size, re-check by area. **When:** when step 2 (pulls from the zones) is waived in.
+
+
+## 256. `likelihoodadmin.save` left the 20-rule check immediate for the rest of the transaction
+
+**Status:** resolved 2026-10-26 (found by `tests/test_likelihood_admin.py` while the module was being written, slice 7; fixed before it was committed)
+
+`save` ran `SET CONSTRAINTS ALL IMMEDIATE` to surface a short set at once. That setting lasts to the end of the transaction, so a second save in the same
+transaction fired `likelihood_sets_complete` (`sql/056`) the moment the set row went in, before its rules, and failed with "has 0 rules". The page commits
+after each save, so a user could not hit it, but any caller that saved twice in one transaction (the tests, and the try-on-a-day button's rolled-back
+builds) would have.
+
+**Fixed:** `_write_sets` says `SET CONSTRAINTS likelihood_sets_complete DEFERRED` before its writes, then IMMEDIATE to check, then DEFERRED again. Tests that
+save twice in one transaction fail with the old behaviour.
+
+**Related:** items 243, 255; `sql/056_likelihood_set_admin.sql`.
