@@ -7745,3 +7745,39 @@ a likelihood set cannot commit without its 20 rules, and a rule can only be adde
 3. Nothing from the map or the sets reaches an email, an export, a pull or the matcher. Steps 2 to 4 of Phase 5c still need their own waivers.
 
 **Related:** items 243 (resolved), 255, 256; decision log 2026-10-23 and 2026-10-25.
+
+## 2026-10-26 — Phase 5c step 2a starts: the estimate compared with the hail zones (no pulls); 2b waits with step 3
+
+**Decision (developer, 2026-10-26):**
+1. **Step 2 is split.** **2a** (this entry) shows, for a storm day, which coverage zips overlap the hail-likelihood zones and sets them beside the zips
+   today's report-based pull would take. It is read only and calls nothing outside the system. **2b**, the pull itself (`pull_zips (pull_id, zcta5, basis,
+   best_level, set_id)`, a confirm step, a pull started in zones mode), is **not** waived in. It waits for step 3 and is to be waived in together with it, in
+   its own entry.
+2. **Why the split.** The matcher joins `iem_data`, so a zip pulled only because radar or CoCoRaHS pointed at it would get listings and no matches, and the
+   listings go stale after `listing_freshness_days` (7) before step 3 and step 4 exist. Spend before something can use the listings would be wasted.
+3. **Which zips (the list 2a shows).** The zips overlapping the zones at Agree or One source, restricted to the active `coverage_zips`, **unioned with the
+   zips today's report-based list gives**, so a storm that pulls N zips today never shows fewer. Context is opt-in (a checkbox). Any overlap counts; each
+   row shows the area overlapped at each level and the share of the zip. Sorted by best level. The national `zcta_boundaries` list of the design waits for a second market (item 238).
+4. **Which set.** The set in use. A day with no build for it reads "not built" with the rebuild command, and the zones view refuses to list zips.
+5. **Where it lives.** A separate read-only page, `/pull/zones` (staff who can pull), linked from `/pull/estimate`. `/pull/estimate`'s own numbers, `/pull`,
+   `run_pull`, `api_pulls`, the matcher, `/send` and every export are unchanged, and no new code path calls RentCast. The estimate for the shown list reuses the
+   existing call-count bookkeeping (`estimate_zips`, split out of `estimate_pull`).
+6. **Isolation.** `hailsys/queries/zonepull.py` and the zones page are the only new places that read the zones for this purpose. Tests pin that the pull and
+   match routes, the RentCast and matching packages, the send code and the exports never name them, and that the zones route is GET only and starts nothing.
+7. **Wording** is unchanged: radar only as "hail of at least 1 inch within about 3 miles"; levels rank where to look first and are never a probability.
+
+**Evidence behind the numbers (read-only, 2026-10-25 onward, 72 storm days, set 1, coverage zips, any overlap; zip-days):** the report-based list 376 (18 days
+with a hail report); Agree + One source 567; Agree only 177; with Context 1,160. 337 of the 376 report-based zip-days also overlap a zone (90%), 39 do not, and 230
+zone-only zip-days arise, 43 of the 72 days having zone zips and no report-based zips. At about one call per zip, 567 zip-days is about 567 calls a year against a quota
+of 1,000 a month. The largest single day is 94 zips either way.
+
+**Done when:** for a storm day the page lists the zips above, by level and overlap, marks each as zones, reports or both, shows the call estimate for the union, and says so
+when the day is not built; and the tests show `/pull`, the matcher, sends and exports are unchanged and cannot reach it.
+
+**Built 2026-10-26.** `hailsys/queries/zonepull.py`, `/pull/zones` (`zone_estimate` in `views.py`, `pull_zones.html`), a link on `/pull/estimate` for hail days, and
+`estimate_zips` split out of `estimate_pull`. Checked as `hail_app` on real days: 2026-09-22 (a report day) is 12 zips and 12 requests today, the same with the zones, and 23 with Context;
+2026-09-20 (zones, no reports) is 0 zips today and 18 zips, 19 requests with the zones. The route is named `zone_estimate`, not "pull_...", on purpose: the isolation test that keeps
+every function named pull, match or send away from the radar and the zones then keeps its meaning, and separate tests guard this route (GET only, starts nothing, the only user of `zonepull`).
+Tiny overlaps read as "<0.1 km²" and "<1%" so an any-overlap sliver does not look like a zero. Item 257 (no tests for `estimate_pull` before this).
+
+**Related:** items 238, 255, 257; decision log 2026-10-23 (the design, and "Phase 5c starts") and 2026-10-25 (the backtest).

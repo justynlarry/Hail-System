@@ -2,7 +2,7 @@
 to the user before a pull is confirmed.
 
 This calls hailsys.queries.storms.fetch_zips for the zip list, and only adds
-RentCast-side bookkeeping, how many calls a zip will LIKELY cost based on 
+RentCast-side bookkeeping, how many calls a zip will LIKELY cost based on
 pull history.
 """
 
@@ -33,12 +33,12 @@ def _latest_call_per_zip(conn, zip_codes):
         return {row["zip_code"]: row for row in cur.fetchall()}
 
 
-def estimate_pull(conn, *, radius_m, window_start, window_end, report_text,
-                  actionable_only=True):
-    rows = fetch_zips(conn, radius_m=radius_m, window_start=window_start,
-                      window_end=window_end, report_text=report_text,
-                      actionable_only=actionable_only)
-    zip_codes = sorted({row["zcta5"] for row in rows})
+def estimate_zips(conn, zip_codes):
+    """The bookkeeping half of an estimate, for a zip list however it was chosen.  How many
+    RentCast calls it will likely cost from the pull history, and which zips were pulled
+    recently
+    """
+    zip_codes = sorted(set(zip_codes))
 
     history = _latest_call_per_zip(conn, zip_codes)
     estimated_calls = sum(
@@ -58,7 +58,16 @@ def estimate_pull(conn, *, radius_m, window_start, window_end, report_text,
     return {
         "zip_count": len(zip_codes),
         "estimated_api_calls": estimated_calls,
-        "zips": zip_codes,                          # the full list, for run_pull
-        "pulled_recently": pulled_recently,         # [{"zip_code", "last_pulled"}, ...]
-        "not_pulled_recently": not_pulled_recently, # [zip_code, ...]
+        "zips": zip_codes,                          # full list, for run_pull
+        "pulled_recently": pulled_recently,         #[{"zip_code", "last_pulled"}, ...]
+        "not_pulled_recently": not_pulled_recently  # [zip_code, ...]
     }
+
+
+
+def estimate_pull(conn, *, radius_m, window_start, window_end, report_text,
+                  actionable_only=True):
+    rows = fetch_zips(conn, radius_m=radius_m, window_start=window_start,
+                      window_end=window_end, report_text=report_text,
+                      actionable_only=actionable_only)
+    return estimate_zips(conn, {row["zcta5"] for row in rows})

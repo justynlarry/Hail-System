@@ -6474,3 +6474,20 @@ builds) would have.
 save twice in one transaction fail with the old behaviour.
 
 **Related:** items 243, 255; `sql/056_likelihood_set_admin.sql`.
+
+
+## 257. `estimate_pull` had no tests
+
+**Status:** resolved 2026-10-26 (found when splitting `estimate_zips` out of it, Phase 5c step 2a)
+
+`hailsys/rentcast/estimate.py` is behind the live pull page (the zip count and the request estimate a person confirms before spending RentCast money), and no test
+imported it: the only file that matched a search for `estimate_pull` was `test_drip_plan.py`, which is about something else. So "the existing tests pass unchanged" proved nothing
+when the function was split.
+
+**Fixed:** `tests/test_estimate_zips.py` pins `estimate_zips` (sorted and de-duplicated, empty list, the default one call for a zip never pulled, a zip pulled before costs what it cost
+last time and is flagged only when recent) and that `estimate_pull` equals `estimate_zips` over the zips it found and keeps its five keys. `tests/test_zone_estimate_web.py` also asserts the
+estimate page's own numbers and pull form are unchanged.
+
+**Not covered, accepted:** the `/pull/estimate` route's quota projection and the recent-pull table are still only exercised by hand. **When:** if that page changes again.
+
+**Related:** items 238, 256; decision log 2026-10-26 (step 2a).

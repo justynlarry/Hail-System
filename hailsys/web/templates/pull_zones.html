@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Hail zones for a pull{% endblock %}
+{% block heading %}Hail zones — {{ storm_date }} HAIL{% endblock %}
+
+{# Read only (Phase 5c, step 2a).  Nothing on this page pulls, matches or sends. #}
+{% macro km(x) %}{% if x == 0 %}–{% elif x < 0.05 %}&lt;0.1{% else %}{{ '%.1f'|format(x) }}{% endif %}{% endmacro %}
+{% macro pct(x) %}{% if x == 0 %}–{% elif x < 0.005 %}&lt;1%{% else %}{{ '{:.0%}'.format(x) }}{% endif %}{% endmacro %}
+{% set basis_names = {'both': 'Zones and reports', 'zones': 'Zones only', 'reports': 'Reports only'} %}
+{% set level_names = {'agree': 'Agree', 'one_source': 'One source', 'context': 'Context'} %}
+
+{% block content %}
+<div class="page">
+<p class="note">
+    This page is for comparing only. Nothing is pulled from it and no RentCast request is made. A pull
+    from the hail zones is not built yet; the pull on the
+    <a href="{{ url_for('main.pull_estimate', date=storm_date.isoformat(), type='HAIL', submitted='1', actionable='1') }}">estimate page</a>
+    works as before.
+</p>
+
+{% if not view.built %}
+<p class="note warning">
+    {% if view.set %}This day has not been built with the hail-zone set now in use (set {{ view.set.set_id }}, {{ view.set.name }}).
+    An admin can rebuild it: <code>docker compose run --rm ingest python3 scripts/likelihood_ingest.py backfill</code>.
+    {% else %}There is no hail-zone parameter set.{% endif %}
+</p>
+{% else %}
+<p class="estimate-summary">
+    Today's pull from storm reports: <strong>{{ today.zip_count }}</strong>
+    zip{{ '' if today.zip_count == 1 else 's' }}, about <strong>{{ today.estimated_api_calls }}</strong>
+    request{{ '' if today.estimated_api_calls == 1 else 's' }}.<br>
+    With the hail zones{% if include_context %} (Context included){% endif %}:
+    <strong>{{ union.zip_count }}</strong> zip{{ '' if union.zip_count == 1 else 's' }},
+    about <strong>{{ union.estimated_api_calls }}</strong>
+    request{{ '' if union.estimated_api_calls == 1 else 's' }}
+    ({{ view.counts.zones_only }} added by the zones, {{ view.counts.reports_only }} from reports only).
+</p>
+<p class="usage-summary">
+    <strong>{{ usage.used }}</strong> of {{ usage.quota }} requests used this billing period
+    ({{ usage.period_start }} to {{ usage.period_end }}).
+</p>
+
+<form method="get" action="{{ url_for('main.zone_estimate') }}" class="confirm">
+    <input type="hidden" name="date" value="{{ storm_date.isoformat() }}">
+    {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
+    <label><input type="checkbox" name="context" value="1" {% if include_context %}checked{% endif %}>
+        Include Context (inside an NWS warning area and nothing else points to hail)</label>
+    <button type="submit">Update</button>
+</form>
+
+{% if view.rows %}
+<table>
+    <thead>
+        <tr><th>Zip</th><th>Area</th><th>Basis</th><th>Best level</th>
+            <th>Agree km²</th><th>One source km²</th>{% if include_context %}<th>Context km²</th>{% endif %}
+            <th>Share of zip</th></tr>
+    </thead>
+    <tbody>
+        {% for r in view.rows %}
+        <tr>
+            <td>{{ r.zcta5 }}</td>
+            <td>{{ r.area_name }}</td>
+            <td>{{ basis_names[r.basis] }}</td>
+            <td>{{ level_names[r.best_level] if r.best_level else '–' }}</td>
+            <td>{{ km(r.agree_km2) }}</td>
+            <td>{{ km(r.one_source_km2) }}</td>
+            {% if include_context %}<td>{{ km(r.context_km2) }}</td>{% endif %}
+            <td>{{ pct(r.share) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="note">No coverage zips overlap the zones on this day, and no report is near one.</p>
+{% endif %}
+
+<p class="note">
+    The levels rank where to look first; they are not probabilities. Any overlap counts, so the share
+    of a zip can be small. Reports-only zips are within the zip radius of a hail report but outside
+    the zones. Zones use set {{ view.set.set_id }} ({{ view.set.name }}). Staff only: not used for
+    emails, exports, pulls or matching.
+</p>
+{% endif %}
+
+<p><a href="{{ back or url_for('main.index') }}">Back</a></p>
+</div>
+{% endblock %}

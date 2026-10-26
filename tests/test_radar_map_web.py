@@ -285,7 +285,8 @@ class IsolationTest(unittest.TestCase):
                              r"radar_zone_builds|warning_polygons|warning_loads|radar_parameter_sets|"
                              r"queries\.findings|queries import[^\n]*\bfindings\b|"
                              r"hailsys\.likelihood|likelihood_map|likelihood_zones|likelihood_builds|"
-                             r"likelihood_parameter_sets|likelihood_level_rules|likelihood_runs")
+                             r"likelihood_parameter_sets|likelihood_level_rules|likelihood_runs|"
+                             r"zonepull|zone_zips|zone_estimate")
 
     def files(self, *globs):
         out = []
@@ -303,7 +304,7 @@ class IsolationTest(unittest.TestCase):
 
     def test_the_other_query_modules_never_mention_the_radar(self):
         # findings.py is the slice 6 panel, staff only;  likelihoodadmin.py edits the parameter sets (slice 7, admin only)
-        radar = {"radar.py", "radar_map.py", "findings.py", "likelihood_map.py", "likelihoodadmin.py"}
+        radar = {"radar.py", "radar_map.py", "findings.py", "likelihood_map.py", "likelihoodadmin.py", "zonepull.py"}
         for path in self.files("hailsys/queries/*.py"):
             if path.name not in radar:
                 with self.subTest(path=path.name):
@@ -337,8 +338,52 @@ class IsolationTest(unittest.TestCase):
                 with self.subTest(route=node.name):
                     names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
                     names |= {n.attr for n in ast.walk(node) if isinstance(n, ast.Attribute)}
-                    self.assertFalse(names & {"radar", "radar_map", "zones_geojson", "picker_days", "findings", "likelihood_map"}, names)
+                    self.assertFalse(names & {"radar", "radar_map", "zones_geojson", "picker_days", "findings", "likelihood_map",
+                                                 "zonepull", "zone_zips", "zone_estimate"}, names)
         self.assertGreaterEqual(seen, 3)
+
+    def zone_estimate_node(self):
+        tree = ast.parse((ROOT / "hailsys/web/views.py").read_text())
+        found = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "zone_estimate"]
+        self.assertEqual(len(found), 1)
+        return tree, found[0]
+
+    def test_only_the_zone_estimate_route_uses_the_zone_reads(self):
+        tree, _ = self.zone_estimate_node()
+        users = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                for n in ast.walk(node):
+                    if isinstance(n, ast.Name) and n.id == "zonepull":
+                        users.add(node.name)
+        self.assertEqual(users, {"zone_estimate"})
+
+    def test_only_views_imports_the_zone_reads(self):
+        users = set()
+        for path in self.files("hailsys/**/*.py"):
+            if path.name != "zonepull.py" and "zonepull" in path.read_text():
+                users.add(str(path.relative_to(ROOT)))
+        self.assertEqual(users, {"hailsys/web/views.py"})
+
+    def test_the_zone_estimate_route_is_get_only_and_starts_nothing(self):
+        _, node = self.zone_estimate_node()
+        for dec in node.decorator_list:
+            if isinstance(dec, ast.Call) and getattr(dec.func, "attr", "") == "route":
+                self.assertEqual([k.arg for k in dec.keywords if k.arg == "methods"], [])
+        names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+        names |= {n.attr for n in ast.walk(node) if isinstance(n, ast.Attribute)}
+        self.assertFalse(names & {"start_pull", "create_pull", "run_pull", "match_storm", "PullInProgress",
+                                  "commit", "session"}, names)
+
+    def test_only_the_estimate_and_zone_pages_mention_the_zone_route_and_the_zone_page_has_no_post_form(self):
+        users = set()
+        for path in self.files("hailsys/web/templates/*.html"):
+            if "zone_estimate" in path.read_text():
+                users.add(path.name)
+        self.assertEqual(users, {"pull_estimate.html", "pull_zones.html"})
+        page = (ROOT / "hailsys/web/templates/pull_zones.html").read_text()
+        for bad in ('method="post"', "pull_start", "match_start", "csrf_token"):
+            self.assertNotIn(bad, page)
 
     def test_only_the_findings_route_uses_the_findings_reads(self):
         tree = ast.parse((ROOT / "hailsys/web/views.py").read_text())

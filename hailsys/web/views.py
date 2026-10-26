@@ -11,11 +11,11 @@ from flask import flash, g, redirect, Blueprint, render_template, abort, request
 from hailsys.web.auth import hash_password, login_required, verify_password, DUMMY_PASSWORD_HASH, MIN_PASSWORD_LENGTH, role_required
 
 from hailsys.matching.matcher import match_storm
-from hailsys.rentcast.estimate import estimate_pull
+from hailsys.rentcast.estimate import estimate_pull, estimate_zips
 from hailsys.web.jobs import start_pull, PullInProgress
 from hailsys.db import get_connection
 from hailsys.formatting import csv_safe, magnitude
-from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest, ccstate, radar, radar_map, findings, likelihood_map
+from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest, ccstate, radar, radar_map, findings, likelihood_map, zonepull
 from hailsys.tuning import (
     DISPLAY_TZ,
     RECENT_PULL_WINDOW_DAYS,
@@ -675,6 +675,53 @@ def pull_estimate():
         back=back,
         display_tz=DISPLAY_TZ,
     )
+
+
+@bp.route("/pull/zones")
+@role_required("sender", "admin")
+def zone_estimate():
+    """A storm day's zips from the hail-likelihood zones, beside today's report-based list.
+    
+    Read-Only, zones are hail only.
+    """
+    try:
+        day = datetime.strptime(request.args["date"], "%Y-%m-%d").date()
+    except (KeyError, ValueError):
+        abort(400)
+
+    include_context = "context" in request.args
+    window_start, window_end = denver_day_bounds(day)
+    radius_m = miles_to_metres(g.settings["zip_radius_miles"])
+    back = _list_url(request.args.get("back")) or _list_url(request.referrer)
+
+    with get_connection() as conn:
+        view = zonepull.zone_zips(
+            conn, day=day, include_context=include_context, radius_m=radius_m,
+            window_start=window_start, window_end=window_end,
+            report_text=DEFAULT_REPORT_TEXT, actionable_only=True)
+        today = estimate_pull(
+            conn, radius_m=radius_m, window_start=window_start, window_end=window_end,
+            report_text=DEFAULT_REPORT_TEXT, actionable_only=True)
+        union = estimate_zips(conn, view["zips"]) if view["built"] else None
+        usage = quota.fetch_usage(
+            conn,
+            today=datetime.now(DISPLAY_TZ).date(),
+            billing_day=g.settings["rentcast_billing_day"],
+            quota=g.settings["rentcast_monthly_quota"],
+            day_bounds=denver_day_bounds,
+        )
+
+    return render_template(
+        "pull_zones.html",
+        storm_date=day,
+        view=view,
+        today=today,
+        union=union,
+        usage=usage,
+        include_context=include_context,
+        back=back
+    )
+    
 
 @bp.route("/pull", methods=["POST"])
 @role_required("sender", "admin")

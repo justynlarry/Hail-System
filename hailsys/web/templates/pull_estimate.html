@@ -15,6 +15,13 @@
     billing period ({{ usage.period_start }} to {{ usage.period_end }}).
 </p>
 
+{% if report_text == 'HAIL' %}
+<p class="note">
+    <a href="{{ url_for('main.zone_estimate', date=storm_date.isoformat()) }}">Compare with the hail zones</a>
+    (read only: shows which zips the hail-likelihood zones would add).
+</p>
+{% endif %}
+
 {% set projected = usage.used + result.estimated_api_calls %}
 {% if projected > usage.quota %}
 <p class="note warning">
