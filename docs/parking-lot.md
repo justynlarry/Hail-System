@@ -6491,3 +6491,31 @@ estimate page's own numbers and pull form are unchanged.
 **Not covered, accepted:** the `/pull/estimate` route's quota projection and the recent-pull table are still only exercised by hand. **When:** if that page changes again.
 
 **Related:** items 238, 256; decision log 2026-10-26 (step 2a).
+
+
+## 258. The matches CSV export broke when `storm_listing_matches` gained a `storm_date` column
+
+**Status:** resolved 2026-10-26 (found by `tests/test_match_zone_rows.py` the same day `sql/057` was applied on `hail-dev`; fixed before any commit reached production, which has nothing deployed)
+
+`hailsys/queries/exports.py` `MATCHES_SQL` selects `({LOCAL_TIME_EXPR})::date AS storm_date` and had `GROUP BY storm_date`. In Postgres a `GROUP BY` name that is both an input column and a
+`SELECT` alias binds to the input column. `sql/057` added `storm_listing_matches.storm_date`, so the query grouped by `m.storm_date`, the selected expression was ungrouped, and
+`fetch_matches` and `count_matches` (the CSV export, `/exports/matches.csv`) raised `GroupingError`. Nothing tested the export, and the 057 rehearsal checked the table and not the readers.
+A sweep of every reader found only these two broken.
+
+**Fixed:** `GROUP BY ({LOCAL_TIME_EXPR})::date, ...`. `ORDER BY storm_date` is unchanged (it prefers the alias). `test_match_zone_rows` calls the export and the other readers, and `test_match_readers`
+pins each reader's inner join. The trap is in CLAUDE.md.
+
+**Related:** items 257, 259; decision log 2026-10-26 (steps 2b and 3).
+
+
+## 259. `slm_zone_facts` accepted a zone row with a NULL level or layer
+
+**Status:** resolved 2026-10-26 (found by `test_wrong_zone_rows_are_refused`; fixed by `sql/058` before any zone row was written)
+
+`sql/057`'s CHECK used `level IN ('agree', 'one_source')` and `layer IN (...)`. With a NULL level that is NULL, and a CHECK passes on NULL, so a zone row with no level or no layer was accepted. The
+rehearsal tested a missing set but not a missing level.
+
+**Fixed:** `sql/058` drops and re-adds the constraint with `level IS NOT NULL` and `layer IS NOT NULL`. The table held only `report` rows, so nothing could violate it. The trap is in CLAUDE.md.
+
+**Related:** items 258; decision log 2026-10-26 (steps 2b and 3).
+

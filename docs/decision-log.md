@@ -7781,3 +7781,50 @@ every function named pull, match or send away from the radar and the zones then 
 Tiny overlaps read as "<0.1 km²" and "<1%" so an any-overlap sliver does not look like a zero. Item 257 (no tests for `estimate_pull` before this).
 
 **Related:** items 238, 255, 257; decision log 2026-10-23 (the design, and "Phase 5c starts") and 2026-10-25 (the backtest).
+
+## 2026-10-26 — Phase 5c steps 2b and 3 start: matches with a basis and level, then the pull from the zones; sends by level still wait
+
+**Decision (developer, 2026-10-26):**
+1. **Steps 2b and 3 are waived in together,** in the order below, each piece ending in a stop for the developer's go-ahead. **Step 4 (sends by level, template wording, the send list and drips
+   reading zone matches) is not waived** and needs its own entry. This narrows the 2026-10-23 "Phase 5c starts" point 3 for these two steps only.
+2. **Schema (`sql/057`), Option A as decided 2026-10-23.** `storm_listing_matches` gets `storm_date`, `basis`, `level`, `layer` and `set_id`; `iem_id`, `distance_miles` and `radius_used` become
+   nullable, tied by a CHECK to be all present or all absent; existing rows are backfilled (`storm_date` from the report's local date, `basis = 'report'`, the rest NULL); a partial unique
+   index on (`storm_date`, `listing_id`, `set_id`) where `iem_id IS NULL` keeps the natural key for zone rows, and the existing key stays for report rows. The existing report matcher does not write
+   `storm_date` or `basis`, so a `BEFORE INSERT` trigger fills `storm_date` from the report's local date and `basis` defaults to `report`: the matcher stays exactly as it is.
+3. **Basis has four values, not the design's three** (the design's point 4 listed three and its point 5 also had CoCoRaHS wording, which left a house inside a CoCoRaHS-only circle with no value):
+   `report` (an IEM report within the match radius, as today: every existing row, and what the report matcher keeps writing), `radar` (inside a zone from radar, with no IEM report or CoCoRaHS filing
+   supporting it), `observer` (inside a zone from a CoCoRaHS filing alone) and `both` (radar plus a CoCoRaHS filing, with no IEM report within the match radius). **Only `report` carries an `iem_id`**
+   (a CHECK: `iem_id` is NOT NULL exactly when the basis is `report`); a zone row always has a set, a layer and a level of Agree or One source.
+   **Zone matching skips a house that already has a report match for the day**, so one house has one match row for a storm and `send_log` cannot point at two.
+4. **Only Agree and One source make zone rows.** Context stays a pull-time opt-in on the estimate page and creates no match. A setting can add it later.
+5. **Zone matching is an explicit staff action** (a button on `/pull/zones`, sender or admin, CSRF), never automatic after a pull. The automatic match after a pull stays report-only.
+6. **Report rows keep a NULL `level`, `layer` and `set_id`** (revised 2026-10-26 before `sql/057` was written; the first wording had report rows carry the level at the house). The matches table is
+   insert-only for `hail_app`, report rows are written at pull time before any set is chosen, and a row can hold one set while sets change, so a level set afterwards would need an `UPDATE` path on a
+   table `send_log` points at. Step 4 looks a report row's level up at selection time against the set in use, by a join to the zones, so a parameter change just works.
+7. **A database guard on `send_log`:** a `BEFORE INSERT` trigger refuses a row whose match has no `iem_id`, so a radar-only or observer-only match cannot be sent whatever the application does. Step 4's
+   entry replaces it.
+8. **2b, the pull:** `pull_zips (pull_id, zcta5, basis, best_level, set_id)`, append-only, and `pull_source` and `set_id` on `api_pulls`; `POST /pull/zones/start` with CSRF, sender or admin, the
+   expected-count check and the existing quota warn-and-allow, reusing `run_pull` unchanged. Every pull is still a human click after the estimate. The list is the one `/pull/zones` shows
+   (Agree and One source, unioned with today's report list, Context if ticked).
+9. **Why they were not already invisible:** every reader of the matches table inner-joins `iem_data` on `m.iem_id`, so a row without an `iem_id` is already invisible to the match page, the send list, the
+   drip follow-ups, the activity feed, the exports and the work-state badges. Tests pin that (static: each reader keeps the join; database: a zone row is returned by none of them), so a later change to a
+   left join fails loudly.
+10. **Order, with a stop after each:** (a) the guard tests; (b) `sql/057`, rehearsed in a rolled-back run on the 97,528 existing matches before it is applied; (c) `zonematch.py` and the button;
+    (d) **stop: the last point before RentCast spending**; (e) `pull_zips` and `/pull/zones/start`, tests mocking the RentCast client, then one small manual pull on a 3-zip day, started by the developer, as the
+    only real spend.
+11. **Isolation tests** get named carve-outs for exactly the new pull-start route and the match button, each with its reason, instead of a looser rule. The send, email, export, drip and activity code still
+    never names the zones, the new columns or `zonematch`.
+
+**Stays unchanged:** `/send`, `sendlist.py`, `dripfollowup.py`, the templates and their wording, the exports, the activity feed, the work-state badges, the report matcher and its automatic run after a pull.
+Radar is still described only as "hail of at least 1 inch within about 3 miles", and levels are never given as probabilities.
+
+**Done when:** the reader-invisibility tests pass; the migration is rehearsed and applied with the old matches intact (97,528 rows, same ids, the 7 `send_log` rows still pointing at them);
+zone matching on a day writes rows no reader but the staff zones page can see; `send_log` refuses a zone-only match; and one small pull from the zones has run with its `pull_zips` rows.
+
+**Related:** items 238, 255, 257; decision log 2026-10-23 (the design, point 4 and 5, and "Phase 5c starts"), 2026-10-26 (step 2a).
+
+**Built 2026-10-26, pieces (a) and (b).** `tests/test_match_readers.py` (static: every reader keeps the inner join to `iem_data`, no left joins, only the matchers write the table; mutation-checked) and
+`tests/test_match_zone_rows.py` (database: a zone row changes nothing any reader returns, wrong rows are refused, the report matcher's own insert gets its date and basis, `send_log` refuses a zone-only
+match and takes a report match). `sql/057` (rehearsed in a rolled-back run on the 97,528 live matches and the 7 `send_log` rows, applied) and `sql/058` (the NULL gap in the CHECK, item 259). The first
+test run found two faults of mine: the matches CSV export broke because the new column shadowed an alias in a `GROUP BY` (item 258), and the CHECK let a NULL level through (item 259). **From here every
+migration rehearsal also runs every reader of the table it changes**; the 057 rehearsal checked the table and missed the export. Next: (c) `zonematch.py` and the button, then the stop before RentCast spending.

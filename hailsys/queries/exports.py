@@ -74,7 +74,7 @@ WHERE i.utc_datetime >= %(window_start)s
     AND m.radius_used = %(radius_miles)s::numeric
     {_DNC_FILTER}
 GROUP BY
-    storm_date, i.report_text, t.mag_unit, l.listing_id,
+    ({LOCAL_TIME_EXPR})::date, i.report_text, t.mag_unit, l.listing_id,
     p.property_address, p.city, p.zip_code, p.property_type, p.year_built,
     l.list_price, l.list_date, l.list_mls_number,
     r.realtor_id, r.agent_name, r.agent_email, r.agent_phone,

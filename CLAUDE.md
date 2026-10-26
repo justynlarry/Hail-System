@@ -134,7 +134,7 @@ nightly and Sunday 12:00 UTC, `scripts/status.sh cocorahs`; Colorado backfilled 
 timers at 11:30 UTC and Sunday 12:30 UTC, `scripts/status.sh likelihood`; all 2,195 loaded radar days built. A day's levels (Agree, One source,
 Context) come from the radar layer and the distance to the nearest hail report (IEM and CoCoRaHS), by the set's rules; hail reports only (item 254). **The staff-only map layer (2026-10-25)** on the Territory page (`/map/likelihood.geojson`, `hailsys/queries/likelihood_map.py`; Agree and One source on, Context off; the radar NWS warnings layer is now off until ticked). The backtest ran 2026-10-25: passed on the zip-overlap measure, IEM hidden 88.7% and CoCoRaHS hidden 93.5% (item 255 resolved; exact-point 63.5% and 85.1%). **The admin fields for the parameter set (slice 7, 2026-10-26)** are on the admin page (see Phase 5b). Step 1 is built.
 **Step 2a (waived in and built 2026-10-26): the estimate compared with the zones, read only, no pulls** (`/pull/zones`, `hailsys/queries/zonepull.py`, `pull_zones.html`; **built 2026-10-26**, with a link from `/pull/estimate` for hail days).
-Pulls and matching are unchanged: step 2b (the pull from the zones, to be waived in with step 3), step 3 (matches with `basis` and `level`) and step 4 (sends by level) each need their own
+Pulls and matching are unchanged: **steps 2b (the pull from the zones) and 3 (matches with `basis` and `level`) are waived in together (decision log 2026-10-26), not yet built;** step 4 (sends by level) needs its own
 waiver entry first, and nothing CoCoRaHS- or likelihood-derived may reach an email, an export, a pull or the matcher until then.
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
@@ -223,6 +223,11 @@ These have already bitten us. Do not re-discover them.
   silently drops the other, so `hailsys/cocorahs/parse.py` reads by position and refuses any header that is not exactly
   the expected one. `NA` means missing, never 0. A station's daily report covers the 24 hours ending about 7 AM on its
   date, so storm day D is read from the D+1 report.
+- In SQL, a name in **`GROUP BY` that is both an input column and a `SELECT` alias binds to the input column** (`ORDER BY` does the
+  opposite). A query with `GROUP BY storm_date` over an alias broke when `storm_listing_matches` gained a `storm_date` column
+  (items 258): group by the expression, and run every reader of a table after a migration adds a column to it.
+- **A `CHECK` passes on NULL.** `level IN ('agree', 'one_source')` with a NULL level is NULL, not false, so the row is accepted. Say
+  `IS NOT NULL` where a value is required (item 259).
 
 ## Conventions
 

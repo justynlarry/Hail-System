@@ -1,0 +1,86 @@
+"""Every reader of storm_listing_matches keeps the inner join to iem_data (Phase 5c, steps 2b and 3).
+
+The 2026-10-26 waiver adds match rows with no iem_id (basis 'radar' and 'observer').  Every reader inner-joins
+iem_data on that column, so such a row is invisible to the match page, the send list, the drip follow-ups, the
+activity feed, the exports and the work-state badges.  That is the safety:  nothing zone-only can reach an email
+until step 4 is waived in.  These tests fail if a reader is changed to a left join, or a new reader is added without
+the join.  They read source text and need no database:
+
+    docker compose run --rm -T --no-deps -v ./tests:/app/tests:ro web python -m unittest tests.test_match_readers
+
+(The database half, a zone row that no reader returns, is in test_match_zone_rows once sql/057 is applied.)
+"""
+
+import re
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+# Where the table is only written, never read.
+WRITERS = {"hailsys/matching/matcher.py", "hailsys/matching/zonematch.py"}
+
+READ = re.compile(r"\b(?:FROM|JOIN)\s+storm_listing_matches\s+(\w+)", re.I)
+
+
+def sources():
+    out = []
+    for path in sorted(ROOT.glob("hailsys/**/*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        text = path.read_text()
+        if "storm_listing_matches" in text:
+            out.append((str(path.relative_to(ROOT)), text))
+    return out
+
+
+class MatchReaderTest(unittest.TestCase):
+    def test_the_sweep_finds_the_readers(self):
+        # A sweep that found nothing would pass every test below for the wrong reason.
+        files = {name for name, _ in sources()}
+        for expected in ("hailsys/queries/matches.py", "hailsys/queries/sendlist.py",
+                         "hailsys/queries/dripfollowup.py", "hailsys/queries/activity.py",
+                         "hailsys/queries/exports.py", "hailsys/queries/workstate.py", "hailsys/web/views.py"):
+            self.assertIn(expected, files)
+        reads = sum(len(READ.findall(text)) for name, text in sources())
+        self.assertGreaterEqual(reads, 8)
+
+    def test_every_read_of_the_matches_table_is_inner_joined_to_iem_data_on_iem_id(self):
+        checked = 0
+        for name, text in sources():
+            for alias in READ.findall(text):
+                with self.subTest(file=name, alias=alias):
+                    inner = re.search(rf"\bJOIN\s+iem_data\s+\w+\s+ON\s+\w+\.iem_id\s*=\s*{alias}\.iem_id\b", text, re.I)
+                    reverse = re.search(rf"\bJOIN\s+iem_data\s+\w+\s+ON\s+{alias}\.iem_id\s*=\s*\w+\.iem_id\b", text, re.I)
+                    self.assertTrue(inner or reverse, f"{name}: storm_listing_matches {alias} is not inner-joined to iem_data")
+                    checked += 1
+        self.assertGreaterEqual(checked, 8)
+
+    def test_no_reader_left_joins_iem_data_or_the_matches_table(self):
+        for name, text in sources():
+            with self.subTest(file=name):
+                self.assertIsNone(re.search(r"\bLEFT\s+(?:OUTER\s+)?JOIN\s+iem_data\b", text, re.I))
+                self.assertIsNone(re.search(r"\bLEFT\s+(?:OUTER\s+)?JOIN\s+storm_listing_matches\b", text, re.I))
+                self.assertIsNone(re.search(r"\b(?:RIGHT|FULL)\s+(?:OUTER\s+)?JOIN\s+(?:iem_data|storm_listing_matches)\b",
+                                            text, re.I))
+
+    def test_only_the_matchers_write_the_matches_table(self):
+        for name, text in sources():
+            if name in WRITERS:
+                continue
+            with self.subTest(file=name):
+                self.assertIsNone(re.search(r"\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+storm_listing_matches\b", text, re.I))
+
+    def test_the_check_would_catch_a_left_join(self):
+        # The guard itself.
+        bad = "FROM storm_listing_matches m LEFT JOIN iem_data i ON i.iem_id = m.iem_id"
+        self.assertIsNotNone(re.search(r"\bLEFT\s+(?:OUTER\s+)?JOIN\s+iem_data\b", bad, re.I))
+        good = "FROM storm_listing_matches m\nJOIN iem_data i     ON i.iem_id = m.iem_id"
+        self.assertEqual(READ.findall(good), ["m"])
+        self.assertTrue(re.search(r"\bJOIN\s+iem_data\s+\w+\s+ON\s+\w+\.iem_id\s*=\s*m\.iem_id\b", good, re.I))
+        self.assertIsNone(re.search(r"\bJOIN\s+iem_data\s+\w+\s+ON\s+\w+\.iem_id\s*=\s*m\.iem_id\b",
+                                    "FROM storm_listing_matches m JOIN listings l ON l.listing_id = m.listing_id", re.I))
+
+
+if __name__ == "__main__":
+    unittest.main()
