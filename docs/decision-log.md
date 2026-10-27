@@ -7886,3 +7886,35 @@ holds exactly 2 Active houses, both matched by the earlier click, and the pull r
 "Working..." state that blocks a double press on both write buttons, and gunicorn's access log with the request time and no query string (`docker-compose.yml`, `tests/test_compose_web_log.py`) so a slow-feeling click
 can be measured. The slowness itself was not reproduced: server time was 0.17 s for the match and about 0.1 s for the page. **Step 4 (sends by level) is still not waived; nothing here sends anything.**
 
+## 2026-10-27 — Phase 5c step 4 starts: sends from the hail zones; built and rehearsed on test addresses only
+
+**Decision (developer, 2026-10-27, "all sound good" to nine proposals).** Step 4 of the 2026-10-23 design: an email whose reason is the hail zones and not a National Weather Service report. This is the first step
+that can put zone-derived words in front of a real person, so it is the most conservative one. **Nothing in it can reach a real recipient until items 129, 183, 189 and 96 are settled and the production box has the
+code; the report path's own rule ("built and rehearsed on test addresses only") applies unchanged.** Step 4 changes none of those gates.
+1. **A separate zone send path.** The report send path (`sendlist.py`, `hail_alert`, `build_context`, the `/send` report mode) is not widened and stays as it is. The zone path has its own query, its own context builder, its
+   own template and its own screen mode, and reuses the eligibility rules (too old, inactive, stale, no agent email, already emailed, duplicate address, do-not-contact, the 14-day cap).
+2. **Pairing is enforced in the database.** `email_templates` gains `match_kind` (`report`, the default for every existing template, or `zone`); a `send_log` trigger refuses a zone match under a report template and a
+   report match under a zone template, replacing the blanket guard of `sql/057` (`trg_send_log_report_match_only`). No code path can attach the wrong wording.
+3. **A snapshot on each send.** `send_log` records the basis, level and parameter set as sent, for zone and report sends alike. A report match's level is looked up at send time against the set in use (NULL when the day is not
+   built or the house is outside the zones), as decided 2026-10-26.
+4. **Levels offered:** Agree by default, One source as an opt-in, Context never (it creates no match).
+5. **Wording is a rule, not a memory.** A check refuses a zone-kind template, when saved and again at render, that contains a *banned claim*: a radar technical term or size (MESH, dBZ, an estimated size), a claim
+   about the person's own roof or home ("at your property", "your roof was hit", "damaged your"), a probability or a guarantee ("chance of", "likely had", "guaranteed", "confirmed", "verified"). It matches claim
+   phrases, **not** the plain words "damage" or "%": the shipped marketing copy says "not confirmation that the roof was damaged" and "80% of homes are certifiable as-is", and a word ban would block it. A check like this
+   catches the known claims and cannot prove a text compliant, so the real gate stays a person reading the rendered preview of each basis before a template version is used. Radar is described only as "hail of at
+   least <the set's threshold> within about <the set's report radius, in miles> of this address", with both numbers read from the parameter set in use, never typed into a template. Marketing writes the final words
+   inside those rules; the shipped draft follows them.
+6. **CoCoRaHS-based wording (`observer` and `both`) is blocked from any real send** until the developer has read the CoCoRaHS usage policy in full and recorded that in this log (design point 5, answer 2f). The wording says
+   only "a trained volunteer weather observer reported hail nearby", names no station or location, and carries the CC BY 4.0 attribution.
+7. **No drip follow-ups on zone sends** in step 4; the drip code keeps reading report matches only.
+8. **Measurement by level** is a read-only report from the existing unsubscribe, bounce and complaint sync, joined through the `send_log` snapshot. **Accepted gap:** replies arrive in RBI's inbox and are not tracked in the
+   system; they stay a manual note. **When:** before the first real zone send is judged.
+9. **Order, a stop after each, nothing sent to a real address at any stage:** (1) the wording rules and the draft zone template (pure code, tested); (2) the migration for `match_kind`, the snapshot columns and the new trigger,
+   rehearsed with a sweep of every reader of `send_log` and `email_templates`; (3) the zone send query and context builder; (4) the engine and the `/send` zone mode, tested with Constant Contact replaced; (5) the by-level
+   report; (6) a rehearsal to the developer's own test addresses, started by the developer's click.
+10. **Isolation.** The email, send and drip code names no zone table today and the tests pin that. Step 4 opens exactly the modules it adds, each named in a test, and the exports, activity feed, drips and report send path
+    stay closed to the zone names.
+
+**Stays unchanged:** the report send path, the suppression check at send time, "nothing sends automatically", the exports, the drips, and the gates above. **Related:** items 129, 183, 189, 96, 202; decision log 2026-10-23 (design,
+points 5 and 6, answer 2f), 2026-10-26 (steps 2b and 3) and 2026-10-27 (step 2b).
+

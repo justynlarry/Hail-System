@@ -1,0 +1,1 @@
+Recent hail activity near {% if total == 1 %}your listing at {{ properties[0].address }}{% else %}several of your listings{% endif %}
