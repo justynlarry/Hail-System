@@ -307,7 +307,7 @@ class IsolationTest(unittest.TestCase):
 
     def test_the_other_query_modules_never_mention_the_radar(self):
         # findings.py is the slice 6 panel, staff only;  likelihoodadmin.py edits the parameter sets (slice 7, admin only)
-        radar = {"radar.py", "radar_map.py", "findings.py", "likelihood_map.py", "likelihoodadmin.py", "zonepull.py"}
+        radar = {"radar.py", "radar_map.py", "findings.py", "likelihood_map.py", "likelihoodadmin.py", "zonepull.py", "zonesend.py"}
         for path in self.files("hailsys/queries/*.py"):
             if path.name not in radar:
                 with self.subTest(path=path.name):
@@ -378,6 +378,16 @@ class IsolationTest(unittest.TestCase):
         self.assertTrue({"start_pull", "zone_zips", "estimate_zips"} <= names, names)
         self.assertFalse(names & {"run_pull", "create_pull", "search_sale_listings", "match_storm", "zonematch",
                                   "match_zones", "estimate_pull", "exports", "sendlist", "send_log"}, names)
+
+    def test_only_the_send_code_may_import_the_zone_send_list(self):
+        # The zone send list feeds the send screen and the send engine (step 4) and nothing else:  not the exports, the activity
+        # feed, the drips, the report send list, the storm browser or the pull code.
+        allowed = {"hailsys/web/send.py", "hailsys/web/sendjobs.py", "hailsys/email/send.py"}
+        users = set()
+        for path in self.files("hailsys/**/*.py"):
+            if path.name != "zonesend.py" and "zonesend" in path.read_text():
+                users.add(str(path.relative_to(ROOT)))
+        self.assertTrue(users <= allowed, users - allowed)
 
     def test_only_start_pull_and_the_job_module_write_the_pull_zips(self):
         files = set()

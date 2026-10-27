@@ -171,8 +171,10 @@ def _one_agent_per_house(hits, dropped):
     return kept
 
 
-def select(hits, *, today, max_age_days=MAX_AGE_DAYS, freshness_days=FRESH_DAYS):
-    """Apply the rules to the gathered hits."""
+def select(hits, *, today, max_age_days=MAX_AGE_DAYS, freshness_days=FRESH_DAYS,
+           collapse_fn=None):
+    """Apply the rules to the gathered hits.  collapse_fn groups a realtor's hits into events
+    (default: collapse);  the zone path passes its own."""
     oldest_day = today - timedelta(days=max_age_days)
     freshest_day = today - timedelta(days=freshness_days)
     dropped = {r: {"matches": 0, "realtors": set()} for r in REASONS}
@@ -192,7 +194,8 @@ def select(hits, *, today, max_age_days=MAX_AGE_DAYS, freshness_days=FRESH_DAYS)
     for realtor_id in sorted(kept):
         rows = kept[realtor_id]
         realtors.append({"realtor_id": realtor_id, "agent_name": rows[0]["agent_name"],
-                         "email": rows[0]["email"], "events": collapse(rows)})
+                         "email": rows[0]["email"],
+                         "events": (collapse_fn or collapse)(rows)})
     return {
         "realtors": realtors,
         "considered": {"matches": len(hits),

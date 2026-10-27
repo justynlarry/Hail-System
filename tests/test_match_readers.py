@@ -22,7 +22,10 @@ WRITERS = {"hailsys/matching/matcher.py", "hailsys/matching/zonematch.py"}
 
 # The one reader that does not inner-join iem_data, on purpose:  the staff zones page counts the zone rows already written
 # (iem_id IS NULL), by basis and level.  test_the_zone_row_counter_reads_only_counts pins what it may select.
-ZONE_ROW_READERS = {"hailsys/queries/zonepull.py"}
+# hailsys/queries/zonesend.py is the zone send list (step 4):  it reads zone matches (iem_id IS NULL) and, to avoid emailing a
+# house twice, the send records of any match at the same address that storm day.  test_the_zone_send_list_reads_only_what_it_may
+# pins both reads.
+ZONE_ROW_READERS = {"hailsys/queries/zonepull.py", "hailsys/queries/zonesend.py"}
 
 READ = re.compile(r"\b(?:FROM|JOIN)\s+storm_listing_matches\s+(\w+)", re.I)
 
@@ -71,8 +74,21 @@ class MatchReaderTest(unittest.TestCase):
                          "WHERE storm_date = %(day)s AND iem_id IS NULL AND set_id = %(set_id)s "
                          "GROUP BY basis, level ORDER BY basis, level")
         self.assertEqual(len(READ.findall(text)), 1)
-        for name in ZONE_ROW_READERS:
-            self.assertEqual(name, "hailsys/queries/zonepull.py")
+        # Exactly these two files are exempt, each with its own pin:  nothing else may read the table without the join.
+        self.assertEqual(ZONE_ROW_READERS, {"hailsys/queries/zonepull.py", "hailsys/queries/zonesend.py"})
+
+    def test_the_zone_send_list_reads_only_what_it_may(self):
+        text = (ROOT / "hailsys/queries/zonesend.py").read_text()
+        self.assertEqual(sorted(READ.findall(text)), ["m", "m2"])
+        sql = re.search(r'_HITS_SQL = """(.*?)"""', text, re.S).group(1)
+        flat = re.sub(r"\s+", " ", sql)
+        # The main read is of zone matches only, and of one parameter set, the chosen days and levels.
+        self.assertIn("FROM storm_listing_matches m JOIN listings l ON l.listing_id = m.listing_id", flat.replace("listings l ", "listings l "))
+        self.assertIn("WHERE m.iem_id IS NULL AND m.set_id = %(set_id)s AND m.storm_date = ANY(%(days)s) AND m.level = ANY(%(levels)s)", flat)
+        # The second read only asks whether a house was already emailed that day, through the send records.
+        self.assertRegex(flat, r"JOIN storm_listing_matches m2 ON m2\.listing_id = l2\.listing_id JOIN send_log s2 "
+                               r"ON s2\.match_id = m2\.match_id")
+        self.assertIn("s2.send_status <> 'failed' AND m2.storm_date = m.storm_date", flat)
 
     def test_no_reader_left_joins_iem_data_or_the_matches_table(self):
         for name, text in sources():

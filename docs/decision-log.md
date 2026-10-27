@@ -7927,3 +7927,10 @@ a valid set that is not the match's own). The rehearsal's first draft of the mig
 the draft zone template's words are mine, adapted from the shipped copy ("Weather observations point to hail near your listing", "What was observed", "This is based on weather observations, not an inspection"); marketing owns the
 final words inside the rules. Nothing here sends anything; pieces 3 to 6 remain.
 
+**Built 2026-10-27, step 4 piece 3a.** `hailsys/queries/zonesend.py`: `build_zone_send_list` (zone matches only, one parameter set, Agree by default, One source an opt-in, Context refused), the report path's rules in the
+same order through `sendlist.select` (which gained an optional `collapse_fn`, default unchanged: every existing send test passes untouched), plus two zone-specific rules: a house emailed for the same storm day by **any** send,
+report or zone, is not emailed again, and with `settings.zone_observer_wording_approved` false an `observer` or `both` match is counted under its own reason `observer_wording_not_approved`. Each event keeps its matches'
+own basis, level and set, because the send record must equal its match (sql/060). `tests/test_zonesend.py`: 35 tests on made-up houses in a rolled-back transaction, all 18 planted bugs caught, including removing the
+do-not-contact check, the cap, and counting failed sends as sent. `test_match_readers.py` gained a named exception for the file with a test pinning both its reads, and a test that only the send code may import it. The first
+test run found three wrong expectations of mine and no code bug. Piece 3b (context, kind-aware rendering and validation, zone template registration) is next.
+
