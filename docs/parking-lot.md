@@ -6534,3 +6534,36 @@ fresh process.
 
 **Related:** items 257, 258; decision log 2026-10-26 (step 2a) and 2026-10-27 (piece c).
 
+
+## 261. The pull path had no tests
+
+**Status:** resolved 2026-10-27 (found while planning step 2b)
+
+`start_pull`, `run_pull`, `create_pull` and the pull thread in `hailsys/web/jobs.py` and `hailsys/rentcast/pull.py` are the only code that calls RentCast, and no test exercised them: a search for `start_pull` found only
+the drip step's own path, a static isolation test and a mock. A mistake there spends money.
+
+**Fixed:** `tests/test_pull_jobs.py` runs the real functions on the real tables in a transaction that is always rolled back, with the RentCast client replaced by a recorder and the thread run inline. It pins that each zip is
+requested exactly once for Active listings, the call log has one row per zip, a pull from reports is unchanged, a stale running pull does not block a new one and a fresh one does, an auth error aborts and marks the pull
+failed, a server error on one zip leaves the rest to run, an unexpected error marks the pull failed and stops, the report matcher runs after a pull and the zone matcher never does, and every refusal requests nothing and
+leaves no row. Eight planted bugs, including a non-atomic commit and a doubled request, were all caught. The first pass found a one-character typo (`%(estimated_api_call)s`) that would have failed the first real pull.
+
+**Not covered, accepted:** the RentCast client's own retry and backoff (`hailsys/rentcast/client.py`) is replaced in these tests. **When:** before the client is changed.
+
+**Related:** items 257, 262; decision log 2026-10-27 (step 2b).
+
+
+## 262. The zones page showed no pull status, so a finished pull looked stuck
+
+**Status:** resolved 2026-10-27 (found by the developer's first real zones pull)
+
+After "Pull 1 zip" the page showed only the "Pull started" message from the redirect. The pull finished in 3.7 s, but nothing on the page said so until a refresh, and nothing said how it had gone.
+
+**Fixed:** `/pull/zones` has a "Pulls for this day" table (`zonepull.recent_pulls`: the day's latest pulls with source, status, zips, requests, listings and finish time; a pull still running after `PULL_STALE_AFTER`
+reads "Stopped?"), reloads itself every 5 s while a pull is running, and both write buttons show "Working..." and cannot be pressed twice. The web container logs each request with its server time and no query string, so a
+click that feels slow can be measured (`tests/test_compose_web_log.py`).
+
+**Not covered, accepted:** the slowness the developer felt on the Match click was not reproduced (server time 0.17 s; the page about 0.1 s) and may have been the Cloudflare tunnel or the browser. **When:** if it
+happens again, read the new access-log time for that request first.
+
+**Related:** items 260, 261; decision log 2026-10-27 (step 2b).
+

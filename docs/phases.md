@@ -348,7 +348,7 @@ answers to its six open questions.
    `hailsys/cocorahs/`; item 253 settles the source), likelihood zones per storm day (Agree, One
    source, Context; built for every loaded radar day 2026-10-24, `sql/054` and `055`, `hailsys/likelihood/`), a staff-only layer on the Territory map (built, `/map/likelihood.geojson`), a versioned likelihood parameter set editable on the admin page (built 2026-10-26, slice 7), and the backtest
    with one source hidden (bar about 80%; ran 2026-10-25 and passed on the zip-overlap measure: IEM 88.7%, CoCoRaHS 93.5%, item 255).
-2. **Pulls (2a, the estimate compared with the zones and no pulls, waived in and built 2026-10-26, `/pull/zones`; 2b, the pull itself, waits with step 3):** the zip list from the union of zips overlapping the chosen levels (default Agree and One source; Context opt-in), any
+2. **Pulls (2a, the estimate compared with the zones and no pulls, waived in and built 2026-10-26, `/pull/zones`; 2b, the pull itself, built 2026-10-27: `sql/059`, `start_pull(zone=...)`, `POST /pull/zones/start`, first real pull 2026-10-27):** the zip list from the union of zips overlapping the chosen levels (default Agree and One source; Context opt-in), any
    overlap at all, one pull per storm day, `pull_zips (pull_id, zcta5, basis, best_level)`, the estimate shown by level.
 3. **Matches (waived in 2026-10-26 together with 2b, backtest passed; built 2026-10-27: `sql/057`, `058`, `zonematch.py`, the button on `/pull/zones`; basis has four values, report/radar/observer/both):** Option A, `storm_listing_matches` extended with a nullable `iem_id` and `basis`, `level`,
    `layer`, `set_id`.

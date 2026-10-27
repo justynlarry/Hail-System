@@ -5,6 +5,9 @@
     docker compose run --rm -T --no-deps -e PGHOST=postgis -e PGUSER=hail_admin -e PGPASSWORD="$PW" \
         -e FLASK_SECRET_KEY="$FK" -v ./tests:/app/tests:ro web python -m unittest tests.test_zone_estimate_web
 
+The Pull button (POST /pull/zones/start, the step 2b route that spends RentCast requests) is tested here with start_pull replaced:
+the zip list always comes from the database and never from the form, every refusal happens before start_pull, and the page shows
+the button only for a built day inside the age limit with zips to pull.
 The match button (POST /pull/zones/match) is tested here too, with zonematch.match_zones replaced:  it passes the admin, the day,
 today and the storm age limit;  shows what was written or the refusal;  needs a token and a sender or admin;  and the
 zones page only enables it for a built day inside the age limit.
@@ -29,7 +32,7 @@ sys.path.insert(0, str(ROOT))
 try:
     import psycopg
     from psycopg.rows import dict_row
-    from hailsys.web import create_app, views as views_web
+    from hailsys.web import create_app, views as views_web, jobs as jobs_web
     from hailsys.matching import zonematch
     from hailsys.tuning import DISPLAY_TZ
     MISSING = None
@@ -82,17 +85,21 @@ class ZoneEstimateWebTest(unittest.TestCase):
         self.estimate_zips = stack.enter_context(mock.patch.object(views_web, "estimate_zips", return_value=UNION))
         stack.enter_context(mock.patch.object(views_web.quota, "fetch_usage", return_value=USAGE))
         self.start_pull = stack.enter_context(mock.patch.object(views_web, "start_pull"))
+        self.recent_pulls = stack.enter_context(mock.patch.object(views_web.zonepull, "recent_pulls", return_value=[]))
         self.zone_rows = stack.enter_context(mock.patch.object(views_web.zonepull, "zone_row_counts", return_value=[]))
         self.match_zones = stack.enter_context(mock.patch.object(views_web.zonematch, "match_zones", return_value=MATCHED))
         self.max_age = self.conn.execute("SELECT match_max_age_days AS n FROM settings").fetchone()["n"]
         self.today = datetime.now(DISPLAY_TZ).date()
 
     def client_as(self, role):
-        if role not in self.users:
-            self.skipTest(f"no active {role} user in this database")
+        # The role is read from the session cookie, so a database with no viewer or sender can still be tested as one:
+        # sign in as the admin's account with the other role.  The real roles are checked in the same way on every route.
+        emp = self.users.get(role) or self.users.get("admin")
+        if emp is None:
+            self.skipTest("no active admin user in this database")
         client = self.app.test_client()
         with client.session_transaction() as s:
-            s["emp_id"] = self.users[role]
+            s["emp_id"] = emp
             s["role"] = role
             s["user_name"] = "test"
             s["issued_at"] = datetime.now(timezone.utc).isoformat()
@@ -172,7 +179,7 @@ class ZoneEstimateWebTest(unittest.TestCase):
 
     def test_the_page_says_it_pulls_nothing_and_links_back_to_the_estimate_page(self):
         html = self.text()
-        self.assertIn("Nothing is pulled from it", html)
+        self.assertIn("Looking at this page pulls nothing", html)
         self.assertIn("/pull/estimate?date=2026-09-22", html)
 
     # ---- who, and what it cannot do ----
@@ -235,7 +242,7 @@ class ZoneEstimateWebTest(unittest.TestCase):
             with self.subTest(age=age):
                 html = self.text(f"date={(self.today - timedelta(days=age)).isoformat()}")
                 self.assertEqual(self.button(html), "enabled")
-                self.assertIn("Nothing is sent or pulled", html)
+                self.assertIn("Nothing is sent or pulled", " ".join(html.split()))
 
     def test_the_button_is_disabled_past_the_limit_and_says_why(self):
         html = self.text(f"date={(self.today - timedelta(days=self.max_age + 1)).isoformat()}")
@@ -332,6 +339,259 @@ class ZoneEstimateWebTest(unittest.TestCase):
     def test_the_post_starts_no_pull_and_runs_no_report_match(self):
         self.post_match(date="2026-09-22")
         self.assertEqual(self.start_pull.call_count, 0)
+
+    # ---- the pull button ----
+
+    def pull_form(self, html):
+        import re
+        return re.search(r'<form method="post" action="/pull/zones/start".*?</form>', html, re.S)
+
+    def test_the_pull_button_shows_the_count_and_the_estimate_for_a_built_day_inside_the_limit(self):
+        html = self.text(f"date={self.today.isoformat()}")
+        form = self.pull_form(html)
+        self.assertIsNotNone(form)
+        self.assertIn("Pull 4 zips", form.group(0))
+        self.assertIn("about 5 requests", form.group(0))
+        self.assertIn('name="zip_count" value="4"', form.group(0))
+        self.assertIn(f'name="date" value="{self.today.isoformat()}"', form.group(0))
+        self.assertNotIn('name="context"', form.group(0))
+        self.assertIn("Spends RentCast requests", form.group(0))
+
+    def test_a_ticked_context_box_is_carried_into_the_pull_form(self):
+        html = self.text(f"date={self.today.isoformat()}&context=1")
+        self.assertIn('name="context" value="1"', self.pull_form(html).group(0))
+
+    def test_the_form_carries_the_count_only_never_the_zips(self):
+        form = self.pull_form(self.text(f"date={self.today.isoformat()}")).group(0)
+        for zcta5 in VIEW["zips"]:
+            self.assertNotIn(zcta5, form)
+
+    def test_there_is_no_pull_button_past_the_limit_for_the_future_unbuilt_or_empty(self):
+        old = (self.today - timedelta(days=self.max_age + 1)).isoformat()
+        html = self.text(f"date={old}")
+        self.assertIsNone(self.pull_form(html))
+        self.assertIn(f"Only days within {self.max_age} days can be pulled.", html)
+        self.assertIsNone(self.pull_form(self.text(f"date={(self.today + timedelta(days=1)).isoformat()}")))
+        self.zone_zips.return_value = dict(VIEW, built=False, rows=[], zips=[], counts={})
+        self.assertIsNone(self.pull_form(self.text(f"date={self.today.isoformat()}")))
+        self.zone_zips.return_value = dict(VIEW, rows=[], zips=[], counts=dict(VIEW["counts"], union=0))
+        self.estimate_zips.return_value = dict(UNION, zip_count=0, estimated_api_calls=0, zips=[])
+        self.assertIsNone(self.pull_form(self.text(f"date={self.today.isoformat()}")))
+
+    def test_the_page_warns_when_the_pull_would_go_over_the_plan_and_still_offers_it(self):
+        with mock.patch.object(views_web.quota, "fetch_usage", return_value=dict(USAGE, used=998)):
+            html = self.text(f"date={self.today.isoformat()}")
+        self.assertIn("roughly", html)
+        self.assertIn("over the plan", html)
+        self.assertIn("Overage is billed", html)
+        self.assertIsNotNone(self.pull_form(html))
+
+    def test_the_page_does_not_warn_when_the_pull_fits(self):
+        self.assertNotIn("over the plan", self.text(f"date={self.today.isoformat()}"))
+
+    def test_the_page_names_zips_pulled_recently(self):
+        self.estimate_zips.return_value = dict(UNION, pulled_recently=[{"zip_code": "80808", "last_pulled": datetime.now(timezone.utc)}])
+        html = self.text(f"date={self.today.isoformat()}")
+        self.assertIn("1 of these zips were pulled in the last", html)
+        self.assertIn("80808", html)
+
+    # ---- POST /pull/zones/start ----
+
+    def post_pull(self, role="admin", csrf=False, client=None, **data):
+        self.app.config["WTF_CSRF_ENABLED"] = csrf
+        client = client or self.client_as(role)
+        return client.post("/pull/zones/start", data=data, follow_redirects=False)
+
+    def good(self, **changes):
+        data = {"date": self.today.isoformat(), "zip_count": "4"}
+        data.update(changes)
+        return data
+
+    def test_the_pull_post_needs_a_token(self):
+        self.assertEqual(self.post_pull(csrf=True, **self.good()).status_code, 400)
+        self.assertEqual(self.start_pull.call_count, 0)
+
+    def test_signed_out_goes_to_login_and_pulls_nothing(self):
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        resp = self.app.test_client().post("/pull/zones/start", data=self.good())
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login", resp.headers["Location"])
+        self.assertEqual(self.start_pull.call_count, 0)
+
+    def test_a_viewer_is_refused_and_a_sender_may_pull(self):
+        self.assertEqual(self.post_pull(role="viewer", **self.good()).status_code, 403)
+        self.assertEqual(self.start_pull.call_count, 0)
+        self.assertEqual(self.post_pull(role="sender", **self.good()).status_code, 302)
+        self.assertEqual(self.start_pull.call_count, 1)
+
+    def test_the_pull_post_is_not_a_get(self):
+        self.assertEqual(self.client_as("admin").get("/pull/zones/start?date=2026-09-22").status_code, 405)
+
+    def test_a_good_post_starts_one_pull_with_the_zips_from_the_database_and_their_reasons(self):
+        resp = self.post_pull(**self.good())
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(f"/pull/zones?date={self.today.isoformat()}", resp.headers["Location"])
+        self.assertEqual(self.start_pull.call_count, 1)
+        kw = self.start_pull.call_args.kwargs
+        self.assertEqual((kw["emp_id"], kw["storm_date"], kw["report_text"]), (self.users["admin"], self.today, "HAIL"))
+        self.assertEqual(kw["zip_codes"], UNION["zips"])
+        self.assertEqual(kw["estimated_api_calls"], UNION["estimated_api_calls"])
+        self.assertEqual((kw["window_start"], kw["window_end"]), views_web.denver_day_bounds(self.today))
+        self.assertEqual(kw["zone"]["set_id"], 7)
+        self.assertEqual([(r["zcta5"], r["basis"], r["best_level"]) for r in kw["zone"]["rows"]],
+                         [(r["zcta5"], r["basis"], r["best_level"]) for r in ROWS])
+
+    def test_the_zip_list_is_never_taken_from_the_form(self):
+        self.post_pull(**self.good(zips="99999,88888", zip_codes="99999", zone="evil", estimated_api_calls="0",
+                                   report_text="WIND", storm_date="1999-01-01", type="WIND", actionable="1"))
+        kw = self.start_pull.call_args.kwargs
+        self.assertEqual(kw["zip_codes"], UNION["zips"])
+        self.assertEqual((kw["report_text"], kw["storm_date"], kw["estimated_api_calls"]), ("HAIL", self.today, 5))
+        self.assertNotIn("99999", repr(kw["zone"]))
+
+    def test_a_ticked_context_box_asks_the_database_for_context_zips(self):
+        self.post_pull(**self.good(context="1"))
+        self.assertTrue(self.zone_zips.call_args.kwargs["include_context"])
+        self.post_pull(**self.good())
+        self.assertFalse(self.zone_zips.call_args.kwargs["include_context"])
+
+    def test_a_good_post_says_what_started_and_remembers_it_for_the_storm_list(self):
+        client = self.client_as("admin")
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        html = client.post("/pull/zones/start", data=self.good(), follow_redirects=True).get_data(as_text=True)
+        self.assertIn("Pull started: 4 zips, about 5 requests.", html)
+        self.assertIn("Match listings in the zones", html)
+        with client.session_transaction() as s:
+            self.assertEqual((s["pull_watch"]["date"], s["pull_watch"]["type"], s["pull_watch"]["zips"]),
+                             (self.today.isoformat(), "HAIL", 4))
+
+    def refused(self, data, message, start_pull_calls=0):
+        """A POST that must pull nothing:  start_pull is not reached (or, for a pull already running, is reached and refuses)."""
+        client = self.client_as("admin")
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        resp = client.post("/pull/zones/start", data=data, follow_redirects=True)
+        html = " ".join(resp.get_data(as_text=True).split())
+        self.assertEqual(self.start_pull.call_count, start_pull_calls, "start_pull was reached when it should not be")
+        self.assertIn(message, html)
+        self.assertIn("nothing was pulled", html.lower())
+        with client.session_transaction() as s:
+            self.assertNotIn("pull_watch", s)
+
+    def test_a_changed_zip_count_pulls_nothing(self):
+        self.refused(self.good(zip_count="3"), "The zip list changed since this page was shown (3 to 4)")
+
+    def test_a_day_past_the_limit_or_in_the_future_pulls_nothing(self):
+        old = (self.today - timedelta(days=self.max_age + 1)).isoformat()
+        self.refused(self.good(date=old), f"not within the last {self.max_age} days")
+        self.refused(self.good(date=(self.today + timedelta(days=1)).isoformat()), "not within the last")
+        # The age check comes first:  the POST itself never asks the database for a zone list.  (The redirect target,
+        # the zones page, does, so look at the POST alone.)
+        self.zone_zips.reset_mock()
+        self.assertEqual(self.post_pull(**self.good(date=old)).status_code, 302)
+        self.assertEqual(self.zone_zips.call_count, 0)
+        self.assertEqual(self.start_pull.call_count, 0)
+
+    def test_an_unbuilt_day_pulls_nothing(self):
+        self.zone_zips.return_value = dict(VIEW, built=False, rows=[], zips=[], counts={})
+        self.refused(self.good(), "has not been built with the hail-zone set now in use")
+
+    def test_no_zips_pulls_nothing(self):
+        self.zone_zips.return_value = dict(VIEW, rows=[], zips=[])
+        self.estimate_zips.return_value = dict(UNION, zip_count=0, estimated_api_calls=0, zips=[])
+        self.refused(self.good(zip_count="0"), "There are no zips to pull")
+
+    def test_a_pull_already_running_is_a_message_and_not_remembered(self):
+        self.start_pull.side_effect = jobs_web.PullInProgress("Sam", datetime.now(timezone.utc))
+        self.refused(self.good(), "is already running, started by Sam", start_pull_calls=1)
+
+    def test_a_missing_or_bad_date_or_count_is_a_400_and_pulls_nothing(self):
+        for data in ({}, {"date": self.today.isoformat()}, {"zip_count": "4"}, self.good(date="June 1"),
+                     self.good(zip_count="four"), self.good(zip_count=""), self.good(date="2026-13-40")):
+            with self.subTest(data=data):
+                self.assertEqual(self.post_pull(**data).status_code, 400)
+        self.assertEqual(self.start_pull.call_count, 0)
+
+    def test_the_pull_route_never_runs_the_matchers_or_the_report_estimate(self):
+        with mock.patch.object(views_web, "match_storm") as report_matcher:
+            self.post_pull(**self.good())
+        self.assertEqual(report_matcher.call_count, 0)
+        self.assertEqual(self.match_zones.call_count, 0)
+        self.assertEqual(self.estimate_pull.call_count, 0)
+
+    # ---- pull status, and the working state ----
+
+    def a_pull(self, state="complete", **changes):
+        row = {"pull_id": 1, "pull_source": "zones", "api_status": state if state != "stalled" else "running",
+               "state": state, "zip_count": 1, "estimated_api_calls": 1, "actual_api_calls": 1,
+               "listings_returned": 158, "started_by": "Sam", "started_local": "Oct 27 11:55",
+               "finished_local": "11:55:45"}
+        row.update(changes)
+        return row
+
+    def test_no_pulls_means_no_pulls_section_and_no_reload(self):
+        html = self.text()
+        self.assertNotIn("Pulls for this day", html)
+        self.assertNotIn("location.reload", html)
+
+    def test_a_finished_pull_is_listed_with_its_facts_and_the_page_does_not_reload(self):
+        self.recent_pulls.return_value = [self.a_pull()]
+        html = " ".join(self.text().split())
+        self.assertIn("Pulls for this day", html)
+        for want in ("Oct 27 11:55", "Sam", "hail zones", "Complete", "1 (est. 1)", "158", "11:55:45"):
+            self.assertIn(want, html)
+        self.assertNotIn("location.reload", html)
+        self.assertNotIn("A pull is running", html)
+
+    def test_a_pull_from_reports_is_labelled_as_such(self):
+        self.recent_pulls.return_value = [self.a_pull(pull_source="reports")]
+        self.assertIn("storm reports", self.text())
+
+    def test_a_running_pull_says_so_and_the_page_reloads_itself(self):
+        self.recent_pulls.return_value = [self.a_pull("running", actual_api_calls=None, listings_returned=None,
+                                                      finished_local=None)]
+        html = " ".join(self.text().split())
+        self.assertIn("A pull is running. This page reloads by itself", html)
+        self.assertIn("Running", html)
+        self.assertEqual(html.count("location.reload"), 1)
+        self.assertIn("– (est. 1)", html)
+
+    def test_a_stalled_pull_is_flagged_and_the_page_does_not_reload(self):
+        self.recent_pulls.return_value = [self.a_pull("stalled", actual_api_calls=None, listings_returned=None,
+                                                      finished_local=None)]
+        html = " ".join(self.text().split())
+        self.assertIn("Stopped? (no update for over 10 minutes)", html)
+        self.assertNotIn("location.reload", html)
+
+    def test_any_running_pull_among_several_keeps_the_page_reloading(self):
+        self.recent_pulls.return_value = [self.a_pull("running", pull_id=3, finished_local=None),
+                                          self.a_pull("complete", pull_id=2), self.a_pull("failed", pull_id=1)]
+        html = self.text()
+        self.assertEqual(html.count("location.reload"), 1)
+        self.assertIn("Failed", html)
+
+    def test_the_page_asks_for_this_days_hail_pulls_with_the_stale_limit(self):
+        self.text()
+        kw = self.recent_pulls.call_args.kwargs
+        self.assertEqual((kw["day"], kw["report_text"], kw["tz"]), (DAY, "HAIL", DISPLAY_TZ))
+        self.assertEqual(kw["stale_after"], views_web.workstate.PULL_STALE_AFTER)
+
+    def test_both_buttons_that_write_show_working_and_cannot_be_pressed_twice(self):
+        import re
+        html = self.text(f"date={self.today.isoformat()}")
+        forms = re.findall(r"<form method=\"post\"[^>]*>", html)
+        # The logout form in the header is not one of ours.
+        ours = [f for f in forms if "/pull/zones/" in f]
+        self.assertEqual(len(ours), 2)
+        for f in ours:
+            self.assertIn("data-working", f)
+        self.assertEqual(html.count("form[data-working]"), 2)           # the submit handler and the pageshow reset
+        self.assertIn("b.disabled = true;", html)
+        self.assertIn("Working…", html)
+        self.assertIn("e.persisted", html)                              # coming back with Back restores the button
+
+    def test_the_get_forms_are_left_alone(self):
+        html = self.text()
+        self.assertNotIn('<form method="get" action="/pull/zones" class="confirm" data-working', html)
 
 
 def contextlib_stack(test):

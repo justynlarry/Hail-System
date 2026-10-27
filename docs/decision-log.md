@@ -7852,3 +7852,37 @@ already written. The Context box on the zones page affects the zip list and esti
 rows for 2023-07-20 on `hail-dev` (a connection context manager commits on exit; deleted by the developer's go-ahead, "that's why we have a DEV server"), and the template link to the new route went live
 before `web` was restarted, giving a 500 on `/pull/estimate` (item 260). Next: the stop at (d), then 2b.
 
+## 2026-10-27 — Phase 5c step 2b, the plan (developer: "yes to all 7"): the pull from the zones; the first real spend is the developer's click
+
+Under the 2026-10-26 waiver (steps 2b and 3 together); this entry fixes how 2b is built. **Step 4 (sends by level) is still not waived.**
+1. **Schema (`sql/059`).** `api_pulls` gains `pull_source` (`reports` or `zones`, default `reports`, so the 42 existing pulls stay `reports`) and `zone_set_id` (nullable, references `likelihood_parameter_sets`;
+   named `zone_set_id`, not `set_id`, to avoid the same-name trap of item 258); a CHECK says a zone set exists exactly when the source is `zones`, and a zones pull has a `storm_date`. New `pull_zips (pull_id,
+   zcta5, basis, best_level)`: `basis` is `zones`, `reports` or `both`, `best_level` is `agree`, `one_source` or `context` and is NULL exactly for a `reports` zip; append-only by trigger; `hail_app` has `SELECT`
+   and `INSERT` only.
+2. **Atomic record.** `start_pull` gets an optional `zone` argument; with it the `api_pulls` row and its `pull_zips` rows are written in one transaction, so a pull is never recorded without its reasons. The
+   thread, `run_pull` (the only code that calls RentCast) and the unique index that allows one running pull per (day, type) are unchanged.
+3. **The route.** `POST /pull/zones/start`, sender or admin, CSRF. It rebuilds the zone list and the estimate from the database (never from the form), and refuses, spending nothing, on an unbuilt day, an
+   empty list, a day older than `match_max_age_days` (30) or in the future, a changed zip count ("review and confirm again", as `/pull` does), and a pull already running for the day.
+4. **Context is opt-in** and carries into the pull from the box on `/pull/zones`; those zips are recorded with `best_level = context`.
+5. **Quota is warn-and-allow,** as for `/pull`: the zones page shows the projection against the plan before the confirm button, and the notice for zips pulled in the last `RECENT_PULL_WINDOW_DAYS`.
+6. **After a zones pull** the existing automatic report matcher still runs, unchanged; **zone matching stays the explicit button on `/pull/zones`.** A pull never writes a zone match.
+7. **Order, a stop after each:** (1) `sql/059`, rehearsed in a rolled-back run on the 42 real pulls and followed by a sweep of every reader of `api_pulls` and the main pages; (2) `start_pull(zone=...)` with the
+   RentCast client replaced in the tests, which assert each zip is requested once and **nothing** on any refusal; (3) the route, the form and the isolation tests; (4) **stop: the developer's first real pull**, 2026-09-29
+   (one zip, Calhan 80808, about 1 request), started by the developer's own click; Claude does not click and does not call RentCast, and afterwards compares `api_pulls`, `api_call_log` and `pull_zips`.
+8. **Isolation.** A named carve-out for exactly the route `zone_pull_start` (it has "pull" in its name), pinned by its own test: POST only, calls the zone reads, the estimate, the quota and `start_pull`, never
+   `match_storm` or `zonematch`. The email, matching (other than `zonematch.py`), rentcast, Constant Contact, send, export, activity and drip code never name `pull_zips` or `zone_set_id`.
+
+**Stays unchanged:** `/pull` and `pull_start`, `run_pull`, `create_pull`, the report matcher, `/send`, the exports and drips. Nothing here sends anything.
+**Related:** items 257, 258, 259, 260; decision log 2026-10-26 (steps 2b and 3) and 2026-10-27 (piece c).
+
+**Built 2026-10-27, step 2b.** `sql/059` (rehearsed in a rolled-back run on the 42 real pulls with a sweep of every reader of `api_pulls`, then applied); `start_pull(zone=...)` writing the `api_pulls` row and its
+`pull_zips` rows in one transaction; `POST /pull/zones/start`; the Pull button, the over-plan warning and the recently-pulled notice on `/pull/zones`. **Tests:** `tests/test_pull_jobs.py` (18 tests, the first on the code
+that spends RentCast money, with the client replaced and the thread run inline; eight planted bugs all caught) and the route tests in `test_zone_estimate_web.py` (eleven planted bugs all caught, including the role check);
+the role tests now run for real by signing in with the admin's account and another role, since the role is read from the session. Full suite 2,304 tests.
+**The first real pull, the developer's click, 2026-10-27:** pull 1228, source `zones`, set 1, storm day 2026-09-29, one zip (Calhan 80808, `zones` / One source), 1 RentCast request (13 of 1,000 for the period), 158
+listings returned, `complete` in 3.7 s; the automatic report matcher then ran and found 0 (that day has no IEM hail reports). The Match click that followed wrote 0 and reported 2 already written: the zone over Calhan
+holds exactly 2 Active houses, both matched by the earlier click, and the pull refreshed listings the system already had. **Follow-up the same day (item 262):** the page showed no pull status, so a pull that finished in
+4 s looked stuck until a refresh. Added a "Pulls for this day" table (source, status, zips, requests, listings, finish time; reloads every 5 s while a pull runs; a pull still running after 10 minutes reads "Stopped?"), a
+"Working..." state that blocks a double press on both write buttons, and gunicorn's access log with the request time and no query string (`docker-compose.yml`, `tests/test_compose_web_log.py`) so a slow-feeling click
+can be measured. The slowness itself was not reproduced: server time was 0.17 s for the match and about 0.1 s for the page. **Step 4 (sends by level) is still not waived; nothing here sends anything.**
+

@@ -286,7 +286,8 @@ class IsolationTest(unittest.TestCase):
                              r"queries\.findings|queries import[^\n]*\bfindings\b|"
                              r"hailsys\.likelihood|likelihood_map|likelihood_zones|likelihood_builds|"
                              r"likelihood_parameter_sets|likelihood_level_rules|likelihood_runs|"
-                             r"zonepull|zone_zips|zone_estimate|zonematch|match_zones|zone_match")
+                             r"zonepull|zone_zips|zone_estimate|zonematch|match_zones|zone_match|"
+                             r"zone_pull_start|pull_zips|zone_set_id")
 
     def files(self, *globs):
         out = []
@@ -337,14 +338,14 @@ class IsolationTest(unittest.TestCase):
         for node in ast.walk(tree):
             # zone_match is the one named exception:  the 2026-10-26 waiver's staff button for zone matching.  Its own test
             # (test_the_zone_match_route_is_post_only_and_calls_only_the_zone_matcher) pins what it may touch.
-            if isinstance(node, ast.FunctionDef) and re.search(r"pull|match|send", node.name) and node.name != "zone_match":
+            if isinstance(node, ast.FunctionDef) and re.search(r"pull|match|send", node.name) and node.name not in ("zone_match", "zone_pull_start"):
                 seen += 1
                 with self.subTest(route=node.name):
                     names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
                     names |= {n.attr for n in ast.walk(node) if isinstance(n, ast.Attribute)}
                     self.assertFalse(names & {"radar", "radar_map", "zones_geojson", "picker_days", "findings", "likelihood_map",
                                                  "zonepull", "zone_zips", "zone_estimate", "zonematch", "match_zones",
-                                                 "zone_match"}, names)
+                                                 "zone_match", "zone_pull_start", "pull_zips"}, names)
         self.assertGreaterEqual(seen, 3)
 
     def zone_estimate_node(self):
@@ -358,6 +359,33 @@ class IsolationTest(unittest.TestCase):
         found = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "zone_match"]
         self.assertEqual(len(found), 1)
         return tree, found[0]
+
+    def test_the_zone_pull_route_is_post_only_and_goes_through_start_pull(self):
+        tree = ast.parse((ROOT / "hailsys/web/views.py").read_text())
+        found = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "zone_pull_start"]
+        self.assertEqual(len(found), 1)
+        node = found[0]
+        methods = []
+        for dec in node.decorator_list:
+            if isinstance(dec, ast.Call) and getattr(dec.func, "attr", "") == "route":
+                for k in dec.keywords:
+                    if k.arg == "methods":
+                        methods = [e.value for e in k.value.elts]
+        self.assertEqual(methods, ["POST"])
+        names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+        names |= {n.attr for n in ast.walk(node) if isinstance(n, ast.Attribute)}
+        # It reaches RentCast only through start_pull (run_pull is the one place that calls it), and never the matchers.
+        self.assertTrue({"start_pull", "zone_zips", "estimate_zips"} <= names, names)
+        self.assertFalse(names & {"run_pull", "create_pull", "search_sale_listings", "match_storm", "zonematch",
+                                  "match_zones", "estimate_pull", "exports", "sendlist", "send_log"}, names)
+
+    def test_only_start_pull_and_the_job_module_write_the_pull_zips(self):
+        files = set()
+        for path in self.files("hailsys/**/*.py"):
+            text = path.read_text()
+            if "pull_zips" in text or "zone_set_id" in text:
+                files.add(str(path.relative_to(ROOT)))
+        self.assertEqual(files, {"hailsys/web/jobs.py"})
 
     def test_only_the_zone_match_route_uses_the_zone_matcher(self):
         tree, _ = self.zone_match_node()
@@ -398,7 +426,7 @@ class IsolationTest(unittest.TestCase):
                 for n in ast.walk(node):
                     if isinstance(n, ast.Name) and n.id == "zonepull":
                         users.add(node.name)
-        self.assertEqual(users, {"zone_estimate"})
+        self.assertEqual(users, {"zone_estimate", "zone_pull_start"})
 
     def test_only_views_imports_the_zone_reads(self):
         users = set()
@@ -424,16 +452,17 @@ class IsolationTest(unittest.TestCase):
                 users.add(path.name)
         self.assertEqual(users, {"pull_estimate.html", "pull_zones.html"})
         page = (ROOT / "hailsys/web/templates/pull_zones.html").read_text()
-        # One POST form, the match button, and nothing that starts a pull or the report matcher.
-        self.assertEqual(page.count('method="post"'), 1)
-        self.assertEqual(page.count('name="csrf_token"'), 1)
+        # Two POST forms:  the Pull button and the zone Match button.  Neither is the report pull or the report matcher.
+        self.assertEqual(page.count('method="post"'), 2)
+        self.assertEqual(page.count('name="csrf_token"'), 2)
         self.assertIn("url_for('main.zone_match')", page)
-        for bad in ("pull_start", "match_start"):
+        self.assertIn("url_for('main.zone_pull_start')", page)
+        for bad in ("url_for('main.pull_start'", "url_for('main.match_start'"):
             self.assertNotIn(bad, page)
         # Every route the page links to or posts to is on this list:  the estimate page (GET), itself, the match button,
         # and the home page.
         routes = set(re.findall(r"url_for\('main\.(\w+)'", page))
-        self.assertEqual(routes, {"pull_estimate", "zone_estimate", "zone_match", "index"})
+        self.assertEqual(routes, {"pull_estimate", "zone_estimate", "zone_match", "zone_pull_start", "index"})
 
     def test_only_the_findings_route_uses_the_findings_reads(self):
         tree = ast.parse((ROOT / "hailsys/web/views.py").read_text())

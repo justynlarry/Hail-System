@@ -16,7 +16,7 @@ day with a hail report the same holds.
 
 import os
 import unittest
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from hailsys.queries import zonepull
 from hailsys.tuning import denver_day_bounds, miles_to_metres
@@ -214,6 +214,103 @@ class ZonePullTest(unittest.TestCase):
         after = [self.conn.execute(f"SELECT count(*) AS n FROM {t}").fetchone()["n"]
                  for t in ("likelihood_zones", "likelihood_builds", "api_pulls", "storm_listing_matches")]
         self.assertEqual(before, after)
+
+
+@unittest.skipUnless(os.environ.get("PGHOST"), "no database (PGHOST unset)")
+class RecentPullsTest(unittest.TestCase):
+    """zonepull.recent_pulls:  the pulls for a storm day, as the zones page shows them.  Rolled back."""
+
+    def setUp(self):
+        import psycopg
+        from psycopg.rows import dict_row
+        from zoneinfo import ZoneInfo
+        self.conn = psycopg.connect(row_factory=dict_row)
+        self.addCleanup(self.conn.close)
+        self.addCleanup(self.conn.rollback)
+        if not self.conn.execute("SELECT has_table_privilege('api_pulls', 'INSERT') AS ok").fetchone()["ok"]:
+            self.skipTest("needs a role that can insert api_pulls rows (hail_admin)")
+        self.emp = self.conn.execute("SELECT emp_id, emp_fname FROM users ORDER BY emp_id LIMIT 1").fetchone()
+        self.set_id = self.conn.execute("SELECT min(set_id) AS s FROM likelihood_parameter_sets").fetchone()["s"]
+        self.tz = ZoneInfo("America/Denver")
+        self.now = datetime(2026, 10, 27, 18, 0, tzinfo=timezone.utc)
+        self.stale = timedelta(minutes=10)
+
+    def pull(self, started, status="complete", day=DAY, report_text="HAIL", source="reports", finished=None,
+             actual=1, listings=5, zips=1):
+        zone = self.set_id if source == "zones" else None
+        return self.conn.execute(
+            "INSERT INTO api_pulls (emp_id, storm_date, report_text, zip_count, estimated_api_calls, actual_api_calls, "
+            "listings_returned, api_status, started_at, finished_at, pull_source, zone_set_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING pull_id",
+            (self.emp["emp_id"], day, report_text, zips, zips, actual, listings, status, started, finished, source, zone)
+        ).fetchone()["pull_id"]
+
+    def rows(self, **kw):
+        kw.setdefault("limit", 5)
+        return zonepull.recent_pulls(self.conn, day=DAY, report_text="HAIL", tz=self.tz, now=self.now,
+                                     stale_after=self.stale, **kw)
+
+    def test_a_day_with_no_pulls_gives_an_empty_list(self):
+        self.assertEqual(self.rows(), [])
+
+    def test_a_finished_pull_is_shown_with_its_facts_and_local_times(self):
+        started = datetime(2026, 10, 27, 17, 55, 41, tzinfo=timezone.utc)
+        self.pull(started, finished=started + timedelta(seconds=4), source="zones", actual=1, listings=158)
+        (r,) = self.rows()
+        self.assertEqual((r["state"], r["pull_source"], r["zip_count"], r["actual_api_calls"], r["listings_returned"]),
+                         ("complete", "zones", 1, 1, 158))
+        self.assertEqual((r["started_local"], r["finished_local"]), ("Oct 27 11:55", "11:55:45"))
+        self.assertEqual(r["started_by"], self.emp["emp_fname"])
+
+    def test_newest_first_and_only_this_day_and_type(self):
+        t = datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc)
+        old = self.pull(t - timedelta(hours=3), finished=t)
+        new = self.pull(t - timedelta(hours=1), finished=t)
+        self.pull(t, day=date(1999, 6, 10), finished=t)                   # another day
+        self.pull(t, report_text="TSTM WND GST", finished=t)              # another type
+        self.assertEqual([r["pull_id"] for r in self.rows()], [new, old])
+
+    def test_the_limit_is_respected(self):
+        t = datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc)
+        for n in range(7):
+            self.pull(t - timedelta(minutes=n), finished=t)
+        self.assertEqual(len(self.rows()), 5)
+        self.assertEqual(len(self.rows(limit=2)), 2)
+
+    def test_every_status_is_passed_through(self):
+        t = datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc)
+        for n, status in enumerate(("complete", "failed", "cancelled")):
+            self.pull(t - timedelta(minutes=n), status=status, finished=t)
+        self.assertEqual(sorted(r["state"] for r in self.rows()), ["cancelled", "complete", "failed"])
+
+    def test_a_fresh_running_pull_is_running_and_has_no_finish_time(self):
+        self.pull(self.now - timedelta(minutes=2), status="running", actual=None, listings=None)
+        (r,) = self.rows()
+        self.assertEqual((r["state"], r["finished_local"], r["actual_api_calls"], r["listings_returned"]),
+                         ("running", None, None, None))
+
+    def test_a_running_pull_older_than_the_stale_limit_is_stalled(self):
+        self.pull(self.now - timedelta(minutes=9, seconds=59), status="running", actual=None, listings=None)
+        self.assertEqual(self.rows()[0]["state"], "running")
+        self.conn.rollback()
+        self.pull(self.now - timedelta(minutes=10, seconds=1), status="running", actual=None, listings=None)
+        self.assertEqual(self.rows()[0]["state"], "stalled")
+
+    def test_a_finished_pull_is_never_called_stalled_however_old(self):
+        self.pull(self.now - timedelta(days=30), finished=self.now - timedelta(days=30))
+        self.assertEqual(self.rows()[0]["state"], "complete")
+
+    def test_it_does_not_hand_over_the_zone_set_or_the_zip_reasons(self):
+        self.pull(self.now - timedelta(hours=1), source="zones", finished=self.now)
+        (r,) = self.rows()
+        self.assertNotIn("zone_set_id", r)
+        self.assertFalse(any("pull_zips" in str(k) for k in r))
+
+    def test_it_writes_nothing(self):
+        self.pull(self.now - timedelta(hours=1), finished=self.now)
+        before = self.conn.execute("SELECT count(*) AS n FROM api_pulls").fetchone()["n"]
+        self.rows()
+        self.assertEqual(self.conn.execute("SELECT count(*) AS n FROM api_pulls").fetchone()["n"], before)
 
 
 if __name__ == "__main__":

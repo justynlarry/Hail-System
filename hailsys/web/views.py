@@ -702,6 +702,10 @@ def zone_estimate():
             report_text=DEFAULT_REPORT_TEXT, actionable_only=True)
         zone_rows = (zonepull.zone_row_counts(conn, day=day, set_id=view["set"]["set_id"])
                      if view["set"] else [])
+        recent_pulls = zonepull.recent_pulls(
+            conn, day=day, report_text=DEFAULT_REPORT_TEXT, tz=DISPLAY_TZ,
+            now=datetime.now(timezone.utc), stale_after=workstate.PULL_STALE_AFTER)
+        
         today = estimate_pull(
             conn, radius_m=radius_m, window_start=window_start, window_end=window_end,
             report_text=DEFAULT_REPORT_TEXT, actionable_only=True)
@@ -717,6 +721,7 @@ def zone_estimate():
     max_age = g.settings["match_max_age_days"]
     age = (datetime.now(DISPLAY_TZ).date() - day).days
     can_match = bool(view["built"]) and 0 <= age <= max_age
+    can_pull = can_match and union is not None and union["zip_count"] > 0
 
     return render_template(
         "pull_zones.html",
@@ -730,7 +735,82 @@ def zone_estimate():
         zone_rows=zone_rows,
         can_match=can_match,
         max_age=max_age,
+        can_pull=can_pull,
+        recent_window_days=RECENT_PULL_WINDOW_DAYS,
+        recent_pulls=recent_pulls,
     )
+
+
+@bp.route("/pull/zones/start", methods=["POST"])
+@role_required("sender", "admin")
+def zone_pull_start():
+    """Start a pull from the hail zones for a storm day.  A person's click (Phase 5c, step 2b).
+
+    The zip list and the estimate are rebuilt here from the database, not taken from the form.
+    The form carries only the zip count the user saw, and a different count means nothing is
+    pulled.  Every refusal happens before start_pull, so a refusal spends nothing.
+    """
+    try:
+        day = datetime.strptime(request.form["date"], "%Y-%m-%d").date()
+        expected_zip_count = int(request.form["zip_count"])
+    except (KeyError, ValueError):
+        abort(400)
+
+    include_context = "context" in request.form
+    back = _list_url(request.form.get("back"))
+    here = url_for("main.zone_estimate", date=day.isoformat(), back=back,
+                   context="1" if include_context else None)
+
+    max_age = g.settings["match_max_age_days"]
+    age = (datetime.now(DISPLAY_TZ).date() - day).days
+    if not 0 <= age <= max_age:
+        flash(f"{day.isoformat()} is not within the last {max_age} days, so nothing was pulled.")
+        return redirect(here)
+
+    window_start, window_end = denver_day_bounds(day)
+    with get_connection() as conn:
+        view = zonepull.zone_zips(
+            conn, day=day, include_context=include_context,
+            radius_m=miles_to_metres(g.settings["zip_radius_miles"]),
+            window_start=window_start, window_end=window_end,
+            report_text=DEFAULT_REPORT_TEXT, actionable_only=True)
+        union = estimate_zips(conn, view["zips"]) if view["built"] else None
+    if not view["built"]:
+        flash(f"{day.isoformat()} has not been built with the hail-zone set now in use. "
+              "Nothing was pulled.")
+        return redirect(here)
+    if union["zip_count"] == 0:
+        flash(f"There are no zips to pull for {day.isoformat()}. Nothing was pulled.")
+        return redirect(here)
+    if union["zip_count"] != expected_zip_count:
+        flash(f"The zip list changed since this page was shown "
+              f"({expected_zip_count} to {union['zip_count']}). "
+              f"Nothing was pulled.  Review and confirm again.")
+        return redirect(here)
+
+    zone = {"set_id": view["set"]["set_id"],
+            "rows": [{"zcta5": r["zcta5"], "basis": r["basis"], "best_level": r["best_level"]}
+                     for r in view["rows"]]}
+    try:
+        start_pull(
+            emp_id=session["emp_id"], storm_date=day, report_text=DEFAULT_REPORT_TEXT,
+            zip_codes=union["zips"], estimated_api_calls=union["estimated_api_calls"],
+            window_start=window_start, window_end=window_end, zone=zone)
+    except PullInProgress as e:
+        when = (e.started_at.astimezone(DISPLAY_TZ).strftime("%H:%M")
+                if e.started_at else "a moment ago")
+        flash(f"A pull for {day.isoformat()} {DEFAULT_REPORT_TEXT} is already running, "
+              f"started by {e.started_by or 'someone'} at {when}.  Nothing was pulled.")
+        return redirect(here)
+    session["pull_watch"] = {
+        "date": day.isoformat(),
+        "type": DEFAULT_REPORT_TEXT,
+        "zips": union["zip_count"],
+        "since": datetime.now(timezone.utc).isoformat(),
+    }
+    flash(f"Pull started: {union['zip_count']} zips, about {union['estimated_api_calls']} "
+           "requests.  When it finishes, press 'Match listings in the zones'.")
+    return redirect(here)
 
 
 @bp.route("/pull/zones/match", methods=["POST"])

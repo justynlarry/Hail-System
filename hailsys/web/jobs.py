@@ -66,6 +66,20 @@ UPDATE api_pulls SET api_status = 'failed', finished_at = now()
 WHERE pull_id = %s AND api_status = 'running'
 """
 
+_INSERT_ZONE_PULL_SQL = """
+INSERT INTO api_pulls
+    (emp_id, storm_date, report_text, zip_count, estimated_api_calls,
+    started_at, api_status, pull_source, zone_set_id)
+VALUES (%(emp_id)s, %(storm_date)s, %(report_text)s, %(zip_count)s,
+        %(estimated_api_calls)s, now(), 'running', 'zones', %(zone_set_id)s)
+RETURNING pull_id
+"""
+
+_INSERT_PULL_ZIP_SQL = """
+INSERT INTO pull_zips (pull_id, zcta5, basis, best_level)
+VALUES (%(pull_id)s, %(zcta5)s, %(basis)s, %(best_level)s)
+"""
+
 class PullInProgress(Exception):
     """A pull for this storm is already running (sql/033).
 
@@ -111,8 +125,29 @@ def _pull_and_match(*, pull_id, emp_id, storm_date, report_text, zip_codes,
         except Exception:
             logger.exception("event=pull_fail_mark_failed pull_id=%s", pull_id)
 
+
+def _create_zone_pull(conn, *, emp_id, storm_date, report_text, zip_count,
+                      estimated_api_calls, zone):
+    """The 'running' api_pulls row and its pull_zips rows, in one transaction.  Commits.
+
+    A pull is never recorded wihtout its reasons, and a failure here leaves neither.
+    The unique index (sql/033) still decides.  It's UniqueViolation comes out of 
+    the first insert, before any pull_zips row, and start_pull turns it into PullInProgress.
+    """
+    pull_id = conn.execute(_INSERT_ZONE_PULL_SQL, {
+        "emp_id": emp_id, "storm_date": storm_date, "report_text": report_text,
+        "zip_count": zip_count, "estimated_api_calls": estimated_api_calls,
+        "zone_set_id": zone["set_id"]}).fetchone()["pull_id"]
+    for row in zone["rows"]:
+        conn.execute(_INSERT_PULL_ZIP_SQL, {
+            "pull_id": pull_id, "zcta5": row["zcta5"], "basis": row["basis"],
+            "best_level": row["best_level"]})
+    conn.commit()
+    return pull_id
+
+
 def start_pull(*, emp_id, storm_date, report_text, zip_codes,
-               estimated_api_calls, window_start, window_end):
+               estimated_api_calls, window_start, window_end, zone=None):
     """Create the pull's api_pulls row, then run the pull in a thread.
 
     The row is created here, in the request, so a second pull for the same
@@ -121,16 +156,30 @@ def start_pull(*, emp_id, storm_date, report_text, zip_codes,
     something the view can show.  Stale 'running' rows for the storm are
     cancelled first, in the same transaction as the insert, so a pull whose
     thread died cannot block its storm forever.
+
+    zone says the zip list came from the hail zones (Phase 5c step 2b):
+    {'set_id': n, 'rows': [{'zcta5', 'basis', 'best_level'}, ...]}, one row for each
+    zip in zip_codes.  The rows are written with the pull, in one transaction.
     """
+    if zone is not None and (len(zip_codes) != len(set(zip_codes))
+                             or {r["zcta5"] for r in zone["rows"]} != set(zip_codes)
+                             or len(zone["rows"]) != len(zip_codes)):
+        raise ValueError("the zone rows are not the zips to pull")
     storm = {"storm_date": storm_date, "report_text": report_text}
     with get_connection() as conn:
         try:
             conn.execute(_CANCEL_STALE_FOR_STORM_SQL,
                          {**storm, "age": PULL_STALE_AFTER})
-            pull_id = create_pull(
-                conn, emp_id=emp_id, storm_date=storm_date,
-                report_text=report_text, zip_count=len(zip_codes),
-                estimated_api_calls=estimated_api_calls)
+            if zone is None:
+                pull_id = create_pull(
+                    conn, emp_id=emp_id, storm_date=storm_date,
+                    report_text=report_text, zip_count=len(zip_codes),
+                    estimated_api_calls=estimated_api_calls)
+            else:
+                pull_id = _create_zone_pull(
+                    conn, emp_id=emp_id, storm_date=storm_date,
+                    report_text=report_text, zip_count=len(zip_codes),
+                    estimated_api_calls=estimated_api_calls, zone=zone)
         except psycopg.errors.UniqueViolation as exc:
             if exc.diag.constraint_name != _INDEX_NAME:
                 raise

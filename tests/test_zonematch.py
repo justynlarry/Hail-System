@@ -72,10 +72,13 @@ class ZoneMatchTest(unittest.TestCase):
         return ZoneMatchTest.first_with_rows
 
     def written(self, day):
+        """The zone rows this test's transaction wrote.  Real rows from a person's click are left out:  matched_at is
+        the transaction's start, and match_zones stamps now()."""
         return self.conn.execute(
             "SELECT m.*, p.geom AS house FROM storm_listing_matches m JOIN listings l ON l.listing_id = m.listing_id "
             "JOIN properties p ON p.rentcast_id = l.rentcast_id "
-            "WHERE m.storm_date = %s AND m.iem_id IS NULL AND m.set_id = %s", (day, self.set["set_id"])).fetchall()
+            "WHERE m.storm_date = %s AND m.iem_id IS NULL AND m.set_id = %s AND m.matched_at = now()",
+            (day, self.set["set_id"])).fetchall()
 
     def table_counts(self):
         return {t: self.conn.execute(f"SELECT count(*) AS n FROM {t}").fetchone()["n"]
@@ -150,7 +153,7 @@ class ZoneMatchTest(unittest.TestCase):
                 "AND ST_DWithin(c.geom::geography, p.geom::geography, %(b3)s)) AS observer "
                 "FROM storm_listing_matches m JOIN listings l ON l.listing_id = m.listing_id "
                 "JOIN properties p ON p.rentcast_id = l.rentcast_id "
-                "WHERE m.storm_date = %(d)s AND m.iem_id IS NULL",
+                "WHERE m.storm_date = %(d)s AND m.iem_id IS NULL AND m.matched_at = now()",
                 {"s": start, "e": end, "d": day, "floor": self.set["cocorahs_min_in"],
                  "b3": float(self.set["band_3_mi"]) * 1609.344}).fetchall()
             self.assertEqual(len(rows), out["written"])

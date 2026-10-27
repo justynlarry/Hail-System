@@ -2,7 +2,8 @@
 {% block title %}Hail zones for a pull{% endblock %}
 {% block heading %}Hail zones — {{ storm_date }} HAIL{% endblock %}
 
-{# Read only (Phase 5c, step 2a).  Nothing on this page pulls, matches or sends. #}
+{# Phase 5c, steps 2a, 2b and 3.  Looking at this page changes nothing.  Two buttons write, each a person's click:  the Pull
+   (RentCast requests, after the zip count and estimate are shown) and the zone Match (internal rows).  Nothing here sends. #}
 {% macro km(x) %}{% if x == 0 %}–{% elif x < 0.05 %}&lt;0.1{% else %}{{ '%.1f'|format(x) }}{% endif %}{% endmacro %}
 {% macro pct(x) %}{% if x == 0 %}–{% elif x < 0.005 %}&lt;1%{% else %}{{ '{:.0%}'.format(x) }}{% endif %}{% endmacro %}
 {% set basis_names = {'both': 'Zones and reports', 'zones': 'Zones only', 'reports': 'Reports only'} %}
@@ -11,8 +12,8 @@
 {% block content %}
 <div class="page">
 <p class="note">
-    This page is for comparing only. Nothing is pulled from it and no RentCast request is made. A pull
-    from the hail zones is not built yet; the pull on the
+    Looking at this page pulls nothing and makes no RentCast request. A pull from the hail zones starts only when you
+    press the Pull button below, after you have seen the zip count and the request estimate. The pull on the
     <a href="{{ url_for('main.pull_estimate', date=storm_date.isoformat(), type='HAIL', submitted='1', actionable='1') }}">estimate page</a>
     works as before.
 </p>
@@ -39,6 +40,34 @@
     ({{ usage.period_start }} to {{ usage.period_end }}).
 </p>
 
+{% if recent_pulls %}
+<h3>Pulls for this day</h3>
+{% if recent_pulls | selectattr('state', 'equalto', 'running') | list %}
+<p class="note">A pull is running. This page reloads by itself every few seconds until it finishes.</p>
+<script>setTimeout(function () { location.reload(); }, 5000);</script>
+{% endif %}
+<table>
+    <thead>
+        <tr><th>Started</th><th>By</th><th>From</th><th>Status</th><th>Zips</th>
+            <th>Requests</th><th>Listings</th><th>Finished</th></tr>
+    </thead>
+    <tbody>
+        {% for p in recent_pulls %}
+        <tr>
+            <td>{{ p.started_local }}</td>
+            <td>{{ p.started_by }}</td>
+            <td>{{ 'hail zones' if p.pull_source == 'zones' else 'storm reports' }}</td>
+            <td>{% if p.state == 'stalled' %}Stopped? (no update for over 10 minutes){% else %}{{ p.state | capitalize }}{% endif %}</td>
+            <td>{{ p.zip_count }}</td>
+            <td>{{ p.actual_api_calls if p.actual_api_calls is not none else '–' }} (est. {{ p.estimated_api_calls }})</td>
+            <td>{{ p.listings_returned if p.listings_returned is not none else '–' }}</td>
+            <td>{{ p.finished_local or '–' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
 <form method="get" action="{{ url_for('main.zone_estimate') }}" class="confirm">
     <input type="hidden" name="date" value="{{ storm_date.isoformat() }}">
     {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
@@ -46,6 +75,37 @@
         Include Context (inside an NWS warning area and nothing else points to hail)</label>
     <button type="submit">Update</button>
 </form>
+
+{% if can_pull %}
+{% set projected = usage.used + union.estimated_api_calls %}
+{% if projected > usage.quota %}
+<p class="note warning">
+    This pull would bring the period to about <strong>{{ projected }}</strong> of {{ usage.quota }} — roughly
+    {{ projected - usage.quota }} request{{ '' if projected - usage.quota == 1 else 's' }} over the plan. Overage is billed.
+    The figure is an estimate; the real cost may differ.
+</p>
+{% endif %}
+{% if union.pulled_recently %}
+<p class="note">
+    {{ union.pulled_recently | length }} of these zips were pulled in the last {{ recent_window_days }} days
+    ({{ union.pulled_recently | map(attribute='zip_code') | join(', ') }}). They will be requested again; listings
+    change slowly, so pulling a zip again this soon usually costs requests without finding much new.
+</p>
+{% endif %}
+<form method="post" action="{{ url_for('main.zone_pull_start') }}" class="confirm" data-working>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="date" value="{{ storm_date.isoformat() }}">
+    <!-- The count, not the zip list: the POST rebuilds the list and refuses if this number no longer matches. -->
+    <input type="hidden" name="zip_count" value="{{ union.zip_count }}">
+    {% if include_context %}<input type="hidden" name="context" value="1">{% endif %}
+    {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
+    <button type="submit">Pull {{ union.zip_count }} zip{{ '' if union.zip_count == 1 else 's' }}
+        (about {{ union.estimated_api_calls }} request{{ '' if union.estimated_api_calls == 1 else 's' }})</button>
+    <small>Spends RentCast requests. Runs in the background. It does not match listings or send anything.</small>
+</form>
+{% elif view.built and not can_match %}
+<p class="note">Only days within {{ max_age }} days can be pulled.</p>
+{% endif %}
 
 {% if view.rows %}
 <table>
@@ -93,7 +153,7 @@
 {% else %}
 <p class="note">No zone matches have been written for this day.</p>
 {% endif %}
-<form method="post" action="{{ url_for('main.zone_match') }}" class="confirm">
+<form method="post" action="{{ url_for('main.zone_match') }}" class="confirm" data-working>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="date" value="{{ storm_date.isoformat() }}">
     {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
@@ -112,5 +172,27 @@
 {% endif %}
 
 <p><a href="{{ back or url_for('main.index') }}">Back</a></p>
+
+{# A press shows "Working…" and blocks a second press until the page comes back.  Going back in the browser restores the label. #}
+<script>
+(function () {
+  document.querySelectorAll('form[data-working]').forEach(function (f) {
+    f.addEventListener('submit', function () {
+      var b = f.querySelector('button[type="submit"]');
+      if (!b || b.disabled) { return; }
+      b.dataset.label = b.textContent;
+      b.disabled = true;
+      b.textContent = 'Working…';
+    });
+  });
+  window.addEventListener('pageshow', function (e) {
+    if (!e.persisted) { return; }
+    document.querySelectorAll('form[data-working] button[data-label]').forEach(function (b) {
+      b.textContent = b.dataset.label;
+      b.disabled = false;
+    });
+  });
+})();
+</script>
 </div>
 {% endblock %}

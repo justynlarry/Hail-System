@@ -109,3 +109,35 @@ def zone_row_counts(conn, *, day, set_id):
     """Zone matches already written for this day and set, by basis and level.  Counts only."""
     return conn.execute(_ROWS_SQL, {"day": day, "set_id": set_id}).fetchall()
 
+_PULLS_SQL = """
+SELECT p.pull_id, p.pull_source, p.api_status, p.zip_count, p.estimated_api_calls,
+       p.actual_api_calls, p.listings_returned, p.started_at, p.finished_at,
+       u.emp_fname AS started_by
+FROM api_pulls p
+JOIN users u ON u.emp_id = p.emp_id
+WHERE p.storm_date = %(day)s AND p.report_text = %(report_text)s
+ORDER BY p.started_at DESC
+LIMIT %(limit)s
+"""
+
+
+def recent_pulls(conn, *, day, report_text, tz, now, stale_after, limit=5):
+    """The latest pulls for a storm day, newest first, ready to show.
+    
+    'state' is the pull's status, except that a pull still 'running' after stale_after is
+    'stalled':  its thread died (a restart does that) and the startup sweep has not closed
+    it yet, the same rule workstate uses.  'started_local' and 'finished_local' are in tz.
+    Read-Only.
+    """
+    rows = conn.execute(_PULLS_SQL, {"day": day, "report_text": report_text,
+                                     "limit": limit}).fetchall()
+    out = []
+    for r in rows:
+        state = r["api_status"]
+        if state == "running" and now - r["started_at"] > stale_after:
+            state = "stalled"
+        finished = r["finished_at"]
+        out.append({**r, "state": state,
+                    "started_local": r["started_at"].astimezone(tz).strftime("%b %d %H:%M"),
+                    "finished_local": finished.astimezone(tz).strftime("%H:%M:%S") if finished else None})
+    return out
