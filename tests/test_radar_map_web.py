@@ -286,7 +286,7 @@ class IsolationTest(unittest.TestCase):
                              r"queries\.findings|queries import[^\n]*\bfindings\b|"
                              r"hailsys\.likelihood|likelihood_map|likelihood_zones|likelihood_builds|"
                              r"likelihood_parameter_sets|likelihood_level_rules|likelihood_runs|"
-                             r"zonepull|zone_zips|zone_estimate")
+                             r"zonepull|zone_zips|zone_estimate|zonematch|match_zones|zone_match")
 
     def files(self, *globs):
         out = []
@@ -296,9 +296,11 @@ class IsolationTest(unittest.TestCase):
         return out
 
     def test_email_matching_rentcast_and_constantcontact_code_never_mentions_the_radar(self):
+        # zonematch.py is the one file here that reads the zones:  the 2026-10-26 waiver (steps 2b and 3) puts zone
+        # matching in the matching package.  The report matcher and everything else stay clear.
         for path in self.files("hailsys/email/**/*.py", "hailsys/matching/**/*.py", "hailsys/rentcast/**/*.py",
                                "hailsys/constantcontact/**/*.py", "hailsys/email/templates/**/*"):
-            if path.is_file():
+            if path.is_file() and path.name != "zonematch.py":
                 with self.subTest(path=str(path.relative_to(ROOT))):
                     self.assertIsNone(self.RADAR_NAMES.search(path.read_text()))
 
@@ -333,13 +335,16 @@ class IsolationTest(unittest.TestCase):
         tree = ast.parse((ROOT / "hailsys/web/views.py").read_text())
         seen = 0
         for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and re.search(r"pull|match|send", node.name):
+            # zone_match is the one named exception:  the 2026-10-26 waiver's staff button for zone matching.  Its own test
+            # (test_the_zone_match_route_is_post_only_and_calls_only_the_zone_matcher) pins what it may touch.
+            if isinstance(node, ast.FunctionDef) and re.search(r"pull|match|send", node.name) and node.name != "zone_match":
                 seen += 1
                 with self.subTest(route=node.name):
                     names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
                     names |= {n.attr for n in ast.walk(node) if isinstance(n, ast.Attribute)}
                     self.assertFalse(names & {"radar", "radar_map", "zones_geojson", "picker_days", "findings", "likelihood_map",
-                                                 "zonepull", "zone_zips", "zone_estimate"}, names)
+                                                 "zonepull", "zone_zips", "zone_estimate", "zonematch", "match_zones",
+                                                 "zone_match"}, names)
         self.assertGreaterEqual(seen, 3)
 
     def zone_estimate_node(self):
@@ -347,6 +352,43 @@ class IsolationTest(unittest.TestCase):
         found = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "zone_estimate"]
         self.assertEqual(len(found), 1)
         return tree, found[0]
+
+    def zone_match_node(self):
+        tree = ast.parse((ROOT / "hailsys/web/views.py").read_text())
+        found = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "zone_match"]
+        self.assertEqual(len(found), 1)
+        return tree, found[0]
+
+    def test_only_the_zone_match_route_uses_the_zone_matcher(self):
+        tree, _ = self.zone_match_node()
+        users = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                for n in ast.walk(node):
+                    if isinstance(n, ast.Name) and n.id == "zonematch":
+                        users.add(node.name)
+        self.assertEqual(users, {"zone_match"})
+        files = set()
+        for path in self.files("hailsys/**/*.py"):
+            if path.name != "zonematch.py" and "zonematch" in path.read_text():
+                files.add(str(path.relative_to(ROOT)))
+        self.assertEqual(files, {"hailsys/web/views.py"})
+
+    def test_the_zone_match_route_is_post_only_and_calls_only_the_zone_matcher(self):
+        _, node = self.zone_match_node()
+        methods = []
+        for dec in node.decorator_list:
+            if isinstance(dec, ast.Call) and getattr(dec.func, "attr", "") == "route":
+                for k in dec.keywords:
+                    if k.arg == "methods":
+                        methods = [e.value for e in k.value.elts]
+        self.assertEqual(methods, ["POST"])
+        names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+        names |= {n.attr for n in ast.walk(node) if isinstance(n, ast.Attribute)}
+        # No pull, no report matcher, no estimate, no zone reads, no export or send code.
+        self.assertFalse(names & {"start_pull", "create_pull", "run_pull", "match_storm", "PullInProgress", "estimate_pull",
+                                  "estimate_zips", "zonepull", "zone_zips", "exports", "sendlist", "send_log"}, names)
+        self.assertIn("match_zones", names)
 
     def test_only_the_zone_estimate_route_uses_the_zone_reads(self):
         tree, _ = self.zone_estimate_node()
@@ -382,8 +424,16 @@ class IsolationTest(unittest.TestCase):
                 users.add(path.name)
         self.assertEqual(users, {"pull_estimate.html", "pull_zones.html"})
         page = (ROOT / "hailsys/web/templates/pull_zones.html").read_text()
-        for bad in ('method="post"', "pull_start", "match_start", "csrf_token"):
+        # One POST form, the match button, and nothing that starts a pull or the report matcher.
+        self.assertEqual(page.count('method="post"'), 1)
+        self.assertEqual(page.count('name="csrf_token"'), 1)
+        self.assertIn("url_for('main.zone_match')", page)
+        for bad in ("pull_start", "match_start"):
             self.assertNotIn(bad, page)
+        # Every route the page links to or posts to is on this list:  the estimate page (GET), itself, the match button,
+        # and the home page.
+        routes = set(re.findall(r"url_for\('main\.(\w+)'", page))
+        self.assertEqual(routes, {"pull_estimate", "zone_estimate", "zone_match", "index"})
 
     def test_only_the_findings_route_uses_the_findings_reads(self):
         tree = ast.parse((ROOT / "hailsys/web/views.py").read_text())

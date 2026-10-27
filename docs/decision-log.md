@@ -7828,3 +7828,27 @@ zone matching on a day writes rows no reader but the staff zones page can see; `
 match and takes a report match). `sql/057` (rehearsed in a rolled-back run on the 97,528 live matches and the 7 `send_log` rows, applied) and `sql/058` (the NULL gap in the CHECK, item 259). The first
 test run found two faults of mine: the matches CSV export broke because the new column shadowed an alias in a `GROUP BY` (item 258), and the CHECK let a NULL level through (item 259). **From here every
 migration rehearsal also runs every reader of the table it changes**; the 057 rehearsal checked the table and missed the export. Next: (c) `zonematch.py` and the button, then the stop before RentCast spending.
+
+**Piece (c) rules, decided by the developer 2026-10-26 ("yes to all 6"):** zone matching (`hailsys/matching/zonematch.py`, a button on `/pull/zones`).
+1. **Shared pipeline.** `hailsys/likelihood/build.py` is split into `prepare` (check the set and the day, no writes), `fill_tables` (the day's temporary layers, bands and anchors) and `drop_tables`, with
+   `build_day` calling them in the same order as before, so the matcher reads the same layers the zones were built from.
+2. **A house's rows.** An Active listing, not new construction and not land, whose property point is inside an Agree or One source zone stored for the day. Its **level** is the stored zone's; its **layer** is
+   the layer it sits in when the day is rebuilt in a temporary table. Houses outside the day's radar crop box get no row.
+3. **Basis.** Radar present means the layer is core, margin or radar-indicated. Observer present means a qualifying CoCoRaHS filing (at or above the set's size floor) within the set's third band edge
+   (5 mi). Both gives `both`, radar alone `radar`, the observer alone `observer`; **neither gives no row** (it rests on an IEM report beyond the match radius, which a wider match radius would match as a report).
+4. **One row per house per storm.** A house that already has a HAIL report match for the storm day is skipped. Rows are insert-only (`ON CONFLICT DO NOTHING` on the zone key): a re-run adds houses newly
+   inside a zone (late filings) and never changes a row.
+5. **Day-age guard (stricter than report matching, which has none).** The button refuses a day older than `settings.match_max_age_days` (30) or in the future, and a day with no build for the set in use. A zone row for an
+   older day could never be sent (the send list drops it as too old) and `hail_app` cannot delete it; on 2024-05-30 it would write 7,150 rows for houses that are Active today.
+6. **Synchronous, staff only.** `POST /pull/zones/match`, sender or admin, CSRF; the result (rows written by basis and level, houses skipped for a report match, for no evidence, or already matched) is shown on
+   `/pull/zones`, with the day's existing zone-row counts and no addresses. Nothing here is automatic and nothing here sends.
+
+**Built 2026-10-27, piece (c).** `hailsys/likelihood/build.py` split into `prepare`, `fill_tables` and `drop_tables` (a rebuild of 2026-09-20, 2026-09-22 and 2024-05-30 reproduces the stored zones exactly);
+`hailsys/matching/zonematch.py`; `POST /pull/zones/match` and the zone-match counts on `/pull/zones` (counts only, no addresses); `tests/test_zonematch.py` (29 tests, on a recent day and on the busiest
+day on record, 2023-07-20, plus lookalike fixtures for inactive, new-construction, land, report-matched and wind-matched listings; every meaningful planted bug caught), `test_zone_estimate_web.py`,
+the isolation tests (the match route is named in one carve-out, POST only, calling only `match_zones`) and a named exception in `test_match_readers.py` for the one counts query. Full suite 2,240 tests.
+The developer's first real click, 2026-10-27 on 2026-09-29, wrote 2 `radar` / One source rows (Calhan, zip 80808, both inside the stored zone, none on `send_log`); a second click wrote 0 and reported 2
+already written. The Context box on the zones page affects the zip list and estimate only, never matching, and the page now says so. **Two slips of mine, disclosed:** a scratch script left 2,356 zone
+rows for 2023-07-20 on `hail-dev` (a connection context manager commits on exit; deleted by the developer's go-ahead, "that's why we have a DEV server"), and the template link to the new route went live
+before `web` was restarted, giving a 500 on `/pull/estimate` (item 260). Next: the stop at (d), then 2b.
+

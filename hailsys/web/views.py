@@ -10,6 +10,7 @@ from flask import flash, g, redirect, Blueprint, render_template, abort, request
 
 from hailsys.web.auth import hash_password, login_required, verify_password, DUMMY_PASSWORD_HASH, MIN_PASSWORD_LENGTH, role_required
 
+from hailsys.matching import zonematch
 from hailsys.matching.matcher import match_storm
 from hailsys.rentcast.estimate import estimate_pull, estimate_zips
 from hailsys.web.jobs import start_pull, PullInProgress
@@ -125,9 +126,9 @@ def _actionable_from_args():
 
 def _report_type_from_args():
     """The ?type= filter for the list pages and the map, None for all types.
-    
+
     Until the form is submitted (or a link names a type) it is DEFAULT_REPORT_TEXT
-    the same way "actionable_only" defaults on: choosing 'All' sends type= empty on a 
+    the same way "actionable_only" defaults on: choosing 'All' sends type= empty on a
     submitted form and stays ALL.
     """
     if "submitted" in request.args or "type" in request.args:
@@ -137,7 +138,7 @@ def _report_type_from_args():
 
 def _export_query(report_text):
     """The page's query string for its Download CSV link, with the type it is actually showing.
-    
+
     The default type is not in the URL, and a download without one would be every type.
     """
     query = request.query_string.decode()
@@ -150,7 +151,7 @@ def _dnc_from_args():
     """Suppressed agents are excluded unless explicitly asked for.
 
     Download taken into someone's own email tool never passes the send-time
-    suppression check. 
+    suppression check.
     """
     return request.args.get("dnc") != "include"
 
@@ -171,7 +172,7 @@ def _filename_label(report_text):
     """Filename-safe label for content-Disposition.
 
     report_text reaches here from the URL.  A double quote would
-    close the quoted filename in the header early.  It's 
+    close the quoted filename in the header early.  It's
     whitelisted to enumerate what's allowed
     """
     raw = report_text or "ALL"
@@ -200,7 +201,7 @@ def _stamp():
     return datetime.now(DISPLAY_TZ).strftime("%Y-%m-%d")
 
 
-# ------ ------ ------ @BP.Routes ------ ------ ------ 
+# ------ ------ ------ @BP.Routes ------ ------ ------
 
 @bp.route("/")
 @login_required
@@ -288,7 +289,7 @@ def index():
             stale_after=INGEST_STALE_AFTER,
         )
         cc = ccstate.fetch_state(conn)
-        
+
 
     for row in rows:
         row["work_state"] = workstate.state_for(
@@ -317,7 +318,7 @@ def index():
         total_days=total_days,
         filter_args={k: v for k, v in request.args.items() if k != "page"},
         health=health,
-        
+
     )
 
 @bp.route("/storms/zips")
@@ -681,7 +682,7 @@ def pull_estimate():
 @role_required("sender", "admin")
 def zone_estimate():
     """A storm day's zips from the hail-likelihood zones, beside today's report-based list.
-    
+
     Read-Only, zones are hail only.
     """
     try:
@@ -699,6 +700,8 @@ def zone_estimate():
             conn, day=day, include_context=include_context, radius_m=radius_m,
             window_start=window_start, window_end=window_end,
             report_text=DEFAULT_REPORT_TEXT, actionable_only=True)
+        zone_rows = (zonepull.zone_row_counts(conn, day=day, set_id=view["set"]["set_id"])
+                     if view["set"] else [])
         today = estimate_pull(
             conn, radius_m=radius_m, window_start=window_start, window_end=window_end,
             report_text=DEFAULT_REPORT_TEXT, actionable_only=True)
@@ -711,6 +714,10 @@ def zone_estimate():
             day_bounds=denver_day_bounds,
         )
 
+    max_age = g.settings["match_max_age_days"]
+    age = (datetime.now(DISPLAY_TZ).date() - day).days
+    can_match = bool(view["built"]) and 0 <= age <= max_age
+
     return render_template(
         "pull_zones.html",
         storm_date=day,
@@ -719,9 +726,40 @@ def zone_estimate():
         union=union,
         usage=usage,
         include_context=include_context,
-        back=back
+        back=back,
+        zone_rows=zone_rows,
+        can_match=can_match,
+        max_age=max_age,
     )
-    
+
+
+@bp.route("/pull/zones/match", methods=["POST"])
+@role_required("sender", "admin")
+def zone_match():
+    """Write the zone matches for a storm day.  An explicit staff action."""
+    try:
+        day = datetime.strptime(request.form["date"], "%Y-%m-%d").date()
+    except (KeyError, ValueError):
+        abort(400)
+
+    back = _list_url(request.form.get("back"))
+    try:
+        with get_connection() as conn:
+            out = zonematch.match_zones(
+                conn, day, DISPLAY_TZ, emp_id=session["emp_id"],
+                today=datetime.now(DISPLAY_TZ).date(),
+                max_age_days=g.settings["match_max_age_days"])
+            conn.commit()
+    except zonematch.ZoneMatchError as exc:
+        flash(str(exc))
+    else:
+        basis = ", ".join(f"{n} {name}" for name, n in sorted(out["by_basis"].items())) or "none"
+        flash(f"Zone matches for {day}: wrote {out['written']} ({basis}). "
+              f"Skipped: {out['has_report']} already matched to a report, "
+              f"{out['no_evidence']} with no radar or observer, "
+              f"{out['already']} already written.")
+    return redirect(url_for("main.zone_estimate", date=day.isoformat(), back=back))
+
 
 @bp.route("/pull", methods=["POST"])
 @role_required("sender", "admin")
@@ -790,7 +828,7 @@ def pull_start():
         "zips": result["zip_count"],
         "since": datetime.now(timezone.utc).isoformat(),
     }
-     
+
     return redirect(back or url_for("main.index"))
 
 @bp.route("/match", methods=["POST"])
@@ -804,7 +842,7 @@ def match_start():
     report_text = (request.form.get("type") or "").strip()
     if not report_text:
         abort(400)
-    
+
     window_start, window_end = denver_day_bounds(day)
 
     already_matched = False
@@ -952,7 +990,7 @@ def change_password():
         cur.execute("SELECT password_hash FROM users WHERE emp_id = %s",
                     (g.user["emp_id"],))
         row = cur.fetchone()
-    
+
     errors = []
     if not verify_password(current, row["password_hash"]):
         errors.append("Current password is incorrect.")
@@ -962,13 +1000,13 @@ def change_password():
         errors.append("New passwords do not match.")
     elif new == current:
         errors.append("New password must be different from the current one.")
-    
+
     if errors:
         for e in errors:
             flash(e)
         return render_template("change_password.html",
                                min_password_length=MIN_PASSWORD_LENGTH), 400
-    
+
     new_hash = hash_password(new)
 
     with get_connection() as conn, conn.cursor() as cur:
@@ -984,12 +1022,12 @@ def change_password():
         )
         invalidated_at = cur.fetchone()["sessions_invalidated_at"]
         conn.commit()
-    
+
     session["issued_at"] = invalidated_at.isoformat()
 
     flash("Password changed, you have been signed out of all other sessions.")
     return redirect(url_for("main.index"))
-    
+
 
 @bp.route("/storms/matches.csv")
 @login_required
@@ -1081,7 +1119,7 @@ def exports_matches_csv():
     )
 
 
-# Sender/admin only: every agent's email and phone in one file is 
+# Sender/admin only: every agent's email and phone in one file is
 # sensitive information.
 
 @bp.route("/exports/realtors.csv")
@@ -1097,7 +1135,7 @@ def exports_realtors_csv():
 def storm_state():
     """One storm row's Status cell, re-rendered.  Returns same
     fragment the page rendered initially, so that the cell's
-    appearance is decided in one template rather than rebuilt 
+    appearance is decided in one template rather than rebuilt
     in Javascript.
     """
     try:
@@ -1130,7 +1168,7 @@ def storm_state():
 @login_required
 def storm_banner():
     """Banner under the Recent Storm Days Heading, re-rendered while the pull
-    the user just initiated is running.  Returns same fragment the page 
+    the user just initiated is running.  Returns same fragment the page
     rendered initially, so wording all lives in one template.
     """
     try:

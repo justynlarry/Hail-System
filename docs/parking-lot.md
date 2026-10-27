@@ -6519,3 +6519,18 @@ rehearsal tested a missing set but not a missing level.
 
 **Related:** items 258; decision log 2026-10-26 (steps 2b and 3).
 
+
+## 260. `/pull/estimate` returned a 500 after its template linked to a route the running process did not have
+
+**Status:** resolved 2026-10-27 (found by the developer clicking "Pull Again"; fixed by restarting `web`)
+
+`pull_estimate.html` gained `url_for('main.zone_estimate', ...)` (Phase 5c step 2a). Flask reloads templates from disk but Python once at startup, and the `web` container had started before
+`zone_estimate` existed in `views.py`, so the page raised `BuildError: Could not build url for endpoint 'main.zone_estimate'` for every request, including "Pull Again". The tests passed because each run starts a
+fresh process.
+
+**Fixed:** `docker compose restart web`. CLAUDE.md Conventions now says templates reload but Python does not, so restart `web` after changing `.py` files before relying on a template that uses them.
+
+**Not covered, accepted:** nothing checks that the running container is newer than the code. **When:** if it happens again, a status line in `scripts/status.sh` comparing the container's start time to the newest `.py`.
+
+**Related:** items 257, 258; decision log 2026-10-26 (step 2a) and 2026-10-27 (piece c).
+

@@ -20,6 +20,10 @@ ROOT = Path(__file__).resolve().parent.parent
 # Where the table is only written, never read.
 WRITERS = {"hailsys/matching/matcher.py", "hailsys/matching/zonematch.py"}
 
+# The one reader that does not inner-join iem_data, on purpose:  the staff zones page counts the zone rows already written
+# (iem_id IS NULL), by basis and level.  test_the_zone_row_counter_reads_only_counts pins what it may select.
+ZONE_ROW_READERS = {"hailsys/queries/zonepull.py"}
+
 READ = re.compile(r"\b(?:FROM|JOIN)\s+storm_listing_matches\s+(\w+)", re.I)
 
 
@@ -48,6 +52,8 @@ class MatchReaderTest(unittest.TestCase):
     def test_every_read_of_the_matches_table_is_inner_joined_to_iem_data_on_iem_id(self):
         checked = 0
         for name, text in sources():
+            if name in ZONE_ROW_READERS:
+                continue
             for alias in READ.findall(text):
                 with self.subTest(file=name, alias=alias):
                     inner = re.search(rf"\bJOIN\s+iem_data\s+\w+\s+ON\s+\w+\.iem_id\s*=\s*{alias}\.iem_id\b", text, re.I)
@@ -55,6 +61,18 @@ class MatchReaderTest(unittest.TestCase):
                     self.assertTrue(inner or reverse, f"{name}: storm_listing_matches {alias} is not inner-joined to iem_data")
                     checked += 1
         self.assertGreaterEqual(checked, 8)
+
+    def test_the_zone_row_counter_reads_only_counts_of_zone_rows(self):
+        # The exception above is only for this:  rows with no iem_id, as counts by basis and level, no listing columns.
+        text = (ROOT / "hailsys/queries/zonepull.py").read_text()
+        sql = re.search(r'_ROWS_SQL = """(.*?)"""', text, re.S).group(1)
+        self.assertEqual(re.sub(r"\s+", " ", sql).strip(),
+                         "SELECT basis, level, count(*) AS n FROM storm_listing_matches "
+                         "WHERE storm_date = %(day)s AND iem_id IS NULL AND set_id = %(set_id)s "
+                         "GROUP BY basis, level ORDER BY basis, level")
+        self.assertEqual(len(READ.findall(text)), 1)
+        for name in ZONE_ROW_READERS:
+            self.assertEqual(name, "hailsys/queries/zonepull.py")
 
     def test_no_reader_left_joins_iem_data_or_the_matches_table(self):
         for name, text in sources():

@@ -94,3 +94,18 @@ def zone_zips(conn, *, day, include_context, radius_m, window_start, window_end,
                      **{level: sum(1 for x in out["rows"] if x["best_level"] == level)
                         for level in RANK}}
     return out
+
+
+_ROWS_SQL = """
+SELECT basis, level, count(*) AS n
+FROM storm_listing_matches
+WHERE storm_date = %(day)s AND iem_id IS NULL AND set_id = %(set_id)s
+GROUP BY basis, level
+ORDER BY basis, level
+"""
+
+
+def zone_row_counts(conn, *, day, set_id):
+    """Zone matches already written for this day and set, by basis and level.  Counts only."""
+    return conn.execute(_ROWS_SQL, {"day": day, "set_id": set_id}).fetchall()
+

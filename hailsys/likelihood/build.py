@@ -224,13 +224,12 @@ SELECT level, area_km2 FROM likelihood_zones WHERE day = %(day)s AND set_id = %(
 _LAYER_AREAS_SQL = "SELECT layer, ST_Area(geom::geography) / 1000000.0 AS km2 FROM lk_layers"
 
 
-def build_day(conn, day, tz, *, set_id=None, user_id=None, report_text=DEFAULT_REPORT_TEXT):
-    """Build and store the likelihood zones for local date 'day', replacing any with the same set.
+def prepare(conn, day, tz, *, set_id=None, user_id=None, report_text=DEFAULT_REPORT_TEXT):
+    """Check the set and the day and return (args, held):  the query arguments, and whether the
+    day's warnings are all held.  Writes nothing.
 
-    set_id None uses the newest parameter set.  user_id is who clicked, None for a job.
-    Returns the build's counts, 'layer_areas' (km2 of each radar layer before the rules) and
-    'areas' (km2 of each stored level).  LikelihoodError if there is no such set, the set
-    lacks rules, or the day has no radar file loaded.
+    LikelihoodError if there is no such set, the set lacks rules, or the day has no radar file
+    loaded.  fill_tables and build_day take what this returns.
     """
     chosen = conn.execute(_SET_SQL, {"set_id": set_id}).fetchone()
     if chosen is None:
@@ -257,9 +256,16 @@ def build_day(conn, day, tz, *, set_id=None, user_id=None, report_text=DEFAULT_R
             "b1": miles(chosen["band_1_mi"]), "b2": miles(chosen["band_2_mi"]),
             "b3": miles(chosen["band_3_mi"])}
     held = warnings.covered(conn, start, end, warnings.current_states(conn))
+    return args, held
 
-    conn.execute(_DELETE_ZONES_SQL, args)
-    conn.execute(_DELETE_BUILD_SQL, args)
+
+def fill_tables(conn, args, held):
+    """Create and fill the day's temporary tables:  lk_anchors (the actionable reports), lk_layers
+    (the radar layers and 'none'), lk_bands (the distance bands), and the radar work tables.
+
+    They are ON COMMIT DROP;  drop_tables ends them sooner.  Adds 'duplicates' to args.  Nothing
+    permanent is written.
+    """
     conn.execute(_SCRATCH_SQL)
     conn.execute(_SCRATCH_LK_SQL)
     args["duplicates"] = conn.execute(_DUPLICATES_SQL, args).fetchone()["n"]
@@ -272,10 +278,29 @@ def build_day(conn, day, tz, *, set_id=None, user_id=None, report_text=DEFAULT_R
         conn.execute(_OUTER_SQL, args)
     conn.execute(_NONE_SQL, args)
     conn.execute(_BANDS_SQL, args)
+
+
+def drop_tables(conn):
+    conn.execute("DROP TABLE radar_work, radar_anchor_reports, lk_anchors, lk_layers, lk_bands")
+
+
+def build_day(conn, day, tz, *, set_id=None, user_id=None, report_text=DEFAULT_REPORT_TEXT):
+    """Build and store the likelihood zones for local date 'day', replacing any with the same set.
+
+    set_id None uses the newest parameter set.  user_id is who clicked, None for a job.
+    Returns the build's counts, 'layer_areas' (km2 of each radar layer before the rules) and
+    'areas' (km2 of each stored level).  LikelihoodError if there is no such set, the set
+    lacks rules, or the day has no radar file loaded.
+    """
+    args, held = prepare(conn, day, tz, set_id=set_id, user_id=user_id, report_text=report_text)
+
+    conn.execute(_DELETE_ZONES_SQL, args)
+    conn.execute(_DELETE_BUILD_SQL, args)
+    fill_tables(conn, args, held)
     counts = conn.execute(_BUILD_SQL, args).fetchone()
     conn.execute(_ZONES_SQL, args)
     layer_areas = {r["layer"]: r["km2"] for r in conn.execute(_LAYER_AREAS_SQL).fetchall()}
     areas = {r["level"]: r["area_km2"] for r in conn.execute(_AREAS_SQL, args).fetchall()}
-    conn.execute("DROP TABLE radar_work, radar_anchor_reports, lk_anchors, lk_layers, lk_bands")
-    return {"set_id": chosen["set_id"], **counts, "warnings_held": bool(held),
+    drop_tables(conn)
+    return {"set_id": args["set_id"], **counts, "warnings_held": bool(held),
             "layer_areas": layer_areas, "areas": areas}

@@ -134,7 +134,7 @@ nightly and Sunday 12:00 UTC, `scripts/status.sh cocorahs`; Colorado backfilled 
 timers at 11:30 UTC and Sunday 12:30 UTC, `scripts/status.sh likelihood`; all 2,195 loaded radar days built. A day's levels (Agree, One source,
 Context) come from the radar layer and the distance to the nearest hail report (IEM and CoCoRaHS), by the set's rules; hail reports only (item 254). **The staff-only map layer (2026-10-25)** on the Territory page (`/map/likelihood.geojson`, `hailsys/queries/likelihood_map.py`; Agree and One source on, Context off; the radar NWS warnings layer is now off until ticked). The backtest ran 2026-10-25: passed on the zip-overlap measure, IEM hidden 88.7% and CoCoRaHS hidden 93.5% (item 255 resolved; exact-point 63.5% and 85.1%). **The admin fields for the parameter set (slice 7, 2026-10-26)** are on the admin page (see Phase 5b). Step 1 is built.
 **Step 2a (waived in and built 2026-10-26): the estimate compared with the zones, read only, no pulls** (`/pull/zones`, `hailsys/queries/zonepull.py`, `pull_zones.html`; **built 2026-10-26**, with a link from `/pull/estimate` for hail days).
-Pulls and matching are unchanged: **steps 2b (the pull from the zones) and 3 (matches with `basis` and `level`) are waived in together (decision log 2026-10-26), not yet built;** step 4 (sends by level) needs its own
+Pulls and matching are unchanged: **steps 2b (the pull from the zones) and 3 (matches with `basis` and `level`) are waived in together (decision log 2026-10-26). Step 3 is built (2026-10-27):** `sql/057` and `058` (`storm_listing_matches` gains `storm_date`, `basis`, `level`, `layer`, `set_id`; only a `report` row has an `iem_id`; `send_log` refuses a zone-only match), `hailsys/matching/zonematch.py` and a staff button on `/pull/zones` that writes zone rows for a built day within `match_max_age_days` (30). Zone rows are invisible to every reader (tests pin it). **Not built: 2b, the pull itself** (`pull_zips`, `/pull/zones/start`), the stop before RentCast spending. Step 4 (sends by level) needs its own
 waiver entry first, and nothing CoCoRaHS- or likelihood-derived may reach an email, an export, a pull or the matcher until then.
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
@@ -241,7 +241,8 @@ These have already bitten us. Do not re-discover them.
   constant. Fixed ceilings and safety limits stay in code and are documented as such (the
   Constant Contact daily limit and headroom, the suppression rule, `MAX_EMAILS_LIMIT`). Decision
   log 2026-10-13. Done for the email images and sender (decision log 2026-10-14).
-- `web`, `app` and `loader` bind-mount the repo (edit = deploy). Only `ingest`
+- `web`, `app` and `loader` bind-mount the repo (edit = deploy). **Templates reload from disk but Python does not:** restart `web`
+  (`docker compose restart web`) after changing `.py` files, before relying on a template that uses them (item 260). Only `ingest`
   runs image-baked code, on purpose, because the nightly timers should run a
   known artifact -- rebuild it before testing ingest changes, and run
   `scripts/status.sh images` to see whether it is behind. See

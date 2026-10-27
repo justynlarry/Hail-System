@@ -79,6 +79,36 @@
     the zones. Zones use set {{ view.set.set_id }} ({{ view.set.name }}). Staff only: not used for
     emails, exports, pulls or matching.
 </p>
+
+<h3>Zone matches</h3>
+{% if zone_rows %}
+<table>
+    <thead><tr><th>Basis</th><th>Level</th><th>Listings</th></tr></thead>
+    <tbody>
+        {% for r in zone_rows %}
+        <tr><td>{{ r.basis }}</td><td>{{ level_names[r.level] }}</td><td>{{ r.n }}</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="note">No zone matches have been written for this day.</p>
+{% endif %}
+<form method="post" action="{{ url_for('main.zone_match') }}" class="confirm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="date" value="{{ storm_date.isoformat() }}">
+    {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
+    <button type="submit" {% if not can_match %}disabled{% endif %}>Match listings in the zones</button>
+    <small>
+        {% if can_match %}
+        Writes one internal match for each Active listing inside an Agree or One source zone that has radar or an
+        observer report behind it and no hail report match yet. Context is never matched, whatever the box above says. Nothing is sent or
+        pulled, and the app cannot undo it.
+        {% else %}
+        Only days within {{ max_age }} days that are built with the set in use can be matched.
+        {% endif %}
+    </small>
+</form>
+
 {% endif %}
 
 <p><a href="{{ back or url_for('main.index') }}">Back</a></p>

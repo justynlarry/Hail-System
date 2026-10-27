@@ -5,6 +5,10 @@
     docker compose run --rm -T --no-deps -e PGHOST=postgis -e PGUSER=hail_admin -e PGPASSWORD="$PW" \
         -e FLASK_SECRET_KEY="$FK" -v ./tests:/app/tests:ro web python -m unittest tests.test_zone_estimate_web
 
+The match button (POST /pull/zones/match) is tested here too, with zonematch.match_zones replaced:  it passes the admin, the day,
+today and the storm age limit;  shows what was written or the refusal;  needs a token and a sender or admin;  and the
+zones page only enables it for a built day inside the age limit.
+
 The zone reads and the two estimates are replaced, so the page is predictable and nothing touches the pull history.
 What they pin:  the numbers for today's pull and for the zones side by side, a row per zip with its basis, level, overlap
 and share (tiny overlaps shown as "<0.1" and "<1%"), the Context column only when asked for, the not-built message with
@@ -15,7 +19,7 @@ that it is GET only, starts no pull and writes nothing;  and that the estimate p
 import os
 import sys
 import unittest
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -26,6 +30,8 @@ try:
     import psycopg
     from psycopg.rows import dict_row
     from hailsys.web import create_app, views as views_web
+    from hailsys.matching import zonematch
+    from hailsys.tuning import DISPLAY_TZ
     MISSING = None
 except ImportError as exc:
     MISSING = str(exc)
@@ -50,6 +56,9 @@ TODAY = {"zip_count": 3, "estimated_api_calls": 3, "zips": ["80817", "80901", "8
          "pulled_recently": [], "not_pulled_recently": ["80817", "80901", "80999"]}
 UNION = {"zip_count": 4, "estimated_api_calls": 5, "zips": VIEW["zips"], "pulled_recently": [],
          "not_pulled_recently": VIEW["zips"]}
+MATCHED = {"day": DAY, "set_id": 7, "built_at": datetime(2026, 10, 25, 12, 0, tzinfo=timezone.utc), "in_zones": 20,
+           "has_report": 5, "outside_crop": 0, "no_evidence": 3, "already": 2, "written": 10,
+           "by_basis": {"radar": 6, "both": 4}, "by_level": {"agree": 4, "one_source": 6}}
 USAGE = {"used": 10, "quota": 1000, "remaining": 990, "over": 0, "period_start": date(2026, 10, 1),
          "period_end": date(2026, 11, 1)}
 
@@ -73,6 +82,10 @@ class ZoneEstimateWebTest(unittest.TestCase):
         self.estimate_zips = stack.enter_context(mock.patch.object(views_web, "estimate_zips", return_value=UNION))
         stack.enter_context(mock.patch.object(views_web.quota, "fetch_usage", return_value=USAGE))
         self.start_pull = stack.enter_context(mock.patch.object(views_web, "start_pull"))
+        self.zone_rows = stack.enter_context(mock.patch.object(views_web.zonepull, "zone_row_counts", return_value=[]))
+        self.match_zones = stack.enter_context(mock.patch.object(views_web.zonematch, "match_zones", return_value=MATCHED))
+        self.max_age = self.conn.execute("SELECT match_max_age_days AS n FROM settings").fetchone()["n"]
+        self.today = datetime.now(DISPLAY_TZ).date()
 
     def client_as(self, role):
         if role not in self.users:
@@ -209,6 +222,116 @@ class ZoneEstimateWebTest(unittest.TestCase):
         self.assertIn("<strong>3</strong> zips", html)
         self.assertIn('action="/pull"', html)
         self.assertIn('name="zip_count" value="3"', html)
+
+    # ---- the match button ----
+
+    def button(self, html):
+        import re
+        m = re.search(r'<button type="submit" ?(disabled)?>Match listings in the zones', html)
+        return None if m is None else ("disabled" if m.group(1) else "enabled")
+
+    def test_the_button_is_enabled_for_a_built_day_inside_the_age_limit(self):
+        for age in (0, 1, self.max_age):
+            with self.subTest(age=age):
+                html = self.text(f"date={(self.today - timedelta(days=age)).isoformat()}")
+                self.assertEqual(self.button(html), "enabled")
+                self.assertIn("Nothing is sent or pulled", html)
+
+    def test_the_button_is_disabled_past_the_limit_and_says_why(self):
+        html = self.text(f"date={(self.today - timedelta(days=self.max_age + 1)).isoformat()}")
+        self.assertEqual(self.button(html), "disabled")
+        self.assertIn(f"Only days within {self.max_age} days", html)
+
+    def test_the_button_is_disabled_for_a_day_in_the_future(self):
+        self.assertEqual(self.button(self.text(f"date={(self.today + timedelta(days=1)).isoformat()}")), "disabled")
+
+    def test_an_unbuilt_day_has_no_zone_match_section_at_all(self):
+        self.zone_zips.return_value = dict(VIEW, built=False, rows=[], zips=[], counts={})
+        html = self.text(f"date={self.today.isoformat()}")
+        self.assertNotIn("Zone matches", html)
+        self.assertIsNone(self.button(html))
+
+    def test_the_page_lists_what_is_already_written_as_counts(self):
+        self.zone_rows.return_value = [{"basis": "radar", "level": "agree", "n": 12},
+                                       {"basis": "both", "level": "one_source", "n": 3}]
+        html = self.text(f"date={self.today.isoformat()}")
+        self.assertRegex(html, r"<td>radar</td><td>Agree</td><td>12</td>")
+        self.assertRegex(html, r"<td>both</td><td>One source</td><td>3</td>")
+        self.assertEqual(self.zone_rows.call_args.kwargs["set_id"], 7)
+
+    def test_with_nothing_written_the_page_says_so(self):
+        self.assertIn("No zone matches have been written for this day.", self.text())
+
+    def test_viewing_the_page_never_writes_zone_matches(self):
+        self.text(f"date={self.today.isoformat()}")
+        self.text(f"date={self.today.isoformat()}&context=1")
+        self.assertEqual(self.match_zones.call_count, 0)
+
+    # ---- POST /pull/zones/match ----
+
+    def post_match(self, role="admin", csrf=False, **data):
+        self.app.config["WTF_CSRF_ENABLED"] = csrf
+        return self.client_as(role).post("/pull/zones/match", data=data, follow_redirects=False)
+
+    def test_the_post_needs_a_token(self):
+        resp = self.post_match(csrf=True, date="2026-09-22")
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(self.match_zones.call_count, 0)
+
+    def test_signed_out_goes_to_login_and_writes_nothing(self):
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        resp = self.app.test_client().post("/pull/zones/match", data={"date": "2026-09-22"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login", resp.headers["Location"])
+        self.assertEqual(self.match_zones.call_count, 0)
+
+    def test_a_viewer_is_refused(self):
+        self.assertEqual(self.post_match(role="viewer", date="2026-09-22").status_code, 403)
+        self.assertEqual(self.match_zones.call_count, 0)
+
+    def test_a_sender_may_match(self):
+        self.assertEqual(self.post_match(role="sender", date="2026-09-22").status_code, 302)
+
+    def test_the_post_is_not_a_get(self):
+        self.assertEqual(self.client_as("admin").get("/pull/zones/match?date=2026-09-22").status_code, 405)
+
+    def test_a_good_post_passes_the_admin_the_day_today_and_the_age_limit_and_redirects_to_the_page(self):
+        resp = self.post_match(date="2026-09-22")
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/pull/zones?date=2026-09-22", resp.headers["Location"])
+        args, kwargs = self.match_zones.call_args
+        self.assertEqual(args[1], DAY)
+        self.assertEqual(args[2], DISPLAY_TZ)
+        self.assertEqual((kwargs["emp_id"], kwargs["today"], kwargs["max_age_days"]),
+                         (self.users["admin"], self.today, self.max_age))
+
+    def test_the_result_is_shown_after_the_redirect(self):
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        client = self.client_as("admin")
+        html = client.post("/pull/zones/match", data={"date": "2026-09-22"},
+                           follow_redirects=True).get_data(as_text=True)
+        self.assertIn("Zone matches for 2026-09-22: wrote 10 (4 both, 6 radar).", html)
+        self.assertIn("5 already matched to a report", html)
+        self.assertIn("3 with no radar or observer", html)
+        self.assertIn("2 already written", html)
+
+    def test_a_refusal_is_a_message_and_nothing_else(self):
+        self.match_zones.side_effect = zonematch.ZoneMatchError("2026-01-01 is 299 days ago, past the storm age limit.")
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        html = self.client_as("admin").post("/pull/zones/match", data={"date": "2026-01-01"},
+                                            follow_redirects=True).get_data(as_text=True)
+        self.assertIn("past the storm age limit", html)
+        self.assertNotIn("wrote", html)
+
+    def test_a_missing_or_bad_date_is_a_400_and_writes_nothing(self):
+        for data in ({}, {"date": ""}, {"date": "June 1"}, {"date": "2026-13-40"}):
+            with self.subTest(data=data):
+                self.assertEqual(self.post_match(**data).status_code, 400)
+        self.assertEqual(self.match_zones.call_count, 0)
+
+    def test_the_post_starts_no_pull_and_runs_no_report_match(self):
+        self.post_match(date="2026-09-22")
+        self.assertEqual(self.start_pull.call_count, 0)
 
 
 def contextlib_stack(test):
