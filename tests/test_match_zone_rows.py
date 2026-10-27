@@ -192,7 +192,7 @@ class ZoneMatchRowTest(unittest.TestCase):
         match_id = self.zone_row()
         with self.assertRaises(psycopg.errors.RestrictViolation) as ctx:
             self.insert_send(old, match_id)
-        self.assertIn("not waived in", str(ctx.exception))
+        self.assertIn("zone-kind template", str(ctx.exception))
 
     def test_send_log_refuses_every_zone_basis(self):
         import psycopg

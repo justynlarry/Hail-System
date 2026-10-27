@@ -7918,3 +7918,12 @@ code; the report path's own rule ("built and rehearsed on test addresses only") 
 **Stays unchanged:** the report send path, the suppression check at send time, "nothing sends automatically", the exports, the drips, and the gates above. **Related:** items 129, 183, 189, 96, 202; decision log 2026-10-23 (design,
 points 5 and 6, answer 2f), 2026-10-26 (steps 2b and 3) and 2026-10-27 (step 2b).
 
+**Built 2026-10-27, step 4 pieces 1 and 2.** *Piece 1:* `hailsys/email/zonewording.py` (the radar sentence with the threshold and radius read from the parameter set, the observer sentence and the CoCoRaHS attribution
+by basis, and the banned-claim check, which also reads `alt`, `title` and `aria-label` text after the first tests found that gap) and the draft `hail_alert_zone` template and subject (no hail size, no distance, no National
+Weather Service); 36 tests, 23 planted bugs all caught. *Piece 2:* `sql/060` (rehearsed in a rolled-back run on the 7 real `send_log` rows with a sweep of every reader, then applied): `email_templates.match_kind`;
+`send_log.basis` (default `report`, so the existing rows and the existing send code stay truthful), `level` and `zone_set_id`; the trigger `trg_send_log_kind_pairing` replacing the blanket guard of `sql/057`; and
+`settings.zone_observer_wording_approved`, false, logged to `settings_history`. `tests/test_zone_send_schema.py` (22 tests; all 13 planted bugs in the trigger and the guards caught, one gap in my first tests closed:
+a valid set that is not the match's own). The rehearsal's first draft of the migration had three slips of mine caught on read-back (a typo, a duplicated block, reworded live messages). **Wording note for review:**
+the draft zone template's words are mine, adapted from the shipped copy ("Weather observations point to hail near your listing", "What was observed", "This is based on weather observations, not an inspection"); marketing owns the
+final words inside the rules. Nothing here sends anything; pieces 3 to 6 remain.
+
