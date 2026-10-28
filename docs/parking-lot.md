@@ -1410,6 +1410,11 @@ today means doing it by hand at the database.
 
 **When:** if someone is suppressed by mistake and needs to be un-suppressed.
 
+**2026-10-28.** Done by hand once: a mistyped address from the first newsletter upload
+(`alexfchisolm`, `dnc_id` 4663) was marked removed by the developer, and the right one added
+(4664). That was a typo, not a person, so the trigger is not met. Item 269 built typed entry
+and left this screen out by the developer's choice; this item is the record for it.
+
 ## 135. The email copy is a first draft, not final
 
 **Status:** open
@@ -6657,7 +6662,7 @@ first (`levelreport` counts only `unsubscribe`, deliberately).
 
 ## 269. No way to add a single address to the suppression list on `/admin`
 
-**Status:** resolved 2026-10-28 (requested by the developer the same day). A "Type addresses in" form on `/admin` (`POST /admin/dnc/typed`, `dncimport.parse_typed`), through the same preview and commit, with the source choice and an optional note. **A removal screen was not built** (developer's choice): removing a suppression should be rare and deliberate; the 2026-10-28 typo was retired by hand. **When** (for a removal screen): if a second suppression ever needs reversing.
+**Status:** resolved 2026-10-28 (requested by the developer the same day). A "Type addresses in" form on `/admin` (`POST /admin/dnc/typed`, `dncimport.parse_typed`), through the same preview and commit, with the source choice and an optional note. **A removal screen was not built** (developer's choice): removing a suppression should be rare and deliberate; the 2026-10-28 typo was retired by hand. The removal screen is item 134's, with its own trigger.
 
 Adding one or a few unsubscribes means building a CSV with the export's exact column names (item 129's first use
 needed two edits and picked up a typo). Wanted: a form beside the CSV upload to type addresses in, through the same
