@@ -643,7 +643,7 @@ The suppression list. Answers one question: *may we send to this address?*
 | `email_raw` | As received |
 | `email_norm` | Lowercased/trimmed. **UNIQUE. This is the enforcement key** |
 | `added_at`, `added_by` | When, and the `emp_id` of who suppressed it — the system account's `emp_id` for machine-initiated rows (bounces, complaints, the legacy import) |
-| `source` | reply / unsubscribe / hard bounce / complaint / manual. **Bounces mean bad data; complaints mean bad targeting or copy.** Count them separately when watching deliverability |
+| `source` | `reply` / `unsubscribe` / `hard_bounce` / `complaint` / `manual` / `legacy_import` / `newsletter` (`sql/061`). `unsubscribe` is the hail system's own Constant Contact account, written by the sync, and the by-level report credits it to our emails; `newsletter` is RBI's separate newsletter account, brought in by hand (item 129); `legacy_import` is the 2026-09-29 lists. **Bounces mean bad data; complaints mean bad targeting or copy.** Count them separately when watching deliverability |
 | `reason` | Free text |
 | `realtor_id` | FK, nullable. Convenience only, never a requirement |
 | `name_at_add`, `phone_at_add` | For the best-effort second-address pass — **feeds human review, never automatic enforcement** |
@@ -680,9 +680,11 @@ nothing sends yet.
 
 ### `dnc_import_batches` / `dnc_import_rows`
 
-Staging for an admin-uploaded suppression file. `sql/026`. One
-`dnc_import_batches` row per upload (`token`, `filename`, who uploaded it,
-`row_count`, `committed_at` — `NULL` until confirmed); one
+Staging for an admin-uploaded suppression file or addresses typed on the admin page. `sql/026`,
+`sql/061`. One `dnc_import_batches` row per upload (`token`, `filename` — `typed on the admin page`
+for typed entries — who uploaded it, `row_count`, `committed_at` — `NULL` until confirmed, `source`
+— `newsletter`, `manual` or `legacy_import`, required, what the rows become in `dnc_list.source` —
+and `note`, optional, at most 200 characters, added to each row's `reason`); one
 `dnc_import_rows` row per parsed line (`email_raw`, `name_at_add`,
 `added_at`, and `rejected` — `NULL` when the row parsed cleanly, the
 reason otherwise). The preview page reads from here, and commit promotes

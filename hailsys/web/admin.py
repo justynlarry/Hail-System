@@ -173,6 +173,7 @@ def _render_admin(form=None, status=200, zone_form=None, trial=None, trial_day=N
         zone_form=zone_form,
         unbuilt=unbuilt,
         storm_states=storm_states,
+        dnc_sources=dncimport.SOURCES,
         observer_wording=observer_wording,
         zone_layers=likelihoodadmin.LAYERS,
         zone_bands=likelihoodadmin.BANDS,
@@ -522,6 +523,10 @@ def _refuse_self(emp_id):
 
 @admin_bp.route("/dnc/upload", methods=["POST"])
 def dnc_upload():
+    source = request.form.get("source")
+    if source not in dncimport.SOURCES:
+        flash("Say where these addresses came from.")
+        return redirect(url_for("admin.index"))
     upload = request.files.get("file")
     if upload is None or not upload.filename:
         flash("Choose a .csv file first.")
@@ -538,8 +543,29 @@ def dnc_upload():
     with get_connection() as conn:
         token = dncimport.stage(
             conn, rows=rows, filename=upload.filename,
-            uploaded_by=g.user["emp_id"])
+            uploaded_by=g.user["emp_id"], source=source)
 
+    return redirect(url_for("admin.dnc_preview", token=token))
+
+
+@admin_bp.route("/dnc/typed", methods=["POST"])
+def dnc_typed():
+    source = request.form.get("source")
+    if source not in dncimport.SOURCES:
+        flash("Say where these addresses came from.")
+        return redirect(url_for("admin.index"))
+    note = (request.form.get("note") or "").strip()
+    if len(note) > dncimport.MAX_NOTE:
+        flash(f"The note is longer than {dncimport.MAX_NOTE} characters.")
+        return redirect(url_for("admin.index"))
+    rows, error = dncimport.parse_typed(request.form.get("addresses"))
+    if error:
+        flash(error)
+        return redirect(url_for("admin.index"))
+    with get_connection() as conn:
+        token = dncimport.stage(
+            conn, rows=rows, filename=dncimport.TYPED_FILENAME,
+            uploaded_by=g.user["emp_id"], source=source, note=note)
     return redirect(url_for("admin.dnc_preview", token=token))
 
 
@@ -572,7 +598,7 @@ def dnc_commit(token):
 
         added = dncimport.commit_batch(
             conn, batch_id=batch["batch_id"], added_by=g.user["emp_id"],
-            filename=batch["filename"])
+            filename=batch["filename"], note=batch["note"])
 
     flash(f"Imported {added} new suppression"
           f"{'' if added == 1 else 's'} from {batch['filename']}.")

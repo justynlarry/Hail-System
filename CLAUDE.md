@@ -69,7 +69,8 @@ addresses.
   `/admin`, `sql/026`, `hailsys/queries/dncimport.py`, from the Constant Contact export plus
   the Airtable-only entries, one from the sync, and 8 uploaded 2026-10-28). RBI's newsletter
   account is separate, so its unsubscribes are uploaded by hand from Constant Contact's
-  notification emails (item 129, accepted 2026-10-28).
+  notification emails (item 129, accepted 2026-10-28), as a CSV or typed into the admin page's
+  form, recorded with `source = 'newsletter'` (`sql/061`, items 268 and 269).
 - **What gets sent.** `sent_emails` is the email as sent, one per realtor per send, and
   `send_log` keeps one row per match, pointing at it (design: item 180; one email per house:
   item 55). Eligibility is `settings.match_max_age_days`, `email_cap_days` and

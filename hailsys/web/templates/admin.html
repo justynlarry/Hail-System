@@ -340,15 +340,42 @@
 <section>
   <h2>Do-not-contact list</h2>
   <p class="note">
-    A Constant Contact export, unsubscribed contacts only. You'll see what
-    would be added before anything is written.
+    Add a Constant Contact export (unsubscribed contacts only) or type addresses in. Either way you'll see
+    what would be added before anything is written. Unsubscribes from the hail system's own Constant Contact
+    account arrive by the sync on its own; this is for everything else.
   </p>
+  {% macro source_choice(prefix) %}
+    <fieldset>
+      <legend>These are</legend>
+      {% for key, label in dnc_sources.items() %}
+      <label><input type="radio" name="source" value="{{ key }}" id="{{ prefix }}-{{ key }}"
+                    {% if loop.first %}checked{% endif %} required> {{ label }}</label><br>
+      {% endfor %}
+    </fieldset>
+  {% endmacro %}
+
+  <h3>Upload a file</h3>
   <form method="post" action="{{ url_for('admin.dnc_upload') }}"
         enctype="multipart/form-data" class="admin-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>CSV file
       <input type="file" name="file" accept=".csv,text/csv" required></label>
+    <br><small>Columns must be named exactly <code>Email address</code>, <code>Email status</code> and
+      <code>Created At</code>, as Constant Contact exports them.</small>
+    {{ source_choice('file') }}
     <button type="submit">Upload and preview</button>
+  </form>
+
+  <h3>Type addresses in</h3>
+  <form method="post" action="{{ url_for('admin.dnc_typed') }}" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p><label for="dnc-addresses">Addresses (separate with spaces, commas or new lines)</label><br>
+       <textarea id="dnc-addresses" name="addresses" rows="4" cols="50" required></textarea></p>
+    {{ source_choice('typed') }}
+    <p><label for="dnc-note">Note (optional, kept with each address)</label>
+       <input id="dnc-note" name="note" type="text" maxlength="200" size="50"
+              placeholder="For example: called the office"></p>
+    <button type="submit">Preview</button>
   </form>
 </section>
 

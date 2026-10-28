@@ -6644,8 +6644,7 @@ The note at the foot of `/pull/zones` (`pull_zones.html`) and the likelihood lin
 
 ## 268. Every DNC upload is recorded as `legacy_import`
 
-**Status:** open (found 2026-10-28 with the first notification-derived upload, item 129)
-**When:** with item 269 (the single-address form)
+**Status:** resolved 2026-10-28 (found the same day with the first notification-derived upload, item 129). `sql/061`: `dnc_list.source` gains `newsletter`; `dnc_import_batches.source` (required) and `note`; the commit writes the batch's source; batch 6's 9 rows relabelled `newsletter`. Decision log 2026-10-28.
 
 `hailsys/queries/dncimport.py` `_COMMIT_SQL` writes `source = 'legacy_import'` for every committed upload, whatever
 the file is. That was right for the 2026-09-29 imports; it is wrong for the ongoing newsletter-account unsubscribes
@@ -6658,11 +6657,24 @@ first (`levelreport` counts only `unsubscribe`, deliberately).
 
 ## 269. No way to add a single address to the suppression list on `/admin`
 
-**Status:** open (requested by the developer 2026-10-28)
-**When:** next after item 129, with item 268
+**Status:** resolved 2026-10-28 (requested by the developer the same day). A "Type addresses in" form on `/admin` (`POST /admin/dnc/typed`, `dncimport.parse_typed`), through the same preview and commit, with the source choice and an optional note. **A removal screen was not built** (developer's choice): removing a suppression should be rare and deliberate; the 2026-10-28 typo was retired by hand. **When** (for a removal screen): if a second suppression ever needs reversing.
 
 Adding one or a few unsubscribes means building a CSV with the export's exact column names (item 129's first use
 needed two edits and picked up a typo). Wanted: a form beside the CSV upload to type addresses in, through the same
 preview-then-commit path, recording who added them and a proper source (item 268), with the same normalising
 (`lower(trim())`, non-breaking spaces stripped). Related: there is no screen to mark a suppression removed either
 (2026-10-28's typo was retired by hand, `dnc_id` 4663); decide with this item whether one is wanted.
+
+
+## 270. Nothing tested the do-not-contact import
+
+**Status:** resolved 2026-10-28 (found while testing items 268 and 269)
+
+No test touched `hailsys/queries/dncimport.py` or the `/admin` DNC routes, though they decide who may never be emailed and had
+already taken the 759 imports and the 2026-10-28 upload. The first keyed-in version of items 268 and 269 had four slips that would
+each have broken uploads (`parse_typed` returning after the first address, the source written as the literal text `'b.source'`, a
+stray `+` before the commit's second query, and the typed route never parsing the addresses), and no existing test would have
+noticed. `tests/test_dnc_import.py` (29 tests) now covers the upload parser, typed entry, staging, the commit's source and reason,
+skipping rejected and already-suppressed rows, the sweep of stale previews, and the pages; 19 planted bugs, all caught.
+
+**Related:** items 268, 269; decision log 2026-10-28.
