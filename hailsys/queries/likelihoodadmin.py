@@ -270,3 +270,23 @@ def save_storm_states(conn, emp_id, text):
     conn.execute("SELECT set_config('app.current_emp_id', %s, true)", (str(emp_id),))
     conn.execute(_SET_STATES_SQL, {"states": states})
     return states
+
+
+_GET_OBSERVER_SQL = ("SELECT zone_observer_wording_approved AS approved "
+                     "FROM settings WHERE id = 1")
+
+_SET_OBSERVER_SQL = ("UPDATE settings SET zone_observer_wording_approved = %(approved)s "
+                     "WHERE id = 1")
+
+
+def observer_wording_approved(conn):
+    """May a zone email rest on a CoCoRaHS observer report.  (settings, sql/060)"""
+    return conn.execute(_GET_OBSERVER_SQL).fetchone()["approved"]
+
+
+def save_observer_wording(conn, emp_id, approved):
+    """Set the switch, logged to settings_history by the trigger.  The reading of the CoCoRaHS
+    usage policy is recorded in the decision log.  This is only the switch the code reads."""
+    conn.execute("SELECT set_config('app.current_emp_id', %s, true)", (str(emp_id),))
+    conn.execute(_SET_OBSERVER_SQL, {"approved": bool(approved)})
+    return bool(approved)

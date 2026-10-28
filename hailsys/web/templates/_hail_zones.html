@@ -135,4 +135,16 @@
        <small>Two-letter codes separated by commas, for example CO,WY. The change is logged in the
        settings history and applies to warnings fetched from now on.</small></p>
   </form>
+
+  <h3 id="observer-wording">CoCoRaHS observer wording</h3>
+  <form method="post" action="{{ url_for('admin.update_observer_wording') }}" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p>Now: <strong>{{ 'approved' if observer_wording else 'not approved' }}</strong>.</p>
+    <p><label><input type="checkbox" name="approved" value="1" {% if observer_wording %}checked{% endif %}>
+       Zone emails may rest on a volunteer observer (CoCoRaHS) report</label>
+       <button type="submit">Save</button><br>
+       <small>Tick only after the CoCoRaHS usage policy has been read in full and the decision log says so.
+       While it is not approved, observer matches are counted on the send page but not sent, and the
+       database refuses them too. The change is logged in the settings history.</small></p>
+  </form>
 </section>

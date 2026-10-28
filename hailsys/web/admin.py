@@ -144,6 +144,7 @@ def _render_admin(form=None, status=200, zone_form=None, trial=None, trial_day=N
         zone_sets = likelihoodadmin.history(conn)
         unbuilt = likelihoodadmin.unbuilt_days(conn)
         storm_states = likelihoodadmin.storm_states(conn)
+        observer_wording = likelihoodadmin.observer_wording_approved(conn)
         suggested_day = likelihoodadmin.suggest_day(conn)
 
     # "Use these values again" is a link, not a write, it fills the form from an older set and the 
@@ -172,6 +173,7 @@ def _render_admin(form=None, status=200, zone_form=None, trial=None, trial_day=N
         zone_form=zone_form,
         unbuilt=unbuilt,
         storm_states=storm_states,
+        observer_wording=observer_wording,
         zone_layers=likelihoodadmin.LAYERS,
         zone_bands=likelihoodadmin.BANDS,
         zone_levels=likelihoodadmin.LEVELS,
@@ -415,6 +417,21 @@ def update_storm_states():
         flash(str(exc))
     else:
         flash(f"Storm states set to {states}.  It applies to warnings fetched from now on.")
+    return redirect(url_for("admin.index") + "#hail-zones")
+
+
+@admin_bp.route("/hail-zones/observer-wording", methods=["POST"])
+def update_observer_wording():
+    # An unticked checkbox sends nothing, so a missing 'approved' means not approved:
+    # a malformed post can only switch it off, never on.
+    approved = request.form.get("approved") == "1"
+    with get_connection() as conn:
+        likelihoodadmin.save_observer_wording(conn, g.user["emp_id"], approved)
+        conn.commit()
+    if approved:
+        flash("Observer wording approved: zone emails may now rest on a CoCoRaHS report.")
+    else:
+        flash("Observer wording not approved:  observer matches are held back from zone sends.")
     return redirect(url_for("admin.index") + "#hail-zones")
 
 
