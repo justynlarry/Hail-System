@@ -136,8 +136,8 @@
 <p class="note">
     The levels rank where to look first; they are not probabilities. Any overlap counts, so the share
     of a zip can be small. Reports-only zips are within the zip radius of a hail report but outside
-    the zones. Zones use set {{ view.set.set_id }} ({{ view.set.name }}). Staff only: not used for
-    emails, exports, pulls or matching.
+    the zones. Zones use set {{ view.set.set_id }} ({{ view.set.name }}). Exports never use the
+    zones. A pull, a match or an email from the zones each needs a person's click.
 </p>
 
 <h3>Zone matches</h3>

@@ -40,8 +40,8 @@
        from CoCoRaHS volunteer observers (<a href="https://www.cocorahs.org" rel="noopener">CoCoRaHS</a>, CC BY 4.0).
        Distances are measured to the nearest such report: {{ '{:g}'.format(likelihood_set.band_1_mi) }},
        {{ '{:g}'.format(likelihood_set.band_2_mi) }} and {{ '{:g}'.format(likelihood_set.band_3_mi) }} miles.
-       Likelihood set {{ likelihood_set.set_id }} ({{ likelihood_set.name }}). Staff only: not used for emails,
-       exports, pulls or matching.</p>
+       Likelihood set {{ likelihood_set.set_id }} ({{ likelihood_set.name }}). Exports never use these levels.
+       A pull, a match or an email from them each needs a person's click.</p>
 </details>
 {% endif %}
 

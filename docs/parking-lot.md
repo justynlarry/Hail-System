@@ -3017,6 +3017,8 @@ one update, status `failed`, no Constant Contact id touched, and the send previe
 realtors as eligible again. The refusal paths (stale count, send running) are covered by tests
 only, not clicked.
 
+**Zone send rehearsed 2026-10-28 on dev** (Phase 5c step 4 piece 6): `sql/dev_rehearsal_seed_zone.sql` (+t8, +t9, `TEST-ZONE-REHEARSAL-1` and `-2`, inside the 2026-10-12 One source zone; dev only, never on production). Batch `b43eb251`, `sent_emails` 47505 and 47506, both sent. The rows are permanent on `hail-dev`. Decision log 2026-10-28.
+
 **Known limit, open:** an `in_progress` email (a list or campaign exists, the schedule call
 unknown) is never discarded. Marking it `failed` could make its matches eligible again and
 email the agent twice. Past the window the resume refuses it too, so it stays stuck until
@@ -6607,3 +6609,12 @@ A mis-keyed copy of `zonecontext.py` landed in `hailsys/email/__pycache__/`. Git
 The step 4 decision (decision log 2026-10-27, point 3, following 2026-10-26) says a report match's level is looked up at send time against the set in use and recorded in the `send_log` snapshot (NULL when the day is not built or the house is outside the zones). Piece 4a did not build it: the report branch of the `send_log` insert in `hailsys/email/send.py` (`queue_batch`) writes no `level` and no `zone_set_id`, so every report row has `basis = 'report'` and a NULL level. sql/060 allows that (the snapshot check accepts a NULL level on a report row). It was missed in the 4a plan and its read-back.
 
 **Fix when taken up:** in the report branch, look up each house's level for its storm day under the set in use (the same spatial test `hailsys/matching/zonematch.py` makes) and write it with the set id; a test that a report send inside a built zone records that level and one outside records NULL. A piece of its own, because it adds a spatial query to the send path. **Related:** decision log 2026-10-27 (step 4, point 3) and 2026-10-28 (piece 5).
+
+
+## 267. The zones page and the likelihood legend said the zones were used for nothing
+
+**Status:** resolved 2026-10-28 (found during the step 4 zone rehearsal)
+
+The note at the foot of `/pull/zones` (`pull_zones.html`) and the likelihood line of the Territory map's legend (`_map_panel.html`) still read "Staff only: not used for emails, exports, pulls or matching." That was true at step 1. Since steps 2b, 3 and 4 the zones drive pulls, zone matches and zone emails, each by a person's click, so the line was wrong. Both now say exports never use the zones and that a pull, a match or an email from them each needs a person's click. The radar legend's line is unchanged: the radar layers themselves are still not used directly (pinned by `test_radar_map_web`).
+
+**Related:** decision log 2026-10-28 (step 4 rehearsed).
