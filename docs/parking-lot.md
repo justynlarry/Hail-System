@@ -2365,6 +2365,15 @@ them all.
 **When:** the next time `status.sh images` is read and the answer matters, for
 instance before trusting `ingest` for a nightly run after a change.
 
+**Seen again 2026-10-28.** `status.sh images` printed `app` and `web` (built
+2026-10-06 17:29Z) as `STALE: requirements.txt`, and `loader` as stale for
+`docker/loader.Dockerfile` (item 101's case). Both `app` and `web` import
+`cryptography 50.0.2`, the package that `requirements.txt` change added
+(committed `5e4983b`, 2026-10-06 23:47Z, after the build), so the flag was false
+again. `ingest`, the image the check matters for, read correctly: stale on four
+likelihood files, then `OK` after its rebuild. A duplicate (proposed as item 268)
+was caught before filing.
+
 ## 173. Constant Contact's auth server rejects Python's default User-Agent
 
 **Status:** resolved 2026-10-06 (`5e4983b`)
