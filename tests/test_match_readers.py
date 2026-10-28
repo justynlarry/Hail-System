@@ -79,7 +79,15 @@ class MatchReaderTest(unittest.TestCase):
 
     def test_the_zone_send_list_reads_only_what_it_may(self):
         text = (ROOT / "hailsys/queries/zonesend.py").read_text()
-        self.assertEqual(sorted(READ.findall(text)), ["m", "m", "m2"])
+        self.assertEqual(sorted(READ.findall(text)), ["m", "m", "m", "m2"])
+        # The level at a report match's house (item 266):  report matches only, by id, and only the house's
+        # location against the zones and the day's build under one set.
+        lv = re.sub(r"\s+", " ", re.search(r'_REPORT_LEVELS_SQL = """(.*?)"""', text, re.S).group(1)).strip()
+        self.assertIn("WHERE m.match_id = ANY(%(match_ids)s) AND m.iem_id IS NOT NULL", lv)
+        self.assertIn("LEFT JOIN likelihood_builds b ON b.day = m.storm_date AND b.set_id = %(set_id)s", lv)
+        self.assertIn("AND z.set_id = %(set_id)s AND ST_Intersects(z.geom, p.geom)", lv)
+        self.assertRegex(lv, r"^SELECT m\.match_id, \(b\.day IS NOT NULL AND p\.geom IS NOT NULL\) AS looked, "
+                             r"\(array_agg\(z\.level .*\)\[1\] AS best FROM ")
         # The day list for the send page (piece 4b-3):  counts of zone rows under one set, by day, nothing else.
         days = re.sub(r"\s+", " ", re.search(r'_DAYS_SQL = """(.*?)"""', text, re.S).group(1)).strip()
         self.assertEqual(

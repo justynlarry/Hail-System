@@ -124,6 +124,14 @@ def queue_batch(conn, *, user_id, storm_days=None, email_settings, now, sync_run
         conn, created_by=user_id, name=template_name, subject_src=subject_src,
         body_src=body_src, match_kind=kind)
     batch_id = uuid.uuid4()
+    report_level = {}
+    if zone is None:
+        # The level at each house, looked up now against the set in use (item 266).  The
+        # report send list never reads the zones;  only this snapshot does.
+        current = zonesend.current_set(conn)
+        report_level = zonesend.report_levels(
+            conn, [m for r, *_ in plan for e in r["events"] for m in e["match_ids"]],
+            current["set_id"] if current else None)
     for r, contact, subject, html in plan:
         email_id = conn.execute(
             "INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, "
@@ -134,11 +142,13 @@ def queue_batch(conn, *, user_id, storm_days=None, email_settings, now, sync_run
              contact["contact_id"] if contact else None)).fetchone()["email_id"]
         with conn.cursor() as cur:
             if zone is None:
-                rows = [(r["realtor_id"], r["email"], match_id, template_id, user_id, email_id)
+                rows = [(r["realtor_id"], r["email"], match_id, template_id, user_id,
+                         email_id, *report_level.get(match_id, (None, None)))
                         for event in r["events"] for match_id in event["match_ids"]]
                 cur.executemany(
-                    "INSERT INTO send_log (realtor_id, recipient_email, match_id, template_id, "
-                    "sent_by, email_id) VALUES (%s, %s, %s, %s, %s, %s)", rows)
+                    "INSERT INTO send_log (realtor_id, recipient_email, match_id, "
+                    "template_id, sent_by, email_id, level, zone_set_id) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", rows)
             else:
                 # The snapshot is the match's own basis, level and set: sql/060 checks it.
                 rows = [(r["realtor_id"], r["email"], m["match_id"], template_id, user_id,

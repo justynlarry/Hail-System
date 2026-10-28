@@ -9,6 +9,11 @@ yet (parking-lot item 266), so report emails are one comparison row.
 
 LEVEL_ORDER = ("agree", "one_source")
 
+# A report email's best level.  None is "not recorded".  The day was not built under the set
+# or the email went prior to 2026-10-28.
+REPORT_LEVEL_ORDER = ("agree", "one_source", "context", "none", None)
+
+
 # An unsubscribe is credited to the latest email sent to that address before our sync
 # recorded it.  added_at is when the sync saw it, not when the person clicked.  Older
 # suppressions (the legacy import) have no email before them and are credited to nothing.
@@ -19,7 +24,9 @@ WITH emails AS (
         t.match_kind AS kind,
         max(s.zone_set_id) AS set_id,
         CASE WHEN bool_or(s.level = 'agree') THEN 'agree'
-            WHEN bool_or(s.level = 'one_source') THEN 'one_source' END AS level,
+            WHEN bool_or(s.level = 'one_source') THEN 'one_source'
+            WHEN bool_or(s.level = 'context') THEN 'context'
+            WHEN bool_or(s.level = 'none') THEN 'none' END AS level,
         array_agg(DISTINCT s.basis ORDER BY s.basis) AS bases,
         min(s.sent_at) AS sent_at,
         bool_or(s.send_status = 'bounced') AS bounced,
@@ -61,13 +68,15 @@ def _add(counts, row):
 
 
 def summarize(rows):
-    """{'by_level', 'by_basis', 'report'}.  Zone emails by (set, best level) and by
-    (set, bases), newest set first, report emails as one row.  Each row has the counts
-    'emails', 'bounced', 'complained', and 'unsubscribed'."""
-    by_level, by_basis, report = {}, {}, _blank()
+    """{'by_level', 'by_basis', 'report', 'report_by_level'}.  Zone emails by (set, best
+    level) and by (set, bases), newest set first;  report emails in total and by (set, best
+    level), newest set first and "not recorded" last.  Each row has the counts 'emails',
+    'bounced', 'complained' and 'unsubscribed'."""
+    by_level, by_basis, report, report_by = {}, {}, _blank(), {}
     for r in rows:
         if r["kind"] == "report":
             _add(report, r)
+            _add(report_by.setdefault((r["set_id"], r["level"]), _blank()), r)
             continue
         _add(by_level.setdefault((r["set_id"], r["level"]), _blank()), r)
         _add(by_basis.setdefault((r["set_id"], " + ".join(r["bases"])), _blank()), r)
@@ -75,4 +84,9 @@ def summarize(rows):
               in sorted(by_level.items(), key=lambda kv: (-kv[0][0], LEVEL_ORDER.index(kv[0][1])))]
     bases = [dict(counts, set_id=set_id, bases=label) for (set_id, label), counts
              in sorted(by_basis.items(), key=lambda kv: (-kv[0][0], kv[0][1]))]
-    return {"by_level": levels, "by_basis": bases, "report": report}
+    report_levels = [dict(counts, set_id=set_id, level=level) for (set_id, level), counts
+                     in sorted(report_by.items(),
+                               key=lambda kv: (kv[0][0] is None, -(kv[0][0] or 0),
+                                               REPORT_LEVEL_ORDER.index(kv[0][1])))]
+    return {"by_level": levels, "by_basis": bases, "report": report,
+            "report_by_level": report_levels}

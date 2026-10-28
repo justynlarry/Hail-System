@@ -48,14 +48,21 @@
 </table>
 {% endif %}
 
+{% set report_level_labels = {'agree': 'Agree', 'one_source': 'One source', 'context': 'Context only',
+                               'none': 'Outside the zones', None: 'Not recorded'} %}
 <h3>For comparison: NWS report emails</h3>
 <table>
-    <thead><tr><th></th><th>Emails</th><th>Bounced</th><th>Complaints</th><th>Unsubscribed</th></tr></thead>
+    <thead><tr><th>Set</th><th>Level at the house</th><th>Emails</th><th>Bounced</th><th>Complaints</th><th>Unsubscribed</th></tr></thead>
     <tbody>
-        <tr><td>All report emails</td>{{ counts_cells(summary.report) }}</tr>
+        {% for r in summary.report_by_level %}
+        <tr><td>{{ r.set_id if r.set_id is not none else '' }}</td><td>{{ report_level_labels[r.level] }}</td>{{ counts_cells(r) }}</tr>
+        {% endfor %}
+        <tr><td></td><td>All report emails</td>{{ counts_cells(summary.report) }}</tr>
     </tbody>
 </table>
-<p class="note">A report email does not record a level yet (parking-lot item 266), so report emails are one row.</p>
+<p class="note">A report email records the best hail zone at its houses on the storm day, looked up when it was queued
+    against the set in use. "Outside the zones": the day was built and no house was in a zone. "Not recorded": the day
+    was not built under that set, or the email went before 2026-10-28 (parking-lot item 266).</p>
 
 <h3>Read with care</h3>
 <ul class="note">

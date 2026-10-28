@@ -170,3 +170,38 @@ def fetch_zone_send_days(conn, *, today, set_id, max_age_days=sendlist.MAX_AGE_D
     too old to send, newest first, with the matches at each level."""
     return conn.execute(_DAYS_SQL, {"set_id": set_id,
                                     "oldest": today - timedelta(days=max_age_days)}).fetchall()
+
+
+# The level at each report match's house, for the send_log snapshot of a report send.
+# One query per batch.  'looked' is false when the day is not built under the set or the house
+# has no location.  A house in two zones takes the better one.
+_REPORT_LEVELS_SQL = """
+SELECT m.match_id,
+    (b.day IS NOT NULL AND p.geom IS NOT NULL) AS looked,
+    (array_agg(z.level ORDER BY CASE z.level WHEN 'agree' THEN 0
+                                             WHEN 'one_source' THEN 1 ELSE 2 END)
+        FILTER (WHERE z.level IS NOT NULL))[1] AS best
+FROM storm_listing_matches m
+JOIN listings l ON l.listing_id = m.listing_id
+JOIN properties p ON p.rentcast_id = l.rentcast_id
+LEFT JOIN likelihood_builds b ON b.day = m.storm_date AND b.set_id = %(set_id)s
+LEFT JOIN likelihood_zones z
+    ON b.day IS NOT NULL AND z.day = m.storm_date AND z.set_id = %(set_id)s
+    AND ST_Intersects(z.geom, p.geom)
+WHERE m.match_id = ANY(%(match_ids)s) AND m.iem_id IS NOT NULL
+GROUP BY m.match_id, b.day, (p.geom IS NOT NULL)
+"""
+
+
+def report_levels(conn, match_ids, set_id):
+    """{match_id: (level, set_id)} for report matches.  The best zone at the house on the
+    match's storm day under this set.  'none' when the day is built and the house is in no
+    zone; (None, None) when the day is not built under the set or the house has no location.
+    A match not returned (not a report match) is the caller's (None, None).
+    """
+    if not match_ids or set_id is None:
+        return {}
+    rows = conn.execute(_REPORT_LEVELS_SQL,
+                        {"match_ids": list(match_ids), "set_id": set_id}).fetchall()
+    return {r["match_id"]: ((r["best"] or "none", set_id) if r["looked"] else (None, None))
+            for r in rows}

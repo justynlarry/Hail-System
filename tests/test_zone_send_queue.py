@@ -182,7 +182,7 @@ class ZoneQueueTest(unittest.TestCase):
         self.assertIn(zonewording.OBSERVER_SENTENCE, row["html_body"])
         self.assertIn(zonewording.ATTRIBUTION[:30], row["html_body"])
 
-    def test_a_report_send_still_records_basis_report(self):
+    def test_a_report_send_records_basis_report_and_the_level_at_the_house(self):
         found = send.build_list(self.conn, [datetime(2026, 9, 22).date()], now=datetime(2026, 9, 30, 12, tzinfo=timezone.utc),
                                 max_age_days=30, cap_days=14, freshness_days=14)
         if not found["realtors"]:
@@ -197,7 +197,11 @@ class ZoneQueueTest(unittest.TestCase):
                                sync_run_id=sync, allowed_emails=[r["email"]], contacts={r["email"]: None})
         rows = self.logged(out["batch_id"])
         self.assertTrue(rows)
-        self.assertEqual({(x["basis"], x["level"], x["zone_set_id"]) for x in rows}, {("report", None, None)})
+        # Item 266:  a report row records the level at its house under the set in use;  2026-09-22 is built.
+        for x in rows:
+            self.assertEqual(x["basis"], "report")
+            self.assertIn(x["level"], ("agree", "one_source", "context", "none"))
+            self.assertEqual(x["zone_set_id"], self.set_id)
 
     # -- the kinds stay apart -----------------------------------------------------------------------
 

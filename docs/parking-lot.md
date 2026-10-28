@@ -6603,8 +6603,7 @@ A mis-keyed copy of `zonecontext.py` landed in `hailsys/email/__pycache__/`. Git
 
 ## 266. A report send records no level, though step 4 says it should
 
-**Status:** open (found 2026-10-28 while planning step 4 piece 5)
-**When:** before zone results are judged against report results (the by-level report, piece 5, shows report emails as one row until then)
+**Status:** resolved 2026-10-28 (found the same day while planning step 4 piece 5); decision log 2026-10-28, "Built item 266"
 
 The step 4 decision (decision log 2026-10-27, point 3, following 2026-10-26) says a report match's level is looked up at send time against the set in use and recorded in the `send_log` snapshot (NULL when the day is not built or the house is outside the zones). Piece 4a did not build it: the report branch of the `send_log` insert in `hailsys/email/send.py` (`queue_batch`) writes no `level` and no `zone_set_id`, so every report row has `basis = 'report'` and a NULL level. sql/060 allows that (the snapshot check accepts a NULL level on a report row). It was missed in the 4a plan and its read-back.
 

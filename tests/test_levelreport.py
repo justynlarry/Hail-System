@@ -56,7 +56,7 @@ class SummarizeTest(unittest.TestCase):
         self.assertEqual((got["by_level"], got["by_basis"]), ([], []))
 
     def test_nothing_gives_empty_tables_and_a_zero_row(self):
-        self.assertEqual(levelreport.summarize([]), {"by_level": [], "by_basis": [],
+        self.assertEqual(levelreport.summarize([]), {"by_level": [], "by_basis": [], "report_by_level": [],
                                                     "report": {"emails": 0, "bounced": 0, "complained": 0,
                                                                "unsubscribed": 0}})
 
@@ -217,7 +217,11 @@ SUMMARY = {"by_level": [{"set_id": 3, "level": "agree", "emails": 4, "bounced": 
                          "unsubscribed": 0}],
            "by_basis": [{"set_id": 3, "bases": "both + radar", "emails": 6, "bounced": 1, "complained": 0,
                          "unsubscribed": 2}],
-           "report": {"emails": 5, "bounced": 1, "complained": 0, "unsubscribed": 0}}
+           "report": {"emails": 5, "bounced": 1, "complained": 0, "unsubscribed": 0},
+           "report_by_level": [
+               {"set_id": 3, "level": "agree", "emails": 1, "bounced": 0, "complained": 0, "unsubscribed": 0},
+               {"set_id": 3, "level": "none", "emails": 2, "bounced": 1, "complained": 0, "unsubscribed": 0},
+               {"set_id": None, "level": None, "emails": 2, "bounced": 0, "complained": 0, "unsubscribed": 0}]}
 
 
 @unittest.skipUnless(os.environ.get("PGHOST") and os.environ.get("FLASK_SECRET_KEY"), "no database or secret key")
@@ -268,9 +272,14 @@ class LevelsPageTest(unittest.TestCase):
         self.assertIn("<td>3</td><td>One source</td> <td>2</td>", html)
         self.assertIn("<td>both + radar</td> <td>6</td>", html)
         self.assertIn("All report emails</td> <td>5</td> <td>1 (20%)</td>", html)
+        # Report emails by the level at their houses (item 266), each labelled, "not recorded" last.
+        self.assertIn("<td>3</td><td>Agree</td> <td>1</td>", html)
+        self.assertIn("<td>3</td><td>Outside the zones</td> <td>2</td> <td>1 (50%)</td>", html)
+        self.assertIn("<td></td><td>Not recorded</td> <td>2</td>", html)
+        self.assertLess(html.index("Outside the zones</td>"), html.index("Not recorded</td>"))
 
     def test_no_zone_email_says_so_and_a_zero_row_has_no_rate(self):
-        empty = {"by_level": [], "by_basis": [],
+        empty = {"by_level": [], "by_basis": [], "report_by_level": [],
                  "report": {"emails": 0, "bounced": 0, "complained": 0, "unsubscribed": 0}}
         html = " ".join(self.html(empty).split())
         self.assertIn("No zone email has been sent yet.", html)
