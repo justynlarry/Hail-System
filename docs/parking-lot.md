@@ -6567,3 +6567,13 @@ happens again, read the new access-log time for that request first.
 
 **Related:** items 260, 261; decision log 2026-10-27 (step 2b).
 
+
+
+## 263. Guard tests scan `__pycache__`, so a stray `.py` there fails an unrelated test
+
+**Status:** resolved 2026-10-28 (the stray file deleted); the helper change is open
+**When:** next time a guard test is touched
+
+A mis-keyed copy of `zonecontext.py` landed in `hailsys/email/__pycache__/`. Git ignores that directory, but `tests/test_radar_map_web.py` globs `hailsys/**/*.py` and flagged the copy as a second user of the zone send list. The failure was correct but its path (`hailsys/email/__pycache__/zonecontext.py`) was confusing.
+
+**Fix when touched:** have the shared `files()` helper skip any path with `__pycache__` in it. **Related:** decision log 2026-10-28 (step 4 piece 3b).

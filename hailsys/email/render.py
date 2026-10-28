@@ -27,6 +27,7 @@ from jinja2.sandbox import SandboxedEnvironment
 
 from hailsys.formatting import magnitude
 from hailsys.tuning import DISPLAY_TZ
+from hailsys.email import zonewording
 
 MAX_LISTINGS = 15
 MAX_SUBJECT = 150
@@ -40,6 +41,15 @@ ALLOWED_VARS = frozenset({
     "agent_first_name", "storm_count", "storm_dates_label", "largest_hail",
     "nearest_miles", "properties", "more_count", "total", "images",
 })
+
+# A zone-kind template (Phase 5c step 4): its reason is the hail zones, so it has the evidence
+# sentences and the data attribution, and no hail size or distance.
+ALLOWED_VARS_ZONE = frozenset({
+    "logo_url", "badge_cra_url", "badge_bbb_url", "contact_email", "schedule_url",
+    "agent_first_name", "storm_count", "storm_dates_label", "evidence", "attribution",
+    "properties", "more_count", "total", "images",
+})
+_ALLOWED = {"report": ALLOWED_VARS, "zone": ALLOWED_VARS_ZONE}
 
 _BODY_ENV = SandboxedEnvironment(autoescape=True, undefined=StrictUndefined)
 _SUBJECT_ENV = SandboxedEnvironment(autoescape=False, undefined=StrictUndefined)
@@ -214,8 +224,11 @@ def build_context(agent_name, matches, settings, max_listings=MAX_LISTINGS):
 
 # ------ templates ---------------------------------------------------------------
 
-def validate_template(subject_src, body_src):
+def validate_template(subject_src, body_src, kind="report"):
     """Raise RenderError listing every problem, or return None, run on save."""
+    if kind not in _ALLOWED:
+        raise RenderError(f"unknown template kind: {kind!r}")
+    allowed = _ALLOWED[kind]
     problems = []
     for label, env, src in (("subject", _SUBJECT_ENV, subject_src),
                             ("body", _BODY_ENV, body_src)):
@@ -224,7 +237,7 @@ def validate_template(subject_src, body_src):
         except TemplateSyntaxError as exc:
             problems.append(f"{label}: syntax error on lin {exc.lineno}")
             continue
-        unknown = sorted(meta.find_undeclared_variables(tree) - ALLOWED_VARS)
+        unknown = sorted(meta.find_undeclared_variables(tree) - allowed)
         if unknown:
             problems.append(f"{label}: unknown placeholder(s) {', '.join(unknown)}")
     if TRACKING_TAG not in body_src:
@@ -234,12 +247,28 @@ def validate_template(subject_src, body_src):
             problems.append(f"body: links to {host} are not allowed")
     if re.search(r"(?i)\b(?:href|src)\s*=\s*[\"']http://", body_src):
         problems.append("body: use https links only")
+    if kind == "zone":
+        for label, src in (("subject", subject_src), ("body", body_src)):
+            try:
+                zonewording.check(src, f"the {label}")
+            except zonewording.WordingError as exc:
+                problems.append(str(exc))
     if problems:
         raise RenderError("; ".join(problems))
 
 
-def render(subject_src, body_src, context):
+def render(subject_src, body_src, context, kind="report"):
     """(subject, html) for one email.  The pair goes into sent_emails as is."""
+    if kind == "zone":
+        # The template text and the sentences made for it, not the addresses and names: a street
+        # called Proof Road shouldn't stop an email.  Checked again here, as at save.
+        try:
+            zonewording.check(subject_src, "the subject")
+            zonewording.check(body_src, "the body")
+            zonewording.check(" ".join([*context.get("evidence", []), context.get("attribution", "")]),
+                              "the evidence text")
+        except zonewording.WordingError as exc:
+            raise RenderError(str(exc)) from None
     try:
         subject = _SUBJECT_ENV.from_string(subject_src).render(**context)
         html = _BODY_ENV.from_string(body_src).render(**context)

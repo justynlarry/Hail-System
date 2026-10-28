@@ -23,6 +23,12 @@ from hailsys.email import blocks as blocklib, emailconfig, render
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 TEMPLATE_NAME = "hail_alert"
 
+ZONE_TEMPLATE_NAME = "hail_alert_zone"
+
+# The built-in templates:  name -> (subject file, body file, the kind of match it's for).
+_BUILTIN = {TEMPLATE_NAME: ("hail_alert_subject.txt", "hail_alert.html", "report"),
+            ZONE_TEMPLATE_NAME: ("hail_alert_zone_subject.txt", "hail_alert_zone.html", "zone")}
+
 MAX_DESCRIPTION = 300
 NAME_RE = re.compile(r"[A-Za-z0-9_-]{1,40}")
 
@@ -39,7 +45,7 @@ class TemplateRefused(ValueError):
 
 
 _ACTIVE_SQL = """
-    SELECT template_id, subject, body, blocks, description
+    SELECT template_id, subject, body, blocks, description, match_kind
       FROM email_templates
     WHERE template_name = %s AND is_active
     ORDER BY template_id DESC
@@ -47,35 +53,48 @@ _ACTIVE_SQL = """
 """
 
 
-def load_files():
-    """(subject_src, body_src) as shipped in the repo."""
-    return ((TEMPLATE_DIR / "hail_alert_subject.txt").read_text(encoding="utf-8"),
-            (TEMPLATE_DIR / "hail_alert.html").read_text(encoding="utf-8"))
+def load_files(name=TEMPLATE_NAME):
+    """(subject_src, body_src) of a built-in template as shipped in the repo."""
+    # A name that is not built in (a test's throwaway name) gets the report files, as it always did.
+    subject_file, body_file, _ = _BUILTIN.get(name, _BUILTIN[TEMPLATE_NAME])
+    return ((TEMPLATE_DIR / subject_file).read_text(encoding="utf-8"),
+            (TEMPLATE_DIR / body_file).read_text(encoding="utf-8"))
 
 
 def ensure_current(conn, *, created_by, name=TEMPLATE_NAME, subject_src=None, body_src=None,
-                   blocks=None):
+                   blocks=None, match_kind=None):
     """template_id to put on a send, saving a new version if the text changed.
 
     'blocks' is the block list subject_src and body_src were compiled from (save_blocks passes
-    it).  A change to the blocks alone is also a new version."""
+    it).  A change to the blocks alone is also a new version.  match_kind is 'report' or 'zone';
+    a built-in name has its own kind, and the kind of a name never changes (the database freezes it
+    too).
+    """
+    if name in _BUILTIN:
+        builtin_kind = _BUILTIN[name][2]
+        if match_kind not in (None, builtin_kind):
+            raise TemplateRefused(f"{name} is a {builtin_kind} template.")
+        match_kind = builtin_kind
+    match_kind = match_kind or "report"
     if subject_src is None or body_src is None:
-        subject_src, body_src = load_files()
-    render.validate_template(subject_src, body_src)     # refuse to save broken template
+        subject_src, body_src = load_files(name)
+    render.validate_template(subject_src, body_src, kind=match_kind)     # refuse to save broken template
 
     conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"email_template:{name}",))
     active = conn.execute(_ACTIVE_SQL, (name,)).fetchone()
+    if active and active["match_kind"] != match_kind:
+        raise TemplateRefused(f"{name} is a {active['match_kind']} template: its kind cannot change.")
     if (active and active["subject"] == subject_src and active["body"] == body_src
             and active["blocks"] == blocks):
         return active["template_id"]
 
     new_id = conn.execute(
         "INSERT INTO email_templates (template_name, subject, body, blocks, created_by, "
-        "supersedes_id, description) "
-        "VALUES(%s, %s, %s, %s, %s, %s, %s) RETURNING template_id",
+        "supersedes_id, description, match_kind) "
+        "VALUES(%s, %s, %s, %s, %s, %s, %s, %s) RETURNING template_id",
         (name, subject_src, body_src, None if blocks is None else Jsonb(blocks), created_by,
          active["template_id"] if active else None,
-         active["description"] if active else None)).fetchone()["template_id"]
+         active["description"] if active else None, match_kind)).fetchone()["template_id"]
         # One activer version per name.  Retiring is one-way.
     conn.execute(
         "UPDATE email_templates SET is_active = FALSE "
@@ -94,8 +113,8 @@ def save_blocks(conn, *, created_by, name, template, must_be_new=False):
     if not isinstance(name, str) or not NAME_RE.fullmatch(name):
         raise TemplateRefused("The template name may use letters, digits, hyphens and "
                               "underscores, up to 40 characters.")
-    if name.lower() == TEMPLATE_NAME:
-        raise TemplateRefused(f"{TEMPLATE_NAME} is the built-in template's name.  Pick another.")
+    if name.lower() in _BUILTIN:
+        raise TemplateRefused(f"{name.lower()} is the built-in template's name.  Pick another.")
     try:
         cleaned = blocklib.clean_template(template)
         subject_src, body_src = blocklib.compile_blocks(cleaned)
@@ -142,8 +161,8 @@ def retire(conn, name):
     for the built-in, TemplateNotFound if nothing is active."""
     if not isinstance(name, str):
         raise TemplateNotFound(name)
-    if name.lower() == TEMPLATE_NAME:
-        raise TemplateRefused(f"{TEMPLATE_NAME} is the built-in template and cannot be retired.")
+    if name.lower() in _BUILTIN:
+        raise TemplateRefused(f"{name.lower()} is the built-in template and cannot be retired.")
     conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"email_template:{name}",))
     cur = conn.execute("UPDATE email_templates SET is_active = FALSE "
                        "WHERE template_name = %s AND is_active", (name,))
@@ -158,8 +177,8 @@ def load(conn, name=TEMPLATE_NAME):
     ensure_current only when a send is actually queued, so a preview writes nothing.  Any other
     name comes from its active row.  Raises TemplateNotFound for an unknown or retired name.
     """
-    if name == TEMPLATE_NAME:
-        subject_src, body_src = load_files()
+    if name in _BUILTIN:
+        subject_src, body_src = load_files(name)
         return subject_src, body_src, None
     row = conn.execute(_ACTIVE_SQL, (name,)).fetchone()
     if row is None:
@@ -187,3 +206,14 @@ def set_description(conn, template_id, text):
                                 "can no longer change.") from None
     if cur.rowcount == 0:
         raise TemplateNotFound(template_id)
+
+
+def kind_of(conn, name):
+    """'report' or 'zone':  what kind of match the active template called 'name' is for.
+    Raises TemplateNotFound for an unknown or retired name."""
+    if name in _BUILTIN:
+        return _BUILTIN[name][2]
+    row = conn.execute(_ACTIVE_SQL, (name,)).fetchone()
+    if row is None:
+        raise TemplateNotFound(name)
+    return row["match_kind"]
