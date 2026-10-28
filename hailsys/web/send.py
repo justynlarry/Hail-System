@@ -16,7 +16,7 @@ from flask import (Blueprint, abort, flash, g, redirect, render_template, reques
 from hailsys.constantcontact import api, oauth, statuses
 from hailsys.db import get_connection
 from hailsys.email import dripstart, render, templatestore
-from hailsys.queries import dripscreen, sendlist, sendstatus, templatelist
+from hailsys.queries import dripscreen, levelreport, sendlist, sendstatus, templatelist
 from hailsys.tuning import DISPLAY_TZ
 from hailsys.web import sendjobs
 from hailsys.web import sendzone
@@ -378,6 +378,15 @@ def zone_confirm():
 @send_bp.route("/zones/start", methods=["POST"])
 def zone_start():
     return sendzone.zone_start(parse_allow_list, MAX_EMAILS_LIMIT)
+
+
+@send_bp.route("/levels")
+def levels():
+    """How sent emails fared, by level.  Read Only."""
+    with get_connection() as conn:
+        summary = levelreport.summarize(levelreport.fetch_emails(conn))
+        conn.rollback()
+    return render_template("send_levels.html", summary=summary)
 
 
 @send_bp.route("/batches")

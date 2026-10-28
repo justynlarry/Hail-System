@@ -10,6 +10,7 @@
     Service report, so they use a zone template: no hail size and no distance. This page previews first.
     Nothing is written or sent until you review a send and press Send now.
     <a href="{{ url_for('send.batches') }}">Recent sends</a>
+    | <a href="{{ url_for('send.levels') }}">By level</a>
 </p>
 {% if busy %}
 <p class="note warning">A send is running. <a href="{{ url_for('send.batches') }}">See progress</a>.</p>

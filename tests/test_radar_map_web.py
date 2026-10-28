@@ -314,7 +314,9 @@ class IsolationTest(unittest.TestCase):
         for path in self.files("hailsys/queries/*.py"):
             if path.name not in radar:
                 with self.subTest(path=path.name):
-                    self.assertIsNone(self.RADAR_NAMES.search(path.read_text()))
+                    found = {m.group(0) for m in self.RADAR_NAMES.finditer(path.read_text())}
+                    # The by-level report (step 4 piece 5) reads send_log's snapshot column, and nothing else.
+                    self.assertEqual(found, {"zone_set_id"} if path.name == "levelreport.py" else set())
 
     def test_only_the_admin_blueprint_uses_the_parameter_set_editor(self):
         users = set()
@@ -399,8 +401,8 @@ class IsolationTest(unittest.TestCase):
         for path in self.files("hailsys/**/*.py"):
             text = path.read_text()
             rel = str(path.relative_to(ROOT))
-            if rel == "hailsys/email/send.py":
-                # Its zone_set_id is send_log's snapshot column (step 4 piece 4a), not the pull's.
+            if rel in ("hailsys/email/send.py", "hailsys/queries/levelreport.py"):
+                # Their zone_set_id is send_log's snapshot column (step 4 pieces 4a and 5), not the pull's.
                 self.assertNotIn("pull_zips", text)
                 self.assertNotIn("api_pulls", text)
                 continue

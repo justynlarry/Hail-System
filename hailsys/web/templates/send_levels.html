@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}By level{% endblock %}
+{% block heading %}How sent emails fared, by level{% endblock %}
+
+{% macro rate(n, of) %}{{ n }}{% if of %} ({{ '%.0f' % (100 * n / of) }}%){% endif %}{% endmacro %}
+
+{% macro counts_cells(r) %}
+<td>{{ r.emails }}</td>
+<td>{{ rate(r.bounced, r.emails) }}</td>
+<td>{{ rate(r.complained, r.emails) }}</td>
+<td>{{ rate(r.unsubscribed, r.emails) }}</td>
+{% endmacro %}
+
+{% set level_labels = {'agree': 'Agree', 'one_source': 'One source'} %}
+
+{% block content %}
+<div class="page">
+<p class="note">
+    Read only. One email per realtor per send, counted once it reached Constant Contact (sent, bounced or
+    complained); queued and failed emails are not counted. Bounces and complaints come from the bounce check,
+    unsubscribes from the unsubscribe sync. <a href="{{ url_for('send.batches') }}">Recent sends</a>
+</p>
+
+<h3>Zone emails by level</h3>
+{% if summary.by_level %}
+<table>
+    <thead><tr><th>Set</th><th>Level</th><th>Emails</th><th>Bounced</th><th>Complaints</th><th>Unsubscribed</th></tr></thead>
+    <tbody>
+        {% for r in summary.by_level %}
+        <tr><td>{{ r.set_id }}</td><td>{{ level_labels[r.level] }}</td>{{ counts_cells(r) }}</tr>
+        {% endfor %}
+    </tbody>
+</table>
+<p class="note">An email is counted under the best level among its houses: Agree before One source.</p>
+{% else %}
+<p class="note">No zone email has been sent yet.</p>
+{% endif %}
+
+{% if summary.by_basis %}
+<h3>Zone emails by basis</h3>
+<table>
+    <thead><tr><th>Set</th><th>Basis</th><th>Emails</th><th>Bounced</th><th>Complaints</th><th>Unsubscribed</th></tr></thead>
+    <tbody>
+        {% for r in summary.by_basis %}
+        <tr><td>{{ r.set_id }}</td><td>{{ r.bases }}</td>{{ counts_cells(r) }}</tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<h3>For comparison: NWS report emails</h3>
+<table>
+    <thead><tr><th></th><th>Emails</th><th>Bounced</th><th>Complaints</th><th>Unsubscribed</th></tr></thead>
+    <tbody>
+        <tr><td>All report emails</td>{{ counts_cells(summary.report) }}</tr>
+    </tbody>
+</table>
+<p class="note">A report email does not record a level yet (parking-lot item 266), so report emails are one row.</p>
+
+<h3>Read with care</h3>
+<ul class="note">
+    <li>Small numbers mean little: 1 of 2 is not a rate. Each rate is shown beside its count.</li>
+    <li>An unsubscribe is credited to the latest email sent to that address before the sync recorded it.
+        The sync records when it saw the unsubscribe, not when the person clicked.</li>
+    <li>Replies arrive in RBI's inbox and are not tracked here. Opens and clicks are not stored.</li>
+</ul>
+</div>
+{% endblock %}

@@ -4,7 +4,8 @@
 
 {% block content %}
 <div class="page">
-<p><a href="{{ url_for('send.index') }}">Back to the preview</a></p>
+<p><a href="{{ url_for('send.index') }}">Back to the preview</a>
+   | <a href="{{ url_for('send.levels') }}">How sent emails fared, by level</a></p>
 
 {% if busy %}
 <p class="note warning">A send is running. This page refreshes every 5 seconds.</p>
