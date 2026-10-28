@@ -6597,3 +6597,13 @@ A mis-keyed copy of `zonecontext.py` landed in `hailsys/email/__pycache__/`. Git
 `hailsys/queries/templatelist.py` (`_SELECT`, `_COUNT_SQL`) filters on `is_active` only. Once `hail_alert_zone` has a saved row (its first send, or a test send) it appears in the report `/send` picker, in `_campaign_templates()` and in the `/templates` list. A report send that picked it would render every email as unrenderable (the engine refuses the wrong kind, and the database trigger refuses it again), so nothing wrong could be sent, but it is confusing and a follow-up could name it.
 
 **Fix:** `fetch_page`, `fetch_one` and `fetch_all` take a `kind`; the report picker and the follow-up list ask for `report`, the zone mode for `zone`. **Related:** items 263, 264; decision log 2026-10-28.
+
+
+## 266. A report send records no level, though step 4 says it should
+
+**Status:** open (found 2026-10-28 while planning step 4 piece 5)
+**When:** before zone results are judged against report results (the by-level report, piece 5, shows report emails as one row until then)
+
+The step 4 decision (decision log 2026-10-27, point 3, following 2026-10-26) says a report match's level is looked up at send time against the set in use and recorded in the `send_log` snapshot (NULL when the day is not built or the house is outside the zones). Piece 4a did not build it: the report branch of the `send_log` insert in `hailsys/email/send.py` (`queue_batch`) writes no `level` and no `zone_set_id`, so every report row has `basis = 'report'` and a NULL level. sql/060 allows that (the snapshot check accepts a NULL level on a report row). It was missed in the 4a plan and its read-back.
+
+**Fix when taken up:** in the report branch, look up each house's level for its storm day under the set in use (the same spatial test `hailsys/matching/zonematch.py` makes) and write it with the set id; a test that a report send inside a built zone records that level and one outside records NULL. A piece of its own, because it adds a spatial query to the send path. **Related:** decision log 2026-10-27 (step 4, point 3) and 2026-10-28 (piece 5).
