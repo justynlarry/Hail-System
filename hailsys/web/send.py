@@ -138,7 +138,7 @@ def _template_available(name):
     if name == templatestore.TEMPLATE_NAME:
         return True
     with get_connection() as conn:
-        row = templatelist.fetch_one(conn, name)
+        row = templatelist.fetch_one(conn, name, kind="report")
         conn.rollback()
     return row is not None
 
@@ -146,7 +146,7 @@ def _template_available(name):
 def _campaign_templates():
     """The names a follow-up can use:  the built-in first, then every active template."""
     with get_connection() as conn:
-        rows = templatelist.fetch_all(conn)
+        rows = templatelist.fetch_all(conn, kind="report")
         conn.rollback()
     names = [templatestore.TEMPLATE_NAME]
     names += [r["template_name"] for r in rows if r["template_name"] != templatestore.TEMPLATE_NAME]
@@ -168,12 +168,12 @@ def index():
         if days:
             found = sendlist.build_send_list(
                 conn, days, now=now, cap_days=s["email_cap_days"], **tuning)
-        listing = templatelist.fetch_page(conn, _template_page())
-        selected = templatelist.fetch_one(conn, chosen)
+        listing = templatelist.fetch_page(conn, _template_page(), kind="report")
+        selected = templatelist.fetch_one(conn, chosen, kind="report")
         if selected is None and chosen != templatestore.TEMPLATE_NAME:
             flash(f"The template '{chosen[:60]}' is not available.  Showing the built-in template.")
             chosen = templatestore.TEMPLATE_NAME
-            selected = templatelist.fetch_one(conn, chosen)
+            selected = templatelist.fetch_one(conn, chosen, kind="report")
         due = dripscreen.due_steps(conn, today=now.astimezone(DISPLAY_TZ).date())
         conn.rollback()                     # read only: nothing to keep
     if selected is None:
@@ -312,7 +312,7 @@ def confirm():
         return _back(form["days"])
     going = min(len(mine), form["max_emails"])
     with get_connection() as conn:
-        template_row = templatelist.fetch_one(conn, form["template"])
+        template_row = templatelist.fetch_one(conn, form["template"], kind="report")
         conn.rollback()
     s = g.settings
     first, last = form["days"][0], form["days"][-1]

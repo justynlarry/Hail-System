@@ -6591,7 +6591,7 @@ A mis-keyed copy of `zonecontext.py` landed in `hailsys/email/__pycache__/`. Git
 
 ## 265. The report send's template list does not filter by kind
 
-**Status:** open, to be fixed in step 4 piece 4b (verified 2026-10-28)
+**Status:** resolved 2026-10-28 in step 4 piece 4b-1 (verified the same day)
 **When:** with piece 4b, before the zone template has a saved row
 
 `hailsys/queries/templatelist.py` (`_SELECT`, `_COUNT_SQL`) filters on `is_active` only. Once `hail_alert_zone` has a saved row (its first send, or a test send) it appears in the report `/send` picker, in `_campaign_templates()` and in the `/templates` list. A report send that picked it would render every email as unrenderable (the engine refuses the wrong kind, and the database trigger refuses it again), so nothing wrong could be sent, but it is confusing and a follow-up could name it.

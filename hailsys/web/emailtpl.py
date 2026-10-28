@@ -116,7 +116,7 @@ def _save(draft, name, is_new):
 @emailtpl_bp.route("/")
 def index():
     with get_connection() as conn:
-        rows = templatelist.fetch_all(conn)
+        rows = templatelist.fetch_all(conn, kind="report")
         conn.rollback()
     if not any(r["template_name"] == templatestore.TEMPLATE_NAME for r in rows):
         # Not saved yet, first send saves it from its files.
@@ -176,7 +176,7 @@ def act():
 @emailtpl_bp.route("/retire/<name>")
 def retire_confirm(name):
     with get_connection() as conn:
-        row = templatelist.fetch_one(conn, name)
+        row = templatelist.fetch_one(conn, name, kind="report")
         conn.rollback()
     if row is None or name.lower() == templatestore.TEMPLATE_NAME:
         abort(404)

@@ -711,7 +711,8 @@ class SendScreenTest(unittest.TestCase):
             mock.patch.object(screen.templatelist, "fetch_page", return_value=listing))
         by_name = {r["template_name"]: r for r in [*rows, *extra]}
         stack.enter_context(mock.patch.object(
-            screen.templatelist, "fetch_one", side_effect=lambda conn, name: by_name.get(name)))
+            screen.templatelist, "fetch_one",
+            side_effect=lambda conn, name, kind=None: by_name.get(name)))
         return fetch_page
 
     def send_page(self, query=""):
