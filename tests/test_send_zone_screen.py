@@ -346,3 +346,234 @@ class ZonePageTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(os.environ.get("PGHOST") and os.environ.get("FLASK_SECRET_KEY"), "no database or secret key")
+class ZoneConfirmStartTest(unittest.TestCase):
+    """The second half:  the review form, /send/zones/confirm and /send/zones/start.  The list builder and
+    start_send are replaced, so nothing is sent and nothing is written."""
+
+    def setUp(self):
+        from hailsys.web import create_app
+        with mock.patch("hailsys.web.jobs.sweep_stale_pulls"):
+            self.app = create_app()
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.conn = psycopg.connect(row_factory=dict_row)
+        self.addCleanup(self.conn.close)
+        self.users = {}
+        for r in self.conn.execute("SELECT emp_id, role FROM users WHERE is_active "
+                                   "AND role IN ('admin', 'sender', 'viewer') ORDER BY emp_id"):
+            self.users.setdefault(r["role"], r["emp_id"])
+        self.current = zonesend.current_set(self.conn)
+        self.settings = self.conn.execute(
+            "SELECT match_max_age_days, email_cap_days, listing_freshness_days FROM settings").fetchone()
+        self.conn.rollback()
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        self.build = stack.enter_context(mock.patch.object(
+            sendzone.zonesend, "build_zone_send_list", return_value=a_found(self.current)))
+        self.start = stack.enter_context(mock.patch.object(sendzone.sendjobs, "start_send"))
+        stack.enter_context(mock.patch.object(sendzone.sendjobs, "is_busy", return_value=False))
+        self.form = {"day": "2026-09-29", "level": ["agree", "one_source"], "set_id": str(self.current["set_id"]),
+                     "template": templatestore.ZONE_TEMPLATE_NAME, "allowed": "pat@example.test", "max_emails": "5"}
+
+    def client_as(self, role="admin"):
+        if role not in self.users:
+            self.skipTest(f"no active {role} user in this database")
+        client = self.app.test_client()
+        with client.session_transaction() as s:
+            s.update(emp_id=self.users[role], role=role, user_name="test",
+                     issued_at=datetime.now(timezone.utc).isoformat())
+        return client
+
+    def post(self, path, role="admin", follow=True, **over):
+        data = dict(self.form, **over)
+        for key in [k for k, v in data.items() if v is None]:
+            del data[key]
+        return self.client_as(role).post(path, data=data, follow_redirects=follow)
+
+    def confirm(self, **over):
+        return self.post("/send/zones/confirm", **over)
+
+    def start_(self, **over):
+        over.setdefault("expected", "1")
+        return self.post("/send/zones/start", **over)
+
+    def text(self, resp):
+        return re.sub(r"\s+", " ", resp.get_data(as_text=True))
+
+    def refused(self, path, **over):
+        """The page's message for a refused POST, after checking that the POST itself built no list and
+        started nothing (following the redirect shows the preview, which builds its own list)."""
+        data = {k: v for k, v in dict(self.form, **over).items() if v is not None}
+        client = self.client_as()
+        self.build.reset_mock()
+        resp = client.post(path, data=data)
+        self.assertEqual(resp.status_code, 302)
+        self.build.assert_not_called()
+        self.start.assert_not_called()
+        return self.text(client.get(resp.headers["Location"]))
+
+    # ---- the review form on the preview ----
+
+    def test_the_review_form_carries_the_set_the_levels_and_no_cap_or_follow_up(self):
+        html = self.client_as().get("/send/?mode=zones&levels_shown=1&level=agree&level=one_source"
+                                    "&day=2026-09-29").get_data(as_text=True)
+        form = html[html.index('action="/send/zones/confirm"'):]
+        form = form[:form.index("</form>")]
+        self.assertIn(f'name="set_id" value="{self.current["set_id"]}"', form)
+        self.assertIn('name="level" value="agree"', form)
+        self.assertIn('name="level" value="one_source"', form)
+        self.assertIn('name="day" value="2026-09-29"', form)
+        self.assertIn('name="csrf_token"', form)
+        for absent in ("override_cap", "campaign", "gap_"):
+            self.assertNotIn(absent, form)
+
+    def test_no_review_form_without_anyone_on_the_list(self):
+        self.build.return_value = dict(a_found(self.current), realtors=[])
+        html = self.client_as().get("/send/?mode=zones&day=2026-09-29").get_data(as_text=True)
+        self.assertNotIn("/send/zones/confirm", html)
+
+    # ---- confirm ----
+
+    def test_only_an_admin_may_confirm_or_start(self):
+        for role in ("viewer", "sender"):
+            if role in self.users:
+                with self.subTest(role=role):
+                    self.assertNotEqual(self.confirm(role=role, follow=False).status_code, 200)
+                    self.start_(role=role, follow=False)
+        self.build.assert_not_called()
+        self.start.assert_not_called()
+
+    def test_the_confirm_page_shows_the_send(self):
+        resp = self.confirm()
+        text = self.text(resp)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("<strong>1</strong> email ready for 1 storm day, from the hail zones", text)
+        self.assertIn("about 10 Constant Contact calls", text)
+        self.assertIn(f"Hail-zone set: <strong>{self.current['set_id']}</strong>", text)
+        self.assertIn("Levels: <strong>Agree, One source</strong>", text)
+        self.assertIn('action="/send/zones/start"', text)
+        self.assertIn('name="expected" value="1"', text)
+        self.assertIn(f'name="set_id" value="{self.current["set_id"]}"', text)
+        _, kw = self.build.call_args
+        self.assertEqual((kw["set_id"], kw["levels"]), (self.current["set_id"], ["agree", "one_source"]))
+        self.assertEqual((kw["max_age_days"], kw["cap_days"], kw["freshness_days"]),
+                         (self.settings["match_max_age_days"], self.settings["email_cap_days"],
+                          self.settings["listing_freshness_days"]))
+        start_form = text[text.index('action="/send/zones/start"'):]
+        start_form = start_form[:start_form.index("</form>")]
+        for field in ('name="level" value="agree"', 'name="level" value="one_source"', 'name="day" value="2026-09-29"',
+                      f'name="template" value="{templatestore.ZONE_TEMPLATE_NAME}"', 'name="max_emails" value="5"',
+                      'name="allowed" value="pat@example.test"'):
+            self.assertIn(field, start_form)
+        self.start.assert_not_called()
+
+    def test_the_expected_count_is_the_whole_list_not_the_number_going_now(self):
+        two = a_found(self.current)
+        other = dict(two["realtors"][0], realtor_id=6, email="sam@example.test")
+        two["realtors"] = [two["realtors"][0], other]
+        self.build.return_value = two
+        text = self.text(self.confirm(allowed="pat@example.test sam@example.test", max_emails="1"))
+        self.assertIn("This send delivers at most <strong>1</strong> now", text)
+        self.assertIn('name="expected" value="2"', text)
+
+    def test_each_bad_form_is_refused_with_its_reason(self):
+        for over, words in (({"day": None}, "Tick at least one storm day."),
+                            ({"level": None}, "Tick at least one level."),
+                            ({"level": "context"}, "Only Agree and One source can be sent."),
+                            ({"allowed": ""}, "There is no send-to-everyone option."),
+                            ({"allowed": "nonsense"}, "These are not email addresses: nonsense"),
+                            ({"max_emails": "0"}, "must be between 1 and"),
+                            ({"max_emails": "1001"}, "must be between 1 and"),
+                            ({"max_emails": "x"}, "must be between 1 and")):
+            with self.subTest(over=over):
+                self.build.reset_mock()
+                text = self.refused("/send/zones/confirm", **over)
+                self.assertIn(words.replace("'", "&#39;"), text.replace("'", "&#39;"))
+
+    def test_a_missing_or_bad_set_id_is_a_400(self):
+        for value in (None, "", "one"):
+            with self.subTest(value=value):
+                self.assertEqual(self.confirm(set_id=value, follow=False).status_code, 400)
+
+    def test_a_newer_set_is_refused_and_nothing_is_built(self):
+        text = self.refused("/send/zones/confirm", set_id=str(self.current["set_id"] - 1 or 999))
+        self.assertIn("The hail-zone set changed since the preview", text)
+        self.assertIn("Nothing was sent. Preview again.", text)
+
+    def test_a_report_or_unknown_template_is_refused(self):
+        for name in (templatestore.TEMPLATE_NAME, "nope-" + uuid.uuid4().hex[:6]):
+            with self.subTest(name=name):
+                self.assertIn("That template is not a zone template.",
+                              self.refused("/send/zones/confirm", template=name))
+
+    def test_an_address_not_on_the_list_sends_nothing(self):
+        text = self.text(self.confirm(allowed="someone@else.test"))
+        self.assertIn("None of those addresses is on the zone send list", text)
+
+    def test_unmatched_addresses_are_named(self):
+        text = self.text(self.confirm(allowed="pat@example.test, someone@else.test"))
+        self.assertIn("they will be ignored: someone@else.test", text)
+
+    def test_a_refusal_goes_back_to_the_zone_preview_with_the_choices(self):
+        resp = self.confirm(allowed="", follow=False)
+        self.assertEqual(resp.status_code, 302)
+        loc = resp.headers["Location"]
+        for part in ("mode=zones", "levels_shown=1", "day=2026-09-29", "level=agree", "level=one_source",
+                     f"template={templatestore.ZONE_TEMPLATE_NAME}"):
+            self.assertIn(part, loc)
+
+    # ---- start ----
+
+    def test_start_hands_the_pinned_zone_to_the_send_job_and_nothing_else(self):
+        resp = self.start_(follow=False)
+        self.assertEqual((resp.status_code, resp.headers["Location"]), (302, "/send/batches"))
+        kw = self.start.call_args.kwargs
+        self.assertEqual(kw["zone"], {"set_id": self.current["set_id"], "levels": ["agree", "one_source"]})
+        self.assertEqual(kw["template_name"], templatestore.ZONE_TEMPLATE_NAME)
+        self.assertEqual((kw["allowed_emails"], kw["max_emails"], kw["storm_days"]),
+                         (["pat@example.test"], 5, [date(2026, 9, 29)]))
+        self.assertEqual(kw["user_id"], self.users["admin"])
+        self.assertEqual((kw["max_age_days"], kw["cap_days"], kw["freshness_days"]),
+                         (self.settings["match_max_age_days"], self.settings["email_cap_days"],
+                          self.settings["listing_freshness_days"]))
+        for absent in ("campaign", "override_cap"):
+            self.assertNotIn(absent, kw)
+
+    def test_a_changed_count_is_refused(self):
+        text = self.text(self.start_(expected="2"))
+        self.assertIn("The list changed since you reviewed it (2 to 1 emails). Nothing was sent.", text)
+        self.start.assert_not_called()
+
+    def test_a_newer_set_at_start_is_refused(self):
+        self.assertIn("The hail-zone set changed since the preview",
+                      self.refused("/send/zones/start", expected="1", set_id=str(self.current["set_id"] + 1)))
+
+    def test_a_bad_form_at_start_is_refused(self):
+        self.assertIn("There is no send-to-everyone option.",
+                      self.refused("/send/zones/start", expected="1", allowed=""))
+        self.assertIn("Only Agree and One source",
+                      self.refused("/send/zones/start", expected="1", level="context"))
+
+    def test_a_missing_expected_count_is_a_400(self):
+        self.assertEqual(self.start_(expected=None, follow=False).status_code, 400)
+        self.start.assert_not_called()
+
+    def test_a_running_send_is_a_message_not_a_second_send(self):
+        self.start.side_effect = sendzone.sendjobs.SendInProgress("busy")
+        self.assertIn("A send is already running.", self.text(self.start_()))
+
+    def test_the_start_without_a_csrf_token_is_refused(self):
+        self.app.config["WTF_CSRF_ENABLED"] = True
+        self.assertEqual(self.start_(follow=False).status_code, 400)
+        self.start.assert_not_called()
+
+    def test_confirm_and_start_write_nothing(self):
+        before = {t: self.conn.execute(f"SELECT count(*) AS n FROM {t}").fetchone()["n"] for t in WRITTEN_TABLES}
+        self.conn.rollback()
+        self.confirm()
+        self.start_()
+        after = {t: self.conn.execute(f"SELECT count(*) AS n FROM {t}").fetchone()["n"] for t in WRITTEN_TABLES}
+        self.conn.rollback()
+        self.assertEqual(after, before)

@@ -130,5 +130,30 @@
 <iframe sandbox title="Sample email" srcdoc="{{ sample.html }}"
         style="width:100%; height:600px; border:1px solid var(--border);"></iframe>
 {% endif %}
+
+{% if found and found.realtors %}
+<h3>Review a send</h3>
+<form method="post" action="{{ url_for('send.zone_confirm') }}" class="confirm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% for d in ticked | sort %}<input type="hidden" name="day" value="{{ d.isoformat() }}">{% endfor %}
+    {% for level in levels %}<input type="hidden" name="level" value="{{ level }}">{% endfor %}
+    <!-- The set the preview used:  start refuses if a newer one has been saved since. -->
+    <input type="hidden" name="set_id" value="{{ current.set_id }}">
+    <input type="hidden" name="template" value="{{ chosen }}">
+    <p>
+        <label for="allowed">Send only to these addresses (required; separate with spaces,
+        commas or new lines):</label><br>
+        <textarea name="allowed" id="allowed" rows="4" cols="50" required></textarea>
+    </p>
+    <p>
+        <label for="max_emails">Send at most</label>
+        <input type="number" name="max_emails" id="max_emails" value="{{ default_max_emails }}"
+               min="1" max="{{ max_emails_limit }}">
+        emails now. The rest stay queued for a later, explicit run.
+    </p>
+    <p class="note">A zone send has no cap override and no follow-ups.</p>
+    <button type="submit">Review send</button>
+</form>
+{% endif %}
 </div>
 {% endblock %}

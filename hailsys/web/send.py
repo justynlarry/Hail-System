@@ -370,6 +370,16 @@ def start():
     return redirect(url_for("send.batches"))
 
 
+@send_bp.route("/zones/confirm", methods=["POST"])
+def zone_confirm():
+    return sendzone.zone_confirm(parse_allow_list, MAX_EMAILS_LIMIT, CALLS_PER_EMAIL)
+
+
+@send_bp.route("/zones/start", methods=["POST"])
+def zone_start():
+    return sendzone.zone_start(parse_allow_list, MAX_EMAILS_LIMIT)
+
+
 @send_bp.route("/batches")
 def batches():
     with get_connection() as conn:
