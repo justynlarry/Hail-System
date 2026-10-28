@@ -1310,7 +1310,21 @@ against the pre-import data, would just need redoing.
 
 ## 129. The Constant Contact export may be missing ~9 months of unsubscribes
 
-**Status:** open
+**Status:** accepted 2026-10-28 (developer). RBI's newsletter account is separate from the hail system's
+(decision 2026-10-07), so its unsubscribes reach `dnc_list` by hand: Constant Contact emails each
+unsubscribe to the developer, who uploads them through `/admin`. The newsletter goes out about every one
+to two months. The developer confirmed the unsubscribe list (719, newest 2025-09-16) is current; the
+export was filtered by list (an unsubscribe in Constant Contact is account-wide, so a status-filtered
+export is the stronger check if ever in doubt). The 2025-10-20 export staged on 2026-10-02 adds nothing
+(all 691 already held). No send gate was built (decision log 2026-10-28, options A and B considered).
+**First use, 2026-10-28:** `unsubs_10_28_26.csv`, 8 addresses from the notification emails, uploaded and
+committed (batch 6). The file needed the export's exact column names (`Email address`, `Email status`,
+`Created At`); the non-breaking spaces copied with the addresses were stripped by the parser. One address
+was mistyped while editing the file (`alexfchisolm`): the right one (`alexfchisholm`) was added by hand
+as `dnc_id` 4664 and the typo, 4663, marked removed by the developer. 768 active suppressions.
+
+**When:** revisit if the notification emails stop, if someone other than the developer runs sends, or if
+the newsletter starts going out much more often.
 
 `rbi-constant-contact-dnc-list-09-28-2026.csv`'s newest recorded unsubscribe
 is 2025-12-13, but the export itself was pulled 2026-09-28 and Constant
@@ -6626,3 +6640,29 @@ The step 4 decision (decision log 2026-10-27, point 3, following 2026-10-26) say
 The note at the foot of `/pull/zones` (`pull_zones.html`) and the likelihood line of the Territory map's legend (`_map_panel.html`) still read "Staff only: not used for emails, exports, pulls or matching." That was true at step 1. Since steps 2b, 3 and 4 the zones drive pulls, zone matches and zone emails, each by a person's click, so the line was wrong. Both now say exports never use the zones and that a pull, a match or an email from them each needs a person's click. The radar legend's line is unchanged: the radar layers themselves are still not used directly (pinned by `test_radar_map_web`).
 
 **Related:** decision log 2026-10-28 (step 4 rehearsed).
+
+
+## 268. Every DNC upload is recorded as `legacy_import`
+
+**Status:** open (found 2026-10-28 with the first notification-derived upload, item 129)
+**When:** with item 269 (the single-address form)
+
+`hailsys/queries/dncimport.py` `_COMMIT_SQL` writes `source = 'legacy_import'` for every committed upload, whatever
+the file is. That was right for the 2026-09-29 imports; it is wrong for the ongoing newsletter-account unsubscribes
+uploaded by hand (item 129), which then read as a legacy import, not a fresh unsubscribe. The suppression still works
+(`email_norm` is the key). Batch 6's 8 rows (2026-10-28) carry the wrong label.
+
+**Fix:** record uploads under their own source (for example `upload`, or a choice on the form: newsletter
+unsubscribes, Airtable, other), and decide whether to relabel batch 6. Check every reader of `dnc_list.source`
+first (`levelreport` counts only `unsubscribe`, deliberately).
+
+## 269. No way to add a single address to the suppression list on `/admin`
+
+**Status:** open (requested by the developer 2026-10-28)
+**When:** next after item 129, with item 268
+
+Adding one or a few unsubscribes means building a CSV with the export's exact column names (item 129's first use
+needed two edits and picked up a typo). Wanted: a form beside the CSV upload to type addresses in, through the same
+preview-then-commit path, recording who added them and a proper source (item 268), with the same normalising
+(`lower(trim())`, non-breaking spaces stripped). Related: there is no screen to mark a suppression removed either
+(2026-10-28's typo was retired by hand, `dnc_id` 4663); decide with this item whether one is wanted.
