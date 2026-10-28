@@ -139,7 +139,8 @@ Pulls and matching are unchanged: **steps 2b (the pull from the zones) and 3 (ma
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
 with CSV export → 3 RentCast listings → 4 accounts → 5 email → 5b radar layers
-on the territory page (internal) → 5c likelihood map (step 1 internal; pull, match and send steps wait) → 6 pilot → 7 rollout.
+on the territory page (internal) → 5c likelihood map (built through sends by level, on `hail-dev`; real
+recipients wait on items 129, 183, 189, 96) → 6 pilot → 7 rollout.
 
 Do not build ahead of the current phase.
 
