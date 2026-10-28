@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Send{% endblock %}
+{% block heading %}Send — hail zones preview{% endblock %}
+
+{% block content %}
+<div class="page">
+{% with mode = 'zones' %}{% include "_send_mode.html" %}{% endwith %}
+<p class="note">
+    Emails here rest on the hail-likelihood zones (radar and observer reports), not on a National Weather
+    Service report, so they use a zone template: no hail size and no distance. This page previews first.
+    Nothing is written or sent until you review a send and press Send now.
+    <a href="{{ url_for('send.batches') }}">Recent sends</a>
+</p>
+{% if busy %}
+<p class="note warning">A send is running. <a href="{{ url_for('send.batches') }}">See progress</a>.</p>
+{% endif %}
+
+<p>Hail-zone set in use: <strong>{{ current.set_id }}</strong> ({{ current.name }}).
+   Only matches made with this set are offered.</p>
+
+<form method="get" action="{{ url_for('send.index') }}">
+    <input type="hidden" name="mode" value="zones">
+    <input type="hidden" name="levels_shown" value="1">
+    {% if available %}
+    <table>
+        <thead><tr><th></th><th>Storm day</th><th>Agree</th><th>One source</th></tr></thead>
+        <tbody>
+            {% for d in available %}
+            <tr>
+                <td><input type="checkbox" name="day" value="{{ d.day.isoformat() }}"
+                           id="day-{{ d.day.isoformat() }}"
+                           {% if d.day in ticked %}checked{% endif %}></td>
+                <td><label for="day-{{ d.day.isoformat() }}">{{ d.day.strftime('%a %b %d, %Y') }}</label></td>
+                <td>{{ '{:,}'.format(d.agree) }}</td>
+                <td>{{ '{:,}'.format(d.one_source) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="note">No storm day has zone matches made with this set that are recent enough to send. Zone matches
+       are made from the <a href="{{ url_for('main.index') }}">Storm Days</a> page, through Compare with the hail zones.</p>
+    {% endif %}
+
+    <h3>Levels</h3>
+    <p>
+        {% for key, label in level_labels.items() %}
+        <label><input type="checkbox" name="level" value="{{ key }}" {% if key in levels %}checked{% endif %}>
+        {{ label }}</label>
+        {% endfor %}
+        <br><small>Agree: radar and a ground report point the same way. One source: one of them alone.
+        Context (warnings only) makes no matches and is never sent.</small>
+    </p>
+
+    <h3>Template</h3>
+    <table>
+        <tbody>
+            {% for name in templates %}
+            <tr>
+                <td><input type="radio" name="template" value="{{ name }}" id="tpl-{{ loop.index }}"
+                           {% if name == chosen %}checked{% endif %}></td>
+                <td><label for="tpl-{{ loop.index }}">{{ name }}</label></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if available %}<button type="submit">Preview</button>{% endif %}
+</form>
+
+{% if found is not none %}
+<h3>Preview for {{ ticked | length }} storm day{{ '' if ticked | length == 1 else 's' }}</h3>
+<p class="estimate-summary">
+    <strong>{{ found.realtors | length }}</strong>
+    email{{ '' if found.realtors | length == 1 else 's' }} would be queued,
+    covering <strong>{{ listing_count }}</strong>
+    listing{{ '' if listing_count == 1 else 's' }}.
+    ({{ found.considered.matches }} matches for {{ found.considered.realtors }} realtors
+    were considered.)
+</p>
+
+{% if found.realtors %}
+<table>
+    <thead><tr><th>On the list</th><th>Matches</th></tr></thead>
+    <tbody>
+        {% for key, label in level_labels.items() if key in counts.level %}
+        <tr><td>Level: {{ label }}</td><td>{{ counts.level[key] }}</td></tr>
+        {% endfor %}
+        {% for key, label in basis_labels.items() if key in counts.basis %}
+        <tr><td>Basis: {{ label }}</td><td>{{ counts.basis[key] }}</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<table>
+    <thead><tr><th>Left out because</th><th>Matches</th><th>Realtors</th></tr></thead>
+    <tbody>
+        {% for key, label in reasons %}
+        <tr>
+            <td>{{ label }}</td>
+            <td>{{ found.excluded[key].matches }}</td>
+            <td>{{ found.excluded[key].realtors }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if found.excluded.observer_wording_not_approved.matches %}
+<p class="note warning">
+    {{ found.excluded.observer_wording_not_approved.matches }}
+    match{{ '' if found.excluded.observer_wording_not_approved.matches == 1 else 'es' }}
+    rest on a volunteer observer report and wait until the observer wording is approved on the
+    <a href="{{ url_for('admin.index') }}#observer-wording">admin page</a>.
+</p>
+{% endif %}
+{% if found.excluded.stale_listing.matches %}
+<p class="note warning">
+    {{ found.excluded.stale_listing.matches }} match{{ '' if found.excluded.stale_listing.matches == 1 else 'es' }}
+    dropped because RentCast has not seen the listing recently. Pull the zips again, then preview again.
+</p>
+{% endif %}
+{% endif %}
+
+{% if sample.problem %}
+<p class="note warning">The sample email could not be built: {{ sample.problem }}</p>
+{% elif sample.html %}
+<h3>Sample ({{ sample.source }})</h3>
+<p>Subject: <strong>{{ sample.subject }}</strong></p>
+<iframe sandbox title="Sample email" srcdoc="{{ sample.html }}"
+        style="width:100%; height:600px; border:1px solid var(--border);"></iframe>
+{% endif %}
+</div>
+{% endblock %}

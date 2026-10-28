@@ -79,7 +79,15 @@ class MatchReaderTest(unittest.TestCase):
 
     def test_the_zone_send_list_reads_only_what_it_may(self):
         text = (ROOT / "hailsys/queries/zonesend.py").read_text()
-        self.assertEqual(sorted(READ.findall(text)), ["m", "m2"])
+        self.assertEqual(sorted(READ.findall(text)), ["m", "m", "m2"])
+        # The day list for the send page (piece 4b-3):  counts of zone rows under one set, by day, nothing else.
+        days = re.sub(r"\s+", " ", re.search(r'_DAYS_SQL = """(.*?)"""', text, re.S).group(1)).strip()
+        self.assertEqual(
+            days,
+            "SELECT m.storm_date AS day, count(*) FILTER (WHERE m.level = 'agree') AS agree, "
+            "count(*) FILTER (WHERE m.level = 'one_source') AS one_source FROM storm_listing_matches m "
+            "WHERE m.iem_id IS NULL AND m.set_id = %(set_id)s AND m.level IN ('agree', 'one_source') "
+            "AND m.storm_date >= %(oldest)s GROUP BY m.storm_date ORDER BY m.storm_date DESC")
         sql = re.search(r'_HITS_SQL = """(.*?)"""', text, re.S).group(1)
         flat = re.sub(r"\s+", " ", sql)
         # The main read is of zone matches only, and of one parameter set, the chosen days and levels.

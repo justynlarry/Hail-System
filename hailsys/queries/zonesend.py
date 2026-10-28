@@ -142,3 +142,31 @@ def build_zone_send_list(conn, storm_days, *, now, set_id=None, levels=DEFAULT_L
                   "hail_in": chosen["hail_in"], "radius_km": chosen["radius_km"]}
     out["levels"] = levels
     return out
+
+
+# Days a zone send can offer:  Agree or One Source matches under one set.
+# GROUP BY names m.storm_date, not the alias.
+_DAYS_SQL = """
+SELECT m.storm_date AS day,
+    count(*) FILTER (WHERE m.level = 'agree') AS agree,
+    count(*) FILTER (WHERE m.level = 'one_source') AS one_source
+FROM storm_listing_matches m
+WHERE m.iem_id IS NULL AND m.set_id = %(set_id)s
+  AND m.level IN ('agree', 'one_source')
+  AND m.storm_date >= %(oldest)s
+GROUP BY m.storm_date
+ORDER BY m.storm_date DESC
+"""
+
+
+def current_set(conn):
+    """The set in use (the newest), with the radar numbers its sentence needs:
+    {'set_id', 'name', 'hail_in', 'radius_km'}, or None if there is none."""
+    return conn.execute(_SET_SQL, {"set_id": None}).fetchone()
+
+
+def fetch_zone_send_days(conn, *, today, set_id, max_age_days=sendlist.MAX_AGE_DAYS):
+    """Denver storm days with Agree or One source matches under this set that are not
+    too old to send, newest first, with the matches at each level."""
+    return conn.execute(_DAYS_SQL, {"set_id": set_id,
+                                    "oldest": today - timedelta(days=max_age_days)}).fetchall()

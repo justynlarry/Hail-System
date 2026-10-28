@@ -4,6 +4,7 @@
 
 {% block content %}
 <div class="page">
+{% with mode = 'reports' %}{% include "_send_mode.html" %}{% endwith %}
 <p class="note">
     This page previews first. Nothing is written or sent until you review a send and press
     Send now. <a href="{{ url_for('send.batches') }}">Recent sends</a>

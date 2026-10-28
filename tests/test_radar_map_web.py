@@ -385,7 +385,9 @@ class IsolationTest(unittest.TestCase):
     def test_only_the_send_code_may_import_the_zone_send_list(self):
         # The zone send list feeds the send screen and the send engine (step 4) and nothing else:  not the exports, the activity
         # feed, the drips, the report send list, the storm browser or the pull code.
-        allowed = {"hailsys/web/send.py", "hailsys/web/sendjobs.py", "hailsys/email/send.py"}
+        # sendzone.py is the zone mode of the send page (piece 4b-3, decision log 2026-10-28).
+        allowed = {"hailsys/web/send.py", "hailsys/web/sendjobs.py", "hailsys/email/send.py",
+                   "hailsys/web/sendzone.py"}
         users = set()
         for path in self.files("hailsys/**/*.py"):
             if path.name != "zonesend.py" and "zonesend" in path.read_text():

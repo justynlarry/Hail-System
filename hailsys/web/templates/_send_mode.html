@@ -1,0 +1,9 @@
+{# The two modes of the send page (decision log 2026-10-28):  one page, the reason for the email chosen first.
+   mode is 'reports' or 'zones'. #}
+<p class="send-mode">Send from:
+  {% if mode == 'zones' %}
+  <a href="{{ url_for('send.index') }}">NWS reports</a> | <strong>Hail zones</strong>
+  {% else %}
+  <strong>NWS reports</strong> | <a href="{{ url_for('send.index', mode='zones') }}">Hail zones</a>
+  {% endif %}
+</p>

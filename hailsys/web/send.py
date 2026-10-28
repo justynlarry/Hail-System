@@ -19,6 +19,7 @@ from hailsys.email import dripstart, render, templatestore
 from hailsys.queries import dripscreen, sendlist, sendstatus, templatelist
 from hailsys.tuning import DISPLAY_TZ
 from hailsys.web import sendjobs
+from hailsys.web import sendzone
 from hailsys.web.auth import require_role
 
 logger = logging.getLogger(__name__)
@@ -155,6 +156,8 @@ def _campaign_templates():
 
 @send_bp.route("/")
 def index():
+    if request.args.get("mode") == "zones":
+        return sendzone.zone_index(REASON_LABELS, DEFAULT_MAX_EMAILS, MAX_EMAILS_LIMIT)
     now = datetime.now(timezone.utc)
     s = g.settings
     tuning = dict(max_age_days=s["match_max_age_days"],
