@@ -6414,7 +6414,7 @@ Daily export is ever ingested for every station-day, or a second state with dens
 
 ## 254. The radar zones anchor a patch on any roof-relevant report, wind and snow included
 
-**Status:** open, not urgent (filed 2026-10-24, found while writing `hailsys/likelihood/build.py`, Phase 5c step 1b)
+**Status:** resolved 2026-10-28 (filed 2026-10-24, found while writing `hailsys/likelihood/build.py`, Phase 5c step 1b). Measured first (`docs/analysis/radar-anchors-2026-10/`): 117 wind-only core patches, 8,423 km², on 61 of 196 core days. `_REPORTS_SQL` now anchors on HAIL only; all 2,199 radar days rebuilt, 624 anchored patches, matching the measurement on every day. Decision log 2026-10-28.
 
 `hailsys/radar/zones.py` `_REPORTS_SQL` has no `report_text` filter: a radar patch is "anchored" (core) by any report that is roof
 relevant and at or above its type's minimum. That is 12 types (`report_types.roof_relevant`): HAIL, but also TSTM WND GST, TSTM WND DMG,

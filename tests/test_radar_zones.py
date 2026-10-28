@@ -108,7 +108,8 @@ class BuildTest(unittest.TestCase):
 
     def add_report(self, when, lat, lon, magnitude=1.0, report_text="HAIL"):
         self.serial += 1
-        report_type = {"HAIL": "H", "HEAVY RAIN": "R"}[report_text]
+        report_type = {"HAIL": "H", "HEAVY RAIN": "R", "TSTM WND GST": "G", "TSTM WND DMG": "D",
+                       "TORNADO": "T", "HEAVY SNOW": "S"}[report_text]
         self.conn.execute(
             "INSERT INTO iem_data (utc_datetime, latitude, longitude, magnitude, nws_issuer, report_type, "
             "report_text, ingested_at) VALUES (%s, %s, %s, %s, 'TEST', %s, %s, now())",
@@ -176,6 +177,24 @@ class BuildTest(unittest.TestCase):
         got = self.build()
         self.assertEqual((got["anchor_reports"], got["patches_anchored"]), (0, 0))
         self.assertEqual(set(self.layers()), {"radar_indicated"})
+
+    def test_a_roof_relevant_report_that_is_not_hail_does_not_anchor(self):
+        # Item 254:  wind, tornado and snow reports are roof relevant and each is at or above its own minimum
+        # here, but they are not evidence of hail.  Before the fix they made 117 patches core on 61 days.
+        self.add_day(SUMMER)
+        self.add_cells(SUMMER, [(ROW, COL, 30), (ROW, COL + 20, 30)])
+        lat, lon = self.cell_lat_lon(ROW, COL)
+        for text, magnitude in (("TSTM WND GST", 70), ("TSTM WND DMG", None), ("TORNADO", None),
+                                ("HEAVY SNOW", 8)):
+            self.add_report(self.noon(), lat, lon, magnitude=magnitude, report_text=text)
+        got = self.build()
+        self.assertEqual((got["patches"], got["anchor_reports"], got["patches_anchored"]), (2, 0, 0))
+        self.assertEqual(set(self.layers()), {"radar_indicated"})
+        # A hail report beside the other patch still anchors it.
+        lat2, lon2 = self.cell_lat_lon(ROW, COL + 20)
+        self.add_report(self.noon(), lat2, lon2)
+        got = self.build()
+        self.assertEqual((got["anchor_reports"], got["patches_anchored"]), (1, 1))
 
     def test_the_day_window_in_summer_and_winter(self):
         for day, edge in ((SUMMER, 6), (WINTER, 7)):

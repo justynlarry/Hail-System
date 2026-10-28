@@ -323,13 +323,14 @@ class BuildTest(unittest.TestCase):
         self.add_report(self.noon(), lat, lon, magnitude=0.75)
         self.assertEqual(self.build()["iem_reports"], 0)
 
-    def test_only_hail_reports_count_and_a_wind_report_anchors_the_radar_zones_but_not_these(self):
+    def test_only_hail_reports_count_and_a_wind_report_anchors_neither_these_nor_the_radar_zones(self):
+        # Item 254:  the radar zones used to anchor on any roof-relevant report.  Both now take HAIL only.
         lat, lon = self.one_patch()
         self.add_report(self.noon(), lat, lon, magnitude=70, report_text="TSTM WND GST")
         self.add_report(self.noon(), lat, lon, magnitude=0, report_text="TORNADO")
         got = self.build()
         self.assertEqual((got["iem_reports"], got["patches_anchored"]), (0, 0))
-        self.assertEqual(zones.build_day(self.conn, SUMMER, DENVER, set_id=self.radar_set)["patches_anchored"], 1)
+        self.assertEqual(zones.build_day(self.conn, SUMMER, DENVER, set_id=self.radar_set)["patches_anchored"], 0)
 
     def test_an_iem_report_counts_in_the_local_day_only(self):
         lat, lon = self.one_patch()

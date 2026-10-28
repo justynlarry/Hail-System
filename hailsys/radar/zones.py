@@ -49,8 +49,10 @@ CREATE TEMP TABLE radar_anchor_reports (geom geometry(Point, 4326)) ON COMMIT DR
 CREATE TEMP TABLE radar_work (patch INTEGER, cell geometry, anchored BOOLEAN) ON COMMIT DROP
 """
 
-# Same test as the matcher and the storm screens.  Roof Relevant, and at or above the type's
-# minimum magnitude if it has one.  a NULL magnitude fails a minimum.
+# Same test as the matcher and the storm screens (roof relevant, and at or above the type's
+# minimum magnitude if it has one;  a NULL magnitude fails a minimum), for HAIL reports only.
+# A wind, tornado or snow report near radar hail is not evidence of hail:  before item 254 it
+# made 117 patches core on 61 days.  The likelihood build anchors on HAIL too.
 _REPORTS_SQL = """
 INSERT INTO radar_anchor_reports (geom)
 SELECT i.geom
@@ -59,6 +61,7 @@ JOIN report_types t ON t.report_type = i.report_type AND t.report_text = i.repor
 WHERE i.utc_datetime >= %(start)s AND i.utc_datetime < %(end)s
     AND t.roof_relevant
     AND (t.min_magnitude IS NULL OR i.magnitude >= t.min_magnitude)
+    AND i.report_text = 'HAIL'
 """
 
 # radar_cells.mm is a 4-byte REAL, so the threshold is cast to REAL too.  25.4 as a double is

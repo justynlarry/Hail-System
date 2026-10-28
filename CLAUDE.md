@@ -102,7 +102,8 @@ build ahead" for this phase). Radar layers for the territory page, internal and 
 reaches an email, an export, a pull or the matcher.
 - **Data and zones.** `sql/048` to `051`; `hailsys/radar/` decodes NOAA's public MRMS `MESH_Max_1440min` file (the one
   stamped at the local midnight that ends the day, 2020-10-14 on), stores the cells, and builds four layers per
-  day in PostGIS: core, margin, radar-indicated, and outer (NWS warning polygons). Thresholds live in the
+  day in PostGIS: core (radar hail with a HAIL report within the radius; item 254), margin, radar-indicated, and outer
+  (NWS warning polygons). Thresholds live in the
   append-only `radar_parameter_sets` (newest row in use); `settings.storm_states` names the warning states.
 - **Jobs.** `scripts/radar_ingest.py` (`nightly`, `rebuild`, `backfill`, `warnings`), `scripts/radar_day.py` for one
   day; `systemd/radar_*` timers at 10:30 UTC nightly and Sundays 11:30 (installed and enabled on `hail-dev`, 2026-10-22); `scripts/status.sh
