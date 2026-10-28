@@ -18,8 +18,8 @@ Guards:
 import uuid
 from datetime import timedelta
 
-from hailsys.email import render, templatestore
-from hailsys.queries import sendlist
+from hailsys.email import render, templatestore, zonecontext
+from hailsys.queries import sendlist, zonesend
 
 SYNC_MAX_AGE = timedelta(minutes=15)
 
@@ -36,22 +36,47 @@ def _check_syn(conn, run_id, now):
         raise SendError("The unsubscribe sync did not succeed just before this send.")
 
 
+def build_list(conn, storm_days, *, now, zone=None, max_age_days, cap_days,
+               freshness_days):
+    """The send list for the ticked days:  report matches, or the hail zones.
+
+    zone is {'set_id', 'levels'}.  The set must be pinned by the caller:  a send
+    never takes whatever set happens to be newest.
+    """
+    if zone is None:
+        return sendlist.build_send_list(
+            conn, storm_days, now=now, max_age_days=max_age_days,
+            cap_days=cap_days, freshness_days=freshness_days)
+    if zone.get("set_id") is None:
+        raise SendError("A send from the hail zones needs its parameter set pinned.")
+    return zonesend.build_zone_send_list(
+        conn, storm_days, now=now, set_id=zone["set_id"], levels=zone["levels"],
+        max_age_days=max_age_days, cap_days=cap_days, freshness_days=freshness_days)
+
+
 def queue_batch(conn, *, user_id, storm_days=None, email_settings, now, sync_run_id,
                 allowed_emails, contacts, override_cap=False, send_list=None,
                 max_age_days=sendlist.MAX_AGE_DAYS, cap_days=sendlist.CAP_DAYS,
                 freshness_days=sendlist.FRESH_DAYS,
-                template_name=templatestore.TEMPLATE_NAME):
+                template_name=templatestore.TEMPLATE_NAME, zone=None):
     """Queue one email per eligible realtor.  Returns what was queued and what was left out.
 
     send_list is a list already built, a drip follow-up (dripfollowup.build_followup_list).  The
     storm days, the cap override and the age, cap and freshness arguments are then not used.
+
+    zone, {'set_id', 'levels'}, makes this a send from the hail zones.  The list comes from zonesend
+    for that pinned set, the template must be zone-kind, and each send_log row records its own match's
+    basis, level and set.  No cap override and no ready-made list:  a zone send is not a follow-up.
     """
+    if zone is not None and (override_cap or send_list is not None):
+        raise SendError("A send from the hail zones takes no cap override and no ready list.")
+    kind = "report" if zone is None else "zone"
     _check_syn(conn, sync_run_id, now)
     if send_list is not None:
         found = send_list
     elif storm_days is not None:
-        found = sendlist.build_send_list(
-            conn, storm_days, now=now, max_age_days=max_age_days,
+        found = build_list(
+            conn, storm_days, now=now, zone=zone, max_age_days=max_age_days,
             cap_days=None if override_cap else cap_days, freshness_days=freshness_days)
     else:
         raise ValueError("queue_batch needs storm_days or a send_list")
@@ -59,9 +84,12 @@ def queue_batch(conn, *, user_id, storm_days=None, email_settings, now, sync_run
     allowed = {e.strip().lower() for e in allowed_emails}
     skipped = {"not_allowed": 0, "unsubscribed_in_cc": 0, "unrenderable": []}
     try:
+        template_kind = templatestore.kind_of(conn, template_name)
         subject_src, body_src, saved_id = templatestore.load(conn, template_name)
     except templatestore.TemplateNotFound:
         raise SendError("That template is not available.") from None
+    if template_kind != kind:
+        raise SendError(f"That is a {template_kind} template: this send needs a {kind} one.")
 
     plan = []
     for r in found["realtors"]:
@@ -75,8 +103,12 @@ def queue_batch(conn, *, user_id, storm_days=None, email_settings, now, sync_run
             skipped["unsubscribed_in_cc"] += 1
             continue
         try:
-            context = render.build_context(r["agent_name"], r["events"], email_settings)
-            subject, html = render.render(subject_src, body_src, context)
+            if zone is None:
+                context = render.build_context(r["agent_name"], r["events"], email_settings)
+            else:
+                context = zonecontext.build_context(
+                    r["agent_name"], r["events"], email_settings, found["set"])
+            subject, html = render.render(subject_src, body_src, context, kind=kind)
         except render.RenderError:
             skipped["unrenderable"].append(r["realtor_id"])     # ids only, no text
             continue
@@ -87,9 +119,10 @@ def queue_batch(conn, *, user_id, storm_days=None, email_settings, now, sync_run
                "skipped": skipped}
     if not plan:
         return summary
-
+    # name= : the built-in zone template must be saved under its own name.
     template_id = saved_id or templatestore.ensure_current(
-        conn, created_by=user_id, subject_src=subject_src, body_src=body_src)
+        conn, created_by=user_id, name=template_name, subject_src=subject_src,
+        body_src=body_src, match_kind=kind)
     batch_id = uuid.uuid4()
     for r, contact, subject, html in plan:
         email_id = conn.execute(
@@ -99,12 +132,22 @@ def queue_batch(conn, *, user_id, storm_days=None, email_settings, now, sync_run
             (batch_id, r["realtor_id"], r["email"], template_id, sync_run_id,
              "none" if contact else "implicit", user_id, subject, html,
              contact["contact_id"] if contact else None)).fetchone()["email_id"]
-        rows = [(r["realtor_id"], r["email"], match_id, template_id, user_id, email_id)
-                for event in r["events"] for match_id in event["match_ids"]]
         with conn.cursor() as cur:
-            cur.executemany(
-                "INSERT INTO send_log (realtor_id, recipient_email, match_id, template_id, "
-                "sent_by, email_id) VALUES (%s, %s, %s, %s, %s, %s)", rows)
+            if zone is None:
+                rows = [(r["realtor_id"], r["email"], match_id, template_id, user_id, email_id)
+                        for event in r["events"] for match_id in event["match_ids"]]
+                cur.executemany(
+                    "INSERT INTO send_log (realtor_id, recipient_email, match_id, template_id, "
+                    "sent_by, email_id) VALUES (%s, %s, %s, %s, %s, %s)", rows)
+            else:
+                # The snapshot is the match's own basis, level and set: sql/060 checks it.
+                rows = [(r["realtor_id"], r["email"], m["match_id"], template_id, user_id,
+                         email_id, m["basis"], m["level"], m["set_id"])
+                        for event in r["events"] for m in event["matches"]]
+                cur.executemany(
+                    "INSERT INTO send_log (realtor_id, recipient_email, match_id, "
+                    "template_id, sent_by, email_id, basis, level, zone_set_id) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", rows)
         summary["email_ids"].append(email_id)
         summary["matches"] += len(rows)
     summary["batch_id"] = str(batch_id)

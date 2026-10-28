@@ -206,11 +206,12 @@ class QueueBatchTest(unittest.TestCase):
         real = render.render
         calls = []
 
-        def flaky(subject, body, context):
+        def flaky(subject, body, context, kind="report"):
+            self.assertEqual(kind, "report")        # a report send renders with the report rules
             calls.append(1)
             if len(calls) == 1:
                 raise render.RenderError("broken")
-            return real(subject, body, context)
+            return real(subject, body, context, kind=kind)
 
         with mock.patch.object(render, "render", flaky):
             out = self.queue()

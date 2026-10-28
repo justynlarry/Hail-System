@@ -302,8 +302,11 @@ class IsolationTest(unittest.TestCase):
         for path in self.files("hailsys/email/**/*.py", "hailsys/matching/**/*.py", "hailsys/rentcast/**/*.py",
                                "hailsys/constantcontact/**/*.py", "hailsys/email/templates/**/*"):
             if path.is_file() and path.name != "zonematch.py":
-                with self.subTest(path=str(path.relative_to(ROOT))):
-                    self.assertIsNone(self.RADAR_NAMES.search(path.read_text()))
+                rel = str(path.relative_to(ROOT))
+                with self.subTest(path=rel):
+                    found = {m.group(0) for m in self.RADAR_NAMES.finditer(path.read_text())}
+                    # The send engine writes the send_log snapshot column (step 4 piece 4a), and nothing else.
+                    self.assertEqual(found, {"zone_set_id"} if rel == "hailsys/email/send.py" else set())
 
     def test_the_other_query_modules_never_mention_the_radar(self):
         # findings.py is the slice 6 panel, staff only;  likelihoodadmin.py edits the parameter sets (slice 7, admin only)
@@ -393,8 +396,14 @@ class IsolationTest(unittest.TestCase):
         files = set()
         for path in self.files("hailsys/**/*.py"):
             text = path.read_text()
+            rel = str(path.relative_to(ROOT))
+            if rel == "hailsys/email/send.py":
+                # Its zone_set_id is send_log's snapshot column (step 4 piece 4a), not the pull's.
+                self.assertNotIn("pull_zips", text)
+                self.assertNotIn("api_pulls", text)
+                continue
             if "pull_zips" in text or "zone_set_id" in text:
-                files.add(str(path.relative_to(ROOT)))
+                files.add(rel)
         self.assertEqual(files, {"hailsys/web/jobs.py"})
 
     def test_only_the_zone_match_route_uses_the_zone_matcher(self):

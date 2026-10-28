@@ -275,7 +275,7 @@ def deliver_batch(batch_id, *, sender, cc=campaigns, max_emails=None):
 def run_send(*, user_id, storm_days, email_settings, sender, allowed_emails,
              override_cap=False, max_emails=None, max_age_days=sendlist.MAX_AGE_DAYS,
              cap_days=sendlist.CAP_DAYS, freshness_days=sendlist.FRESH_DAYS,
-             template_name=templatestore.TEMPLATE_NAME, campaign=None,
+             template_name=templatestore.TEMPLATE_NAME, campaign=None, zone=None,
              sync=unsubs.run_sync, cc=campaigns, now=None):
     """One send click.  Sync unsubscribes, look up recipients, queue, then deliver.
 
@@ -284,6 +284,8 @@ def run_send(*, user_id, storm_days, email_settings, sender, allowed_emails,
     makes this send step 1 of a drip campaign.  It is created in the queue transaction, so if it
     cannot be made nothing is queued.
     """
+    if zone is not None and (override_cap or campaign is not None):
+        raise send.SendError("A send from the hail zones takes no cap override and no campaign.")
     result = sync(triggered_by=user_id)
     now = now or datetime.now(timezone.utc)
     allowed = {e.strip().lower() for e in allowed_emails}
@@ -291,7 +293,7 @@ def run_send(*, user_id, storm_days, email_settings, sender, allowed_emails,
                   cap_days=None if override_cap else cap_days)
 
     with get_connection() as conn:
-        found = sendlist.build_send_list(conn, storm_days, now=now, **tuning)
+        found = send.build_list(conn, storm_days, now=now, zone=zone, **tuning)
         conn.commit()
     candidates = sorted({r["email"] for r in found["realtors"]} & allowed)
     contacts = lookup_contacts(candidates, cc=cc)
@@ -301,7 +303,8 @@ def run_send(*, user_id, storm_days, email_settings, sender, allowed_emails,
             conn, user_id=user_id, storm_days=storm_days, email_settings=email_settings,
             now=now, sync_run_id=result["run_id"], allowed_emails=allowed,
             contacts=contacts, override_cap=override_cap, max_age_days=max_age_days,
-            cap_days=cap_days, freshness_days=freshness_days, template_name=template_name)
+            cap_days=cap_days, freshness_days=freshness_days, template_name=template_name,
+            zone=zone)
         if campaign is not None and summary["batch_id"]:
             summary["campaign_id"] = dripstart.create_campaign(
                 conn, user_id=user_id, batch_id=summary["batch_id"], **campaign)

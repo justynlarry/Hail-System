@@ -6577,3 +6577,23 @@ happens again, read the new access-log time for that request first.
 A mis-keyed copy of `zonecontext.py` landed in `hailsys/email/__pycache__/`. Git ignores that directory, but `tests/test_radar_map_web.py` globs `hailsys/**/*.py` and flagged the copy as a second user of the zone send list. The failure was correct but its path (`hailsys/email/__pycache__/zonecontext.py`) was confusing.
 
 **Fix when touched:** have the shared `files()` helper skip any path with `__pycache__` in it. **Related:** decision log 2026-10-28 (step 4 piece 3b).
+
+
+## 264. `queue_batch` saves the built-in template under the default name
+
+**Status:** resolved 2026-10-28 in step 4 piece 4a (found the same day while planning the zone send mode)
+**When:** with piece 4a, before any zone send is queued
+
+`hailsys/email/send.py` (`queue_batch`, the `ensure_current(conn, created_by=user_id, subject_src=..., body_src=...)` call) passes no `name=`, so it always saves under `hail_alert`. That is correct today only because the one built-in a send can reach is `hail_alert`. For the built-in zone template (`hail_alert_zone`, `template_id` None until its first send) it would try to save zone text under the report name and be refused by the report-kind validation, or save the wrong thing. Not hit: no zone send exists yet.
+
+**Fix:** pass `name=template_name` and `match_kind` (piece 4a), with a test that the first zone send saves `hail_alert_zone` as kind zone. **Related:** items 263, 265; decision log 2026-10-28.
+
+
+## 265. The report send's template list does not filter by kind
+
+**Status:** open, to be fixed in step 4 piece 4b (verified 2026-10-28)
+**When:** with piece 4b, before the zone template has a saved row
+
+`hailsys/queries/templatelist.py` (`_SELECT`, `_COUNT_SQL`) filters on `is_active` only. Once `hail_alert_zone` has a saved row (its first send, or a test send) it appears in the report `/send` picker, in `_campaign_templates()` and in the `/templates` list. A report send that picked it would render every email as unrenderable (the engine refuses the wrong kind, and the database trigger refuses it again), so nothing wrong could be sent, but it is confusing and a follow-up could name it.
+
+**Fix:** `fetch_page`, `fetch_one` and `fetch_all` take a `kind`; the report picker and the follow-up list ask for `report`, the zone mode for `zone`. **Related:** items 263, 264; decision log 2026-10-28.
