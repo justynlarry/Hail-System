@@ -13,7 +13,7 @@ What they pin: the crop box follows the active coverage zips, sits on the grid a
 a loaded day stores the cells at or above the floor with the file's own time, box and counts;
 a day already held is skipped; a 404 long after the stamp is a missing day and a recent one is
 an error; a file for the wrong time is refused; the download is deleted whatever happens; and
-a day can be deleted with everything built from it.
+a day can be deleted with everything built from it, its likelihood builds included (item 276).
 """
 
 import os
@@ -340,6 +340,30 @@ class LoadTest(unittest.TestCase):
         load.delete_day(self.conn, DAY)
         self.assertEqual(self.conn.execute("SELECT count(*) AS n FROM radar_days WHERE day = %s",
                                            (other,)).fetchone()["n"], 1)
+
+    def test_delete_day_removes_the_likelihood_builds_too(self):
+        # likelihood_builds.day references radar_days (sql/054): before item 276 this delete was refused.
+        self.load()
+        other = date(1999, 6, 9)
+        self.conn.execute(
+            "INSERT INTO radar_days (day, run_id, status, stamp_utc, source_key, box_lat_max, box_lat_min, "
+            "box_lon_min, box_lon_max, floor_mm, cells_in_box) VALUES (%s, %s, 'loaded', now(), 'k', "
+            "2, 1, 1, 2, 12.7, 5)", (other, self.run_id))
+        for day in (DAY, other):
+            self.conn.execute(
+                "INSERT INTO likelihood_builds (day, set_id, window_start, window_end, iem_reports, "
+                "cocorahs_reports, duplicates_dropped, patches, patches_anchored) "
+                "SELECT %s, max(set_id), now() - interval '1 day', now(), 0, 0, 0, 0, 0 "
+                "FROM likelihood_parameter_sets", (day,))
+            self.conn.execute(
+                "INSERT INTO likelihood_zones (day, set_id, level, geom, area_km2) "
+                "SELECT %s, max(set_id), 'agree', ST_Multi(ST_MakeEnvelope(1, 1, 2, 2, 4326)), 1 "
+                "FROM likelihood_parameter_sets", (day,))
+        load.delete_day(self.conn, DAY)
+        count = lambda t, d: self.conn.execute(f"SELECT count(*) AS n FROM {t} WHERE day = %s", (d,)).fetchone()["n"]
+        for table in ("likelihood_zones", "likelihood_builds", "radar_days"):
+            self.assertEqual(count(table, DAY), 0, table)
+            self.assertEqual(count(table, other), 1, table)
 
 
 if __name__ == "__main__":

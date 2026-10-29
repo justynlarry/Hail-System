@@ -94,8 +94,13 @@ def finish_run(conn, run_id, *, loaded, missing, suspect=0, built=0, failed=0, e
 
 
 def delete_day(conn, day):
-    """Remove a day and everything built from it, so it can be fetched again."""
-    for table in ("radar_zones", "radar_zone_builds", "radar_cells", "radar_days"):
+    """Remove a day and everything built from it, so it can be fetched again.
+    
+    The likelihood builds go first, under every set.  likelihood_builds.day references
+    radar_days (sql/054), and they were all built from the cells being thrown away.
+    """
+    for table in ("likelihood_zones", "likelihood_builds",
+                  "radar_zones", "radar_zone_builds", "radar_cells", "radar_days"):
         conn.execute(f"DELETE FROM {table} WHERE day = %(day)s", {"day": day})
 
 

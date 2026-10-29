@@ -4,7 +4,7 @@
 
     python3 scripts/radar_day.py 2026-06-08                # fetch if needed, then build zones
     python3 scripts/radar_day.py 2026-06-08 --rebuild      # zones again from the stored cells
-    python3 scripts/radar_day.py 2026-06-08 --refetch      # delete the day, fetch, build
+    python3 scripts/radar_day.py 2026-06-08 --refetch      # delete the day, fetch, build radar and likelihood
     python3 scripts/radar_day.py 2026-06-08 --set 3        # build with an older parameter set
 
 Fetching is one public NOAA file (about 1 MB), no key, no cost, and nothing is sent to anyone.
@@ -17,6 +17,7 @@ import tempfile
 from datetime import date, datetime, timezone
 
 from hailsys.db import get_connection
+from hailsys.likelihood import ingest as likelihood_ingest
 from hailsys.radar import fetch, load, warnings, zones
 from hailsys.tuning import DISPLAY_TZ
 
@@ -75,6 +76,15 @@ def main(argv=None):
             load.finish_run(conn, run_id, loaded=0, missing=0, error=f"{type(exc).__name__}: {exc}")
             conn.commit()
             raise
+        if args.refetch:
+            # The cells changed, so the day's likelihood map is rebuilt from them.  Its own
+            # recorded run, after the radar commit: a day that came back missing or suspect is
+            # skipped and a failure is kept in likelihood_runs and makes the exit status 1.
+            out = likelihood_ingest.run(conn, "manual", [args.day], DISPLAY_TZ)
+            if out["failed"]:
+                print(f"  likelihood: failed, {out['failed'][0][1]}", file=sys.stderr)
+                return 1
+            print(f"  likelihood: {'rebuilt' if out['built'] else 'skipped, no radar file loaded'}")
     return 0
 
 

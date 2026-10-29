@@ -2594,6 +2594,11 @@ again. `ingest`, the image the check matters for, read correctly: stale on four
 likelihood files, then `OK` after its rebuild. A duplicate (proposed as item 268)
 was caught before filing.
 
+**Seen again 2026-10-29, on `ingest`.** `zones.py` was flagged although the image held the committed file byte for
+byte: edited at 22:25Z, the image built at 22:31Z, the commit made at 22:38Z (`59267c0`). After the item 276 rebuild,
+`load.py` is flagged the same way. `ingest` is the image the check matters for, so a false flag there costs a pointless
+rebuild, or teaches you to ignore it.
+
 ## 173. Constant Contact's auth server rejects Python's default User-Agent
 
 **Status:** resolved 2026-10-06 (`5e4983b`)
@@ -7204,7 +7209,7 @@ check to `tests/test_rentcast_zip.py`.
 
 ## 276. `radar_day.py --refetch` fails since `sql/054`, and would leave the likelihood map stale
 
-**Status:** open (found 2026-10-29, schema review)
+**Status:** resolved 2026-10-29
 
 `hailsys/radar/load.py:96` `delete_day` removes a day from `radar_zones`, `radar_zone_builds`, `radar_cells` and
 `radar_days` (last changed 2026-10-22). `sql/054` (2026-10-24) added `likelihood_builds.day` → `radar_days`
@@ -7222,6 +7227,15 @@ day with a likelihood build is deleted and rebuilt.
 **When:** before the next refetch, or the next change to `hailsys/radar/load.py`, whichever comes first.
 
 **Related:** items 245, 246, 247, 254.
+
+**Resolved 2026-10-29.** `load.delete_day` deletes the day's `likelihood_zones` and `likelihood_builds` (every set)
+before the radar tables. After a `--refetch`, `radar_day.py` rebuilds the day's likelihood map as a `manual`
+`likelihood_runs` run, after the radar commit; a `missing` or `suspect` day is skipped, and a failed rebuild exits 1
+(`likelihood_ingest.py backfill` repairs it). Tests: `test_radar_load.test_delete_day_removes_the_likelihood_builds_too`
+(fails with `fk_likelihood_builds_day` when the fix is reverted) and the new `tests/test_radar_day.py` (4 tests; a typo
+and a removed rebuild were both caught). Full suite OK, 2,628 tests; the radar and likelihood modules OK as
+`hail_admin`, 118 tests. `ingest` image rebuilt 2026-10-29 19:53Z and checked against the repo. The test edits and the
+step 3 fixes were made by Claude at the developer's request.
 
 ## 277. `sql/011` was never applied to `hail-dev`; nothing records which migrations a database has had
 
