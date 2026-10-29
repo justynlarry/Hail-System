@@ -11,7 +11,7 @@ Read `CLAUDE.md` and `docs/database-schema.md` first. Do not skim them; the
 non-obvious reasoning behind several tables is documented there and the DDL is
 supposed to match it.
 
-Review every migration in `sql/` (001 through 062) plus `scripts/load_reference.sh`
+Review every migration in `sql/` (001 through 063) plus `scripts/load_reference.sh`
 and `scripts/load_municipal.sh`.
 This is a **review, not a rewrite** — report findings and wait for my go-ahead
 before changing anything. Do not refactor working code, and do not add anything
@@ -62,7 +62,8 @@ index, `slm_fill_storm_date`, and a `send_log` guard that 060 replaces; 058 a co
 `level` and `zone_set_id`, replacements of `email_templates_guard()` and `send_log_guard()`,
 `trg_send_log_kind_pairing`, and `settings.zone_observer_wording_approved` (a seventh replacement); 061
 `dnc_list.source` gains `newsletter`, `dnc_import_batches.source` and `note`, and a data fix for the 2026-10-28
-upload that is a no-op on any other database; 062 `schema_migrations`, the record `scripts/migrate.sh` keeps (item 277).
+upload that is a no-op on any other database; 062 `schema_migrations`, the record `scripts/migrate.sh` keeps (item 277); 063 `send_log_report_level_with_set` and
+the `pull_zips_with_pull` trigger (item 278).
 `sql/guard_test.sql` is **not a migration**:
 it tests the guards from 029 on (029, 030, 033 to 037, 041's description rule and 042; the
 guards in 039 and 040 are not covered, item 214) inside a transaction it rolls back, so build with `sql/[0-9]*.sql` and run it

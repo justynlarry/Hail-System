@@ -149,6 +149,14 @@ class ZoneSendSchemaTest(unittest.TestCase):
             with self.subTest(level=level):
                 self.send(self.old["match_id"], self.report_tpl, "report", level, self.set_id if level else None)
 
+    def test_a_report_send_names_its_level_and_set_together(self):
+        # sql/063 (item 278): a level without the set it was looked up under cannot be read later.
+        for label, level, zone_set in (("a level and no set", "agree", None),
+                                       ("a set and no level", None, self.set_id)):
+            with self.subTest(case=label):
+                self.refused(lambda: self.send(self.old["match_id"], self.report_tpl, "report", level, zone_set),
+                             "send_log_report_level_with_set")
+
     # -- the observer-wording gate ------------------------------------------------------------------
 
     def test_observer_and_both_sends_are_refused_while_the_setting_is_false(self):

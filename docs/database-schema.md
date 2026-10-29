@@ -832,6 +832,10 @@ accepted (decision log 2026-09-30). This settled open question 10.
 `context`, `none`; any other row has a `level` of `agree` or `one_source` and a `zone_set_id`. `IS NOT NULL` is said
 out loud, because a `CHECK` passes on NULL (item 259).
 
+**`CHECK` `send_log_report_level_with_set` (`sql/063`, item 278):** a `report` row's `level` and `zone_set_id` are
+both NULL or both set: a level without the set it was looked up under cannot be read later. `send.py` always wrote
+them as a pair; since `063` the database holds it too.
+
 **`trg_send_log_kind_pairing` (`send_log_kind_guard()`, `BEFORE INSERT`, `060`)** pairs the match with the
 template, whatever the application does:
 - a match with no `iem_id` (it rests on the zones) is sent only with a `zone`-kind template, and the row's `basis`,
@@ -1435,7 +1439,9 @@ written when the pull is created. The zip list is rebuilt from the database, nev
 | `basis` | `zones`, `reports` or `both`. `reports` is a zip within the zip radius of an actionable report and outside the zones |
 | `best_level` | `agree`, `one_source` or `context`: the best level the zone list gave the zip. NULL exactly for a `reports` zip (`pull_zips_level_iff_zones`) |
 
-**Append-only** by trigger (`pull_zips_append_only`, `BEFORE UPDATE OR DELETE`). `hail_app` has `SELECT, INSERT`.
+**Append-only** by trigger (`pull_zips_append_only`, `BEFORE UPDATE OR DELETE`), and **written only in the transaction
+that creates its pull** (`pull_zips_with_pull`, `BEFORE INSERT`, `sql/063`, item 278): the pull's `started_at` must be
+`now()`, the transaction's start, the same test `sql/056` uses for likelihood rules. `hail_app` has `SELECT, INSERT`.
 Nothing here calls RentCast: the pull is still a person's click, run by `run_pull`, and a pull never writes a zone
 match. As of 2026-10-29 it holds one row, pull 1228.
 

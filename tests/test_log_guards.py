@@ -97,6 +97,19 @@ class LogGuardTest(unittest.TestCase):
         row = self.a_pull_zip()
         self.refused("DELETE FROM pull_zips WHERE pull_id = %s AND zcta5 = %s", (row["pull_id"], row["zcta5"]))
 
+    def test_a_pull_takes_zips_in_the_transaction_that_creates_it(self):
+        pull = self.conn.execute(
+            "INSERT INTO api_pulls (emp_id, zip_count, estimated_api_calls, api_status) "
+            "VALUES (%s, 1, 1, 'running') RETURNING pull_id", (self.emp,)).fetchone()["pull_id"]
+        self.conn.execute("INSERT INTO pull_zips (pull_id, zcta5, basis) VALUES (%s, '80001', 'reports')", (pull,))
+
+    def test_an_older_pull_takes_no_more_zips(self):
+        # sql/063 (item 278): now() is the transaction's start, so an hour-old pull was made in another one.
+        pull = self.conn.execute(
+            "INSERT INTO api_pulls (emp_id, zip_count, estimated_api_calls, api_status, started_at) "
+            "VALUES (%s, 1, 1, 'complete', now() - interval '1 hour') RETURNING pull_id", (self.emp,)).fetchone()["pull_id"]
+        self.refused("INSERT INTO pull_zips (pull_id, zcta5, basis) VALUES (%s, '80002', 'reports')", (pull,))
+
     # --- grants ---
 
     def test_the_app_role_cannot_delete_or_rewrite(self):

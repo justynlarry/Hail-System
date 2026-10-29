@@ -7270,7 +7270,7 @@ the script and fails 12 on a copy with a `$has-table` typo found while keying it
 
 ## 278. Two rules held only in application code: report-row level and set on `send_log`, and `pull_zips` written at creation
 
-**Status:** open (found 2026-10-29, schema review)
+**Status:** resolved 2026-10-29
 
 - **`send_log` report rows.** `send.py` writes `level` and `zone_set_id` as a pair from `zonesend.report_levels`: both
   NULL, or both set (item 266). `send_log_snapshot_shape` (`sql/060`) does not require it for `basis = 'report'`, so a
@@ -7285,6 +7285,16 @@ Per CLAUDE.md, "if a rule must hold, it holds in the database"; neither rule is 
 **When:** with the next migration that touches `send_log`, or before the first real send, whichever comes first.
 
 **Related:** items 259, 266.
+
+**Resolved 2026-10-29.** Both rules are in the database (`sql/063`): the `CHECK` `send_log_report_level_with_set`
+(a report row's `level` and `zone_set_id` both NULL or both set), and the trigger `pull_zips_with_pull` (a zip only for
+a pull whose `started_at` is `now()`, the transaction that creates it, as `jobs._create_zone_pull` writes them). No
+`send_log` row on `hail-dev` broke the check before it was added. Tests: `test_zone_send_schema` (both report cases
+refused) and `test_log_guards` (a pull takes zips in its own transaction; an hour-old pull does not); the three refusal
+cases failed before `063` and pass after. The first use of `scripts/migrate.sh --apply` on `hail-dev`: report
+`recorded 62, pending 1`, then applied and recorded `063`. A fresh build through `063` and `hail-dev` diff at 0 lines;
+`tests/migrate_check.sh` all passed; full suite OK (2,631). The tests were added by Claude at the developer's request.
+
 
 ## 279. `send_log.template_id` and `sent_emails.template_id` have no index
 
