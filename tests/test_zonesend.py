@@ -360,6 +360,9 @@ class ZoneSendListTest(unittest.TestCase):
             self.listed(set_id=987654321)
 
     def test_report_matches_never_appear(self):
+        # The test deletes the match it made; hail_app has no DELETE on storm_listing_matches (item 241).
+        if not self.conn.execute("SELECT has_table_privilege('storm_listing_matches', 'DELETE') AS ok").fetchone()["ok"]:
+            self.skipTest("needs a role that can delete matches (hail_admin)")
         h = self.house("zone")
         reportish = self.house("report")
         self.report_match(reportish["listing"])

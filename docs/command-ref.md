@@ -121,8 +121,8 @@ One file, in `web` (each test file's docstring gives its own command):
 
     docker compose run --rm --no-deps -v ./tests:/app/tests:ro web python -m unittest tests.test_cc_tokens
 
-A run as `hail_app` ends with errors that are not bugs: 256 on 2026-10-29, "permission denied" on the radar
-tables and three others (item 241). A count above that, or a module not in item 241's list, is a real failure.
+On 2026-10-29: 2,623 tests, 380 skipped, OK. The tests that need `hail_admin` skip under `hail_app` and say so;
+run them with the `hail_admin` command in `tests/test_log_guards.py`'s docstring. **Any error is a real failure.**
 
 ## Reading logs
 

@@ -254,6 +254,9 @@ class ZoneMatchTest(unittest.TestCase):
         self.assertIn("no radar file", str(ctx.exception))
 
     def test_a_day_with_radar_but_no_build_for_the_set_in_use_is_refused(self):
+        # Only the ingest jobs and hail_admin write radar_runs (item 241).
+        if not self.conn.execute("SELECT has_table_privilege('radar_runs', 'INSERT') AS ok").fetchone()["ok"]:
+            self.skipTest("needs a role that can insert radar_runs rows (hail_admin)")
         run = self.conn.execute("INSERT INTO radar_runs (run_mode) VALUES ('manual') RETURNING run_id").fetchone()["run_id"]
         self.conn.execute(
             "INSERT INTO radar_days (day, run_id, status, stamp_utc, source_key, box_lat_max, box_lat_min, "

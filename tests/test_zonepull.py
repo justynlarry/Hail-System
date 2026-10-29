@@ -32,8 +32,9 @@ class ZonePullTest(unittest.TestCase):
         self.conn = psycopg.connect(row_factory=dict_row)
         self.addCleanup(self.conn.close)
         self.addCleanup(self.conn.rollback)
-        if not self.conn.execute("SELECT has_table_privilege('likelihood_zones', 'INSERT') AS ok").fetchone()["ok"]:
-            self.skipTest("needs a role that can insert likelihood rows (hail_admin)")
+        # radar_runs, not likelihood_zones: hail_app can insert zones; only the ingest jobs write radar_runs (item 241).
+        if not self.conn.execute("SELECT has_table_privilege('radar_runs', 'INSERT') AS ok").fetchone()["ok"]:
+            self.skipTest("needs a role that can insert radar_runs rows (hail_admin)")
         self.set_id = self.conn.execute("SELECT max(set_id) AS s FROM likelihood_parameter_sets").fetchone()["s"]
         zips = self.conn.execute(
             "SELECT c.zcta5 FROM coverage_zips c WHERE c.removed_at IS NULL ORDER BY c.zcta5 LIMIT 4").fetchall()

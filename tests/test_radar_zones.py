@@ -75,10 +75,11 @@ class BuildTest(unittest.TestCase):
         self.conn = psycopg.connect(row_factory=dict_row)
         self.addCleanup(self.conn.close)
         self.addCleanup(self.conn.rollback)
+        # radar_runs, not radar_parameter_sets: sql/056 lets hail_app add parameter sets (item 241).
         allowed = self.conn.execute(
-            "SELECT has_table_privilege('radar_parameter_sets', 'INSERT') AS ok").fetchone()["ok"]
+            "SELECT has_table_privilege('radar_runs', 'INSERT') AS ok").fetchone()["ok"]
         if not allowed:
-            self.skipTest("needs a role that can insert parameter sets (hail_admin)")
+            self.skipTest("needs a role that can insert radar_runs rows (hail_admin)")
         self.user = self.conn.execute("SELECT emp_id FROM users ORDER BY emp_id LIMIT 1").fetchone()["emp_id"]
         self.run_id = self.conn.execute(
             "INSERT INTO radar_runs (run_mode) VALUES ('manual') RETURNING run_id").fetchone()["run_id"]

@@ -63,8 +63,9 @@ class IngestTest(unittest.TestCase):
         self.addCleanup(self.raw.rollback)
         if not self.raw.execute("SELECT to_regclass('likelihood_runs') IS NOT NULL AS ok").fetchone()["ok"]:
             self.fail("sql/055_likelihood_runs.sql is not applied")
-        if not self.raw.execute("SELECT has_table_privilege('radar_parameter_sets', 'INSERT') AS ok").fetchone()["ok"]:
-            self.skipTest("needs a role that can insert parameter sets (hail_admin)")
+        # radar_runs, not radar_parameter_sets: sql/056 lets hail_app add parameter sets (item 241).
+        if not self.raw.execute("SELECT has_table_privilege('radar_runs', 'INSERT') AS ok").fetchone()["ok"]:
+            self.skipTest("needs a role that can insert radar_runs rows (hail_admin)")
         self.conn = FakeConn(self.raw)
         self.run_id = self.raw.execute(
             "INSERT INTO radar_runs (run_mode) VALUES ('manual') RETURNING run_id").fetchone()["run_id"]

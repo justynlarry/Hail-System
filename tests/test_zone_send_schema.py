@@ -193,6 +193,9 @@ class ZoneSendSchemaTest(unittest.TestCase):
         self.zone_send("radar")
         send_id = self.conn.execute("SELECT max(send_id) AS m FROM send_log").fetchone()["m"]
         self.conn.execute("UPDATE send_log SET send_status = 'failed' WHERE send_id = %s", (send_id,))
+        # hail_app has no DELETE, so its refusal would be the grant's, not the trigger's (item 241).
+        if not self.conn.execute("SELECT has_table_privilege('send_log', 'DELETE') AS ok").fetchone()["ok"]:
+            self.skipTest("the delete half needs a role that reaches the trigger (hail_admin)")
         self.refused(lambda: self.conn.execute("DELETE FROM send_log WHERE send_id = %s", (send_id,)), "append-only")
 
     def test_a_template_kind_cannot_change_and_the_old_freezes_still_hold(self):
@@ -202,6 +205,10 @@ class ZoneSendSchemaTest(unittest.TestCase):
                 ("subject", "UPDATE email_templates SET subject = 'x' WHERE template_id = %s", "never edited"),
                 ("delete", "DELETE FROM email_templates WHERE template_id = %s", "cannot be deleted")):
             with self.subTest(case=label):
+                # As above: without DELETE the grant refuses before the trigger can (item 241).
+                if label == "delete" and not self.conn.execute(
+                        "SELECT has_table_privilege('email_templates', 'DELETE') AS ok").fetchone()["ok"]:
+                    self.skipTest("needs a role that reaches the delete trigger (hail_admin)")
                 self.refused(lambda: self.conn.execute(sql, (self.zone_tpl,)), message)
 
     def test_an_unused_templates_description_is_editable_and_retiring_is_one_way(self):

@@ -49,8 +49,9 @@ class LikelihoodSchemaTest(unittest.TestCase):
         self.addCleanup(self.conn.rollback)
         if not self.conn.execute("SELECT to_regclass('likelihood_builds') IS NOT NULL AS ok").fetchone()["ok"]:
             self.fail("sql/054_likelihood.sql is not applied")
-        if not self.conn.execute("SELECT has_table_privilege('likelihood_builds', 'INSERT') AS ok").fetchone()["ok"]:
-            self.skipTest("needs a role that can insert likelihood rows (hail_admin)")
+        # radar_runs, not likelihood_builds: hail_app can insert builds; only the ingest jobs write radar_runs (item 241).
+        if not self.conn.execute("SELECT has_table_privilege('radar_runs', 'INSERT') AS ok").fetchone()["ok"]:
+            self.skipTest("needs a role that can insert radar_runs rows (hail_admin)")
         self.radar_set = self.conn.execute("SELECT max(set_id) AS s FROM radar_parameter_sets").fetchone()["s"]
         # A day of its own:  the real days have real builds now, and a test must not collide with them.
         run = self.conn.execute("INSERT INTO radar_runs (run_mode) VALUES ('manual') RETURNING run_id").fetchone()["run_id"]

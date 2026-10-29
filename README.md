@@ -95,8 +95,8 @@ docker compose --profile test build test
 docker compose --profile test run --rm -T test
 ```
 
-On 2026-10-29: 2,623 tests, 120 skipped, 256 errors, all of them item 241's (`hail_app` lacks the radar tables'
-permissions).
+On 2026-10-29: 2,623 tests, 380 skipped, OK. The tests that need `hail_admin` skip under `hail_app` and say so;
+run them with the `hail_admin` command in `tests/test_log_guards.py`'s docstring. **Any error is a real failure.**
 
-Tests that need the admin role error rather than skip under the standard command (item 241). The web
+The web
 routes that no test reaches are listed in item 53.

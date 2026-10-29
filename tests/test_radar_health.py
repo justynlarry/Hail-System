@@ -129,8 +129,9 @@ class BuiltRowsTest(unittest.TestCase):
         self.conn = psycopg.connect(row_factory=dict_row)
         self.addCleanup(self.conn.close)
         self.addCleanup(self.conn.rollback)
-        if not self.conn.execute("SELECT has_table_privilege('radar_parameter_sets', 'INSERT') AS ok").fetchone()["ok"]:
-            self.skipTest("needs a role that can insert radar rows (hail_admin)")
+        # radar_runs, not radar_parameter_sets: sql/056 lets hail_app add parameter sets (item 241).
+        if not self.conn.execute("SELECT has_table_privilege('radar_runs', 'INSERT') AS ok").fetchone()["ok"]:
+            self.skipTest("needs a role that can insert radar_runs rows (hail_admin)")
         # Real nightly runs may exist; set them aside inside this transaction (rolled back) so the tests see none.
         self.conn.execute("UPDATE radar_runs SET run_mode = 'manual' WHERE run_mode = 'nightly'")
         self.before = self.health()

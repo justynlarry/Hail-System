@@ -66,8 +66,9 @@ class BuildTest(unittest.TestCase):
         self.addCleanup(self.conn.rollback)
         if not self.conn.execute("SELECT to_regclass('likelihood_builds') IS NOT NULL AS ok").fetchone()["ok"]:
             self.fail("sql/054_likelihood.sql is not applied")
-        if not self.conn.execute("SELECT has_table_privilege('radar_parameter_sets', 'INSERT') AS ok").fetchone()["ok"]:
-            self.skipTest("needs a role that can insert parameter sets (hail_admin)")
+        # radar_runs, not radar_parameter_sets: sql/056 lets hail_app add parameter sets (item 241).
+        if not self.conn.execute("SELECT has_table_privilege('radar_runs', 'INSERT') AS ok").fetchone()["ok"]:
+            self.skipTest("needs a role that can insert radar_runs rows (hail_admin)")
         self.run_id = self.conn.execute(
             "INSERT INTO radar_runs (run_mode) VALUES ('manual') RETURNING run_id").fetchone()["run_id"]
         self.radar_set = self.conn.execute(

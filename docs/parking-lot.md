@@ -878,6 +878,16 @@ dashboard playground, the key used elsewhere, or RentCast counting a different w
 **When:** now, before `/admin`'s quota figure is trusted for warn-and-allow. First step: the dates RentCast's
 39 covers and its per-day usage, set against the per-day counts above.
 
+**Per-day counts, 2026-10-29 (RentCast dashboard, read by the developer).** 10-09: 18, 10-10: 6, 10-11: 6,
+10-12: 6, 10-16: 3, 10-27: 1, which is 40 (the earlier reading was 39). Our log for the same days: 12 (pull 152), 0, 0,
+0, 0, 1 (pull 1228). The 3 on 10-16 are the by-id probe, run once. **24 calls on 9 to 12 October (6 a day) are
+unexplained:** no timer, cron job, Claude session or test on `hail-dev` made them, and the developer is the only
+holder of the key and used it nowhere else. The period does start on the 9th; whether it resets at UTC or Denver
+midnight is still unknown (every call this period was mid-day). **Decision 2026-10-29:** do not rotate the key yet.
+
+**When:** after the 2026-11-09 rollover, read RentCast's per-day counts again. If calls appear on days with no
+`api_call_log` rows, rotate the key.
+
 ## 95. No test for the `R` = RAIN / HEAVY RAIN composite key
 
 **Status:** resolved 2026-10-02
@@ -6532,7 +6542,7 @@ near the edge of the box (with item 246).
 
 ## 241. The radar database tests need the admin role and skip under the standard test command
 
-**Status:** open (filed 2026-10-21, Phase 5b slice 2)
+**Status:** resolved 2026-10-29
 
 `tests/test_radar_zones.py` and `tests/test_radar_load.py` insert parameter sets, radar rows and reports, which
 `hail_app` cannot do, so under the documented test command they skip (44 tests). A break in `zones.py` or `load.py`
@@ -6573,6 +6583,18 @@ quoted: give the role-dependent tests a `skipUnless` on the privilege they need,
 `docs/command-ref.md` ("Running the tests"). A full run there: 2,623 tests, 120 skipped, 256 errors, all
 permission errors as `hail_app` (253 `radar_runs`, and one each on `email_templates`, `send_log`,
 `storm_listing_matches`). Still open: each role-dependent test should skip when its permission is missing.
+
+**Resolved 2026-10-29.** Cause: each test's "am I `hail_admin`?" check named a table `hail_app` can write.
+Eight `setUp`s checked INSERT on `radar_parameter_sets`, which `sql/056` (2026-10-26) granted to `hail_app` for the
+admin page's Hail zones section; `likelihood_schema`, `zonepull` and `zonematch` checked `likelihood_builds`,
+`likelihood_zones` and `storm_listing_matches`, which `hail_app` can also write. The check passed and the next
+statement, an insert into `radar_runs`, failed. Fix: the ten `setUp`s (and one `zonematch` test) check INSERT on
+`radar_runs`, which only the ingest jobs and `hail_admin` write, with a comment saying why. The three tests that
+`DELETE` (`test_zone_send_schema` twice, the email_templates case only in its loop; `test_zonesend` once) skip
+without DELETE, since the grant would refuse before the trigger under test. Checked: full suite as `hail_app` in
+the `test` service, 2,623 tests, 380 skipped, **OK** (was 256 errors); the 13 changed modules as `hail_admin`, 393
+tests, OK (one skip, `zonepull`'s existing "only one parameter set"). README and `docs/command-ref.md` now say any
+error is a real failure. These edits were made by Claude at the developer's request (2026-10-29).
 
 ## 242. `.env` line 35 is not a valid shell variable name
 
