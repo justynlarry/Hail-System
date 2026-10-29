@@ -23,14 +23,18 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from unittest import mock
 
-import psycopg
-from psycopg.rows import dict_row
-
-from hailsys.queries import levelreport
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+    from hailsys.queries import levelreport
+    MISSING = None
+except ImportError as exc:      # psycopg and jinja2 live in the app image; the host run skips (item 273)
+    MISSING = str(exc)
 
 NOW = datetime.now(timezone.utc)
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class SummarizeTest(unittest.TestCase):
     def row(self, kind="zone", set_id=1, level="agree", bases=("radar",), **flags):
         r = {"kind": kind, "set_id": set_id, "level": level, "bases": list(bases),
@@ -62,6 +66,7 @@ class SummarizeTest(unittest.TestCase):
 
 
 @unittest.skipUnless(os.environ.get("PGHOST"), "no database (PGHOST unset)")
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class FetchEmailsTest(unittest.TestCase):
     def setUp(self):
         self.conn = psycopg.connect(row_factory=dict_row)
@@ -225,6 +230,7 @@ SUMMARY = {"by_level": [{"set_id": 3, "level": "agree", "emails": 4, "bounced": 
 
 
 @unittest.skipUnless(os.environ.get("PGHOST") and os.environ.get("FLASK_SECRET_KEY"), "no database or secret key")
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class LevelsPageTest(unittest.TestCase):
     def setUp(self):
         from hailsys.web import create_app

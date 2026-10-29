@@ -55,8 +55,14 @@ class NoCommit:
 
 class FakeCC:
     """Stands in for the campaigns module.  `hooks` maps a call name to an exception to raise."""
-    is_unknown_outcome = staticmethod(campaigns.is_unknown_outcome)
-    campaign_fields = staticmethod(campaigns.campaign_fields)
+    # Looked up when called, not when the class is defined:  on a host without the app's packages the
+    # module is skipped rather than failing to import (item 273).
+    @staticmethod
+    def is_unknown_outcome(*args, **kw):
+        return campaigns.is_unknown_outcome(*args, **kw)
+    @staticmethod
+    def campaign_fields(*args, **kw):
+        return campaigns.campaign_fields(*args, **kw)
 
     def __init__(self, events=None):
         self.calls = []

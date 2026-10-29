@@ -7163,7 +7163,7 @@ wider than it said:
 
 ## 273. The host test run ends with 24 errors
 
-**Status:** open (found 2026-10-28, parking-lot sweep, after fixing item 171)
+**Status:** resolved 2026-10-29
 
 `python3 -m unittest discover -s tests`, the host run `README.md` documents, ran 2,350 tests on 2026-10-28, skipped
 1,842, and ended with **24 errors**. None is a product bug; all come from the host lacking the image's packages:
@@ -7184,6 +7184,22 @@ the three IEM tests remove their stand-in after import, or make it a package wit
 **When:** now, or before the host run's result is next quoted as a check.
 
 **Related:** items 171, 241.
+
+**Resolved 2026-10-29 (test files only).** Rerun first: 24 errors, as filed. **Correction:** the 16 errors called
+order-dependent were not. `test_zonewording` (15) is `ZoneTemplateTest.setUp` needing `jinja2`, and `test_systemd_units`
+(1) is one test importing `radar_ingest`, which needs `psycopg`; both fail when run alone. The IEM stand-in's real harm
+was elsewhere: in the `test` service, `tests.test_iem_ingest tests.test_templatelist_kind` failed ("'psycopg' is not a
+package") and passed in the other order, so a subset run starting with an IEM test could fail for nothing; and on the
+host it had been hiding a 14th unguarded module, `test_likelihood_admin`, which imported only because the leaked
+stand-in satisfied `import psycopg`. Fixed: the import guard (`MISSING`, `skipIf`) in the six unguarded modules and
+`test_likelihood_admin`, with `SETTINGS = None if MISSING` where a module built one at import; `FakeCC` in
+`test_send_deliver` and `test_testsend` looks `campaigns` up when called; `ZoneTemplateTest` skips without `jinja2`;
+the radar-units test skips without `psycopg`; the three IEM tests use the real `psycopg` where installed and otherwise
+remove their stand-in straight after the import. Results: host `OK (skipped=2133)`, 2,382 tests; every test module
+imports on its own on the host; the full suite in the `test` service OK (2,631, unchanged); the mixed pairs pass in
+either order. `test_levelreport.SummarizeTest` (pure) now skips on the host with its module. Applied by Claude at the
+developer's request.
+
 
 ## 274. The generic/RBI repo split of 2026-09-01 was not built
 

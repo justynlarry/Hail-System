@@ -21,11 +21,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
-import psycopg
-from psycopg.rows import dict_row
-
-from hailsys.email import templatestore as ts
-from hailsys.queries import templatelist as tl
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+    from hailsys.email import templatestore as ts
+    from hailsys.queries import templatelist as tl
+    MISSING = None
+except ImportError as exc:      # psycopg and jinja2 live in the app image; the host run skips (item 273)
+    MISSING = str(exc)
 
 ROOT = Path(__file__).resolve().parent.parent
 REPORT_SUBJECT = "Hail near {{ total }} of your listings"
@@ -35,6 +38,7 @@ ZONE_BODY = "<p>{{ agent_first_name }}</p>{% for e in evidence %}<p>{{ e }}</p>{
 
 
 @unittest.skipUnless(os.environ.get("PGHOST"), "no database (PGHOST unset)")
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class KindFilterTest(unittest.TestCase):
     def setUp(self):
         self.conn = psycopg.connect(row_factory=dict_row)
@@ -97,6 +101,7 @@ class KindFilterTest(unittest.TestCase):
                         call()
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class ReportCallersTest(unittest.TestCase):
     """Every templatelist call on the report send page and in the block editor asks for 'report'."""
 
@@ -121,6 +126,7 @@ class ReportCallersTest(unittest.TestCase):
 
 
 @unittest.skipUnless(os.environ.get("PGHOST") and os.environ.get("FLASK_SECRET_KEY"), "no database or secret key")
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class SendPageAsksForReportTest(unittest.TestCase):
     def setUp(self):
         from hailsys.web import create_app

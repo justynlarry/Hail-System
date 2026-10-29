@@ -12,6 +12,7 @@ carries the attribution only when an observer is behind the email, escapes what 
 variables a zone-kind template is allowed.
 """
 
+import importlib.util
 import unittest
 from decimal import Decimal
 from pathlib import Path
@@ -182,6 +183,8 @@ class PlainTest(unittest.TestCase):
                 self.assertTrue(found, f"a claim in {attr} was not seen")
 
 
+# jinja2 lives in the app image; the other classes are pure Python and run on the host too (item 273).
+@unittest.skipIf(importlib.util.find_spec("jinja2") is None, "jinja2 not installed")
 class ZoneTemplateTest(unittest.TestCase):
     """The draft hail_alert_zone template and its subject, rendered the way hailsys/email/render.py does."""
 

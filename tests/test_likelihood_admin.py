@@ -17,10 +17,15 @@ logged.
 import os
 import unittest
 
-from hailsys.queries import likelihoodadmin as la
+try:
+    from hailsys.queries import likelihoodadmin as la
+    MISSING = None
+except ImportError as exc:      # psycopg lives in the app image; the host run skips (item 273)
+    MISSING = str(exc)
 
 
 @unittest.skipUnless(os.environ.get("PGHOST"), "no database (PGHOST unset)")
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class LikelihoodAdminTest(unittest.TestCase):
     def setUp(self):
         import psycopg

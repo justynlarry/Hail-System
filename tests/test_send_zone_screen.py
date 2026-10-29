@@ -26,18 +26,22 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from unittest import mock
 
-import psycopg
-from psycopg.rows import dict_row
-
-from hailsys.email import templatestore, zonewording
-from hailsys.queries import zonesend
-from hailsys.tuning import DISPLAY_TZ
-from hailsys.web import sendzone
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+    from hailsys.email import templatestore, zonewording
+    from hailsys.queries import zonesend
+    from hailsys.tuning import DISPLAY_TZ
+    from hailsys.web import sendzone
+    MISSING = None
+except ImportError as exc:      # psycopg and jinja2 live in the app image; the host run skips (item 273)
+    MISSING = str(exc)
 
 NOW = datetime.now(timezone.utc)
 WRITTEN_TABLES = ("sent_emails", "send_log", "email_templates", "settings_history", "cc_sync_runs")
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class PureTest(unittest.TestCase):
     def test_levels_come_back_in_order(self):
         self.assertEqual(sendzone.parse_levels(["one_source", "agree"]), (["agree", "one_source"], None))
@@ -67,6 +71,7 @@ class PureTest(unittest.TestCase):
 
 
 @unittest.skipUnless(os.environ.get("PGHOST"), "no database (PGHOST unset)")
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class DayListTest(unittest.TestCase):
     def setUp(self):
         self.conn = psycopg.connect(row_factory=dict_row)
@@ -157,6 +162,7 @@ def a_found(set_row, **excluded):
 
 
 @unittest.skipUnless(os.environ.get("PGHOST") and os.environ.get("FLASK_SECRET_KEY"), "no database or secret key")
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class ZonePageTest(unittest.TestCase):
     def setUp(self):
         from hailsys.web import create_app
@@ -349,6 +355,7 @@ if __name__ == "__main__":
 
 
 @unittest.skipUnless(os.environ.get("PGHOST") and os.environ.get("FLASK_SECRET_KEY"), "no database or secret key")
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class ZoneConfirmStartTest(unittest.TestCase):
     """The second half:  the review form, /send/zones/confirm and /send/zones/start.  The list builder and
     start_send are replaced, so nothing is sent and nothing is written."""

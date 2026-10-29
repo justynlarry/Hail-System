@@ -22,17 +22,22 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from unittest import mock
 
-from hailsys.email import deliver, render, send, templatestore, zonewording
-from hailsys.tuning import DISPLAY_TZ
+try:
+    from hailsys.email import deliver, render, send, templatestore, zonewording
+    from hailsys.tuning import DISPLAY_TZ
+    MISSING = None
+except ImportError as exc:      # psycopg and jinja2 live in the app image; the host run skips (item 273)
+    MISSING = str(exc)
 
 NOW = datetime.now(timezone.utc)
-SETTINGS = render.EmailSettings(
+SETTINGS = None if MISSING else render.EmailSettings(
     logo_url="https://files.example.com/logo.png", badge_cra_url="https://files.example.com/cra.jpg",
     badge_bbb_url="https://files.example.com/bbb.png", contact_email="office@example.com",
     schedule_url="https://www.example.com/Orders/Create")
 
 
 @unittest.skipUnless(os.environ.get("PGHOST"), "no database (PGHOST unset)")
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class ZoneQueueTest(unittest.TestCase):
     def setUp(self):
         import psycopg
@@ -289,6 +294,7 @@ class ZoneQueueTest(unittest.TestCase):
         self.refused("sync", sync_run_id=old)
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class RunSendZoneTest(unittest.TestCase):
     """run_send's zone checks, stopped before anything is written or sent."""
 

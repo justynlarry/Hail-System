@@ -16,7 +16,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-sys.modules.setdefault("psycopg", types.ModuleType("psycopg"))
+# The code under test imports psycopg at load, and nothing here touches a database.  The real one where
+# it is installed; otherwise a stand-in for the import only, removed straight after:  left in place, it
+# broke the psycopg.rows imports of any test module loaded after this one (item 273).
+try:
+    import psycopg  # noqa: F401
+    _STAND_IN = None
+except ImportError:
+    _STAND_IN = sys.modules["psycopg"] = types.ModuleType("psycopg")
 
 from iem_backfill import (  # noqa: E402  (imports follow the sys.path edit above)
     ARCHIVE_FLOOR,
@@ -24,6 +31,8 @@ from iem_backfill import (  # noqa: E402  (imports follow the sys.path edit abov
     month_windows,
     parse_args,
 )
+if _STAND_IN is not None and sys.modules.get("psycopg") is _STAND_IN:
+    del sys.modules["psycopg"]
 
 
 def d(year, month, day=1):

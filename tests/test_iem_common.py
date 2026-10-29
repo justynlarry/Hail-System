@@ -22,7 +22,14 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-sys.modules.setdefault("psycopg", types.ModuleType("psycopg"))
+# The code under test imports psycopg at load, and nothing here touches a database.  The real one where
+# it is installed; otherwise a stand-in for the import only, removed straight after:  left in place, it
+# broke the psycopg.rows imports of any test module loaded after this one (item 273).
+try:
+    import psycopg  # noqa: F401
+    _STAND_IN = None
+except ImportError:
+    _STAND_IN = sys.modules["psycopg"] = types.ModuleType("psycopg")
 
 from hailsys.iem.common import (  # noqa: E402  (imports follow the sys.path edit above)
     IEM_STATE,
@@ -35,6 +42,8 @@ from hailsys.iem.common import (  # noqa: E402  (imports follow the sys.path edi
     recent_url,
 )
 from hailsys.iem.parse import RESTKEY  # noqa: E402
+if _STAND_IN is not None and sys.modules.get("psycopg") is _STAND_IN:
+    del sys.modules["psycopg"]
 
 
 HEADER = (

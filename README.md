@@ -76,10 +76,10 @@ the repo, so an edit is a deploy (`web` at its next restart; `docs/command-ref.m
 python3 -m unittest discover -s tests
 ```
 
-The suite is stdlib `unittest`, about 2,350 tests (2026-10-28). Most need packages only the `web` and `app`
-images have (`psycopg`, `jinja2`, `cryptography`) or the database, so the host run is a partial check: on
-2026-10-28 it ran 2,350, skipped 1,842, and **ended with 24 errors in 10 modules** whose imports are not
-guarded (see `docs/parking-lot.md` item 171). Run a file in the `web` container, where it is the real check
+The suite is stdlib `unittest`, about 2,380 tests on the host (2026-10-29). Most need packages only the `web` and
+`app` images have (`psycopg`, `jinja2`, `cryptography`) or the database, so the host run is a partial check: on
+2026-10-29 it ran 2,382 tests and ended **OK** with 2,133 skipped, each skip naming what is missing (items 171,
+273). Run a file in the `web` container, where it is the real check
 (the container sets `PGHOST` and connects as `hail_app`; each file's docstring gives its command):
 
 ```bash

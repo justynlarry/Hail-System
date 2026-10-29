@@ -15,12 +15,16 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from hailsys.email import render as r, zonecontext as zc, zonewording as zw
+try:
+    from hailsys.email import render as r, zonecontext as zc, zonewording as zw
+    MISSING = None
+except ImportError as exc:      # psycopg and jinja2 live in the app image; the host run skips (item 273)
+    MISSING = str(exc)
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "hailsys" / "email" / "templates"
 UTC = timezone.utc
-SETTINGS = r.EmailSettings("https://x.test/logo.png", "https://x.test/cra.jpg", "https://x.test/bbb.png",
-                           "e@x.invalid", "https://www.roofbrokersinc.com/Orders/Create")
+SETTINGS = None if MISSING else r.EmailSettings("https://x.test/logo.png", "https://x.test/cra.jpg", "https://x.test/bbb.png",
+                                                 "e@x.invalid", "https://www.roofbrokersinc.com/Orders/Create")
 WORDING = {"hail_in": 1, "radius_km": 5.0}
 AUG15 = datetime(2026, 8, 15, 20, 19, tzinfo=UTC)
 AUG21 = datetime(2026, 8, 21, 18, 0, tzinfo=UTC)
@@ -40,6 +44,7 @@ REPORT_SUBJECT = shipped("hail_alert_subject.txt")
 REPORT_BODY = shipped("hail_alert.html")
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class ContextTest(unittest.TestCase):
     def ctx(self, events, **kw):
         return zc.build_context("Jane Smith", events, SETTINGS, WORDING, **kw)
@@ -123,6 +128,7 @@ class ContextTest(unittest.TestCase):
         self.assertEqual(s.images["x"]["alt"], "i")
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class KindValidationTest(unittest.TestCase):
     def test_the_shipped_pairs_are_valid_for_their_own_kind(self):
         r.validate_template(REPORT_SUBJECT, REPORT_BODY)
@@ -172,6 +178,7 @@ class KindValidationTest(unittest.TestCase):
             self.assertIn(word, text)
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class KindRenderTest(unittest.TestCase):
     def ctx(self, bases=("radar",), address="1 A St"):
         return zc.build_context("Jane Smith", [event(1, address, AUG15, bases)], SETTINGS, WORDING)

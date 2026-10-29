@@ -72,7 +72,10 @@ class UnitTest(unittest.TestCase):
             self.assertNotIn("-", path.name, path.name)
 
     def test_the_radar_units_run_modes_the_script_has(self):
-        import radar_ingest
+        try:
+            import radar_ingest
+        except ImportError as exc:      # psycopg lives in the app image (item 273)
+            self.skipTest(f"missing dependency: {exc}")
         for path in (p for p in UNITS if p.name.startswith("radar_") and p.suffix == ".service"):
             with self.subTest(path.name):
                 (command,) = settings(path)["ExecStart"]

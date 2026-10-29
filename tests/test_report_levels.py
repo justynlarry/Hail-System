@@ -22,18 +22,23 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
-from hailsys.email import render, send, templatestore
-from hailsys.queries import levelreport, zonesend
+try:
+    from hailsys.email import render, send, templatestore
+    from hailsys.queries import levelreport, zonesend
+    MISSING = None
+except ImportError as exc:      # psycopg and jinja2 live in the app image; the host run skips (item 273)
+    MISSING = str(exc)
 
 DAY = date(2026, 9, 22)                 # a real radar day;  built here under the test's own set only
 NOW = datetime.now(timezone.utc)
-SETTINGS = render.EmailSettings(
+SETTINGS = None if MISSING else render.EmailSettings(
     logo_url="https://files.example.com/logo.png", badge_cra_url="https://files.example.com/cra.jpg",
     badge_bbb_url="https://files.example.com/bbb.png", contact_email="office@example.com",
     schedule_url="https://www.example.com/Orders/Create")
 
 
 @unittest.skipUnless(os.environ.get("PGHOST"), "no database (PGHOST unset)")
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class ReportLevelsTest(unittest.TestCase):
     def setUp(self):
         import psycopg
@@ -228,6 +233,7 @@ class ReportLevelsTest(unittest.TestCase):
                          [(self.set_id, "one_source", 1), (self.set_id, "context", 1), (self.set_id, "none", 1)])
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class SummarizeReportLevelsTest(unittest.TestCase):
     def row(self, set_id, level):
         return {"kind": "report", "set_id": set_id, "level": level, "bases": ["report"],
