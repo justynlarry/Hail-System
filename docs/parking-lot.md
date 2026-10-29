@@ -3314,7 +3314,7 @@ template builder (item 203) are done and the drip campaigns (item 204) are parke
 
 ## 202. Template list, and a template choice on the send page
 
-**Status:** built 2026-10-13 (filed the same day, by developer request); browser check pending
+**Status:** resolved 2026-10-29 (built 2026-10-13, `c831d2d`, `4c53973`; browser check passed 2026-10-29)
 
 Today there is one template: `hail_alert`, the file in `hailsys/email/templates/`.
 `queue_batch` always calls `templatestore.ensure_current`, and the send page shows that one
@@ -3365,6 +3365,17 @@ between the preview and the start), which waits for item 203, since nothing can 
 version from the UI before then.
 
 **Checked 2026-10-29.** The browser check has not been done yet (developer). Still pending.
+
+**Resolved 2026-10-29: browser check passed (developer).** On `/send`, report mode, as admin: the list showed the
+report templates only (not `hail_alert_zone`) with their details; each row's sample opened; a new template chosen with
+2026-09-19 carried through preview to the confirm page, which named it and its description (stopped there, nothing
+started); the unused template's description editor saved and kept the ticked day and the choice. Previous/Next not
+exercised (it needs 11 or more templates; the tests cover it). To have an eligible day, `match_max_age_days` was set to
+45 and back to 30 (`settings_history`, 21:15 and 21:21 UTC) and `sql/dev_rehearsal_seed_2.sql` refreshed the `+t3`
+test listing; none of the 2026-09-19 real matches passed the freshness rule, so no real realtor was listed. No sends
+and no test sends. The check left template 31033 `202_Check` active (retire it in `/templates` if it should not be
+offered).
+
 
 ## 203. A template builder in the web UI, and email images managed from the UI
 
