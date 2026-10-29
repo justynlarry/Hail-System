@@ -99,9 +99,19 @@ for f in sql/[0-9]*.sql; do   # not guard_test.sql, which is a test
 done
 ```
 
-Then confirm with `\dt` and `\d <table>` on each. Expect **36 tables in
-`public` plus PostGIS's `spatial_ref_sys`** (checked on `hail-dev`, 2026-10-14): the project's 33, and `us_gaz`,
-`us_lex` and `us_rules`, which `address_standardizer_data_us` creates (`sql/024`).
+Then confirm with `\dt` and `\d <table>` on each. Expect **62 tables in
+`public`** (a fresh build through `061`, 2026-10-29): the project's 58, `us_gaz`, `us_lex` and `us_rules`, which
+`address_standardizer_data_us` creates (`sql/024`), and PostGIS's `spatial_ref_sys`.
+
+**Then compare the fresh build with the running database.** A migration applied by hand can be skipped, and nothing
+records which files a database has had (item 277). Dump both schemas and diff them; the only differences should be
+ones you can name:
+
+```bash
+pg_dump --schema-only --no-owner --schema=public -d hail_scratch > scratch.sql   # in the scratch container
+pg_dump --schema-only --no-owner --schema=public -d weather-property > dev.sql   # in the hail-dev postgis container
+diff <(grep -vE '^--|^$|^SET |^SELECT pg_catalog' scratch.sql) <(grep -vE '^--|^$|^SET |^SELECT pg_catalog' dev.sql)
+```
 
 **`guard_test.sql` needs data and fails on an empty build.** It takes its test
 rows from the first `users`, `realtors` and `storm_listing_matches` rows, so on
@@ -120,12 +130,18 @@ INSERT INTO properties (rentcast_id, property_address)
 INSERT INTO listings (list_date, rentcast_id, list_status)
     VALUES (now(), 'seed-1', 'Active');
 INSERT INTO realtors DEFAULT VALUES;
+INSERT INTO realtors DEFAULT VALUES;      -- the drip checks (046) need two
 INSERT INTO storm_listing_matches (iem_id, listing_id, distance_miles, radius_used)
     SELECT i.iem_id, l.listing_id, 1.0, 5.0 FROM iem_data i, listings l;
+INSERT INTO dnc_list (email_raw, added_by, source)    -- the cc_sync_conflicts checks (036) need one
+    SELECT 'seed@example.invalid', min(emp_id), 'manual' FROM users;
 ```
 
+Without the second realtor and the `dnc_list` row it reports 4 `FAIL`s on `cc_sync_conflicts` and stops with an
+`ERROR` at the drip seed: missing seed data, not broken guards.
+
 `psql -d hail_scratch -f sql/guard_test.sql` should then print a `PASS` notice for
-every check and no `FAIL`: 24 on 2026-10-05 (29 on 2026-10-13, item 202), run against a throwaway
+every check and no `FAIL`: 249 on 2026-10-29 (24 on 2026-10-05, 29 on 2026-10-13), run against a throwaway
 `postgis/postgis:16-3.4` container (it was 18 when it covered only `029` and
 `030`). The test ends in `ROLLBACK`. Drop the scratch database, or the
 container, when done.
@@ -181,15 +197,24 @@ and `guard_test.sql` passed 24 of 24 once seeded. Findings are filed as
 parking-lot items 164–167; the four foreign keys with default names (`020`, `022`,
 `026`) are item 167.
 
-**Not reviewed:** `034` to `061` were written after the 2026-10-05 build and review above, and
-have not been through this prompt. The build was last run through `033`. Their objects are described in
-`docs/database-schema.md` (brought up to `061` on 2026-10-29, item 272), which is a description, not a review.
+**Run 2026-10-29, `001` to `061`, in a throwaway `postgis/postgis:16-3.4` container (no network):** all 61 files
+built with no error or warning; 62 tables; `guard_test.sql` 249 of 249 once seeded as above. A fresh build and
+`hail-dev`'s schema differ only in the comment on `ingest_runs.rows_skipped`: `sql/011` was never applied to `hail-dev`
+(item 277). §3 to §9 checked from the catalog of the fresh build and by reading: no foreign key type mismatch, no bare
+`TIMESTAMP`, no redundant index, `034` to `061` all wrapped in `BEGIN;` / `COMMIT;`, every §5 index present, every §6
+rule enforced as written, both `email_norm` columns `lower(trim(...))`, both loader scripts pass §8 and §9
+(`shellcheck` not installed). Findings: items 276 (`radar_day.py --refetch` fails since `054`), 277, 278 (two rules
+held only in application code) and 279 (two unindexed `template_id` columns, watch); items 164 to 167 reconfirmed
+(167 now names six foreign keys, `email_images`'s two from `042` included).
+
 `guard_test.sql` covers the drip, radar parameter set and `email_test_sends` guards, but not the guards from `054`
 on: the likelihood set triggers, `pull_zips_append_only`, `trg_send_log_kind_pairing` and the `060` freezes
 (checked by grep 2026-10-29). Their Python tests run them (`tests/test_likelihood_schema.py`,
 `tests/test_log_guards.py`, `tests/test_zone_send_schema.py`).
 
-**Things to check in 024–033, from reading them 2026-10-05, not yet triaged:**
+**Things to check in 024–033, from reading them 2026-10-05.** Settled 2026-10-29: `geocode_cache_geom_gix` follows
+the `_gix` naming every GiST index here uses, so it is consistent, not a finding; and a full build has exactly one
+`properties_address_key_idx`. The `032` comment typo stands (a comment, not built).
 
 - `sql/031`'s GiST index is `geocode_cache_geom_gix`, which matches the existing
   `_gix` GiST naming (`003`, `004`, `014`) and not the `{table}_{column}_idx`
@@ -321,6 +346,10 @@ application-layer only:
   it). Its `WHEN` skips a save that changes nothing, and the function reads
   `current_setting('app.current_emp_id')` with no `missing_ok`, so an
   unattributed change raises.
+- **Settings history watches sixteen columns as of `sql/060`** (the two radii, billing day, quota,
+  `listing_freshness_days`, `match_max_age_days`, `email_cap_days`, the five email values, the two drip settings,
+  `storm_states` and `zone_observer_wording_approved`); its `OF` list and `WHEN` must name the same sixteen. The next
+  bullet is the `028` state, kept as history.
 - **Settings history now watches five columns** (`sql/028`): the trigger fires
   `AFTER UPDATE OF` both radii, billing day, quota and `listing_freshness_days`,
   its `WHEN` compares all five, and `settings_history.listing_freshness_days` is

@@ -7201,3 +7201,74 @@ what a future body might carry, and the two paths of one client disagree about i
 check to `tests/test_rentcast_zip.py`.
 
 **Related:** items 228, 102.
+
+## 276. `radar_day.py --refetch` fails since `sql/054`, and would leave the likelihood map stale
+
+**Status:** open (found 2026-10-29, schema review)
+
+`hailsys/radar/load.py:96` `delete_day` removes a day from `radar_zones`, `radar_zone_builds`, `radar_cells` and
+`radar_days` (last changed 2026-10-22). `sql/054` (2026-10-24) added `likelihood_builds.day` → `radar_days`
+(`fk_likelihood_builds_day`), and every loaded day now has a likelihood build (2,200 on `hail-dev`). The delete from
+`radar_days` is refused: reproduced in a scratch build, `ERROR: update or delete on table "radar_days" violates foreign
+key constraint "fk_likelihood_builds_day"`. `radar_day.py DAY --refetch` is the documented fix for a bad NOAA file
+(`docs/command-ref.md`, items 246 and 247), so it fails when it is needed. Even if the delete went through, the day's
+likelihood zones would stay built from the old cells.
+
+**Fix:** `delete_day` deletes the day's `likelihood_zones` and then `likelihood_builds` first (`hail_ingest` has
+`DELETE` on both), and the refetch rebuilds the day's likelihood map after the radar build (`radar_day.py` builds radar
+zones only; `likelihood_ingest.py rebuild --days 30` would reach the day only if it is recent). A test that a refetched
+day with a likelihood build is deleted and rebuilt.
+
+**When:** before the next refetch, or the next change to `hailsys/radar/load.py`, whichever comes first.
+
+**Related:** items 245, 246, 247, 254.
+
+## 277. `sql/011` was never applied to `hail-dev`; nothing records which migrations a database has had
+
+**Status:** open (found 2026-10-29, schema review)
+
+A fresh build of `sql/001` to `061` and `hail-dev`'s live schema (`pg_dump --schema-only`, 5,949 lines each) differ in
+one place: the comment on `ingest_runs.rows_skipped`. `hail-dev` still has `009`'s text ("Non-zero is the alert
+condition"); `011_ingest.sql` (2026-09-09), a comment-only amendment, replaces it with "DO NOT alert on rows_skipped
+> 0". So `011` was never applied there. Harmless in itself. The gap is that it could only be found by diffing schemas:
+nothing records which files a database has had. From `062` on, migrations are applied by hand to two machines
+(`hail-dev` and `rbi-hail01`), and a skipped file on production would go unnoticed the same way.
+
+**Fix now:** apply `sql/011` to `hail-dev` (one idempotent `COMMENT ON`). **Decide:** whether to keep a record of
+applied migrations (for example a table the apply step writes one row to per file), and how the apply step uses it.
+
+**When:** apply `011` at the next migration; decide the record before `rbi-hail01` is built, since production starts
+from the files and needs the record from its first migration.
+
+**Related:** items 3, 237.
+
+## 278. Two rules held only in application code: report-row level and set on `send_log`, and `pull_zips` written at creation
+
+**Status:** open (found 2026-10-29, schema review)
+
+- **`send_log` report rows.** `send.py` writes `level` and `zone_set_id` as a pair from `zonesend.report_levels`: both
+  NULL, or both set (item 266). `send_log_snapshot_shape` (`sql/060`) does not require it for `basis = 'report'`, so a
+  report row could record a level with no set. The 7 live report rows comply. In the database it would be one `CHECK`
+  in a new migration: `basis <> 'report' OR (level IS NULL) = (zone_set_id IS NULL)`.
+- **`pull_zips`.** Documented as written when its pull is created. `hail_app` has `INSERT`, so a row can be added to an
+  old pull later; only the code prevents it. A trigger could refuse a row for a pull that is not `running`, or this can
+  be accepted as application-layer.
+
+Per CLAUDE.md, "if a rule must hold, it holds in the database"; neither rule is load-bearing for suppression or sending.
+
+**When:** with the next migration that touches `send_log`, or before the first real send, whichever comes first.
+
+**Related:** items 259, 266.
+
+## 279. `send_log.template_id` and `sent_emails.template_id` have no index
+
+**Status:** open (watch) (found 2026-10-29, schema review)
+
+Postgres does not index the referencing side of a foreign key. The template list's "sends" and "last used" and the
+`email_templates` guard's `EXISTS` on `sent_emails` (`sql/060`) filter on these columns. At 9 rows each it costs
+nothing. Every other unindexed foreign key found is a "who did it" column pointing at `users`, which nothing filters on
+and which is never deleted, or a table of a few thousand rows at most.
+
+**When:** when `send_log` passes about 10,000 rows, or the template list or a template save gets slow.
+
+**Related:** item 202.
