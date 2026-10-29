@@ -1,7 +1,7 @@
 """Tests for hailsys/constantcontact/tokens.py -- encryption and token hygiene.
 
 Needs the `cryptography` package, which the host Python lacks, so run in the
-web image with the tests mounted:
+web image with the tests mounted (under the host Python every test skips):
 
     docker compose run --rm --no-deps -v ./tests:/app/tests:ro web \
         python -m unittest tests.test_cc_tokens
@@ -19,9 +19,14 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from cryptography.fernet import Fernet
-
-from hailsys.constantcontact import tokens
+# Guarded like test_cc_tokens_db.py, so the host's `unittest discover` skips
+# this file instead of ending with an import error (parking-lot item 171).
+try:
+    from cryptography.fernet import Fernet
+    from hailsys.constantcontact import tokens
+    MISSING = None
+except ImportError as exc:
+    MISSING = str(exc)
 
 SECRET = "super-secret-token-value"
 NOW = datetime(2026, 10, 6, 12, 0, tzinfo=timezone.utc)
@@ -32,6 +37,7 @@ def with_key(key=None):
     return mock.patch.dict(os.environ, {"HAIL_TOKEN_KEY": key})
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class CryptoTest(unittest.TestCase):
     def test_round_trip(self):
         with with_key():
@@ -66,6 +72,7 @@ class CryptoTest(unittest.TestCase):
                 tokens.decrypt(sealed, tokens.KEY_VERSION + 1)
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class GrantTest(unittest.TestCase):
     def test_repr_hides_tokens(self):
         g = tokens.Grant(token_id=1, account_id="a", scope="s",
@@ -75,6 +82,7 @@ class GrantTest(unittest.TestCase):
         self.assertNotIn(SECRET, str(g))
 
 
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class SaveTest(unittest.TestCase):
     def test_naive_expiry_rejected_before_any_sql(self):
         conn = mock.Mock()

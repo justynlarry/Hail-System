@@ -232,6 +232,40 @@ class QueueBatchTest(unittest.TestCase):
         self.assertEqual(again["emails"], 0)
         self.assertEqual(again["excluded"]["already_emailed"]["realtors"], 2)
 
+    def emailed_earlier(self, realtor):
+        """An email to this realtor about a match that is not on DAY, so the cap applies to DAY's
+        matches but already_emailed does not.  No realtor on DAY's list is on another storm day's
+        list in this window, so the earlier email is written here rather than queued."""
+        mine = [m for e in realtor["events"] for m in e["match_ids"]]
+        match_id = self.conn.execute(
+            "SELECT m.match_id FROM storm_listing_matches m WHERE m.basis = 'report' "
+            "AND m.match_id <> ALL(%s) AND NOT EXISTS (SELECT 1 FROM send_log s WHERE s.match_id = m.match_id) "
+            "ORDER BY m.match_id LIMIT 1", (mine,)).fetchone()["match_id"]
+        template_id = self.conn.execute(
+            "SELECT max(template_id) AS t FROM email_templates WHERE match_kind = 'report'").fetchone()["t"]
+        email_id = self.conn.execute(
+            "INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, sync_run_id, "
+            "permission_asserted, created_by, subject, html_body) "
+            "VALUES (%s, %s, %s, %s, %s, 'implicit', %s, 'earlier', '<p>earlier</p>') RETURNING email_id",
+            (uuid.uuid4(), realtor["realtor_id"], realtor["email"], template_id, self.run_id,
+             self.user)).fetchone()["email_id"]
+        self.conn.execute(
+            "INSERT INTO send_log (realtor_id, recipient_email, match_id, template_id, sent_by, email_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (realtor["realtor_id"], realtor["email"], match_id, template_id, self.user, email_id))
+
+    def test_the_cap_override_turns_the_cap_off(self):
+        # Item 229: dropping the override (cap_days=cap_days in queue_batch) failed no test.
+        realtor = self.realtors[0]
+        self.emailed_earlier(realtor)
+        only = dict(allowed_emails=[realtor["email"]], contacts={realtor["email"]: None})
+        capped = self.queue(**only)
+        self.assertEqual(capped["emails"], 0)
+        self.assertEqual(capped["excluded"]["within_cap"]["realtors"], 1)
+        overridden = self.queue(override_cap=True, **only)
+        self.assertEqual(overridden["emails"], 1)
+        self.assertEqual(overridden["excluded"]["within_cap"]["realtors"], 0)
+
     # ---- a list that is already built (drip follow-ups, item 204) ----
 
     def built(self, realtors=None):

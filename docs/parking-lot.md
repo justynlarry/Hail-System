@@ -9,14 +9,21 @@ whatever Phase 1's final commits added. Committed to the repository 2026-09-14;
 before that it was carried between working sessions by hand, which is the
 problem this file now exists to remove.
 
-**Status and layout (2026-09-30).** Every item carries a `**Status:**` line:
-`open`, `open (watch)` (no work attached, a trigger to notice), `open (parked)`
-(gated on something named), `resolved`, `resolved (residuals)` (shipped, with
-named leftover work), `deferred`, `dropped` or `superseded by <n>`. Items are
-grouped by status: Open, Watch list, the parked permits workstream, the two
-unnumbered notes, then Closed (resolved and dropped items) at the end.
-Item numbers never change. Items 128 and 131 were informational and moved to
+**Status and layout (2026-10-28, parking-lot sweep; replaces the 2026-09-30 note, item 213).** Every item carries a
+`**Status:**` line, and **the status line is the authority, not the section an item sits in.** Statuses in use:
+`open`; `open (watch)` (no work attached, a trigger to notice); `open (parked)` (gated on something named);
+`accepted` (a decision to live with it, with a **When**); `deferred`; `resolved`; `resolved (residuals)` (shipped,
+with named leftover work); `closed` (overtaken by the design, or by decision, with the reference); `merged into <n>`;
+`dropped`. One item (202) still reads `built`, pending a browser check.
+
+Where items sit: items up to 153 are grouped as they stood on 2026-09-30 (Open, Watch list, the parked permits
+workstream, the two unnumbered notes, Closed), though some have been resolved in place since. Items filed later are
+in two blocks of their own, in filing order and of any status: 154 to 239 after the Watch list, and 240 on after
+the Closed section. Items are never moved or renumbered. Items 128 and 131 were informational and moved to
 `docs/decision-log.md` (2026-09-30 entries); their numbers are left vacant.
+
+To list what is open: `grep -n '^\*\*Status:\*\* open' docs/parking-lot.md` (add `accepted` and `deferred` for
+everything with a trigger still live).
 
 ---
 
@@ -36,7 +43,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*63 items (counted 2026-10-19 across the whole file, below the Closed heading excluded): `open`, `open (reopened)`, `open (parked)` on something other than item 70, and `deferred`. Items filed after 153 sit after the permits section, not in this block.*
+*Counted 2026-10-28 across the whole file, by status line (273 items): 54 `open`, 30 `open (watch)`, 24 `open (parked)`, 3 `accepted`, 1 `deferred`, 1 `built`; 124 `resolved`, 20 `resolved (residuals)`, 5 `closed`, 2 `merged`, 9 `dropped`. This block holds only items up to 153; later items are in the two "Filed" blocks.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -70,6 +77,12 @@ the layer cache throughout, so whether the `Check-Valid-Until=false` workaround
 still builds against the current bullseye repos is untested. Expect to find out
 when the production box builds the image; a failure there is this item's risk
 arriving, not a new one.
+
+**Gate, 2026-10-28 (sweep).** The production hardware arrived and passed acceptance 2026-10-20; the
+VM `rbi-hail01` is created but not started, with no Docker on it (CLAUDE.md). Recheck when it gets
+Docker. Verified the same day: the `postgis` container still reports Debian 11 (bullseye), and
+`docker/loader.Dockerfile:18-22` still carries the `Check-Valid-Until=false` workaround and the
+`pgdg110` pin. The **When** is unchanged.
 
 ## 9. The absence query has no schedule and nowhere to alert
 
@@ -111,7 +124,7 @@ destination). The note above about the inverted skip condition still stands.
 
 ## 11. Hail size names for email templates
 
-**Status:** open
+**Status:** dropped 2026-10-28 (developer decision, parking-lot sweep)
 
 StormerSite renders hail as *"Golf Ball"*, *"Half Dollar"*, *"Ping Pong"*
 alongside the inch measurement. An agent reads 1.75″ fine; a homeowner says
@@ -122,6 +135,11 @@ has somewhere to live. The email wording rule stands: the message claims a
 **report**, never damage.
 
 **When:** Phase 5, when templates are written.
+
+**Dropped 2026-10-28.** The templates were written (`ef4eeb2`) and show hail in inches only:
+`hail_size` comes from `hail_label` (`hailsys/email/render.py:131`), which goes through
+`hailsys.formatting.magnitude` (see item 16). Asked in the sweep whether to add the names, the
+developer said no.
 
 ## 15. Does the frequency cap have a hard floor?
 
@@ -500,9 +518,22 @@ with no test that reaches them: `/admin`, `/pull` and `/match`, `/search`, `/exp
 signed-out redirect. Not closed, because the older half of the gap is the one that has already
 cost bugs. **When:** before any of those screens is changed again.
 
+**Measured 2026-10-28 (sweep).** The 19 test modules that drive the app through Flask's test client
+were run under a scratch wrapper that records the URL rule of every request (Flask's `request_started`
+signal; no product code touched): 683 tests, 13 errors (the `hail_admin`-only modules, item 241).
+**53 of the app's 81 routes are reached by at least one request** (reached includes a request that was
+refused or redirected). The 28 never reached: `/login`, `/logout`, `/account/password`, `/activity`,
+`/activity.csv`, `/exports`, `/exports/matches.csv`, `/exports/realtors.csv`, `/export.csv`, `/search/`,
+`/pull`, `/match`, `/storms/banner`, `/storms/matches`, `/storms/matches.csv`, `/storms/state`,
+`/storms/zips`, `/admin/users` and its five actions (`boot`, `deactivate`, `password`, `reactivate`,
+`role`), `/admin/boot-all`, `/admin/dnc/discard/<token>`, `/cc/connect`, `/cc/callback` and `/cc/refresh`.
+`/admin`, `/territory`, `/pull/estimate` and the map routes, unreached on 2026-10-13, are now reached. A
+smoke test (sign in as each role, GET each unreached GET route, check for no 500 and the right refusals)
+would cover about half the list; it was proposed and not written. The **When** above stands.
+
 ## 55. Duplicate properties from RentCast address variants — one lot, two emails
 
-**Status:** built 2026-10-13, one gap accepted (see the last status paragraph)
+**Status:** resolved (residuals) 2026-10-13 (`3df2ae5`). Residuals: Part 2 (unit plus shared agent) deferred; the `key_emailed` same-day condition untested, accepted (see the last status paragraph). Status line reworded 2026-10-28 (sweep); it read "built 2026-10-13, one gap accepted", which is not in the header's vocabulary.
 
 RentCast's `id` is derived from the address string, so a formatting change
 upstream mints a new id for the same building (`docs/data-sources.md`). Two
@@ -705,6 +736,11 @@ accounts exist (Phase 7).
 system completion. (The 2026-09-23 marker on this item read "declined", which
 overstated it.)
 
+**When (2026-10-28, sweep; replaces "Phase 4, if wanted"):** at system completion, before staff accounts
+exist (Phase 7). Staff can already change their own password: `/account/password`
+(`hailsys/web/views.py:1059`) is `login_required`, so it is open to every role, and the header links it from
+the user's name (`base.html:53`).
+
 ## 63. A reachable path to `hail-dev` for anyone but the developer
 
 **Status:** resolved 2026-10-02
@@ -726,12 +762,18 @@ confirms outside users can now reach the app. This item sat parked as "gated on
 
 ## 64. Emailed password-reset link
 
-**Status:** open
+**Status:** open (re-triggered 2026-10-28)
 
 Today a forgotten password means an admin resets it by hand from `/admin`. A
 self-service emailed link needs a sending path.
 
 **When:** Phase 5, once sending exists.
+
+**Re-triggered 2026-10-28 (sweep, developer's choice).** Sending exists, but only as Constant Contact bulk
+campaigns (three API calls a send, the CAN-SPAM footer), which do not fit a one-off message to a staff member.
+Staff can already change their own password at `/account/password` (`hailsys/web/views.py:1059`, open to every
+role, linked from the user's name in the header). **When:** with staff accounts (Phase 7), alongside item 61; it
+needs a transactional sending path.
 
 ## 83. In-house realtor and contacts database
 
@@ -775,7 +817,7 @@ distinct storm days rather than raw report count, which the ~0.7%
 natural-key dedup and busy single days would otherwise skew. Probably a
 view of `/territory` or a map layer rather than its own page.
 
-**When:** after Phase 4, alongside the map (item 22).
+**When:** Phase 6. (Reworded 2026-10-28, sweep: it read "after Phase 4, alongside the map (item 22)"; Phase 4 has closed, and the status line already gates this on Phase 6.)
 
 **Scoped 2026-09-30, Phase 6:** wanted is a multi-year storm history (when, where, how bad), not the matched listings. It reads `iem_data` (with `report_zip_distances` for zips) only, so item 49's 400-day clamp, which exists to bound matched-listing export size, need not apply to it. As things stand the clamp applies to every explicit date range, `/territory` included, so this needs its own route or an exemption.
 
@@ -1021,6 +1063,15 @@ within a pull, which would multiply the per-pull rate, or (c) a
 | grep "status=429"`), or `calls_made` exceeds what a zip's listing count
 explains.
 
+**Re-checked 2026-10-28 (sweep).** None of the three triggers has fired. `_last_request_time` is still a lock-free
+module global (`hailsys/rentcast/client.py:79-96`) and `web` still runs `--workers 2`. The web log (back to
+2026-10-14) has no `rentcast_retry` line; `api_call_log` has 538 calls, no zip with a non-200 status, and no zip
+whose `calls_made` exceeds what its listings explain (one call per 500); the largest pull is still 94 calls.
+**Discrepancy, unexplained:** the 2026-10-02 paragraph above counts "38 completed pulls in `api_pulls`", but
+`api_pulls` holds 35 `complete` pulls started on or before 2026-10-02 (plus 5 `failed` and 1 `cancelled`), and no
+code in `hailsys/`, `scripts/`, `tests/` or `sql/` deletes from `api_pulls`. The conclusion does not depend on
+the exact count.
+
 ## 105. `postgis` has no log rotation
 
 **Status:** resolved 2026-10-01
@@ -1215,7 +1266,7 @@ recorded basis per realtor and sending is gated on it.
 
 ## 120. Email templates need CAN-SPAM's footer requirements built in
 
-**Status:** mostly met (checked 2026-10-13); the postal address rests on item 183
+**Status:** resolved (residuals) 2026-10-13 (`ef4eeb2`). Residual: the postal address, tracked as item 183's third bullet. Status reworded 2026-10-28 (sweep); it read "mostly met (checked 2026-10-13); the postal address rests on item 183", and its **When** pointed at item 16, resolved 2026-10-08.
 
 Checked actual draft outreach copy ("...Our inspections are free...")
 against `15 U.S.C. § 7702` and `16 CFR § 316.3`, 2026-09-28: it reads as a
@@ -1308,6 +1359,8 @@ no-dedup basis.
 **When:** after the RBI realtor import (item 83) lands — merging now,
 against the pre-import data, would just need redoing.
 
+**Re-checked 2026-10-28 (sweep):** still not built; `realtors` now has 9,203 rows (7,082 above).
+
 ## 129. The Constant Contact export may be missing ~9 months of unsubscribes
 
 **Status:** accepted 2026-10-28 (developer). RBI's newsletter account is separate from the hail system's
@@ -1378,6 +1431,12 @@ every `realtors` insert.
 `realtor_id` to be trustworthy.
 
 **Measured 2026-09-30:** 118 `dnc_list` emails match a `realtors` row, but only 108 have `realtor_id` set. The 10-row gap is this item's undercount, already occurring.
+
+**Re-checked 2026-10-28 (sweep).** The two Constant Contact sync paths now link the realtor at insert
+(`hailsys/constantcontact/unsubs.py:53`, `statuses.py:68`); the admin import (`hailsys/queries/dncimport.py`) does
+not, and a realtor added after the suppression still stays unlinked. 120 active `dnc_list` emails match a
+`realtors` row, 108 are linked: the gap is 12. No code reads `dnc_list.realtor_id`: the send path was built
+without needing it. **When:** when anything reads `dnc_list.realtor_id`.
 
 ## 133. The DNC upload has no `MAX_CONTENT_LENGTH`
 
@@ -1487,6 +1546,10 @@ what the export contains.
 
 **When:** with the send path, once the freshness setting itself lands.
 
+**Re-triggered 2026-10-28 (sweep).** Both conditions above have been met and this is still not built:
+`listing_freshness_days` is used only by the send lists (`hailsys/web/send.py`, `sendzone.py`, `drip.py`), and
+the match page does not mark a listing past it. **When:** with the planned site redesign, item 201 (with items 108, 112).
+
 ## 143. Structured address input for search
 
 **Status:** open (parked) — gated on `address_searches` showing the need
@@ -1498,6 +1561,9 @@ log shows `no_match` rows that are really a missing city or state. Check:
 `no_match` rows.
 
 **When:** after the search page has been used for a few weeks.
+
+**Checked 2026-10-28 (sweep).** The weeks have passed and the log does not show the need: `address_searches` holds 14
+searches (2026-10-01 to 2026-10-13), 12 `matched`, 2 `unparseable`, no `no_match`. **When:** if `no_match` rows appear.
 
 ## 144. Fuzzy suggestions for mistyped addresses
 
@@ -1538,7 +1604,7 @@ extension left in place).
 
 **Status:** open (watch)
 
-`iem_data.nws_issuer` is `NOT NULL`, but `iem_parse.parse_row` returns
+`iem_data.nws_issuer` is `NOT NULL`, but `parse_row` in `hailsys/iem/parse.py` (moved from `iem_parse.py` in `d70b74d`) returns
 `_clean(row["WFO"])`, which is `None` for an empty WFO field. No reject reason
 covers it, so such a row would raise `IntegrityError` mid-batch and end the run.
 
@@ -1548,6 +1614,10 @@ occurred would weaken the closed-enumeration argument that keeps
 skip-and-continue from drifting into swallowing whatever goes wrong.
 
 **When:** if a run ever fails naming `nws_issuer`.
+
+**Checked 2026-10-28 (sweep).** Still true: the column is `NOT NULL`, the field is read at
+`hailsys/iem/parse.py:230`, and a TODO at `hailsys/iem/common.py:79` points here. None of the 77
+`ingest_runs` has failed, and none names `nws_issuer`.
 
 ## 8. `WALL CLOUD` and `ICE STORM` are not in `report_types`
 
@@ -1588,6 +1658,11 @@ belong to — a backfill problem created by waiting, not avoided by it.
 **When:** Phase 2, if the storm browser needs to name or campaign against an
 event rather than only group by query. *(`database-schema.md`, open question 1)*
 
+**Re-triggered 2026-10-28 (sweep).** Phase 2 closed without the table: no `storm_events` table
+exists. The working unit is the Denver storm day: `storm_listing_matches.storm_date` (`sql/057`)
+and one likelihood map per storm day (Phase 5c). Stays a watch item. **When:** if a campaign
+(item 204) or a report needs to name an event that is not exactly one Denver storm day.
+
 ## 18. Retention policy for `raw_payload`
 
 **Status:** open (watch)
@@ -1611,20 +1686,38 @@ error.
 
 ## 33. `REPORT_POINTS_SQL`'s `LIMIT` keeps the lowest `iem_id`, not the most recent reports
 
-**Status:** open (watch)
+**Status:** open (trigger met 2026-10-28)
 
 Because `DISTINCT ON` pins the `ORDER BY`.
 
 **When:** if the map ever hits the 2000 cap.
 
+**Trigger met, measured 2026-10-28 (sweep).** `POINTS_SQL_LIMIT = 2000` (`hailsys/web/views.py:37`),
+and the cap is reachable through the normal UI. With "all types" and the radius setting, the
+365-day preset holds **4,856** reports today, so the map shows 2,000 and silently drops 2,856, and
+the ones dropped are the newest. The worst 400-day window (`MAX_RANGE_DAYS`) holds 10,075. HAIL
+alone peaks at 689 in any 400-day window, so the default view (HAIL, 30 days) is unaffected.
+Nothing on the page says the map is capped.
+
+The fix is product code (for the developer to key in): order by time in an outer query so that the
+2,000 kept are the most recent, and show "showing 2,000 of N" on the map.
+
+**When:** before the Territory page is used with "all types" over 90+ days, at the latest before Phase 6.
+
 ## 35. Reverse direction of the radar analysis — signatures with no report
 
-**Status:** open (watch)
+**Status:** closed 2026-10-28, overtaken by the Phase 5b radar-indicated layer and the findings panel (items 206, 251)
 
 Needs event clustering; five overlapping radars re-detecting every ~5
 minutes make raw counts meaningless.
 
 **When:** only if the forward result raises a question it can answer.
+
+**Closed 2026-10-28 (sweep), overtaken.** Phase 5b built the reverse direction another way. The
+radar-indicated layer (`hailsys/radar/zones.py:124`, `55eddd7`; decision log 2026-10-14) is radar
+hail with no report within 5 km. It comes from one MRMS `MESH_Max_1440min` grid a day, so the
+re-detection problem above, five radars seeing the same cell every scan, does not arise and no
+clustering rule is needed. The findings panel (item 251) counts reports against the layers.
 
 ## 38. Per-event-type radius — needs wind analysis first
 
@@ -1656,6 +1749,10 @@ zip" — which nothing queries yet but item 23's address-lookup tool would.
 
 **Updated 2026-10-01:** item 23's tool shipped, but it queries `iem_data.geom`
 (GiST) directly, not `report_zip_distances`, so this index is still not needed.
+
+**Re-triggered 2026-10-28 (sweep).** Still not needed: the primary key is the only index, and the only
+code that reads the table is `hailsys/queries/storms.py` (by `iem_id`); the two scripts that touch it
+build and verify it. **When:** when a query reads `report_zip_distances` by `zcta5` first.
 
 ## 42. A complete pull where every zip failed still counts as pulled
 
@@ -1697,6 +1794,8 @@ has a NULL `list_latitude`/`list_longitude` or a NULL `geom` today.
 
 **Re-checked 2026-09-30:** still zero NULL `geom`, now against 25,219 properties (16,407 on 2026-09-26, 1,964 when filed).
 
+**Re-checked 2026-10-28 (sweep):** still zero NULL `geom` and zero NULL `list_latitude`/`list_longitude`, against 25,384 properties.
+
 ## 54. Missing agent email — watch it as a rate
 
 **Status:** open (watch)
@@ -1714,6 +1813,11 @@ are pulled before treating 17% as typical.
 reachable at all, so settle it before Phase 5.
 
 **Re-measured 2026-09-30:** 3,927 of 26,093 listings (15.0%) have no `realtor_id`. The 9.6% figure above (49 of 508 listings) is what it was when filed.
+
+**Re-measured 2026-10-28 (sweep):** 3,970 of 26,320 listings (15.1%) have no `realtor_id`. The "settle it before
+Phase 5" above has passed without a decision being needed: under the warm-pool audience (decision log 2026-10-07),
+who may be emailed is decided by item 189's recorded basis, not by whether RentCast returned an email, so this rate
+now limits reach less than it did. **When:** re-measure at each parking-lot sweep.
 
 ## 56. Backfill progress and ETA should count reports, not ID range
 
@@ -1743,6 +1847,8 @@ column, with no error: the table still renders, just with an address-wide Zip
 column and a narrow Address.
 
 **When:** if those columns change.
+
+**2026-10-28 (sweep):** waits on the planned site redesign, item 201 (developer's decision). **When:** with item 201, or if these columns change first.
 
 ## 109. The match page on a phone: one column at a time
 
@@ -1779,6 +1885,8 @@ column, which would change the widths in item 108.
 
 **When:** if anyone uses the territory page on a tablet or phone.
 
+**2026-10-28 (sweep):** waits on the planned site redesign, item 201 (developer's decision). **When:** with item 201, or if these columns change first.
+
 ## 113. Small CSS leftovers
 
 **Status:** open (watch)
@@ -1796,6 +1904,9 @@ column, which would change the widths in item 108.
 
 **When:** if any of them gets in the way.
 
+**Re-checked 2026-10-28 (sweep).** All four are still there (`style.css:643-656`, `:661`, `:802`, `:340` and `:345`).
+**When:** with the planned site redesign, item 201 (developer, 2026-10-28; same as items 108 and 112).
+
 ## 115. Nothing writes `'cancelled'` except the sweep
 
 **Status:** open (watch)
@@ -1812,7 +1923,7 @@ which kind of cancel this was.
 
 ## 117. An all-types pull can't be recorded
 
-**Status:** open (watch)
+**Status:** resolved 2026-10-02 (`0b3d7a3`; found resolved in the 2026-10-28 sweep)
 
 `api_pulls` has a `storm_link_paired` CHECK: `storm_date` and `report_text` are
 both set or both NULL. `pull_start` accepts a missing `type`
@@ -1825,6 +1936,12 @@ diagnosing item 116.
 
 **When:** if a pull of every type is ever wanted, or `/pull` is reachable from
 anywhere else.
+
+**Resolved 2026-10-02, recorded 2026-10-28 (sweep).** `0b3d7a3` (item 51's commit) added
+`if report_text is None: abort(400)` to `pull_start` (`hailsys/web/views.py:853-855`), so a `POST /pull`
+without a type is refused before any `api_pulls` row or thread exists; the failure above can no longer
+happen. The zone pull (`/pull/zones/start`) sets a type as well (pull 1228: HAIL). An all-types pull is
+still not a feature; if one is ever wanted, `storm_link_paired` (`sql/013`) is the constraint to change.
 
 ## 118. The live pull banner: limits
 
@@ -1864,6 +1981,9 @@ emailed about.
 
 **Re-measured 2026-09-30:** 23 non-Land properties have a NULL `address_key` (11 when filed), out of 287 NULL keys overall.
 
+**Re-measured 2026-10-28 (sweep):** still 23 non-Land, out of 290 NULL keys and 25,384 properties. 14 of the 23 have a report match;
+none has ever been emailed (no `send_log` row reaches a NULL-key property), so the trigger has not fired.
+
 ## 125. `address_key`'s `house_num` can hold a range, not just a number
 
 **Status:** open (watch)
@@ -1889,6 +2009,12 @@ in the current 7,082. Not a problem yet, but the in-house realtor import
 this is more likely to actually bite.
 
 **When:** if the in-house realtor import makes this worse.
+
+**Re-checked 2026-10-28 (sweep), partly addressed.** `render.first_name` (`hailsys/email/render.py:101`, `ef4eeb2`)
+returns no name, so the email opens "Hello.", for a single word, a comma, a digit, a company word, or a first word
+that fails `[A-Za-z][A-Za-z'-]{1,24}`, which a dotted title ("Dr.") does. Across 9,203 realtors: no title-prefixed
+name, 3 single-word names. Still not handled: an undotted title ("Dr Susan Clark" gives "Dr") and two given names.
+The trigger stands.
 
 ## 141. RentCast street names sometimes carry an embedded comma
 
@@ -1982,9 +2108,9 @@ findings: decisions, and a gap in the review loop").
 
 ---
 
-## Deferred workstream: permits
+## Filed 2026-10-02 to 2026-10-21 (items 154 to 239), any status
 
-*Items 70–82, 97 and 98, all gated on item 70 ("until the system is running"); item 74 is resolved and sits in the Closed section. 14 items here. A future workstream, not a backlog.*
+*In filing order, roughly (181 to 188 come after 225). Read each item's status line; this block mixes open, resolved and closed items. Heading added 2026-10-28 (item 213).*
 
 ## 154. Fixes land in commits that don't close their parking-lot item
 
@@ -1999,6 +2125,28 @@ that lands without updating its item.
 **When:** at each phase close, and before Phase 6. Run the sweep: for each open
 item, check its named files, functions and symptoms against the repo and git
 history.
+
+**Sweep 2026-10-28 (Phase 5 to 5c, before Phase 6; decision log 2026-10-28, "Parking-lot sweep").** Every item not
+already resolved, closed or dropped, plus the `accepted` ones, was checked against the repo and the database (read
+only), in eight batches with the developer's yes before each set of edits. **120 checked: 17 resolved, 2 merged,
+4 closed, 1 dropped, 88 still open (many with a corrected trigger or a re-check line), 8 waiting on the developer**
+(83, 87, 96, 135, 136, 202, 209, 222). Item 213 was resolved at the end; this item stays open, since it is the sweep.
+- **Found done but still open:** 117, 177, 218 and 227 (each fixed in a commit that did not close it, this item's
+  pattern), and 55, 120, 180, 181, 182, 191, 199, 203 and 210 (built, with a status line outside the vocabulary).
+- **Closed:** 35, 205 and 206 overtaken by Phases 5b and 5c; 215 by decision. Merged: 179 into 189, 200 into 196.
+  Dropped: 11.
+- **Fixed in the sweep, tests only:** 171 (`test_cc_tokens.py` skips without `cryptography`), 214
+  (`test_log_guards.py`: the 039 and 059 guards), 228 (`test_rentcast_zip.py`), 229 (the cap-override test in
+  `test_send_queue.py`), 263 (the `__pycache__` skip). Each mutation-checked where it guards a behaviour. No product
+  code changed.
+- **Filed:** 271 (resolved), 272 (schema docs behind by 19 migrations), 273 (the host test run ends with 24 errors),
+  275 (the zip search logs error bodies); item 188 widened (the setup doc would load the dev seed files on production).
+- **Triggers that had passed without anyone noticing:** 33 (the map cap, reachable today), 167, 214, 222, 228, 229,
+  241, 245. Most were "the next edit to X" triggers: the edit happened and the item was not read. Worth checking, at
+  the next sweep, whether a trigger of that kind can name a file a grep can find.
+
+**When:** at each phase close, and before Phase 6.
+
 
 ## 155. The pull estimate offers "Pull 0 zips"
 
@@ -2044,6 +2192,9 @@ darkens the blues slightly in light mode, so it is a visible change. The
 
 **When:** whenever, or before Phase 6 if anyone outside the developer reads the
 app in light mode.
+
+**Re-triggered 2026-10-28 (sweep).** The colours are unchanged (`style.css:8`, `:9`, `:38`). **When:** with the
+planned site redesign, item 201 (developer, 2026-10-28), at the latest before Phase 6.
 
 ## 157. `database-schema.md` was behind `sql/029`–`033`
 
@@ -2241,6 +2392,13 @@ the same call already made for `match_runs_storm_idx` (`schema-review.md` §2).
 **When:** with the next migration that touches one of these four tables, or the
 next time the FK naming convention is enforced across the schema.
 
+**Re-checked 2026-10-28 (sweep).** Two more inline-declared keys carry generated names:
+`email_images_created_by_fkey` and `email_images_updated_by_fkey` (`sql/042`), so six of ours (`layer_topology_id_fkey`
+belongs to PostGIS's topology extension). The first trigger above has fired eight times without a rename:
+`sql/023`, `028`, `038`, `042`, `045`, `050` and `060` altered `settings_history`, and `061` altered
+`dnc_import_batches`. The "leave as applied" decision held each time. **When:** the next time the FK naming
+convention is enforced across the schema.
+
 ## 168. Constant Contact tokens: encryption at rest, and tokens never in logs
 
 **Status:** resolved 2026-10-06 (`5e4983b`)
@@ -2348,7 +2506,7 @@ a domain.
 
 ## 171. `tests/test_cc_tokens.py` fails under the host Python
 
-**Status:** open
+**Status:** resolved 2026-10-28 (parking-lot sweep; uncommitted at the time of writing)
 
 Found 2026-10-06. The file imports `cryptography` at the top, and the host Python
 does not have it (the package is in the `web` and `app` images only), so
@@ -2362,6 +2520,18 @@ instructions and its "100 cases" count are stale for both new files.
 
 **When:** with the next edit to `tests/test_cc_tokens.py`, and before anyone
 relies on the host run as the whole suite.
+
+**Resolved 2026-10-28 (sweep).** `tests/test_cc_tokens.py` now guards its imports like `test_cc_tokens_db.py`
+(`MISSING`, and `@unittest.skipIf` on its three classes). Host run of the file: 8 skipped, no error. In `web`:
+8 run, all pass. README's test section updated to match.
+
+**What this did not fix.** The host run as a whole still ends with errors: on 2026-10-28,
+`python3 -m unittest discover -s tests` ran 2,350 tests, skipped 1,842, and had **24 errors**. 8 modules fail
+to import (`test_levelreport`, `test_report_levels`, `test_send_deliver`, `test_send_zone_screen`,
+`test_templatelist_kind`, `test_testsend`, `test_zone_render`, `test_zone_send_queue`; no `jinja2`, no
+`psycopg`), `test_zonewording` has 15 errors and `test_systemd_units` 1 (`psycopg.rows`; "'psycopg' is not a
+package", so some earlier module appears to put a stand-in for `psycopg` into `sys.modules`). Proposed
+as a new item in the same sweep, not filed here.
 
 ## 172. `scripts/status.sh images` reports an image stale when the file changed before the build
 
@@ -2467,7 +2637,7 @@ backed up outside the box (losing it means re-authorizing by hand).
 
 ## 177. The schema docs do not know about `oauth_tokens`
 
-**Status:** open
+**Status:** resolved 2026-10-14 (`081dc39`, `8d6bff3`)
 
 `sql/034` (2026-10-06) made 32 tables. `docs/database-schema.md`,
 `docs/schema-review.md` (covers `sql/001`-`033`) and `docs/db-schema-diagram.md` do
@@ -2481,6 +2651,11 @@ next schema review.
 (`sql/035`), `cc_sync_conflicts` (`sql/036`) and `sent_emails` (`sql/037`), and
 `send_log` has a new `email_id` column with its own frozen-column trigger. That is five
 new or changed objects the three schema docs do not mention. Do it as one pass.
+
+**Resolved 2026-10-14 (`081dc39`, `8d6bff3`; found resolved in the 2026-10-28 sweep).** `docs/database-schema.md`
+documents `oauth_tokens` with its trigger and grants (`#### oauth_tokens`), `docs/schema-review.md` lists `sql/034`
+to `037`, and `docs/db-schema-diagram.md` has `oauth_tokens`, the two `cc_sync_*` tables, `sent_emails` and
+`email_id` (item 212's pass). The same lag has since recurred for `sql/043` to `061`: item 272.
 
 ## 178. The test email had an unsubscribe link in the body but no `List-Unsubscribe` header
 
@@ -2510,7 +2685,7 @@ footer (address, Unsubscribe, Update Profile) is added by Constant Contact.
 
 ## 179. Constant Contact's permission policy: sends must be gated to a recorded basis
 
-**Status:** open
+**Status:** merged into 189 (2026-10-28, parking-lot sweep)
 
 Found 2026-10-06 reading Constant Contact's email permission policy
 (`knowledgebase.constantcontact.com`, article 5305; re-read the page itself, this is
@@ -2539,10 +2714,14 @@ Contact account (the dev trial today).
 the imports (item 129's fresh export, and the in-house database, item 83), and a
 send list built only from realtors that have a basis and are not in `dnc_list`.
 
+**Merged into item 189, 2026-10-28 (sweep).** This item's **When** (a consent basis, the imports, and a send list
+built only from realtors with a basis) is the eligibility gate that item 189 plans and builds; 189 is the one CLAUDE.md
+names as a blocker. The policy research above stays here as 189's background. Note: the `sql/035` named in the **When**
+became `cc_sync_runs`; the basis table has no migration yet.
+
 ## 180. Send design: one email per realtor per send, listing every affected property
 
-**Status:** built and rehearsed on `hail-dev` (checked 2026-10-13); open only for the eligibility
-gate (item 189) and for the production box, which has none of it
+**Status:** resolved (residuals) 2026-10-13. Residuals: the eligibility gate (item 189) and the production box, which has none of it. Status reworded 2026-10-28 (sweep); it read "built and rehearsed on `hail-dev` (checked 2026-10-13); open only for…"
 
 Constant Contact has no single-recipient send: the API is contacts, lists and
 campaigns (`POST /emails`, `PUT /emails/activities/{id}` with `contact_list_ids`,
@@ -2756,6 +2935,11 @@ argument goes at the same time.
 after every per-hit rule, so with the gate in `_reason` it prefers the agent who is in our own
 database. A gate applied later could remove the winner and leave the house with no email.
 
+**Re-checked 2026-10-28 (sweep).** Still not built. One blocker has moved: item 129 was accepted 2026-10-28 (the
+newsletter account's unsubscribes are uploaded by hand). Still blocking: the in-house client list (item 83, waiting on
+RBI) and a source for the Constant Contact subscriber pool. Item 179 (Constant Contact's permission policy, the
+reason for this gate) was merged into this item the same day; read it for the background.
+
 ## 190. Address search as an office tool: jurisdiction, permit issuer and adopted codes
 
 **Status:** open (parked 2026-10-08, by developer decision: the email work comes first)
@@ -2799,8 +2983,7 @@ are loaded, but nothing reads `municipal_boundaries` or `county_boundaries` yet 
 
 ## 191. No count of Constant Contact calls per day; `max_emails` is a stand-in
 
-**Status:** built 2026-10-13 (found 2026-10-09, building Phase B); the reset time of the
-daily limit is still unverified (item 183)
+**Status:** resolved (residuals) 2026-10-13 (`e56b1be`). Residuals (see "Still open" below): the reset time of the daily limit (item 183), the real calls per email after the first real send, and the production box. Status reworded 2026-10-28 (sweep); it read "built 2026-10-13 …; the reset time of the daily limit is still unverified (item 183)"
 
 An email costs about 10 calls (item 180) and Constant Contact allows 10,000 a day, so a
 1,400-realtor day cannot finish. `deliver_batch(max_emails=N)` stops after N emails and leaves
@@ -2896,6 +3079,10 @@ change; only where the dict comes from does.
 **When:** before more than one person sends, or when someone other than the developer asks to send
 from their own address. Until then `sender_from_env()` in `hailsys/email/deliver.py` is the source.
 
+**Corrected 2026-10-28 (sweep):** `sender_from_env()` no longer exists. The sender comes from `settings`
+(item 203 piece 1, see the status line) and is passed to `deliver_email(..., sender=...)`. `sent_emails` still has no
+From column, so the second constraint above still stands.
+
 ## 193. Phase B was keyed in with slips that would have failed on the first send
 
 **Status:** resolved 2026-10-09 (caught before commit by diffing against the verified copy and
@@ -2960,6 +3147,9 @@ fixed error text, batch id once it exists), like `cc_sync_runs`, and shown on th
 **When:** before anyone other than the developer sends from the UI, or the first time a send
 fails silently in practice, whichever is first.
 
+**2026-10-28 (sweep):** item 200 (a failed unsubscribe sync on a resume leaves only a log line) was merged into this
+item: the same gap for the resume job. A `send_runs` table should cover both jobs. Still no such table.
+
 ## 197. A mutation check let a GET reach the real bounce check and write `cc_status_runs` on `hail-dev`
 
 **Status:** resolved 2026-10-10 (test fixed; the row was kept by decision)
@@ -3008,8 +3198,7 @@ send goes out.
 
 ## 199. A queued email past the resume window has no way out
 
-**Status:** built and rehearsed 2026-10-13 (found 2026-10-12, with piece 5d of item 180); the
-`in_progress` limit below is open
+**Status:** resolved (residuals) 2026-10-13 (`2f6f371`). Residual: an `in_progress` email is never discarded (the known limit below, with its own **When**). Status reworded 2026-10-28 (sweep); it read "built and rehearsed 2026-10-13 …; the `in_progress` limit below is open"
 
 `deliver.check_resumable` refuses a batch whose oldest queued email is more than 7 days old.
 Queued `send_log` rows count as emailed in `sendlist` (`send_status <> 'failed'`), so those
@@ -3055,7 +3244,7 @@ the fix would be a look at the campaign's status in Constant Contact before deci
 
 ## 200. A failed unsubscribe sync on a resume leaves only a log line
 
-**Status:** open (found 2026-10-12 with piece 5d of item 180; filed 2026-10-13)
+**Status:** merged into 196 (2026-10-28, parking-lot sweep)
 
 `sendjobs._run_resume` runs `deliver.run_resume`, which syncs unsubscribes before it sends
 anything and raises if the sync fails. Nothing has been sent in that case, which is the safe
@@ -3066,6 +3255,9 @@ clicked Resume sees "Resume started", and then nothing happens. The same class a
 
 **When:** with item 196, when the history page gets a way to show a job that failed before
 it started. Until then the person has to look at the log.
+
+**Merged into item 196, 2026-10-28 (sweep).** The same gap (a background job that fails before it writes anything
+leaves only a log line), and its **When** was already "with item 196".
 
 ## 201. Web UI cosmetic pass: make each page more user-friendly and better looking
 
@@ -3078,6 +3270,11 @@ leftovers) and 156 (four light-mode colour pairs below WCAG AA).
 
 **When:** after the send-screen work of the 2026-10-13 discussion (template list, template
 builder, drip campaigns) has settled, so a page that is about to change is not polished twice.
+
+**Update 2026-10-28 (sweep).** The redesign is planned (developer, 2026-10-28), and these items now wait on it: 108
+(match-page column widths), 112 (territory on tablets), 113 (CSS leftovers), 140 (mark stale listings on the match
+page) and 156 (light-mode contrast). Of the three pieces named in the **When**, the template list (item 202) and the
+template builder (item 203) are done and the drip campaigns (item 204) are parked, so the trigger has mostly come.
 
 ## 202. Template list, and a template choice on the send page
 
@@ -3133,18 +3330,7 @@ version from the UI before then.
 
 ## 203. A template builder in the web UI, and email images managed from the UI
 
-**Status:** open. **Piece 1 done 2026-10-14** (`sql/042`; `email_images` and the Email section of the admin
-page; the contact email, schedule link and sender moved from the environment to `settings`; decision log
-2026-10-14). **Pieces 2 and 3 done 2026-10-15** (`hailsys/email/blocks.py`, `sql/043`,
-`templatestore.save_blocks`; decision log 2026-10-15). **Piece 4 done 2026-10-15** (the admin-only
-`/templates` editor: list, new, edit, preview, save, retire; `hailsys/web/emailtpl.py`, `blockform.py`,
-`preview.py`, `templates.js`; cosmetics in item 221). **Piece 6 done 2026-10-15** (`sql/044`,
-`hailsys/email/testsend.py`: "Send a test to <your address>" in the editor; one live test on the dev
-trial: accepted, inbox, campaign deleted; decision log 2026-10-15). **Piece 5 done 2026-10-16**
-(formatting help: the guide, the toolbar, error positions that quote the place; the two-column layout
-of item 221; commits `1efca54`, `b290f51`, `7bb85d1`; decision log 2026-10-16). **All six pieces are
-done**; what remains is follow-up items 217, 220 and 225, and the developer's own feedback from using
-the editor. (filed 2026-10-13, by developer request; shape agreed the same day)
+**Status:** resolved (residuals) 2026-10-16 (`7bb85d1`, the last of pieces 1 to 6). Residuals: items 217, 220 and 225, each filed. Status reworded 2026-10-28 (sweep); it began "open. **Piece 1 done 2026-10-14** …" and listed every piece; that history is kept in the decision log entries of 2026-10-14 to 2026-10-16.
 
 Staff should be able to create a template in the UI, with an image that is already in Constant
 Contact, bold, italic and coloured text, and the other parts of the current template.
@@ -3423,7 +3609,7 @@ is created (item 96), whichever comes first.
 
 ## 227. A follow-up goes to the original agent even if the listing's agent changed
 
-**Status:** decided 2026-10-16, partly built (found the same day, in the by-id probe for item 204)
+**Status:** resolved 2026-10-19 (`7f31e6e`; found resolved in the 2026-10-28 sweep)
 
 RentCast's lookup by id returns `listingAgent` and `listingOffice` for the listing as it stands now.
 A drip follow-up (item 204) is addressed to the realtor of the step-1 email. If the listing was taken
@@ -3448,9 +3634,17 @@ no follow-up. Not moved to the new agent.
 
 **Related:** items 204, 55.
 
+**Resolved 2026-10-19, recorded 2026-10-28 (sweep).** The zip-pull half was built another way than planned above:
+rather than the list builder comparing `list_agent_email_norm`, the drip step classifies every listing a zip pull
+returns with the same `dripcheck.classify(..., agent_email=<the step-1 recipient>)` as a by-id lookup
+(`hailsys/rentcast/dripstep.py:176`, `7f31e6e`, item 204 piece 5), so another agent makes the listing `inactive`
+and it is dropped on both paths. Tested in `tests/test_drip_check.py` (another agent, case and spaces, an answer that
+does not name the agent, the address compared is the one given).
+
+
 ## 228. The RentCast zip client has no unit tests
 
-**Status:** open (found 2026-10-16, while writing the by-id tests for item 204)
+**Status:** resolved 2026-10-28 (parking-lot sweep; `tests/test_rentcast_zip.py`, uncommitted at the time of writing)
 
 `get_sale_listing` has 20 tests (`tests/test_rentcast_by_id.py`: retries and the cap, 404, auth, unreadable
 answers, nothing from a response body in a log). The older zip search in `hailsys/rentcast/client.py`
@@ -3463,9 +3657,24 @@ or when item 204's piece 5 makes a zip pull part of a chained job.
 
 **Related:** items 204, 88.
 
+**Resolved 2026-10-28 (sweep).** The trigger had passed: item 204's piece 5 made a zip pull part of the drip step
+(`7f31e6e`, 2026-10-19), and the zip search was still stubbed out in every test that touched it (`test_pull_jobs.py`,
+`test_drip_step.py`). `tests/test_rentcast_zip.py` (14 tests, no network, no database, runs on the host too) fakes
+`urlopen` like `test_rentcast_by_id.py` and pins: the query (zip, status, a 500 page, offset, `daysOld` only when given,
+the key in a header); paging (a short page ends it, a full one asks for the next, an empty page after a full one ends
+it); a 404 is an empty zip; 429/500/503/504 and an unreachable host retried with doubling back-off up to `MAX_RETRIES`;
+401/403 and 400/405 at once; an unexpected status, an answer that is not a list, and an unreadable answer raise without
+a retry; an error on a later page carries the earlier calls; a missing key makes no request. Five mutations of
+`client.py` (a 404 raising, a full page ending the paging, earlier calls not counted, `daysOld` always sent, no
+doubling back-off), each run from a copy mounted into a throwaway container: all five caught.
+
+**Noticed, not changed:** unlike the by-id lookup, the zip search logs RentCast's error body (`body=%r` on the auth,
+validation, retry-exhausted and unexpected-status lines). Nothing secret has been seen in one; the by-id code keeps
+bodies out of logs on purpose.
+
 ## 229. Nothing tests that the cap override turns the cap off
 
-**Status:** open (found 2026-10-19, mutation-checking item 204's `queue_batch` change)
+**Status:** resolved 2026-10-28 (parking-lot sweep; a test in `tests/test_send_queue.py`, uncommitted at the time of writing)
 
 Replacing `cap_days=None if override_cap else cap_days` in `queue_batch` with `cap_days=cap_days` fails
 no test. `tests/test_send_queue.py` checks only that the override leaves `already_emailed` in force, and
@@ -3474,6 +3683,14 @@ nothing would go unnoticed. The test needs a realtor emailed inside the cap wind
 which is more fixture than the check was worth that day.
 
 **When:** the next change to `queue_batch` or the cap rule, or the item 189 eligibility work.
+
+**Resolved 2026-10-28 (sweep).** The trigger had passed: `224fd5e` (2026-10-28, zone mode) changed `queue_batch`.
+`test_the_cap_override_turns_the_cap_off` writes an earlier email to one realtor on a match that is not on the
+2026-09-22 storm (no realtor on that day's list is on another storm day's list in the window, checked read-only, so the
+earlier email is inserted rather than queued), then queues the storm for that realtor: without the override the realtor
+is held back as `within_cap`; with it, one email is queued. Rolled back like the rest of the file. Mutation-checked: with
+`cap_days=None if override_cap else cap_days` replaced by `cap_days=cap_days` (a copy mounted into a throwaway
+container), this test fails and no other; the file passes 28 of 28 on the real code.
 
 ## 230. A by-id lookup may return a relisted house's newer listing
 
@@ -3646,7 +3863,29 @@ state and bounds from settings and data.
 **When:** before a second market, a second state, or a license or SaaS conversation, whichever comes first.
 Items 1 to 3 are the work; item 2 is the largest.
 
-**Related:** items 203, 216; decision log 2026-09-09, 2026-10-20.
+**Rechecked 2026-10-29** (multi-market assessment). Points 1 to 8 still hold. Found since:
+- **A. A new Denver literal after the rule.** `sql/057_match_basis.sql:36,75` backfills `storm_date` with
+  `AT TIME ZONE 'America/Denver'`. Harmless on a fresh install (the table is empty), but it is the one new
+  hard-code since the 2026-10-20 rule. Remaining SQL literals: `storms.py`, `activity.py`, `workstate.py`,
+  `exports.py`, `ingest.py`, `search.py`, `scripts/status.sh`, `scripts/export_storm_zips.py`,
+  `scripts/verify_zip_distances.py` and the `dev_rehearsal_seed*.sql` files; `DISPLAY_TZ` is used in 23 files.
+- **B. Brand is wider than point 5 says.** Also `hailsys/email/templates/hail_alert_zone.html` (added 2026-10-28:
+  the "Why Realtors Use Roof Brokers" testimonial and "Denver Metro … since 1992"), the logo and alt text in
+  `hailsys/web/templates/base.html`, `USER_AGENT` in `hailsys/constantcontact/oauth.py:44`, the
+  "RBI newsletter unsubscribes" label in `hailsys/queries/dncimport.py:19` and `dnc_preview.html`, and "RBI's inbox"
+  in `send_levels.html` and `hailsys/queries/levelreport.py`.
+- **C. A second `DEFAULT_REPORT_TEXT`.** `hailsys/likelihood/build.py:30` defines its own `"HAIL"` beside
+  `views.py:35`. Not market-specific in itself (`HAIL` is a national NWS type and the likelihood is hail only,
+  item 254), but point 6's move has two copies to reconcile.
+- **D. Tests assume Colorado.** 70 lines under `tests/` mention Denver or Colorado; which would fail on another
+  market's install is not checked.
+- **E. Scope of this item: one install per customer.** `settings` is a singleton (`CHECK (id=1)`, `sql/018`), no
+  table carries a market or customer key, and the radar and likelihood parameter sets are global ("newest row in
+  use"). That fits the licensed-running-system model (decision log 2026-09-01). Multi-tenant SaaS (several
+  customers in one database) would also need a customer key through settings, sends, suppression, parameter sets
+  and the append-only guards: a redesign, not more settings. Which model is meant is not yet decided anywhere.
+
+**Related:** items 203, 216, 274; decision log 2026-09-01, 2026-09-09, 2026-10-20.
 
 
 ## 239. The analysis MESH decoder cannot read 8-bit files, and S3 resets connections
@@ -3672,7 +3911,7 @@ checked once a nightly or backfill run has fetched it.
 
 ## 205. Likelihood tiers: rank outreach by radar swath and distance instead of one circle
 
-**Status:** open (proposal, filed 2026-10-13; not decided)
+**Status:** closed 2026-10-28, overtaken by the Phase 5c likelihood levels and sends by level
 
 **Evidence:** decision log 2026-10-13, *Findings, not a decision: report-based circles against
 radar hail (MRMS MESH), 60 storms*, and `docs/analysis/storm-shape-mesh-2026-10/mesh60/summary.md`.
@@ -3725,9 +3964,15 @@ Radar-derived hail size (NOAA MRMS / MESH)*.
 - **Related:** item 206 changes the footprint itself (radar core, margin, circle as fallback);
   this item only ranks. They can be combined, and 206's core, margin and circle would be these tiers.
 
+**Closed 2026-10-28 (sweep), overtaken.** Phase 5c built the ranking this item proposed, as levels rather than
+tiers: Agree, One source and Context, from the radar layers and the distance to the nearest hail report (decision log
+2026-10-23, "Design: one hail-likelihood map per storm day, one pull from it"). Sends select by level and outcomes are
+reported by level (step 4, `/send/levels`). The "softer email for the outer tier" question is now the choice of template
+by level (`hail_alert_zone` is a draft; nothing zone-derived reaches a real recipient yet).
+
 ## 206. Radar-shaped storm areas: a radar core plus a margin, with the circle as the fallback
 
-**Status:** open (proposal, filed 2026-10-14; not decided)
+**Status:** closed 2026-10-28, overtaken by the Phase 5b radar layers and the Phase 5c zone pull and matches
 
 **Evidence:** decision log 2026-10-13, *Findings, not a decision: report-based circles against
 radar hail (MRMS MESH), 60 storms*; analysis files in `docs/analysis/storm-shape-mesh-2026-10/`
@@ -3811,6 +4056,11 @@ circle" as the fallback for pre-2020 storms and radar gaps.
 - With L = 8 km, recall rises from 56% to 72%.
 - The pre-2020 benefit is inferred, not tested: there is no MESH before 2020-10-14.
 
+**Closed 2026-10-28 (sweep), overtaken.** The core, margin and radar-indicated layers were built in Phase 5b
+(`55eddd7`, `hailsys/radar/zones.py`), and pulls and matches from them in Phase 5c steps 2b and 3 (`sql/057` to `059`).
+The circle stays as the report path. **Not adopted:** the fallback capsule stretched along the HRRR direction; if it is
+wanted, it is a new item.
+
 ## 207. Inspection export from RBI
 
 **Status:** open (requested from RBI, confirmed by the developer 2026-10-20; **delivery date unknown**; filed 2026-10-14)
@@ -3885,7 +4135,7 @@ nothing now and makes item 208 repeatable later.
 
 ## 210. Extra weather sources for the storm footprint
 
-**Status:** assessed 2026-10-14 (decision log 2026-10-14). Findings recorded; nothing adopted.
+**Status:** resolved (residuals) 2026-10-23. Two sources were adopted after the assessment: NWS warning polygons (the Phase 5b outer layer, `sql/050`) and CoCoRaHS (the Phase 5c ingest, `sql/053`). Residuals: rotation tracks, RadarQualityIndex and the small-hail test ("Still open" below). Status reworded 2026-10-28 (sweep); it read "assessed 2026-10-14 … nothing adopted".
 
 **Result, per source** (detail in `docs/analysis/weather-sources-2026-10/summary.md`):
 1. **NWS warning polygons:** an outer bound (98% of MESH hail inside) and a storm-level severity tag;
@@ -3918,6 +4168,8 @@ research only, item 215).
 needs it.
 
 **Related:** items 7, 205, 206, 208, 215; decision log 2026-10-14.
+
+**When (2026-10-28, sweep; item 206 is closed):** if item 208's calibration needs one of the open points above.
 
 ## 211. The 60-minute MESH check: 27 cells are unexplained
 
@@ -3984,7 +4236,7 @@ analysis READMEs.
 
 ## 213. The parking lot's layout does not match its own header
 
-**Status:** open (found 2026-10-14)
+**Status:** resolved 2026-10-28 (parking-lot sweep; header rewritten, two headings added, the permits heading moved to its items)
 
 The header says items are grouped by status: Open, Watch list, the permits workstream, then Closed. In
 fact:
@@ -4000,9 +4252,21 @@ the layout was not touched, and item numbers never change.
 
 **Related:** items 154, 212.
 
+**Resolved 2026-10-28 (sweep), by changing the header and three headings, not by moving items.** A regroup by status
+would have moved about 270 items, a very large diff with nothing gained that the status line does not already give.
+Found worse than filed: items 154 to 239 sat under the "Deferred workstream: permits" heading, about 2,600 lines above
+the permit items, so everything between read as permits work; items 240 on sat after Closed; and four statuses outside
+the header's list were in use (`accepted`, `closed`, `merged`, `built`). Done: the header now says the status line is
+the authority, lists the statuses in use and where items sit, and gives the grep; the stale count line (63, 2026-10-19)
+is replaced with the 2026-10-28 counts; the permits heading and its intro now sit directly above item 70; and two
+headings mark the later blocks, "Filed 2026-10-02 to 2026-10-21 (items 154 to 239), any status" and "Filed from
+2026-10-21 (items 240 on), any status". Checked that each block holds exactly those numbers. Item numbers and the
+headings of items are unchanged, so no reference breaks.
+
+
 ## 214. `sql/guard_test.sql` does not test the guards in `sql/039` and `sql/040`
 
-**Status:** open (found 2026-10-14, while updating `docs/schema-review.md`)
+**Status:** resolved 2026-10-28 (parking-lot sweep; `tests/test_log_guards.py`, uncommitted at the time of writing)
 
 `guard_test.sql` covers `029`, `030`, `033` to `037`, the description rule in `041`, `042` (images and email settings) and `043` (`blocks`). It has no check for
 `cc_status_runs_guard()` (`039`: refuses `DELETE`, any change to a finished run, and any change to the identifying
@@ -4014,9 +4278,28 @@ revocations on both tables are not tested either. The two guards are the same pa
 
 **Related:** items 180, 191, 212; `docs/schema-review.md`.
 
+**Resolved 2026-10-28 (sweep), in a different shape from the one filed.** Checked every guard function in
+`sql/[0-9]*.sql` against `guard_test.sql` and the Python tests. The trigger above had passed: `guard_test.sql` was edited
+five times from 2026-10-21 (`c5e346a` to `b632183`) without 039 or 040. And the gap was not what was filed:
+- `cc_api_calls_guard()` (040) **was** tested, in Python: `tests/test_cc_budget.py:90-95`.
+- `cc_status_runs_guard()` (039) was tested nowhere.
+- `pull_zips_append_only_guard()` (059), filed nowhere, was tested nowhere either.
+- The likelihood guards (054, 056) are tested in `tests/test_likelihood_schema.py`; every other guard is in `guard_test.sql`.
+
+`tests/test_log_guards.py` (7 tests) now covers 039 and 059: a running bounce-check run records its outcome; a finished
+one cannot change; a running one keeps its id, start time and person; no run can be deleted; `pull_zips` refuses every
+update and delete; and `hail_app` cannot delete from either table, update `pull_zips` or truncate either. It runs as
+`hail_admin` (the command is in its docstring) in a transaction that is always rolled back; nothing references either
+table, so a `restrict_violation` can only be the guard's. Ran 7, all pass; under the standard command (`hail_app`) and
+on the host it skips, the pattern of item 241.
+
+**Still true:** before `039`, `040` and `059` are applied on the production box, run this file there with the rest of the
+admin-only tests (item 188's setup step).
+
+
 ## 215. mPING is research-licence only; ask before any product use
 
-**Status:** open (filed 2026-10-14)
+**Status:** closed 2026-10-28 (developer decision): mPING adds nothing the system does not already have, and its research-only licence rules out product use
 
 mPING's API registration offers one licence type, "Research". The licence text was not read.
 This system's use would be commercial (RBI's outreach). The 2026-10-14 assessment used mPING as
@@ -4031,6 +4314,10 @@ commercial use is allowed, and on what terms. If it is research only, mPING stay
 
 **Related:** items 7, 210; decision log 2026-10-14.
 
+**Closed 2026-10-28 (sweep, developer decision).** mPING's points add nothing the system lacks (IEM reports,
+CoCoRaHS and MESH cover the same ground; item 210's 2026-10-14 assessment), and the research-only licence means it could
+not be used in the product anyway. Nothing in product code reads it. The key is still in `.env` (`MPING_API_KEY`,
+`MPING_USER_NAME`); it can be removed by hand.
 
 ## 216. The territory map draws a fixed 5-mile circle, not the configured radius
 
@@ -4077,7 +4364,7 @@ decide whether they become `settings` columns with an admin-page access point.
 
 ## 218. A broken image address fails a render with a generic error
 
-**Status:** open (accepted 2026-10-15)
+**Status:** resolved 2026-10-15 (`d780949`; found resolved in the 2026-10-28 sweep)
 
 A block template names images by name (`images['logo']['url']`). `save_blocks` refuses a name that is
 missing or retired, and an image in use by an active template cannot be retired (piece 3), so a
@@ -4089,6 +4376,11 @@ the message can quote context values), so the cause is not visible.
 which does not send, rather than the generic message.
 
 **Related:** items 203, 202; `hailsys/email/render.py`.
+
+**Resolved 2026-10-15, recorded 2026-10-28 (sweep).** The preview names the cause, as the **When** asked:
+`_missing_images` in `hailsys/email/preview.py:17-25` reports "The image <name> is not available. Add it under Email
+images on the admin page, or it has been retired." Tested in `tests/test_emailtpl.py:384` and
+`tests/test_emailconfig.py:80`. At send time the render still reports only the class name, on purpose (see above).
 
 ## 219. Saving a template and retiring an image in the same instant can slip past the guard
 
@@ -4219,7 +4511,7 @@ position proves confusing in use.
 
 ## 181. Constant Contact behaviours to verify before the send design is locked
 
-**Status:** spike done 2026-10-07; paid-account checks remain (item 183)
+**Status:** resolved (residuals) 2026-10-07. Residual: the paid-account checks, item 183. Status reworded 2026-10-28 (sweep); it read "spike done 2026-10-07; paid-account checks remain (item 183)"
 
 Not established by the documentation read on 2026-10-06 (one page returned a 404):
 - does the unsubscribe footer get added to custom-code HTML sent through the API,
@@ -4296,7 +4588,7 @@ differences.
 
 ## 182. Constant Contact's API re-subscribes an unsubscribed contact: read before write
 
-**Status:** built and wired (checked 2026-10-12); only the optional nightly timer is not built
+**Status:** resolved 2026-10-12 (`2884880`, `497d9a7`; route tests 2026-10-12). The optional nightly timer is dropped as not needed while every send syncs first. Status reworded 2026-10-28 (sweep); it read "built and wired (checked 2026-10-12); only the optional nightly timer is not built"
 
 Observed in the spike. After a contact clicked Unsubscribe, `GET /contacts` showed
 `permission_to_send: "unsubscribed"` with `opt_out_source`, `opt_out_date` and no list
@@ -4479,6 +4771,24 @@ Constant Contact migrations either (034–037). The schema docs do not describe 
 (item 177).
 
 **When:** with the production build; apply 034–038 in order and run `sql/guard_test.sql`.
+
+**Widened 2026-10-28 (parking-lot sweep).** The scope is the whole schema, not 034–038: production is now
+`rbi-hail01` on the HP ProDesk (`pve-prod01`; decision log 2026-10-20, which also says to read "OptiPlex" in older
+entries as the production box), and it has no database at all. **And the setup doc would load the dev test rows.**
+`docs/server-setup.md:131-137` says "Apply every file in `sql/`, in numeric order … continue through the
+highest-numbered file in `sql/`", but `sql/` also holds seven files that are not migrations: six dev-only seeds
+(`dev_rehearsal_seed.sql`, `_2` to `_5`, `_zone`), each inserting realtors with the developer's `+t` test addresses and
+fake listings and matches and each headed "Never run on production", and `guard_test.sql` (rolls itself back,
+harmless). Read literally, or turned into a `for f in sql/*.sql` loop, the steps apply the seeds too, and once a send
+runs those rows are tied to the append-only `send_log`. `docs/schema-review.md` already says `sql/[0-9]*.sql`;
+`server-setup.md` does not.
+
+**Fix (docs):** in `server-setup.md`, say "apply `sql/[0-9]*.sql` in order", name the files that are left out, and add a
+`sql/guard_test.sql` run after the last migration. **When:** before `rbi-hail01` gets a database.
+
+## Deferred workstream: permits
+
+*Items 70–82, 97 and 98, all gated on item 70 ("until the system is running"); item 74 is resolved and sits in the Closed section. 14 items here. A future workstream, not a backlog.*
 
 ## 70. Permits as a source — corroboration first, roof age later
 
@@ -6160,6 +6470,10 @@ states have a key, a label and a CSS class".
 </details>
 
 
+## Filed from 2026-10-21 (items 240 on), any status
+
+*Appended after the Closed section in filing order; read each item's status line. Heading added 2026-10-28 (item 213).*
+
 ## 240. Radar zones are cut at the crop box edge
 
 **Status:** open, accepted (filed 2026-10-21, Phase 5b slice 2)
@@ -6175,6 +6489,10 @@ the edge.
 edge of the box.
 
 **Related:** `docs/analysis/radar-areas-2026-10/`; decision log 2026-10-20.
+
+**Re-triggered 2026-10-28 (sweep).** The first trigger has passed: slice 5 (the map) was built 2026-10-22 and the
+edge is now visible there. No coverage zip has been added or removed since 2026-10-21. **When:** a coverage zip is added
+near the edge of the box (with item 246).
 
 ## 241. The radar database tests need the admin role and skip under the standard test command
 
@@ -6193,6 +6511,26 @@ tests a role of their own.
 `storm_states` column, so the first real run as `hail_ingest` failed with "permission denied for table
 settings". Fixed, and tests that run the flows under `SET LOCAL ROLE hail_ingest` and `hail_app` now cover it
 (they fail with the bug put back). The admin-only tests are still not in the standard command.
+
+**Update 2026-10-28 (parking-lot sweep, corrected the same day).** The admin-only tests no longer skip under
+`hail_app`: they **error**. The sweep first wrote "two modules, 13 errors", but that was measured on the web-route
+test files only. The full standard run (`docker compose run --rm -T --no-deps -v ./tests:/app/tests:ro web python -m
+unittest discover -s tests`) on 2026-10-28: 2,617 tests, 149 skipped, **260 errors and failures**:
+- **253** are `permission denied for table radar_runs`: `test_findings` 50, `test_radar_zones` 41, `test_radar_map` 34,
+  `test_likelihood_schema` 33, `test_radar_load` 32, `test_likelihood_build` 29, `test_likelihood_ingest` 10,
+  `test_zonepull` 9, `test_radar_health` 7, `test_likelihood_map` 6, `test_zonematch` 2. So the "skip under `hail_app`"
+  in this item's title and first paragraph no longer holds for `test_radar_zones` and `test_radar_load` either.
+- **3** are other grants a test needs and `hail_app` lacks: `test_zone_send_schema` 2 (`email_templates`, `send_log`)
+  and `test_zonesend` 1 (`storm_listing_matches`).
+- **4** are the environment, not the role: `test_systemd_units` 3 and `test_iem_parse` 1 read `systemd/` and
+  `planning/`, which the `web` container does not mount. They fail the same way as `hail_admin` and pass on the host
+  (`test_systemd_units` there needs `psycopg`, item 273).
+
+As `hail_admin` the same run ends with only those 4. So a default run reports 256 errors that are not bugs, which
+teaches the reader to ignore errors. The **When** above (before slice 4, the nightly radar job, built 2026-10-22)
+has passed: `docs/command-ref.md` still has no test command. **When:** now, before the next full-suite run is
+quoted: give the role-dependent tests a `skipUnless` on the privilege they need, like `tests/test_log_guards.py`
+(`has_table_privilege`), and add the admin run command to `docs/command-ref.md`.
 
 ## 242. `.env` line 35 is not a valid shell variable name
 
@@ -6248,6 +6586,10 @@ run during a nightly or a backfill is therefore unsafe. A warning is in the test
 ids the tests create instead of deleting by id range.
 
 **Related:** items 241, 244.
+
+**Re-checked 2026-10-28 (sweep).** The second trigger passed without the fix: `b632183` (2026-10-22) edited
+`tests/test_radar_ingest.py` after this item was filed, and the cleanup still deletes by id range (`:165`). **When:**
+before any automated test run (scheduled or CI), or the next edit to the file.
 
 ## 246. A radar day keeps the crop box it was loaded with
 
@@ -6375,8 +6717,7 @@ grow by several times (more pulls, a second market).
 
 ## 252. Slice 6 (findings panel): built; mutation check found one real bug, three survivors accepted
 
-**Status:** resolved 2026-10-23 for the build (`30e126a`); three mutation survivors and one coverage limit
-accepted, open with the triggers below.
+**Status:** resolved (residuals) 2026-10-23 for the build (`30e126a`). Residuals: three mutation survivors and one coverage limit, accepted, with the triggers below. Status reworded 2026-10-28 (sweep).
 
 Built 2026-10-23: `hailsys/queries/findings.py`, `/territory/findings`, `_findings.html`, the box in `_map_panel.html`, the
 picker hook in `map.js`, `style.css`; tests `test_findings.py` (62), `test_findings_web.py` (20), the isolation tests in
@@ -6601,13 +6942,16 @@ happens again, read the new access-log time for that request first.
 
 ## 263. Guard tests scan `__pycache__`, so a stray `.py` there fails an unrelated test
 
-**Status:** resolved 2026-10-28 (the stray file deleted); the helper change is open
-**When:** next time a guard test is touched
+**Status:** resolved 2026-10-28 (the stray file deleted the same day; the helper change made in the 2026-10-28 parking-lot sweep, uncommitted at the time of writing)
 
 A mis-keyed copy of `zonecontext.py` landed in `hailsys/email/__pycache__/`. Git ignores that directory, but `tests/test_radar_map_web.py` globs `hailsys/**/*.py` and flagged the copy as a second user of the zone send list. The failure was correct but its path (`hailsys/email/__pycache__/zonecontext.py`) was confusing.
 
 **Fix when touched:** have the shared `files()` helper skip any path with `__pycache__` in it. **Related:** decision log 2026-10-28 (step 4 piece 3b).
 
+**Helper fixed 2026-10-28 (sweep).** `files()` in `tests/test_radar_map_web.py` now leaves out any path with
+`__pycache__` in it. Checked with a stand-in `__pycache__` holding a `.py` that imports `hailsys.radar`, mounted over
+`hailsys/email/__pycache__` in a throwaway container: the old helper fails the isolation guard, the new one passes; the
+file passes 42 of 42.
 
 ## 264. `queue_batch` saves the built-in template under the default name
 
@@ -6683,3 +7027,88 @@ noticed. `tests/test_dnc_import.py` (29 tests) now covers the upload parser, typ
 skipping rejected and already-suppressed rows, the sweep of stale previews, and the pages; 19 planted bugs, all caught.
 
 **Related:** items 268, 269; decision log 2026-10-28.
+
+## 271. CLAUDE.md gave the storm day as the date of the first zone pull
+
+**Status:** resolved 2026-10-28 (found in the parking-lot sweep)
+
+CLAUDE.md's Phase 5c paragraph said "The developer's first real pull (pull 1228, 2026-09-29, one zip, ...)", which reads as
+the date of the pull. `api_pulls` has pull 1228 `started_at` 2026-10-27 17:55 UTC with `storm_date` 2026-09-29, and the
+decision log (2026-10-27, "The first real pull") says the same. Reworded to "pull 1228, made 2026-10-27 for storm day
+2026-09-29".
+
+**Related:** CLAUDE.md "Briefs and handoffs are claims, not evidence".
+
+## 272. The schema docs are behind by 19 migrations (`sql/043` to `061`)
+
+**Status:** open (found 2026-10-28, parking-lot sweep)
+
+`docs/schema-review.md` lists migrations through `sql/042`. `docs/db-schema-diagram.md` has nothing from `043` on.
+`docs/database-schema.md` covers some of the new objects (`radar_parameter_sets`, `radar_runs`, `email_test_sends`, the
+drip campaign tables) but not `pull_zips` (`sql/059`), the likelihood tables (`054` to `056`), the CoCoRaHS tables (`053`),
+`email_templates.match_kind` and the `trg_send_log_kind_pairing` trigger (`060`), or
+`settings.zone_observer_wording_approved` (`060`). Checked 2026-10-28 by grepping the three docs for each name.
+CLAUDE.md tells a reader to start from `database-schema.md` before touching the database, so this gap matters more
+than most doc drift. The same lag as items 160, 162 and 177.
+
+**When:** as one pass over the three docs, before the next migration (`sql/062`) or the next schema review,
+whichever comes first.
+
+**Related:** items 160, 162, 177, 212.
+
+## 273. The host test run ends with 24 errors
+
+**Status:** open (found 2026-10-28, parking-lot sweep, after fixing item 171)
+
+`python3 -m unittest discover -s tests`, the host run `README.md` documents, ran 2,350 tests on 2026-10-28, skipped
+1,842, and ended with **24 errors**. None is a product bug; all come from the host lacking the image's packages:
+- **8 modules fail to import** because their imports of `jinja2` or `psycopg` are not guarded: `test_levelreport`,
+  `test_report_levels`, `test_send_deliver`, `test_send_zone_screen`, `test_templatelist_kind`, `test_testsend`,
+  `test_zone_render`, `test_zone_send_queue`.
+- **16 errors depend on order.** `tests/test_iem_backfill.py:19`, `test_iem_ingest.py:18` and `test_iem_common.py:25`
+  each put an empty module into `sys.modules` under the name `psycopg` (`setdefault`, so it stays). A module discovered
+  after them then fails importing `psycopg.rows` ("'psycopg' is not a package"): `test_zonewording` (15) and
+  `test_systemd_units` (1).
+
+In the `web` container none of this happens. The cost is the same as item 241's: a documented command that always reports
+errors teaches the reader to ignore them.
+
+**Fix (test files only):** guard the 8 modules' imports like `test_cc_tokens_db.py` (`MISSING` and `skipIf`), and have
+the three IEM tests remove their stand-in after import, or make it a package with a `rows` module.
+
+**When:** now, or before the host run's result is next quoted as a check.
+
+**Related:** items 171, 241.
+
+## 274. The generic/RBI repo split of 2026-09-01 was not built
+
+**Status:** open (found 2026-10-29, multi-market assessment)
+
+The decision log 2026-09-01 ("IP: code retained, RBI licensed") says the generic components (storm ingest,
+buffer-to-zip, send log, suppression) "live in a separate repo from RBI-specific configuration so the legal
+boundary follows a file boundary." Checked 2026-10-29: there is one repo (`justynlarry/Hail-System`). The
+2026-09-09 `planning/` and `config/` split exists, but `config/` holds only `coverage_zips.txt` and its README.
+RBI's content sits inside the `hailsys/` package: the built-in templates `hail_alert.html` and
+`hail_alert_zone.html`, the default blocks in `hailsys/email/blocks.py`, the logo under `hailsys/web/static/images/`,
+and the strings listed in item 238 (point 5 and B). A copy handed to a second customer carries RBI's material,
+and the file boundary the IP decision relies on does not exist yet. The same entry's **Open:** source escrow is
+still unaddressed.
+
+**When:** before any copy of the system goes to a second customer, or before a license or escrow agreement is
+drafted, whichever comes first.
+
+**Related:** item 238; decision log 2026-09-01, 2026-09-09, 2026-10-20.
+
+## 275. The RentCast zip search writes RentCast's error bodies to the log
+
+**Status:** open (found 2026-10-28, parking-lot sweep, writing the tests for item 228)
+
+`hailsys/rentcast/client.py`'s `_get` (the zip search) logs the response body with `body=%r` on its auth, validation,
+retries-exhausted and unexpected-status lines. The by-id lookup (`get_sale_listing`) keeps bodies out of logs on
+purpose, and `tests/test_rentcast_by_id.py` pins that. Nothing secret has been seen in a RentCast error body; the risk is
+what a future body might carry, and the two paths of one client disagree about it.
+
+**When:** the next edit to `client.py`: drop the body from those lines (keep the status), and add the by-id tests' log
+check to `tests/test_rentcast_zip.py`.
+
+**Related:** items 228, 102.

@@ -7971,3 +7971,27 @@ test run found three wrong expectations of mine and no code bug. Piece 3b (conte
 **Decision (developer).** The hail system sends from its own Constant Contact account, and its unsubscribe sync (item 182) reads only that account (decision 2026-10-07). Unsubscribes from RBI's newsletter account reach `dnc_list` by hand: Constant Contact emails each one to the developer, who uploads them through `/admin`. The developer confirmed the 719-address list (newest 2025-09-16) is current, and the newsletter goes out about every one to two months. **Considered and not chosen:** (A) a send gate refusing any send while the newest newsletter upload is older than N days, with uploads marked by source; (B) connecting the newsletter account to the sync, which needs a token that can also write to it, the risk the separate account avoids. Item 129 accepted with its revisit triggers. First use the same day: 8 addresses (batch 6); one mistyped address corrected by hand (`dnc_id` 4664 added, 4663 marked removed). 768 active suppressions. Items 268 (uploads labelled `legacy_import`) and 269 (a single-address form) filed. Item 129 no longer blocks a real send; items 183, 189 and 96 and the production box still do.
 
 **Built 2026-10-28, items 268 and 269 (where a suppression came from; typing addresses in).** Decided by the developer ("all three recommendations"): a new source `newsletter` for unsubscribes from RBI's newsletter account brought in by hand, kept apart from `unsubscribe` (the hail system's own account, which the by-level report credits to our emails); the 2026-10-28 upload relabelled; no removal screen. `sql/061` (rehearsed in a rolled-back run with every reader of `dnc_list` and both new paths, then applied): `dnc_list_source_check` allows `newsletter`; `dnc_import_batches.source` (`newsletter`, `manual` or `legacy_import`, required after the migration; the three earlier batches `legacy_import`) and `note` (at most 200 characters); batch 6 and its 9 `dnc_list` rows (4656 to 4664, the 8 uploaded, the retired typo and its correction) relabelled `newsletter`, the relabel refusing anything but 9 rows or none so the migration runs on a database without them. `dncimport`: `SOURCES`, `parse_typed` (split on spaces, non-breaking ones too, commas and semicolons; lower-cased, each once, dated now, checked like the send page's allow-list; at most 200), `stage(..., source, note)`, and a commit that takes the batch's source and writes "Typed on the admin page" or "Uploaded DNC list: <file>", with the note. `/admin`: the upload asks what the file is (newsletter unsubscribes by default), the column names are stated, and a "Type addresses in" form uses the same preview and commit; the preview says what the rows become. `tests/test_dnc_import.py` (29 tests, the first tests the import ever had, item 270); 19 planted bugs all caught, including the first keyed-in version's four slips that would each have broken uploads. Full suite 2,599 tests OK (3 skipped). 768 active suppressions: 759 `legacy_import`, 8 `newsletter`, 1 `unsubscribe`.
+
+## 2026-10-28 — Parking-lot sweep: 120 items checked, and the file's layout described rather than regrouped
+
+**What was done.** Every parking-lot item not already resolved, closed or dropped (and the `accepted` ones) was checked
+against the repo and the database, read only, in eight batches of about fifteen, with the developer's yes before each set
+of edits (parking-lot item 154 has the full record). **120 checked: 17 resolved, 2 merged, 4 closed, 1 dropped, 88 still
+open, 8 waiting on the developer** (items 83, 87, 96, 135, 136, 202, 209, 222). New items: 271 (resolved), 272, 273, 275;
+item 188 widened. Fixes made in the sweep were tests only (items 171, 214, 228, 229, 263); no product code changed.
+
+**Decisions taken in it (developer):** item 11 dropped (no hail-size names in the email); item 215 closed (mPING adds
+nothing and is research-licence only); item 64 kept for Phase 7 with staff accounts (staff already change their own
+password at `/account/password`); items 108, 112, 113, 140 and 156 wait on the planned site redesign, item 201.
+
+**Layout (item 213).** Decided: describe the file rather than regroup it. A regroup by status would move about 270 items
+for nothing the status line does not already give. The header now says the status line is the authority, lists the
+statuses actually in use (adding `accepted`, `closed`, `merged into <n>`), says where items sit and gives the grep for
+open items; the permits heading moved to sit above its items; two headings mark the later blocks (154 to 239, and 240 on).
+
+**What it showed.** Thirteen items were done but still open, four of them (117, 177, 218, 227) fixed in a commit that did
+not close them (item 154's pattern). Eight triggers had passed without anyone acting, mostly "the next edit to X": the edit
+happened and the item was not read.
+
+**Related:** parking-lot items 154, 213; the sweep's brief of 2026-10-28.
+

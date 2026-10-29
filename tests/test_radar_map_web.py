@@ -292,7 +292,8 @@ class IsolationTest(unittest.TestCase):
     def files(self, *globs):
         out = []
         for pattern in globs:
-            out += sorted(ROOT.glob(pattern))
+            # Not __pycache__:  a stray file there failed an unrelated guard (parking-lot item 263).
+            out += sorted(p for p in ROOT.glob(pattern) if "__pycache__" not in p.parts)
         self.assertTrue(out, globs)
         return out
 
