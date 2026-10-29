@@ -11,7 +11,7 @@ Read `CLAUDE.md` and `docs/database-schema.md` first. Do not skim them; the
 non-obvious reasoning behind several tables is documented there and the DDL is
 supposed to match it.
 
-Review every migration in `sql/` (001 through 061) plus `scripts/load_reference.sh`
+Review every migration in `sql/` (001 through 062) plus `scripts/load_reference.sh`
 and `scripts/load_municipal.sh`.
 This is a **review, not a rewrite** — report findings and wait for my go-ahead
 before changing anything. Do not refactor working code, and do not add anything
@@ -62,13 +62,14 @@ index, `slm_fill_storm_date`, and a `send_log` guard that 060 replaces; 058 a co
 `level` and `zone_set_id`, replacements of `email_templates_guard()` and `send_log_guard()`,
 `trg_send_log_kind_pairing`, and `settings.zone_observer_wording_approved` (a seventh replacement); 061
 `dnc_list.source` gains `newsletter`, `dnc_import_batches.source` and `note`, and a data fix for the 2026-10-28
-upload that is a no-op on any other database. `sql/guard_test.sql` is **not a migration**:
+upload that is a no-op on any other database; 062 `schema_migrations`, the record `scripts/migrate.sh` keeps (item 277).
+`sql/guard_test.sql` is **not a migration**:
 it tests the guards from 029 on (029, 030, 033 to 037, 041's description rule and 042; the
 guards in 039 and 040 are not covered, item 214) inside a transaction it rolls back, so build with `sql/[0-9]*.sql` and run it
 separately (§1).
 `010_roles.sql` holds the roles and the grants for tables that existed when it
 was written; every later file that creates a table (012, 017, 018, 020, 021,
-022, 026, 031, 034 to 037, 039, 040, 044, 046 to 050, 053 to 055, 059) carries its own grants.
+022, 026, 031, 034 to 037, 039, 040, 044, 046 to 050, 053 to 055, 059; 062 deliberately grants nothing) carries its own grants.
 
 **A reconciliation pass has already run.** Documentation and DDL now agree on
 table count, `api_pulls` naming, `send_log` naming, the `system` role, email
@@ -99,8 +100,11 @@ for f in sql/[0-9]*.sql; do   # not guard_test.sql, which is a test
 done
 ```
 
-Then confirm with `\dt` and `\d <table>` on each. Expect **62 tables in
-`public`** (a fresh build through `061`, 2026-10-29): the project's 58, `us_gaz`, `us_lex` and `us_rules`, which
+Since `062` (item 277) the same build is `PGDATABASE=hail_scratch SQL_DIR=sql bash scripts/migrate.sh --apply`, which
+also records each file; `tests/migrate_check.sh` checks that script in a throwaway container.
+
+Then confirm with `\dt` and `\d <table>` on each. Expect **63 tables in
+`public`** (a fresh build through `062`, 2026-10-29): the project's 59, `us_gaz`, `us_lex` and `us_rules`, which
 `address_standardizer_data_us` creates (`sql/024`), and PostGIS's `spatial_ref_sys`.
 
 **Then compare the fresh build with the running database.** A migration applied by hand can be skipped, and nothing

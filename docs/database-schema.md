@@ -133,7 +133,7 @@ setting it correctly.
 ---
 # Tables
 
-Fifty-eight tables (`sql/` has 58 `CREATE TABLE`s, counted 2026-10-29). The live database also holds `us_gaz`,
+Fifty-nine tables (`sql/` has 59 `CREATE TABLE`s, counted 2026-10-29, `sql/062` included). The live database also holds `us_gaz`,
 `us_lex` and `us_rules`, which the `address_standardizer_data_us` extension creates (`sql/024`); they are not ours.
 Grouped by which half of the system they belong to.
 
@@ -1635,6 +1635,21 @@ backfill produces 76 in a single run. Postgres indexes the referenced side of a
 foreign key, never the referencing side, so without this the query that actually
 gets typed — "show me the rejects for run N" — has nothing to use. Same shape as
 `api_call_log_pull_id_idx`.
+
+### `schema_migrations`
+
+Added `sql/062_schema_migrations.sql` (item 277). **Which migration files this database has had**, one row per file,
+written by `scripts/migrate.sh` right after the file commits.
+
+| Field | Purpose |
+|---|---|
+| `filename` | PK. `CHECK` `schema_migrations_filename_shape`: `NNN_name.sql`, so `guard_test.sql` and the dev seeds can never be recorded |
+| `sha256` | The file as applied, 64 hex characters. The script compares it with the file on disk and stops on a difference: a migration is never edited after it is applied |
+| `how` | `applied` (run by the script) or `baseline` (recorded without running). `hail-dev`'s 62 rows are `baseline`, written 2026-10-29 after a fresh build and `hail-dev` diffed identical |
+| `applied_at`, `applied_by` | When, and the database role (`current_user`) |
+
+**Insert-only** by trigger (`schema_migrations_insert_only`). No grants to `hail_app` or `hail_ingest`: only
+`hail_admin`, through `loader`, uses it. The owner can still `TRUNCATE`, as elsewhere.
 
 ---
 

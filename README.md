@@ -60,8 +60,9 @@ docker compose up -d     # starts postgis and web
 ```
 
 After that:
-- **Apply `sql/*.sql` in numeric order** through the `loader` service. The
-  schema is not applied automatically.
+- **Apply the migrations** with `docker compose run --rm -T loader bash scripts/migrate.sh --apply`. On an
+  empty database it applies every `sql/NNN_*.sql` file in order and records each in `schema_migrations`
+  (item 277). The schema is not applied automatically; `docs/command-ref.md` (Migrations) has the rest.
 - **Load the reference data** with `scripts/load_reference.sh`.
 - **Load the service territory** with `scripts/load_coverage.sh`.
 

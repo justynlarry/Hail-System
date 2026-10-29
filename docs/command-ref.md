@@ -106,6 +106,28 @@ prints the old code, rebuild before testing anything. That turns a would-be
 false result ("my change didn't work") into a clear one ("the image is
 stale") in two commands.
 
+## Migrations
+
+`scripts/migrate.sh` applies the `sql/NNN_*.sql` files and records each in `schema_migrations` (`sql/062`, item 277),
+with the file's sha256. Run it in `loader`, which connects as `hail_admin` and sees the repo at `/repo`:
+
+    docker compose run --rm -T loader bash scripts/migrate.sh             # report: recorded, pending, changed.  Changes nothing
+    docker compose run --rm -T loader bash scripts/migrate.sh --apply     # apply the pending files in order
+
+- **A migration is never edited once applied: add a new one.** The script compares every recorded file's hash
+  and stops, applying nothing, if one changed or is gone.
+- **Run the report first**, and read what is pending before `--apply`. A person runs this; nothing calls it.
+- A file that fails stops the run, and nothing is recorded for it or run after it. Each file has its own
+  `BEGIN`/`COMMIT`, so its record is written just after it: if a run dies between the two, the next run tries
+  the file again and fails loudly (most migrations cannot run twice). Then add the row by hand:
+  `INSERT INTO schema_migrations (filename, sha256, how) VALUES ('NNN_name.sql', '<sha256sum of the file>', 'applied')`.
+- `--baseline NNN` records `001` to `NNN` without running them, only into an empty table. It was used once, on
+  `hail-dev` (2026-10-29, 62 files), after a fresh build and `hail-dev` were diffed identical. On a database with
+  tables but nothing recorded, `--apply` refuses rather than run `001` again.
+- **Checks for the script:** `tests/migrate_check.sh`, in a throwaway container only (it builds from empty, and
+  `sql/010` sets cluster-wide role passwords; it refuses a cluster that has `weather-property`). The commands are
+  in its header.
+
 ## Running the tests
 
 The full suite runs in the `test` service (item 222): the app image plus Node, so the `tests/js/` checks run

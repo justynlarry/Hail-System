@@ -250,6 +250,8 @@ These have already bitten us. Do not re-discover them.
   known artifact -- rebuild it before testing ingest changes, and run
   `scripts/status.sh images` to see whether it is behind. See
   `docs/command-ref.md`.
+- Migrations are applied with `scripts/migrate.sh` (item 277), not `psql -f` by hand, and a file is never edited once
+  applied: `schema_migrations` records each file's hash, and the script stops on a changed one.
 
 ## Findings get filed
 

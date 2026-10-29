@@ -7239,7 +7239,7 @@ step 3 fixes were made by Claude at the developer's request.
 
 ## 277. `sql/011` was never applied to `hail-dev`; nothing records which migrations a database has had
 
-**Status:** open (found 2026-10-29, schema review)
+**Status:** resolved 2026-10-29
 
 A fresh build of `sql/001` to `061` and `hail-dev`'s live schema (`pg_dump --schema-only`, 5,949 lines each) differ in
 one place: the comment on `ingest_runs.rows_skipped`. `hail-dev` still has `009`'s text ("Non-zero is the alert
@@ -7255,6 +7255,18 @@ applied migrations (for example a table the apply step writes one row to per fil
 from the files and needs the record from its first migration.
 
 **Related:** items 3, 237.
+
+**Resolved 2026-10-29.** `sql/011` applied to `hail-dev` (through `loader`); a fresh build of `001` to `061` and
+`hail-dev` then diffed at 0 lines. A record now exists: `sql/062` adds `schema_migrations` (filename, sha256, how,
+applied_at, applied_by; insert-only, no grants to the app roles), and `scripts/migrate.sh` reports pending and changed
+files, applies pending ones in order (`--apply`) and records each, and records a baseline once (`--baseline NNN`).
+`tests/migrate_check.sh` (14 checks, throwaway container only; it refuses a cluster with `weather-property`) passes on
+the script and fails 12 on a copy with a `$has-table` typo found while keying it in. `hail-dev` was bootstrapped:
+`062` applied by hand, `--baseline 062` (62 rows), report `recorded 62, pending 0`; a fresh build through `062` by
+`migrate.sh --apply` and `hail-dev` diffed at 0 lines. README, `docs/command-ref.md` (Migrations), CLAUDE.md
+(Conventions), `docs/database-schema.md` and `docs/schema-review.md` updated. Production (`rbi-hail01`) is built with
+`migrate.sh --apply` from empty, which records every file from the first.
+
 
 ## 278. Two rules held only in application code: report-row level and set on `send_log`, and `pull_zips` written at creation
 
