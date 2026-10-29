@@ -3,6 +3,7 @@
 //   docker run --rm -v ./hailsys/web/static:/s:ro -v ./tests/js:/t:ro node:22-alpine node /t/templates_check.js
 // Throwaway behaviour check: a fake page, the real templates.js, and the events the browser would send.
 const fs = require('fs');
+const STATIC = process.argv[2] || '/s';  // the static folder; tests/test_js_checks.py passes it, the docker run above uses /s
 let failures = 0;
 function check(cond, what) { if (!cond) { failures++; console.log('FAIL: ' + what); } else { console.log('ok:   ' + what); } }
 const tick = (ms) => new Promise(r => setTimeout(r, ms));
@@ -38,8 +39,7 @@ function button(value, extra = {}) {
 }
 
 (async () => {
-  const src = fs.readFileSync('/s/templates.js', 'utf8');
-
+  const src = fs.readFileSync(STATIC + '/templates.js', 'utf8');  
   // 1. a structural click posts the form with fetch and swaps the parts
   let p = makePage(() => reply({blocks: '<b>BLOCKS</b>', preview: '<i>PREVIEW</i>', problems: []}));
   new Function(src)();

@@ -87,6 +87,7 @@ services:
     build:
       context: .
       dockerfile: docker/app.Dockerfile
+      target: app
     environment:
       PGHOST: postgis
       PGDATABASE: weather-property
@@ -109,6 +110,7 @@ services:
     build:
       context: .
       dockerfile: docker/app.Dockerfile
+      target: app
     command: gunicorn --bind 0.0.0.0:8000 --workers 2 --access-logfile - --access-logformat '%(m)s %(U)s %(s)s %(b)sB %(L)ss' hailsys.wsgi:app
     volumes:
       - ./hailsys:/app/hailsys:ro
@@ -137,6 +139,39 @@ services:
         max-file: "5"
     restart: unless-stopped
 
+
+  # The unittest suite with Node present, so the test/js/ checks run too.
+  # Built from the Dockerfile's "test" stage; only run by hand:
+  #   docker compose --profile test run --rm -T test
+  test:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      target: test
+    command: python -m unittest discover -s tests
+    volumes:
+      - ./hailsys:/app/hailsys:ro
+      - ./scripts:/app/scripts:ro
+      - ./tests:/app/tests:ro
+      - ./systemd:/app/systemd:ro
+      - ./planning:/app/planning:ro
+    environment:
+      PGHOST: postgis
+      PGDATABASE: weather-property
+      PGUSER: hail_app
+      PGPASSWORD: ${HAIL_APP_PASSWORD:?HAIL_APP_PASSWORD is not set --see .env.example}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY is not set -- see .env.example}
+      RENTCAST_KEY: ${RENTCAST_KEY:?}
+      CC_API_KEY: ${CC_API_KEY:?CC_API_KEY is not set --see .env.example}
+      CC_API_SECRET: ${CC_API_SECRET:?CC_API_SECRET is not set --see .env.example}
+      HAIL_TOKEN_KEY: ${HAIL_TOKEN_KEY:?HAIL_TOKEN_KEY is not set --see .env.example}
+      CC_REDIRECT_URI: ${CC_REDIRECT_URI:?CC_REDIRECT_URI is not set -- see .env.example}
+    networks:
+      - hailnet
+    depends_on:
+      postgis:
+        condition: service_healthy
+    profiles: ["test"]
 
   cloudflared:
     image: cloudflare/cloudflared:2025.8.1

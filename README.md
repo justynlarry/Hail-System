@@ -85,5 +85,18 @@ guarded (see `docs/parking-lot.md` item 171). Run a file in the `web` container,
 docker compose run --rm --no-deps -v ./tests:/app/tests:ro web python -m unittest tests.test_cc_tokens
 ```
 
+**The full suite, with the `tests/js/` checks, runs in the `test` service** (item 222). It is built from the
+`test` stage of `docker/app.Dockerfile`, the app image plus Node; `web` and `app` build `target: app`, so Node
+never reaches the server. It bind-mounts `hailsys`, `scripts`, `tests`, `systemd` and `planning`, so rebuild it
+only after a change to `requirements.txt` or the Dockerfile:
+
+```bash
+docker compose --profile test build test
+docker compose --profile test run --rm -T test
+```
+
+On 2026-10-29: 2,623 tests, 120 skipped, 256 errors, all of them item 241's (`hail_app` lacks the radar tables'
+permissions).
+
 Tests that need the admin role error rather than skip under the standard command (item 241). The web
 routes that no test reaches are listed in item 53.

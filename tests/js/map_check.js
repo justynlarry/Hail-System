@@ -7,7 +7,8 @@
 // failed load says so instead of leaving a stale map.  Slice 6: the findings panel is fetched for the picked day with
 // the page's query string, says to pick a day for 'all', ignores an answer that arrives late, and says so on failure.
 const fs = require('fs');
-const src = fs.readFileSync('/s/map.js', 'utf8');
+const STATIC = process.argv[2] || '/s';  // the static folder; tests/test_js_checks.py passes it, the docker run above uses /s
+const src = fs.readFileSync(STATIC + '/map.js', 'utf8');
 let failures = 0;
 function check(cond, what) { if (!cond) { failures++; console.log('FAIL: ' + what); } else { console.log('ok:   ' + what); } }
 const tick = (ms = 15) => new Promise(r => setTimeout(r, ms));

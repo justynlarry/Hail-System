@@ -104,6 +104,26 @@ prints the old code, rebuild before testing anything. That turns a would-be
 false result ("my change didn't work") into a clear one ("the image is
 stale") in two commands.
 
+## Running the tests
+
+The full suite runs in the `test` service (item 222): the app image plus Node, so the `tests/js/` checks run
+with it, and `systemd/` and `planning/` mounted for the tests that read them. Only started by hand, under the
+`test` profile:
+
+    docker compose --profile test run --rm -T test
+
+It bind-mounts `hailsys`, `scripts` and `tests`, so code and test edits need no rebuild. Rebuild it after a
+change to `requirements.txt` or `docker/app.Dockerfile`:
+
+    docker compose --profile test build test
+
+One file, in `web` (each test file's docstring gives its own command):
+
+    docker compose run --rm --no-deps -v ./tests:/app/tests:ro web python -m unittest tests.test_cc_tokens
+
+A run as `hail_app` ends with errors that are not bugs: 256 on 2026-10-29, "permission denied" on the radar
+tables and three others (item 241). A count above that, or a module not in item 241's list, is a real failure.
+
 ## Reading logs
 
     docker compose logs -f web            # the web app, pull thread and matcher

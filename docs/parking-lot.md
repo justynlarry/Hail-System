@@ -803,7 +803,11 @@ it does *not* do: exempt the storm-alert message itself from being
 Still open: whether/how a "different template for known agents" distinction
 gets built.
 
-**When:** Phase 5.
+**When:** before item 189 (the eligibility gate needs this import).
+
+**Checked 2026-10-29 (parking-lot sweep follow-up).** Still waiting on RBI's updated list; no date. Items 126,
+138 and 189 wait on the import. The "different template for known agents" half is overtaken by the warm-pool
+audience (decision log 2026-10-07): every recipient is warm-pool.
 
 ## 84. Historical hail aggregation — which areas were hit hardest over n years
 
@@ -839,7 +843,7 @@ and `pull_estimate.html` converts with `.astimezone(display_tz)`. Checked on
 
 ## 87. Confirm RentCast's billing-period timezone
 
-**Status:** open
+**Status:** open: the counts disagree (2026-10-29)
 
 `quota.fetch_usage` rolls the period over at midnight Denver time. Whether
 RentCast rolls over on UTC or Denver time is unconfirmed. Near a boundary,
@@ -860,6 +864,19 @@ the 9th, so nothing yet sits on either side of a rollover. Re-check after
 **When:** after the 2026-10-09 rollover.
 
 **Developer note, 2026-09-30:** the recorded count is off because some pulls happened before usage tracking was set up. Tracking is correct now, and it will be checked against RentCast's own figure at the next billing cycle (rollover 2026-10-09).
+
+**Counts disagree, 2026-10-29.** The developer read RentCast's dashboard: **39 requests used** this period.
+`/admin` shows **13**. Our logs agree with each other: `api_call_log` has 13 calls since Denver midnight
+2026-10-09 (pull 152, 12 calls on 10-09; pull 1228, 1 call on 10-27), matching `api_pulls.actual_api_calls`;
+`drip_listing_checks` has none. `client.search_sale_listings` counts every page and every retry, so paging hides
+nothing. Known unlogged calls: `scripts/rentcast_by_id_probe.py` writes no log by design (its docstring), at most
+3 ids a run; the shell history shows two runs on 2026-10-16, so at most 6. The test suite is not the source: the
+eight RentCast-related test modules were rerun with outbound HTTP and HTTPS refused and recorded (308 tests, OK,
+0 attempts). **About 20 to 23 calls are unaccounted for**, all outside what `hail-dev` records: RentCast's
+dashboard playground, the key used elsewhere, or RentCast counting a different window.
+
+**When:** now, before `/admin`'s quota figure is trusted for warn-and-allow. First step: the dates RentCast's
+39 covers and its per-day usage, set against the per-day counts above.
 
 ## 95. No test for the `R` = RAIN / HEAVY RAIN composite key
 
@@ -1501,7 +1518,7 @@ Library and need re-uploading to the production account (the URLs are settings).
 
 ## 136. Open question: should `nearest_miles` always appear in the email?
 
-**Status:** open
+**Status:** accepted 2026-10-29: always shown, for now
 
 "Hail was reported 4.8 miles from your listing" is a much weaker hook than
 "0.3 miles," and may undercut the message rather than strengthen it for
@@ -1509,7 +1526,11 @@ the far end of the match radius. Options: always show it, only show it
 under some distance threshold, or drop it from the copy entirely and rely
 on the fact that a report happened at all. Not decided.
 
-**When:** with the template build.
+**When:** revisit with item 135's copy sign-off.
+
+**Decided 2026-10-29 (developer).** Always shown, for now. It is today's behaviour: `hail_alert.html` shows it
+in the preheader, the panel and each row, and a block-built template's "Nearest report" row is fixed
+(`hailsys/email/blocks.py`).
 
 ## 138. Re-run the RentCast/DNC/in-house comparison once the updated in-house realtor list arrives
 
@@ -3291,7 +3312,7 @@ sample, which is clunky once there are several. Wanted:
   column, so the migration replaces the guard to leave `description` editable the way
   `is_active` is.
 
-**When:** first of the 202 to 204 group (items 203 and 204 both make templates plural).
+**When:** before the first real send. (Was "first of the 202 to 204 group"; 203 and 204 are built.)
 
 **Built 2026-10-13.**
 - **Migration `sql/041`:** `email_templates.description` (300 characters at most). It can be
@@ -3327,6 +3348,8 @@ sample, which is clunky once there are several. Wanted:
 **Not built (as agreed):** a "show retired" toggle (later); a version guard (a template changing
 between the preview and the start), which waits for item 203, since nothing can create a new
 version from the UI before then.
+
+**Checked 2026-10-29.** The browser check has not been done yet (developer). Still pending.
 
 ## 203. A template builder in the web UI, and email images managed from the UI
 
@@ -3767,14 +3790,17 @@ schedule is set. Backups are not yet encrypted client-side. VM 101 has only had 
 
 ## 234. Irin alerts for PBS disk usage and backup job failures are unconfirmed
 
-**Status:** open (filed 2026-10-20)
+**Status:** open: alerts configured 2026-10-29 (developer); test alert pending
 
 **Evidence:** `CLAUDE.md` records Irin enrollment as not confirmed; nothing records alerts for `pbs-prod01`'s
 disk or for backup job failures.
 
-**When:** before the first production send; with item 233's single-disk datastore, a full disk must alert.
+**When:** confirm a test alert arrives, before the first production send; with item 233's single-disk datastore, a full disk must alert.
 
 **Related:** items 9, 233, 236.
+
+**Update 2026-10-29.** The developer has set up the Irin alerts. They are on the hosts, which `hail-dev` cannot
+see, so nothing here confirms them. Resolved once a test alert is seen to arrive.
 
 ## 235. Offsite sync is not built
 
@@ -4118,7 +4144,7 @@ answer:
 
 ## 209. Structured inspection capture going forward
 
-**Status:** open (to raise with RBI; filed 2026-10-14)
+**Status:** open (parked): raised with RBI (developer, confirmed 2026-10-29); waiting on their answer
 
 Whatever the old export looks like, new inspections should be recorded so they can be used:
 - A fixed severity scale (the same four levels, always).
@@ -4129,7 +4155,7 @@ Whatever the old export looks like, new inspections should be recorded so they c
 This is a request to RBI about how they record, not something this system can force. It also costs
 nothing now and makes item 208 repeatable later.
 
-**When:** raise with RBI now, with item 207.
+**When:** when RBI answers. (Was "raise with RBI now, with item 207"; done.)
 
 **Related:** items 207, 208.
 
@@ -4446,7 +4472,7 @@ and before the editor is shown to anyone but the developer.
 
 ## 222. The editor's JavaScript is checked in a container, not in the normal test run
 
-**Status:** open (accepted 2026-10-15)
+**Status:** resolved 2026-10-29
 
 The host and the `web` image have no Node. `hailsys/web/static/templates.js` is therefore not run by
 `python -m unittest discover`. Its behaviour is checked by `tests/js/templates_check.js` (57 checks
@@ -4462,6 +4488,16 @@ decide whether to split it (the toolbar is separable) or to add a Node step to t
 and run the JS check from the normal suite.
 
 **Related:** items 203, 221; decision log 2026-10-15 (piece 4).
+
+**Resolved 2026-10-29.** The trigger was met: a second script appeared (`tests/js/map_check.js`, 2026-10-22).
+Node is in a test image now, not in the server's. `docker/app.Dockerfile` has two stages, `app` (what `web` and
+`app` build, `target: app` in `docker-compose.yml`) and `test` (`app` plus Debian's `nodejs`, v20.19.2). A `test`
+service under the `test` profile builds the `test` stage, with `web`'s environment and read-only mounts of
+`hailsys`, `scripts`, `tests`, `systemd` and `planning`. Both checks take the static folder as an optional
+argument (default `/s`, so the `docker run` commands still work). `tests/test_js_checks.py` runs every
+`tests/js/*_check.js` and fails on a non-zero exit; without Node it skips and says where to run it. Checked:
+65 and 57 checks pass both ways, a wrong folder fails the check, the host skips. First full run: 2,623 tests, 120
+skipped, 256 errors, all item 241's. Commands: `README.md` (Tests) and `docs/command-ref.md` (Running the tests).
 
 ## 223. The test send's hourly limit can be passed by two clicks in the same instant
 
@@ -6531,6 +6567,12 @@ teaches the reader to ignore errors. The **When** above (before slice 4, the nig
 has passed: `docs/command-ref.md` still has no test command. **When:** now, before the next full-suite run is
 quoted: give the role-dependent tests a `skipUnless` on the privilege they need, like `tests/test_log_guards.py`
 (`has_table_privilege`), and add the admin run command to `docs/command-ref.md`.
+
+**Update 2026-10-29 (item 222).** The 4 environment errors are gone in the new `test` service, which mounts
+`systemd/` and `planning/`: `test_systemd_units` and `test_iem_parse` pass there. The run command is now in
+`docs/command-ref.md` ("Running the tests"). A full run there: 2,623 tests, 120 skipped, 256 errors, all
+permission errors as `hail_app` (253 `radar_runs`, and one each on `email_templates`, `send_log`,
+`storm_listing_matches`). Still open: each role-dependent test should skip when its permission is missing.
 
 ## 242. `.env` line 35 is not a valid shell variable name
 
