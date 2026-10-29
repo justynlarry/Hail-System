@@ -4827,7 +4827,7 @@ show an empty list with no reason.
 
 ## 188. `sql/038` (storm age limit, email cap) is applied to `hail-dev` only
 
-**Status:** open
+**Status:** resolved 2026-10-29
 
 `match_max_age_days` (30) and `email_cap_days` (14) were added to `settings` and
 `settings_history` on 2026-10-08, with the settings trigger re-created (`sql/038`, commit
@@ -4850,6 +4850,16 @@ runs those rows are tied to the append-only `send_log`. `docs/schema-review.md` 
 
 **Fix (docs):** in `server-setup.md`, say "apply `sql/[0-9]*.sql` in order", name the files that are left out, and add a
 `sql/guard_test.sql` run after the last migration. **When:** before `rbi-hail01` gets a database.
+
+**Resolved 2026-10-29.** The production build applies every migration with `scripts/migrate.sh --apply` (item 277),
+which covers the original `034` to `038` gap and the widened whole-schema scope, and records each file.
+`docs/server-setup.md` (Database Migrations) now says so, and names the files in `sql/` that are not migrations and are
+never applied on production (`guard_test.sql`, the six `dev_rehearsal_seed*.sql`); the script's `NNN_name.sql` rule
+leaves them out as well. **The fix above is corrected on one point:** `guard_test.sql` is not run on production. It
+takes its rows from existing users, realtors, matches and a suppression, so it stops at its first insert on an empty
+database, and those rows are what must not go there. Instead `server-setup.md` says to run it on a throwaway build of the
+same files and diff that schema with production's (`docs/schema-review.md` §1).
+
 
 ## Deferred workstream: permits
 
