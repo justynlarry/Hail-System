@@ -7108,7 +7108,7 @@ decision log (2026-10-27, "The first real pull") says the same. Reworded to "pul
 
 ## 272. The schema docs are behind by 19 migrations (`sql/043` to `061`)
 
-**Status:** open (found 2026-10-28, parking-lot sweep)
+**Status:** resolved 2026-10-29
 
 `docs/schema-review.md` lists migrations through `sql/042`. `docs/db-schema-diagram.md` has nothing from `043` on.
 `docs/database-schema.md` covers some of the new objects (`radar_parameter_sets`, `radar_runs`, `email_test_sends`, the
@@ -7122,6 +7122,28 @@ than most doc drift. The same lag as items 160, 162 and 177.
 whichever comes first.
 
 **Related:** items 160, 162, 177, 212.
+
+**Resolved 2026-10-29.** One pass over the three docs, every object written from the migration files and checked
+against the live `hail-dev` database (columns, triggers, grants, row counts). The item's list held, and the gap was
+wider than it said:
+- **`docs/database-schema.md`:** new sections for CoCoRaHS (`053`), the likelihood tables (`054` to `056`) and
+  `pull_zips` (`059`). New columns and rules on existing sections the item did not list: `storm_listing_matches`
+  (`057`, `058`: `storm_date`, `basis`, `level`, `layer`, `set_id`, nullable `iem_id`, `slm_zone_facts`,
+  `slm_zone_natural_key`, `slm_fill_storm_date`), `send_log` (`060`: the snapshot, `send_log_snapshot_shape`,
+  `trg_send_log_kind_pairing` replacing `057`'s guard), `email_templates.match_kind`, `api_pulls.pull_source` and
+  `zone_set_id`, `settings.zone_observer_wording_approved` and its `settings_history` column, and the history
+  trigger's column list, which had stopped at `042`. **Wrong, not just missing:** the radar section said anchoring
+  used "the matcher's own rule, so wind reports count" (HAIL only since item 254), and its grants line missed
+  `056`'s `INSERT` on `radar_parameter_sets` for `hail_app` (the grant behind item 241). The table count said 27
+  (2026-10-05); it is 58, plus three extension tables (`us_gaz`, `us_lex`, `us_rules`).
+- **`docs/schema-review.md`:** the migration inventory runs to `061`, the grants list includes the later files,
+  and the "Not reviewed" note covers `034` to `061`. It also records that `sql/guard_test.sql` does not test the
+  guards from `054` on (the Python tests do). Describing the migrations is not a review of them; the review
+  prompt has still not been run past `033`.
+- **`docs/db-schema-diagram.md`:** a new section for `042` to `061`: the new columns, the likelihood set and the
+  four tables that record it, `pull_zips`, the pairing trigger, and the drip, radar, CoCoRaHS, image and
+  test-send tables as lists.
+
 
 ## 273. The host test run ends with 24 errors
 

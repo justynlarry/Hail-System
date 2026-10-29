@@ -321,3 +321,84 @@
  sibling. Email_Templates.DESCRIPTION (sql/041) is the one text column that may
  change, and only until the template has been used in an email.
 
+
+
+ ADDED SINCE THE SEND PATH  (sql/042 to sql/061, drawn 2026-10-29)
+ ═══════════════════════════════════════════════════════════════════
+
+ New columns on tables drawn above, not repeated as boxes:
+   Storm_Listing_Matches.STORM_DATE, BASIS, LEVEL, LAYER, SET_ID (057, 058);
+     IEM_ID, DISTANCE_MILES, RADIUS_USED nullable: set on a 'report' row only
+   Send_Log.BASIS, LEVEL, ZONE_SET_ID (060), frozen with the rest
+   Email_Templates.BLOCKS (043), MATCH_KIND (060), frozen with the rest
+   API_Pulls.PULL_SOURCE, ZONE_SET_ID (059)
+   Settings: DRIP_MAX_FOLLOWUPS, DRIP_MAX_GAP_DAYS (045), STORM_STATES (050),
+     ZONE_OBSERVER_WORDING_APPROVED (060); each also on Settings_History
+   DNC_Import_Batches.SOURCE, NOTE (061)
+
+ The likelihood set is what a zone match, a zones pull and a zone send record:
+
+  ┌──────────────────────┐ 1   N ┌───────────────────────────┐
+  │ Radar_Parameter_Sets │◄──────│ Likelihood_Parameter_Sets │  054
+  │ (048, append-only)   │       │───────────────────────────│
+  └──────────────────────┘       │ PK SET_ID                 │
+                                 │ FK RADAR_SET_ID           │
+                                 │    COCORAHS_MIN_IN        │
+                                 │    BAND_1/2/3_MI          │
+                                 │ (append-only; newest in   │
+                                 │  use; 20 rules or no      │
+                                 │  commit, 056)             │
+                                 └─────────────┬─────────────┘
+                                               │ 1
+       ┌──────────────────┬────────────────────┼───────────────────┬────────────────────┐
+       │ N                │ N                  │ N                 │ N                  │ N
+  Likelihood_Level_   Likelihood_Builds   Storm_Listing_      API_Pulls           Send_Log
+  Rules (054)         (054) PK (DAY,      Matches.SET_ID      .ZONE_SET_ID        .ZONE_SET_ID
+  PK (SET_ID, LAYER,  SET_ID), FK DAY ►   (zone rows)         (zones pulls)       (zone sends)
+  BAND), 20 a set     Radar_Days
+                          │ 1
+                          │ N
+                      Likelihood_Zones (054)
+                      PK (DAY, SET_ID, LEVEL)
+
+  ┌──────────────────────┐ 1                     N ┌──────────────────────────┐
+  │ API_Pulls            │◄────────────────────────│ Pull_Zips                │  059
+  │ (above)              │      FK PULL_ID         │──────────────────────────│
+  └──────────────────────┘                         │ PK (PULL_ID, ZCTA5)      │
+                                                   │    BASIS (zones|reports| │
+                                                   │           both)          │
+                                                   │    BEST_LEVEL (null for  │
+                                                   │      a reports zip)      │
+                                                   │ (append-only)            │
+                                                   └──────────────────────────┘
+
+ Send_Log's pairing trigger (060), not drawn as a box:
+   trg_send_log_kind_pairing: a match with no IEM_ID goes only with a 'zone'
+   template and carries the match's own BASIS, LEVEL and SET_ID; an observer
+   or both match waits on Settings.ZONE_OBSERVER_WORDING_APPROVED; a match with
+   an IEM_ID goes only with a 'report' template. Replaced 057's guard.
+
+ Groups drawn as lists, each with its own runs table and FKs inside the group
+ (plus Users for who made or started a row):
+
+  Drip campaigns (046, 047)   Drip_Campaigns ◄ Drip_Steps, Drip_Recipients
+                              (FK REALTOR_ID ► Realtors); Drip_Steps ◄
+                              Drip_Listing_Checks (FK LISTING_ID ► Listings),
+                              Drip_Step_Pulls (FK PULL_ID ► API_Pulls),
+                              Drip_Step_Runs. FIRST_BATCH_ID and each step's
+                              BATCH_ID must exist in Sent_Emails (by trigger).
+  Radar layers (048 to 052)   Radar_Runs ◄ Radar_Days ◄ Radar_Cells,
+                              Radar_Zone_Builds (FK SET_ID ►
+                              Radar_Parameter_Sets) ◄ Radar_Zones;
+                              Radar_Runs ◄ Warning_Loads ◄ Warning_Polygons.
+  CoCoRaHS (053)              CoCoRaHS_Runs ◄ CoCoRaHS_Loads ◄
+                              CoCoRaHS_Hail_Reports (UQ STATION_NUMBER,
+                              OBSERVED_AT; never deleted).
+  Likelihood_Runs (055)       free-standing, like Radar_Runs.
+  Email_Images (042)          named images for templates (FK CREATED_BY,
+                              UPDATED_BY ► Users).
+  Email_Test_Sends (044)      one row per editor test send (FK SENT_BY ► Users).
+
+ Joined spatially, no FK: the likelihood build reads Radar_Zones, IEM_DATA and
+ CoCoRaHS_Hail_Reports; zone matching reads Likelihood_Zones and
+ Properties.GEOM.

@@ -11,7 +11,7 @@ Read `CLAUDE.md` and `docs/database-schema.md` first. Do not skim them; the
 non-obvious reasoning behind several tables is documented there and the DDL is
 supposed to match it.
 
-Review every migration in `sql/` (001 through 041) plus `scripts/load_reference.sh`
+Review every migration in `sql/` (001 through 061) plus `scripts/load_reference.sh`
 and `scripts/load_municipal.sh`.
 This is a **review, not a rewrite** — report findings and wait for my go-ahead
 before changing anything. Do not refactor working code, and do not add anything
@@ -45,13 +45,30 @@ frozen-column trigger (it refuses to run on a non-empty `send_log`); 038
 `settings_history`, and a third replacement of the history function and trigger;
 039 `cc_status_runs`; 040 `cc_api_calls`; 041 `email_templates.description` and a
 replacement of `email_templates_guard()`; 042 `email_images` and the five email values on `settings` and
-`settings_history` (a fourth replacement of the history function and trigger). `sql/guard_test.sql` is **not a migration**:
+`settings_history` (a fourth replacement of the history function and trigger).
+043 `email_templates.blocks` and a replacement of `email_templates_guard()`; 044 `email_test_sends`; 045
+`settings.drip_max_followups` and `drip_max_gap_days`, the same on `settings_history`, and a fifth replacement of the
+history function and trigger; 046 the five drip tables (`drip_campaigns`, `drip_steps`, `drip_recipients`,
+`drip_listing_checks`, `drip_step_pulls`) and their guards; 047 `drip_step_runs`; 048 `radar_parameter_sets`,
+`radar_runs`, `radar_days`, `radar_cells`; 049 `radar_zone_builds` and `radar_zones`; 050 `warning_loads`,
+`warning_polygons`, `radar_zone_builds.warnings_used` and `settings.storm_states` (a sixth replacement); 051 the radar
+job's columns and modes on `radar_runs`; 052 the `suspect` radar day and `radar_runs.days_suspect`; 053
+`cocorahs_runs`, `cocorahs_loads`, `cocorahs_hail_reports`; 054 `likelihood_parameter_sets`,
+`likelihood_level_rules`, `likelihood_builds`, `likelihood_zones` and the append-only guard on the first two; 055
+`likelihood_runs`; 056 `INSERT` for `hail_app` on the three set tables, and the two triggers that keep a likelihood
+set whole; 057 `storm_listing_matches.storm_date`, `basis`, `level`, `layer`, `set_id`, the zone-row checks and
+index, `slm_fill_storm_date`, and a `send_log` guard that 060 replaces; 058 a corrected `slm_zone_facts`; 059
+`api_pulls.pull_source` and `zone_set_id`, and `pull_zips`; 060 `email_templates.match_kind`, `send_log.basis`,
+`level` and `zone_set_id`, replacements of `email_templates_guard()` and `send_log_guard()`,
+`trg_send_log_kind_pairing`, and `settings.zone_observer_wording_approved` (a seventh replacement); 061
+`dnc_list.source` gains `newsletter`, `dnc_import_batches.source` and `note`, and a data fix for the 2026-10-28
+upload that is a no-op on any other database. `sql/guard_test.sql` is **not a migration**:
 it tests the guards from 029 on (029, 030, 033 to 037, 041's description rule and 042; the
 guards in 039 and 040 are not covered, item 214) inside a transaction it rolls back, so build with `sql/[0-9]*.sql` and run it
 separately (§1).
 `010_roles.sql` holds the roles and the grants for tables that existed when it
 was written; every later file that creates a table (012, 017, 018, 020, 021,
-022, 026, 031, 034 to 037, 039, 040) carries its own grants.
+022, 026, 031, 034 to 037, 039, 040, 044, 046 to 050, 053 to 055, 059) carries its own grants.
 
 **A reconciliation pass has already run.** Documentation and DDL now agree on
 table count, `api_pulls` naming, `send_log` naming, the `system` role, email
@@ -164,8 +181,13 @@ and `guard_test.sql` passed 24 of 24 once seeded. Findings are filed as
 parking-lot items 164–167; the four foreign keys with default names (`020`, `022`,
 `026`) are item 167.
 
-**Not reviewed:** `034` to `041` were written after the 2026-10-05 build and review above, and
-have not been through this prompt. The build was last run through `033`.
+**Not reviewed:** `034` to `061` were written after the 2026-10-05 build and review above, and
+have not been through this prompt. The build was last run through `033`. Their objects are described in
+`docs/database-schema.md` (brought up to `061` on 2026-10-29, item 272), which is a description, not a review.
+`guard_test.sql` covers the drip, radar parameter set and `email_test_sends` guards, but not the guards from `054`
+on: the likelihood set triggers, `pull_zips_append_only`, `trg_send_log_kind_pairing` and the `060` freezes
+(checked by grep 2026-10-29). Their Python tests run them (`tests/test_likelihood_schema.py`,
+`tests/test_log_guards.py`, `tests/test_zone_send_schema.py`).
 
 **Things to check in 024–033, from reading them 2026-10-05, not yet triaged:**
 

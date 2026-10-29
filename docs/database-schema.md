@@ -133,7 +133,9 @@ setting it correctly.
 ---
 # Tables
 
-Twenty-seven tables (`sql/` has 27 `CREATE TABLE`s, counted 2026-10-05). Grouped by which half of the system they belong to.
+Fifty-eight tables (`sql/` has 58 `CREATE TABLE`s, counted 2026-10-29). The live database also holds `us_gaz`,
+`us_lex` and `us_rules`, which the `address_standardizer_data_us` extension creates (`sql/024`); they are not ours.
+Grouped by which half of the system they belong to.
 
 **Role search_path.** `sql/032` sets `search_path = "$user", public` for
 `hail_app` and `hail_ingest`, taking `tiger` and `topology` off it: `tiger`
@@ -711,14 +713,27 @@ Records the finding: *this listing was within N miles of that storm report.*
 | Field | Purpose |
 |---|---|
 | `match_id` | Surrogate PK |
-| `iem_id` | FK → `iem_data` |
+| `iem_id` | FK → `iem_data`. **Nullable since `sql/057`:** set on a `report` row only (`slm_iem_id_only_on_report`) |
 | `listing_id` | FK → `listings`. **Points at the listing, not the property** |
-| `distance_miles` | `NUMERIC(6,2)`. Point to point, report to property |
-| `radius_used` | The radius setting that produced this match |
+| `distance_miles` | `NUMERIC(6,2)`. Point to point, report to property. Nullable since `057`, set exactly when `iem_id` is (`slm_report_distance_together`) |
+| `radius_used` | The radius setting that produced this match. Nullable since `057`, like `distance_miles` |
 | `matched_at` | When computed. **Indexed**, `storm_listing_matches_matched_at_idx` on `(matched_at DESC)` — added `sql/015`, 2026-09-19, so the activity feed can find recent match runs |
 | `emp_id` | FK → `users`, **nullable**. Who ran the match — added `sql/015_slm_emp_attribution.sql`, 2026-09-19. Nullable because rows written before this column existed have no attribution to give |
+| `storm_date` | `DATE NOT NULL`, indexed (`storm_listing_matches_storm_date_idx`) — added `sql/057_match_basis.sql` (Phase 5c step 3). The local storm day. Backfilled from the report; on insert, `slm_fill_storm_date` (`BEFORE INSERT`) fills it from `iem_data` when a report row leaves it NULL, so the report matcher did not change |
+| `basis` | `TEXT NOT NULL DEFAULT 'report'`, `CHECK` `slm_basis_known`: `report`, `radar`, `observer` or `both` — added `057`. `report` is an IEM report within the match radius, as every row before `057`. The other three are a house inside an Agree or One source zone with no IEM report near it: radar alone, a CoCoRaHS filing alone, or both |
+| `level`, `layer`, `set_id` | Added `057`; zone rows only. `level` is `agree` or `one_source`; `layer` the radar layer at the house (`core`, `margin`, `radar_indicated`, `outer`, `none`); `set_id` FK → `likelihood_parameter_sets`, the set the level came from. A report row has none of the three: its level is looked up against the set in use when needed |
 
-Unique on `(iem_id, listing_id, radius_used)`.
+Unique on `(iem_id, listing_id, radius_used)` (`uq_slm_natural_key`), which covers report rows. A zone row has no
+`iem_id`, and NULLs never collide, so zone rows have their own partial unique index, `slm_zone_natural_key` on
+`(storm_date, listing_id, set_id) WHERE iem_id IS NULL`: one zone row per house, day and set.
+
+**Zone rows (`sql/057`, `058`; Phase 5c step 3).** `slm_zone_facts` holds the shape: a `report` row has no
+`level`, `layer` or `set_id`; any other row has all three, with `level` and `layer` from the lists above. `058`
+replaced `057`'s version of that check, which let a NULL `level` or `layer` through (`NULL IN (...)` is NULL, and a
+`CHECK` passes on NULL; item 259). Zone rows are written by `hailsys/matching/zonematch.py`, from a staff button on
+`/pull/zones`. **Every reader of this table inner-joins `iem_data` on `iem_id`, so a zone row is invisible to all of
+them** (`tests/test_match_readers.py` pins it); the zone send list (`hailsys/queries/zonesend.py`) is the one
+reader that asks for them. `distance_within_radius` still holds: on a zone row both sides are NULL.
 
 `CHECK (distance_miles <= radius_used)` — constraint `distance_within_radius`. A
 match further away than the radius that produced it is arithmetically impossible,
@@ -776,6 +791,9 @@ One row per match: one listing in one email to one agent. The rows of one email 
 | `status_updated_at` | When a bounce or complaint arrived |
 | `error_detail` | Provider error text |
 | `email_id` | FK → `sent_emails`, `NOT NULL`, indexed (`send_log_email_id_idx`). Added `sql/037_sent_emails.sql` (the migration refuses to run on a non-empty `send_log`). **Frozen:** `trg_send_log_email_frozen` (`send_log_email_guard()`) refuses any update that changes it. `send_log_guard()` was deliberately left alone (decision log 2026-10-07, "`sent_emails`: the email as sent") |
+| `basis` | `TEXT NOT NULL DEFAULT 'report'`, `CHECK` `send_log_basis_known`: `report`, `radar`, `observer`, `both` — added `sql/060_zone_sends.sql` (Phase 5c step 4). **What the send rested on, as sent**: the match's own basis, copied at queue time. The default keeps the older rows and the report send code truthful |
+| `level` | `TEXT`, nullable — added `060`. On a zone send, the match's level (`agree` or `one_source`), required. On a report send, the level at the house under the set in use when it was queued (`zonesend.report_levels`, item 266): `agree`, `one_source`, `context`, `none`, or NULL |
+| `zone_set_id` | FK → `likelihood_parameter_sets`, nullable — added `060`. Required on a zone send: the set the match's level came from. Named `zone_set_id`, not `set_id`, to avoid a clash with a joined table's `set_id` (item 258) |
 
 `CHECK (send_status = 'queued' OR send_status = 'failed' OR sent_at IS NOT NULL)`
 — constraint `sent_has_timestamp`. A row cannot claim `sent`, `bounced`, or
@@ -808,6 +826,23 @@ forward (`queued` → `sent`/`failed`, `sent` → `bounced`/`complained`,
 `bounced` → `complained`; a same-status update is allowed). `DELETE` and
 `TRUNCATE` are revoked from `hail_app`. The table owner can still `TRUNCATE`,
 accepted (decision log 2026-09-30). This settled open question 10.
+`sql/060` replaced `send_log_guard()` to add `basis`, `level` and `zone_set_id` to the frozen columns.
+
+**`CHECK` `send_log_snapshot_shape` (`060`):** a `report` row's `level` is NULL or one of `agree`, `one_source`,
+`context`, `none`; any other row has a `level` of `agree` or `one_source` and a `zone_set_id`. `IS NOT NULL` is said
+out loud, because a `CHECK` passes on NULL (item 259).
+
+**`trg_send_log_kind_pairing` (`send_log_kind_guard()`, `BEFORE INSERT`, `060`)** pairs the match with the
+template, whatever the application does:
+- a match with no `iem_id` (it rests on the zones) is sent only with a `zone`-kind template, and the row's `basis`,
+  `level` and `zone_set_id` must be the match's own `basis`, `level` and `set_id`;
+- a zone match with basis `observer` or `both` (it rests on a CoCoRaHS volunteer report) is refused while
+  `settings.zone_observer_wording_approved` is false;
+- a match with an `iem_id` is sent only with a `report`-kind template, and recorded with basis `report`.
+
+It replaced `057`'s `trg_send_log_report_match_only`, which refused every zone match outright until sends by level
+were waived in (decision log 2026-10-27). The suppression rules are unchanged by any of this: `dnc_list` is checked at
+send time for both kinds.
 
 ---
 
@@ -825,13 +860,15 @@ Message text, versioned. Never edited in place.
 | `created_at`, `created_by` | FK → `users` |
 | `supersedes_id` | Self-FK to the prior version |
 | `blocks` | `JSONB`, nullable, `CHECK` `email_templates_blocks_object` (a JSON object) — added `sql/043_email_template_blocks.sql` (item 203, piece 3). The block list `subject` and `body` were compiled from (`hailsys/email/blocks.py`), for the editor to open again. `NULL` for the built-in `hail_alert` (still rendered from its files) and any template not built from blocks. **Frozen** with the other columns (`email_templates_guard()` refuses a change). The database cannot check that it compiles to `body`; `templatestore.save_blocks` always compiles from it |
+| `match_kind` | `TEXT NOT NULL DEFAULT 'report'`, `CHECK` `email_templates_match_kind_known`: `report` or `zone` — added `sql/060_zone_sends.sql`. Which matches the template may be sent for (`trg_send_log_kind_pairing` on `send_log`). Every template before `060` is `report`; `templatestore` registers the zone template, `hail_alert_zone`, as `zone`. **Frozen** like the text |
 | `description` | `TEXT`, nullable, `CHECK` `email_templates_description_length`: at most 300 characters. Added `sql/041_email_template_description.sql`. A note shown in the template list on the send page, not part of what is sent. **The one text column that can change in place, and only until the template has been used in an email**: `sent_emails` is the record of use, and a queued, sent or discarded email counts. After that the guard refuses a change, and a new version is needed |
 
 **Editing in place is refused by the database**, `sql/030_email_templates_immutable.sql`
 (same status as `sql/029` above). `email_templates_guard()` refuses `DELETE`,
 refuses any change to every column except `is_active` and, until the template has been used,
 `description` (`041`), and refuses reactivating a retired template (`false` → `true`). `DELETE` and `TRUNCATE` are
-revoked from `hail_app`.
+revoked from `hail_app`. The function was replaced by `041`, `043` (to freeze `blocks`) and `060` (to freeze
+`match_kind`).
 
 **Editing in place is forbidden.** Changing a body would make every historical
 send claim to have used text that did not exist at the time — the audit trail
@@ -1018,7 +1055,7 @@ jobs, and nothing sends by itself: every step starts with a person's click.
 
 ## Radar layers (Phase 5b)
 
-`sql/048_radar_tables.sql`, `049_radar_zones.sql`, `050_radar_warnings.sql`, `051_radar_job.sql`, applied to
+`sql/048_radar_tables.sql`, `049_radar_zones.sql`, `050_radar_warnings.sql`, `051_radar_job.sql`, `052_radar_suspect.sql`, applied to
 `hail-dev` only. Internal display for staff on the territory page (decision log 2026-10-14, 2026-10-20,
 2026-10-21, 2026-10-22): nothing here reaches an email, an export, a pull or the matcher. The code is
 `hailsys/radar/` (`mesh.py` decodes NOAA's GRIB2 file, `fetch.py` downloads it, `load.py` stores the cells,
@@ -1038,16 +1075,72 @@ The source is NOAA's public MRMS `MESH_Max_1440min` file stamped at the local mi
 | `warning_polygons` | PK `(wfo, phenomena, significance, eventid, vtec_year, poly_begin)`, `poly_end`, `issued`, `expires`, `product_id`, `load_id`, `geom` | Severe thunderstorm (`SV`) and tornado (`TO`) warnings, storm-based polygons only; one row per polygon version. A warning belongs to a local day if its polygon was valid at any time in it. Self-intersecting polygons are made valid on the way in. Held from 2004 |
 
 **The layers** (built by `zones.build_day` for one day): hail cells at or above the threshold are grouped into
-8-neighbour patches; a patch with a cell within `report_radius_km` of an actionable report that day (the matcher's
-own rule, so wind reports count) is anchored. *core* is the anchored patches; *margin* is `margin_km` around the core,
+8-neighbour patches; a patch with a cell within `report_radius_km` of a **HAIL** report that day is anchored (item 254,
+2026-10-28: wind reports anchored 117 patches on 61 days before; all radar days were rebuilt). *core* is the anchored patches; *margin* is `margin_km` around the core,
 outside it; *radar_indicated* is the unanchored patches outside both; *outer* is the day's warning polygons,
 clipped to the crop box, outside the other three. The zone logic was checked against an independent
 Python implementation on four real storm days (patch, anchored and report counts equal, core area within 0.2%).
 
-**Grants:** `hail_app` has `SELECT` on all eight, and `INSERT, DELETE` on `radar_zone_builds` and `radar_zones`.
+**Grants:** `hail_app` has `SELECT` on all eight, `INSERT, DELETE` on `radar_zone_builds` and `radar_zones`, and
+`INSERT` on `radar_parameter_sets` (`sql/056`, so the admin page's Hail zones section can add a set; the
+append-only trigger still refuses a change).
 `hail_ingest` has `SELECT, INSERT, UPDATE` on `radar_runs`; `SELECT, INSERT, DELETE` on `radar_days`, `radar_cells`,
 `radar_zone_builds` and `radar_zones`; `SELECT` on `radar_parameter_sets` and `coverage_zips`; `SELECT, INSERT` on the
 two warning tables. `sql/guard_test.sql` holds the rules as tests.
+
+---
+
+## CoCoRaHS hail reports (Phase 5c)
+
+`sql/053_cocorahs.sql`, applied to `hail-dev` only (step 1a, 2026-10-23). Volunteer hail reports from the
+CoCoRaHS public export, a second source of actionable reports for the likelihood zones. Nothing CoCoRaHS-derived
+reaches an export or the report matcher. The code is `hailsys/cocorahs/` (`parse.py` reads the export **by position**,
+because its header names `MoreRainThanHail` twice; `ingest.py` runs windows), started by `scripts/cocorahs_ingest.py`
+(`nightly` by report timestamp, `weekly` by report date, `backfill`). Times are UTC (the export is asked for with
+`TimesInGMT=True`). 2,738 reports as of 2026-10-29, Colorado from 2020-10-15.
+
+| Table | What it holds | Rules in the database |
+|---|---|---|
+| `cocorahs_runs` | `run_id`, `run_mode` (`nightly`, `weekly`, `backfill`, `manual`), `started_at`, `finished_at`, `run_status` (`running`, `complete`, `failed`), `loads`, `reports_seen/new/changed/rejected`, `error_detail` | A run that is not `running` has `finished_at` (`cocorahs_runs_finished_matches_status`). A run with a failed window ends `failed` and names the first in `error_detail`. Counts are non-negative |
+| `cocorahs_loads` | `load_id`, `run_id`, `state` (two capitals), `date_type` (`reportdate` or `timestamp`, the export's Report Date or Report Timestamp), `window_start/end` (dates), `fetched_at`, `rows_seen/new/changed/rejected` | One row per export request, so "no reports" differs from "not fetched". Inserted at zero and updated once the reports are written. `window_end >= window_start`; new plus changed is at most seen |
+| `cocorahs_hail_reports` | `report_id`, `station_number`, `station_name`, `observed_at`, `latitude/longitude` (`NUMERIC(9,6)`), `geom` (point, 4326, generated, GiST-indexed), `smallest_in`, `average_in`, `largest_in`, `duration_minutes`, `stone_consistency`, `damage`, `entered_at`, `source_updated_at`, `raw_row`, `load_id`, `first_seen_at`, `updated_at` | **Unique on `(station_number, observed_at)`.** A station editing its report updates the row (`updated_at`, `source_updated_at`, and `load_id` becomes the load that last wrote it); **never deleted**. A size is NULL when the form left it blank (`NA` in the export), never 0. Sizes are checked 0 to 10 in, which also refuses `NaN` (it sorts above 10). `raw_row` is the source line verbatim. CC BY 4.0: attribution is required where shown |
+
+A station's daily report covers the 24 hours ending about 7 AM on its date, so storm day D is read from the D+1
+report (CLAUDE.md, data traps).
+
+**Grants:** `hail_app` has `SELECT` on all three. `hail_ingest` has `SELECT, INSERT, UPDATE` on all three, and
+`SELECT (contact_email)` on `settings` for the export's User-Agent.
+
+---
+
+## Hail-likelihood zones (Phase 5c)
+
+`sql/054_likelihood.sql`, `055_likelihood_runs.sql`, `056_likelihood_set_admin.sql`, applied to `hail-dev` only
+(step 1b, 2026-10-24; the admin fields 2026-10-26). One map of where to look first per storm day, built from the radar
+layers and the distance to the nearest actionable hail report (IEM and CoCoRaHS). **A level is a ranking, not a
+probability.** The code is `hailsys/likelihood/` (`build.py`, `ingest.py`), started by
+`scripts/likelihood_ingest.py` (`nightly`, `rebuild`, `backfill`). Staff see it as a map layer on the Territory page;
+`/pull/zones` estimates and pulls from it, `zonematch.py` writes zone matches from it, and zone sends rest on it.
+
+| Table | What it holds | Rules in the database |
+|---|---|---|
+| `likelihood_parameter_sets` | `set_id`, `name` (1 to 100), `radar_set_id` (FK → `radar_parameter_sets`: the hail threshold, margin and report radius), `cocorahs_min_in` (0.50 to 4.00: the smallest CoCoRaHS filing that counts as actionable), `band_1_mi`, `band_2_mi`, `band_3_mi`, `created_at/by` | **Append-only** (`likelihood_parameter_sets_append_only`); the **newest row is in use**. The bands are ordered and at most 50 miles: they split the distance to the nearest actionable report into `le_1`, `1_3`, `3_5` and `over_5`. Row 1 is the design placeholder of 2026-10-23 (1.00 in, 1, 3, 5 miles; `created_by` NULL). **A set cannot commit without all 20 rules** (`likelihood_sets_complete`, a deferred constraint trigger, `056`) |
+| `likelihood_level_rules` | PK `(set_id, layer, band)`, `layer` (`core`, `margin`, `radar_indicated`, `outer`, `none` = no radar layer), `band`, `level` (`agree`, `one_source`, `context`, `none`) | 20 rows per set, one for every layer and band. **Append-only** with its set (`likelihood_level_rules_append_only`), and **a rule can be added only in the transaction that added its set** (`likelihood_rules_with_set`, `056`, by comparing the set's `created_at` with the transaction's `now()`), so an old set never gains or loses a rule |
+| `likelihood_builds` | PK `(day, set_id)` (`day` FK → `radar_days`), `built_at/by`, the UTC `window_start/end` of the local day, `iem_reports`, `cocorahs_reports`, `duplicates_dropped`, `patches`, `patches_anchored` | One row per day and set built, even with no zones, so "none" differs from "not built". `iem_reports` and `cocorahs_reports` are the actionable reports used, after `duplicates_dropped` IEM reports whose source says CoCoRaHS were left out. Anchored patches are at most the patches |
+| `likelihood_zones` | PK `(day, set_id, level)`, FK `(day, set_id)` → `likelihood_builds`, `level` (`agree`, `one_source`, `context`), `geom` (multipolygon, valid, GiST-indexed), `area_km2` (positive, spherical) | Derived data: a rebuild deletes the build and its zones and writes them again. Levels never overlap; an empty level has no row; `none` is a level in the rules but never stored as a zone. Backtest builds are not stored |
+| `likelihood_runs` | `run_id`, `run_mode` (`nightly`, `rebuild`, `backfill`, `manual`), `started_at`, `finished_at`, `run_status`, `days_built`, `days_skipped` (no radar file loaded, not a failure), `days_failed`, `error_detail` | Like `radar_runs`: a run that is not `running` has `finished_at`; a failed day makes the run `failed`. `scripts/status.sh likelihood` reads the newest nightly |
+
+As of 2026-10-29: one parameter set (the placeholder) with its 20 rules, 2,200 builds and 1,022 zones.
+
+**Grants:** `hail_app` has `SELECT` on all five; `INSERT, DELETE` on `likelihood_builds` and `likelihood_zones`; and
+`INSERT` on `likelihood_parameter_sets` and `likelihood_level_rules` (`056`, for the admin page's Hail zones
+section, which adds a radar set, a likelihood set and its 20 rules in one transaction). `hail_ingest` has `SELECT` on
+all five, `INSERT, DELETE` on builds and zones, and `INSERT, UPDATE` on `likelihood_runs`. The append-only triggers
+refuse an `UPDATE` or `DELETE` on the set tables whatever the grant.
+
+**Who points at a set:** `storm_listing_matches.set_id` (zone rows), `api_pulls.zone_set_id` (zones pulls) and
+`send_log.zone_set_id` (zone sends) all reference `likelihood_parameter_sets`, so a match, a pull and a send each
+record the set they used.
 
 ---
 
@@ -1177,6 +1270,7 @@ invalidation to get wrong across Gunicorn workers.
 | `schedule_url` | `TEXT NOT NULL`, `CHECK` starts `https://` — added `042`. The "Schedule a new inspection" link. Was `EMAIL_SCHEDULE_URL`. The renderer also refuses free-hosting domains (`render.check_url`) |
 | `from_name`, `from_email`, `reply_to` | `TEXT NOT NULL` — added `042`. The sender identity passed to Constant Contact (`emailconfig.load_sender`). Were `CC_FROM_NAME`, `CC_FROM_EMAIL`, `CC_REPLY_TO`. **`from_email` must be a verified sender in the Constant Contact account**, or its campaigns are refused; the admin page says so beside the field. One sender for everyone; a per-user choice is item 194 |
 | `storm_states` | `TEXT NOT NULL DEFAULT 'CO'`, `CHECK` two-letter upper case codes separated by commas, no spaces — added `sql/050_radar_warnings.sql` (Phase 5b). The states whose NWS warnings the radar layers fetch (`CO,WY` for two). Not yet used by the IEM report ingest (item 238). **No admin-page field yet**, an admin `UPDATE` changes it and the trigger logs it (item 243). `hail_ingest` may read this column and no other |
+| `zone_observer_wording_approved` | `BOOLEAN NOT NULL DEFAULT false` — added `sql/060_zone_sends.sql`. **False until the developer has read the CoCoRaHS usage policy in full and recorded it in the decision log.** While false, `send_log` refuses a zone send whose match rests on a volunteer observer report (basis `observer` or `both`). Set from the admin page's Hail zones section (Phase 5c step 4 piece 4b-2); logged to `settings_history` |
 | `rentcast_monthly_quota` | `INTEGER NOT NULL DEFAULT 1000`, `CHECK` `> 0` — added `023`. Requests included per billing period. **Warn and allow**: the pull estimate warns when a pull would exceed it, and nothing blocks (decision-log 2026-09-23, "RentCast quota…") |
 
 Plus a table-level `CHECK` `match_within_zip_radius`:
@@ -1221,6 +1315,7 @@ freshness settings, snapshotting all seven values that resulted (five before `03
 | `listing_freshness_days` | `SMALLINT`, nullable — added `sql/028`. **NULL on rows written before `028`**, not backfilled, for the same reason |
 | `drip_max_followups`, `drip_max_gap_days` | `SMALLINT`, nullable — added `045`. **NULL on rows written before `045`**, not backfilled |
 | `storm_states` | `TEXT`, nullable — added `sql/050`. **NULL on rows written before `050`**, not backfilled |
+| `zone_observer_wording_approved` | `BOOLEAN`, nullable — added `sql/060`. **NULL on rows written before `060`**, not backfilled |
 | `match_max_age_days`, `email_cap_days` | `SMALLINT`, nullable — added `sql/038`. **NULL on rows written before `038`**, not backfilled, for the same reason |
 | `contact_email`, `schedule_url`, `from_name`, `from_email`, `reply_to` | `TEXT`, nullable — added `sql/042`. **NULL on rows written before `042`**, not backfilled, for the same reason |
 
@@ -1230,7 +1325,9 @@ freshness settings, snapshotting all seven values that resulted (five before `03
 AFTER UPDATE OF default_zip_radius_miles, default_match_radius_miles,
                 rentcast_billing_day, rentcast_monthly_quota,
                 listing_freshness_days, match_max_age_days, email_cap_days,
-                contact_email, schedule_url, from_name, from_email, reply_to
+                contact_email, schedule_url, from_name, from_email, reply_to,
+                drip_max_followups, drip_max_gap_days, storm_states,
+                zone_observer_wording_approved
 ON settings
 FOR EACH ROW
 WHEN (OLD.default_zip_radius_miles    IS DISTINCT FROM NEW.default_zip_radius_miles
@@ -1244,12 +1341,18 @@ WHEN (OLD.default_zip_radius_miles    IS DISTINCT FROM NEW.default_zip_radius_mi
    OR OLD.schedule_url                IS DISTINCT FROM NEW.schedule_url
    OR OLD.from_name                   IS DISTINCT FROM NEW.from_name
    OR OLD.from_email                  IS DISTINCT FROM NEW.from_email
-   OR OLD.reply_to                    IS DISTINCT FROM NEW.reply_to)
+   OR OLD.reply_to                    IS DISTINCT FROM NEW.reply_to
+   OR OLD.drip_max_followups          IS DISTINCT FROM NEW.drip_max_followups
+   OR OLD.drip_max_gap_days           IS DISTINCT FROM NEW.drip_max_gap_days
+   OR OLD.storm_states                IS DISTINCT FROM NEW.storm_states
+   OR OLD.zone_observer_wording_approved
+                                      IS DISTINCT FROM NEW.zone_observer_wording_approved)
 ```
 
-That is the definition as of `042`. `023` replaced `020`'s two-column version
+That is the definition as of `060`. `023` replaced `020`'s two-column version
 with `CREATE OR REPLACE FUNCTION` plus a drop and recreate of the trigger, and
-`028` did the same to add the fifth column, `038` the sixth and seventh, and `042` the five email values.
+`028` did the same to add the fifth column, `038` the sixth and seventh, `042` the five email values, `045` the two
+drip settings, `050` `storm_states` and `060` `zone_observer_wording_approved`.
 Scoped to the settings columns, and still **not** `global_sessions_invalidated_at`,
 because the boot-everyone route updates that column on the same row; unscoped, that update fired
 the trigger and demanded attribution it has no reason to set. The `WHEN`
@@ -1286,6 +1389,8 @@ One row per user-initiated RentCast pull.
 | `actual_api_calls` | What it really cost |
 | `listings_returned` | |
 | `api_status` | running / complete / failed / cancelled |
+| `pull_source` | `TEXT NOT NULL DEFAULT 'reports'`, `CHECK` `api_pulls_source_known`: `reports` or `zones` — added `sql/059_pull_zips.sql` (Phase 5c step 2b). `zones` is a pull from the hail-likelihood zones (`POST /pull/zones/start`), whose zip list is the zone list unioned with the report list; every pull before `059` is `reports`. `api_pulls_zones_have_a_storm`: a zones pull names its `storm_date` |
+| `zone_set_id` | FK → `likelihood_parameter_sets`, nullable — added `059`. The set the zone list came from; set exactly on a zones pull (`api_pulls_zone_set_iff_zones`) |
 
 Every other table records what the system *knows*. This records what it *spent*
 — a different category, and the one that got the previous system into trouble
@@ -1303,7 +1408,7 @@ for the storm just before inserting (`jobs.py`), so a restart does not leave a
 dead row blocking it.
 
 **A pull is one human decision covering many zips**, so cost attributes to the
-decision rather than smearing across zip rows.
+decision rather than smearing across zip rows. Since `059`, `pull_zips` records which zips and why.
 
 **Superseded 2026-09-23, on the monthly ceiling.** This section used to say
 that a ceiling, once enforced, would be enforced here, against the estimate,
@@ -1315,6 +1420,24 @@ still runs. And usage is summed from **`api_call_log`**, not from
 so a running pull and one whose thread died would both count as zero, while
 the log is written per zip as the pull goes (decision-log 2026-09-23,
 "RentCast quota…").
+
+---
+
+### `pull_zips`
+
+Added `sql/059_pull_zips.sql` (Phase 5c step 2b). **Why each zip was in a pull**: one row per zip of a pull,
+written when the pull is created. The zip list is rebuilt from the database, never taken from the form.
+
+| Field | Purpose |
+|---|---|
+| `pull_id` | FK → `api_pulls`. PK `(pull_id, zcta5)` |
+| `zcta5` | `TEXT`, `CHECK` five digits |
+| `basis` | `zones`, `reports` or `both`. `reports` is a zip within the zip radius of an actionable report and outside the zones |
+| `best_level` | `agree`, `one_source` or `context`: the best level the zone list gave the zip. NULL exactly for a `reports` zip (`pull_zips_level_iff_zones`) |
+
+**Append-only** by trigger (`pull_zips_append_only`, `BEFORE UPDATE OR DELETE`). `hail_app` has `SELECT, INSERT`.
+Nothing here calls RentCast: the pull is still a person's click, run by `run_pull`, and a pull never writes a zone
+match. As of 2026-10-29 it holds one row, pull 1228.
 
 ---
 
