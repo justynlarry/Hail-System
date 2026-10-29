@@ -30,8 +30,8 @@ the hardware has arrived and passed acceptance (`pve-prod01`, an HP ProDesk 400 
 running Proxmox VE; `pbs-prod01`, a separate Dell OptiPlex 3020 running Proxmox
 Backup Server; `docs/hail-consolidated.md` §9), and the production VM
 `rbi-hail01` (VM 101, Rocky Linux 10.2) is **created but not started**. Nothing is
-deployed to it: no Docker, no database, no code. Racking, UPS and Irin enrollment
-are not confirmed here. Everything verified so far has run on the `hail-dev` VM.
+deployed to it: no Docker, no database, no code. Racking and UPS are not confirmed
+here; Irin is enrolled and alerting (confirmed 2026-10-29, item 234). Everything verified so far has run on the `hail-dev` VM.
 Do not assume the production box is reachable or has anything deployed to it
 without checking.
 

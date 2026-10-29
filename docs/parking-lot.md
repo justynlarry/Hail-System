@@ -3800,7 +3800,7 @@ schedule is set. Backups are not yet encrypted client-side. VM 101 has only had 
 
 ## 234. Irin alerts for PBS disk usage and backup job failures are unconfirmed
 
-**Status:** open: alerts configured 2026-10-29 (developer); test alert pending
+**Status:** resolved 2026-10-29
 
 **Evidence:** `CLAUDE.md` records Irin enrollment as not confirmed; nothing records alerts for `pbs-prod01`'s
 disk or for backup job failures.
@@ -3811,6 +3811,9 @@ disk or for backup job failures.
 
 **Update 2026-10-29.** The developer has set up the Irin alerts. They are on the hosts, which `hail-dev` cannot
 see, so nothing here confirms them. Resolved once a test alert is seen to arrive.
+
+**Resolved 2026-10-29.** The developer confirms Irin is running and a test alert arrived. Checked on the hosts by
+the developer; `hail-dev` cannot see them. `CLAUDE.md` updated to match.
 
 ## 235. Offsite sync is not built
 
