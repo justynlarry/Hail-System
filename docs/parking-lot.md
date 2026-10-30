@@ -6642,7 +6642,7 @@ error is a real failure. These edits were made by Claude at the developer's requ
 
 ## 242. `.env` line 35 is not a valid shell variable name
 
-**Status:** open (filed 2026-10-21)
+**Status:** resolved 2026-10-30
 
 The line `PERMIT-STACK-API=...` has hyphens, so `. ./.env` fails on it and bash prints the value in the error
 message (it appeared in a session transcript on 2026-10-21). Docker Compose reads the file without trouble.
@@ -6650,6 +6650,10 @@ Read single values with `grep '^NAME=' .env | cut -d= -f2-` meanwhile.
 
 **When:** the next time `.env` is edited: rename it to `PERMIT_STACK_API` and change the one place that reads it.
 Consider rotating that key.
+
+**Resolved 2026-10-30.** Renamed to `PERMIT_STACK_API`. Nothing in the repo reads it (the entry's "one place that reads it"
+did not hold): it is not in `docker-compose.yml` or `.env.example`, and no code uses it, so it stays out of production's `.env`
+until the permits work (item 70) needs it. Not rotated, by developer decision; rotate before the key is put to use.
 
 ## 243. `settings.storm_states` has no admin-page field
 
