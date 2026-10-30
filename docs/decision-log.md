@@ -7995,3 +7995,27 @@ happened and the item was not read.
 
 **Related:** parking-lot items 154, 213; the sweep's brief of 2026-10-28.
 
+---
+
+## 2026-10-30 — The PostGIS image moves to `16-3.6`
+
+**Decision:** `postgis/postgis:16-3.6` (Debian 13 trixie, PostgreSQL 16.15, PostGIS 3.6.4) replaces `16-3.4` (Debian 11
+bullseye, EOL 2026-09-07; PostgreSQL 16.4). Item 3 resolved. The production database will be created on it.
+
+**Why 16 and not 17 or 18:** the EOL problem is fixed without a major-version upgrade or a dump and restore, and nothing
+here needs a newer major version. `16-3.5` was not an option: it is still bullseye.
+
+**How `hail-dev` moved, in place:** both services stopped, a cold `tar` of the `hail-system_pgdata` volume, the new image
+started on the same data, `postgis_extensions_upgrade()` and `ALTER EXTENSION` for the two `address_standardizer`
+extensions, `REINDEX DATABASE` and `REINDEX SYSTEM`, then `REFRESH COLLATION VERSION` (2.31 to 2.41), because the C library
+changes text sort order between Debian 11 and 13. Rollback is the volume backup with the old tag; the old image is never
+started on upgraded data.
+
+**Tested first, on a copy of `hail-dev` in a throwaway container:** schema identical through 063, both test suites pass,
+25,384 `address_key` values identical, 150 days of likelihood zones the same to rounding (173 zones, 357,265 km2 on both;
+148 differ in the last digits or by about a point).
+
+**Found on the way:** two uncapped restores at once on the 3.6 GB VM most likely froze it, and it rebooted at 14:24 UTC; no
+data was lost. The cause of the memory use is item 280. Throwaway restores on `hail-dev` are memory-capped from here on.
+
+**Not yet seen:** a nightly run on the new image. The backup stays until one has passed.

@@ -166,7 +166,7 @@ parking-lot item 63 (a path to `hail-dev` for anyone else) is still open.
 ### Infrastructure — verified on a running stack, 2026-09-08 through 2026-09-10
 
 - **`docker-compose.yml`** defines four services on one network, `hailnet`:
-  - `postgis` — stock `postgis/postgis:16-3.4`, the only long-running service.
+  - `postgis` — stock `postgis/postgis:16-3.6`, the only long-running service.
     Named volume `pgdata`; `./sql` mounted read-only at `/sql`.
   - `ingest` — `python:3.12-slim` + `psycopg[binary]==3.2.3`. Behind the
     `tools` profile, so `docker compose up` does not start it.
@@ -1734,14 +1734,13 @@ These are newer and cost real time on 2026-09-08.
   `/var/lib/apt/lists`, so a bare `apt-get install` reports "unable to locate
   package" and looks exactly like the package does not exist. The `apt-get
   update` is the whole fix.
-- **The base image is Debian bullseye, and bullseye went EOL 2026-09-07.** The
-  next day `loader.Dockerfile`'s `apt-get update` began failing on expired
-  `Release` metadata; `apt-get -o Acquire::Check-Valid-Until=false update` is the
-  workaround now in the file. This is a standing problem, not a one-off: every
-  `postgis/postgis` tag checked (including `:16-3.4`, the one in use) is still
-  bullseye-based, so there is no clean fix until upstream rebases onto bookworm.
-  The pinned client package (`postgis=3.5.2+dfsg-1.pgdg110+1`, `pgdg110` =
-  Debian 11) has to be bumped in the same move. Tracked in `decision-log.md`.
+- **The base image was Debian bullseye until 2026-10-30.** Bullseye went EOL
+  2026-09-07, and the next day `loader.Dockerfile`'s `apt-get update` began failing
+  on expired `Release` metadata, worked around with `Check-Valid-Until=false`.
+  `postgis/postgis:16-3.6` moved to Debian 13 trixie, so `hail-dev` moved to it
+  2026-10-30 (PostgreSQL 16.15, PostGIS 3.6.4) and the workaround is gone. The
+  client package pin in `loader.Dockerfile` must match the server's PostGIS
+  version. See `decision-log.md`, 2026-10-30.
 - **`COPY` into an image is a build-time snapshot, not a live view.** `ingest`
   and `app` both `COPY scripts ./scripts/` with no bind mount, so a script
   edited (or newly added) on the host is invisible in the container — including
@@ -2299,7 +2298,7 @@ tests/
                                under hailsys/web/ is covered, §2)
 docker/
   ingest.Dockerfile           python:3.12-slim + psycopg; COPY hailsys + scripts, PYTHONPATH=/app (2026-09-14); runs as non-root
-  loader.Dockerfile           postgis image + pinned client pkg; bullseye-EOL apt workaround; bind-mounts the repo, no PYTHONPATH needed
+  loader.Dockerfile           postgis image + pinned client pkg; bind-mounts the repo, no PYTHONPATH needed
   app.Dockerfile              same shape as ingest.Dockerfile; connects as hail_app (2026-09-11); also builds `web` (below), which runs it under gunicorn instead of a one-shot script
 output/                       gitignored — CSVs from export_storm_zips.py (pairs/zips), bind-mounted into `app`
 reference/                    gitignored — derived statistical CSVs, DNC lists

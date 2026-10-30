@@ -14,7 +14,7 @@
 services:
 
   postgis:
-    image: postgis/postgis:16-3.4
+    image: postgis/postgis:16-3.6
     environment:
       POSTGRES_USER: hail_admin
       POSTGRES_PASSWORD: ${POSTGIS_ROOT_PASSWORD:?POSTGIS_ROOT_PASSWORD is not set -- copy .env.example to .env}

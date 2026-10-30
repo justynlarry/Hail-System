@@ -6,7 +6,7 @@
 # database.  From the repo root:
 #
 #   docker run -d --name hail-scratch --network none -e POSTGRES_PASSWORD=scratch \
-#       -v "$PWD:/repo:ro" postgis/postgis:16-3.4
+#       -v "$PWD:/repo:ro" postgis/postgis:16-3.6
 #   docker exec -e PGUSER=postgres -e HAIL_INGEST_PASSWORD=scratch -e HAIL_APP_PASSWORD=scratch \
 #       -w /repo hail-scratch bash tests/migrate_check.sh
 #   docker rm -f hail-scratch

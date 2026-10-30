@@ -47,7 +47,7 @@ where it had been recorded four days earlier.
 
 ## 3. The base image is on an EOL operating system
 
-**Status:** open
+**Status:** resolved 2026-10-30
 
 `postgis/postgis:16-3.4` is built on Debian bullseye, which went EOL
 2026-09-07. The day after, the loader build began failing on expired apt
@@ -83,6 +83,17 @@ VM `rbi-hail01` is created but not started, with no Docker on it (CLAUDE.md). Re
 Docker. Verified the same day: the `postgis` container still reports Debian 11 (bullseye), and
 `docker/loader.Dockerfile:18-22` still carries the `Check-Valid-Until=false` workaround and the
 `pgdg110` pin. The **When** is unchanged.
+
+**Update 2026-10-30.** "No clean fix" no longer holds. `postgis/postgis:16-3.6` (built 2026-10-26) is on Debian 13
+trixie, PostgreSQL 16.15, PostGIS 3.6.4; `16-3.5` is still bullseye. Tested in a throwaway on a copy of `hail-dev`:
+schema identical through 063, both suites pass, 25,384 `address_key` values identical, 150 days of likelihood zones the
+same to rounding. Plan: move before the production database is created. `hail-dev` needs a backup, the extension upgrade
+and a `REINDEX` (glibc collation 2.31). **When:** before `rbi-hail01`'s database is created.
+
+**Resolved 2026-10-30.** `hail-dev` moved to `postgis/postgis:16-3.6` in place: cold backup of the volume, then
+`postgis_extensions_upgrade()`, `REINDEX`, and the collation version refreshed from 2.31 to 2.41. The `Check-Valid-Until`
+workaround is gone and the client pin is `3.6.4+dfsg-2.pgdg13+1`. Afterwards: schema identical to a fresh build through 063,
+both test suites pass, row counts unchanged. The production VM starts on `16-3.6`. Decision log 2026-10-30.
 
 ## 9. The absence query has no schedule and nowhere to alert
 
@@ -7345,3 +7356,15 @@ and which is never deleted, or a table of a few thousand rows at most.
 **When:** when `send_log` passes about 10,000 rows, or the template list or a template save gets slow.
 
 **Related:** item 202.
+
+## 280. `address_key` holds memory per row until the statement ends
+
+**Status:** open (found 2026-10-30, testing item 3)
+
+The generated column calls `standardize_address` per row. 300 calls peaked at about 47 MB on PostGIS 3.4 and about
+158 MB on 3.6; 3,000 on 3.6 passed 1 GB and were killed. A whole-table `pg_restore` of `properties` (25,384 rows) was
+killed at a 1.2 GB limit; it loaded in 800-row batches, with identical values. Not measured: a large RentCast pull.
+
+**When:** before any `pg_dump` data moves to `rbi-hail01`, and before a pull large enough to matter.
+
+**Related:** items 3, 233.
