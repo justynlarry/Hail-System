@@ -4557,7 +4557,7 @@ recipient is ever allowed), or the call budget is found to be spent by test send
 
 ## 224. An old git stash is the only record of two backfill fixes
 
-**Status:** open (found 2026-10-15)
+**Status:** resolved 2026-10-30
 
 `git stash list` holds `stash@{0}: On main: pre-merge 2026-09-09: dup backfill fixes + test typo fix`:
 changes to `scripts/iem_backfill.py` (about 20 lines) and `tests/test_iem_parse.py` (one line). Nothing
@@ -4569,6 +4569,10 @@ record. Whether the fixes were later made another way is not known.
 parts still wanted as a commit, then drop the stash.
 
 **Related:** `scripts/iem_backfill.py`, `tests/test_iem_parse.py`.
+
+**Resolved 2026-10-30.** The stash held nothing unique: its `scripts/iem_backfill.py` is identical to commit `f6c25f5` and
+its `tests/test_iem_parse.py` to `3cf6848`, both 2026-09-09. None of the old misspellings remain in `scripts/`, `hailsys/` or
+`tests/`. Stash dropped; nothing applied.
 
 ## 225. The editor's formatting toolbar needs JavaScript
 
