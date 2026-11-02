@@ -68,6 +68,7 @@ def run_pull(conn, *, emp_id, storm_date, report_text, zip_codes,
             estimated_api_calls=estimated_api_calls)
     total_calls = 0
     total_listings = 0
+    failed_zips = 0
 
     for zip_code in zip_codes:
         http_status = 200
@@ -86,6 +87,7 @@ def run_pull(conn, *, emp_id, storm_date, report_text, zip_codes,
         except RentCastError as exc:
             listings, calls_made = [], exc.attempts
             http_status = exc.status
+            failed_zips += 1
             logger.warning("event=zip_failed pull_id=%s zip=%s status=%s error=%s",
                            pull_id, zip_code, http_status, exc)
 
@@ -122,7 +124,14 @@ def run_pull(conn, *, emp_id, storm_date, report_text, zip_codes,
                 _finish_pull(conn, pull_id, total_calls, total_listings, "failed")
                 raise
 
-    _finish_pull(conn, pull_id, total_calls, total_listings, "complete")
+    # A pull where RentCast answered no zip got nothing back:  'complete' would read as a pull that worked (item 42).
+    # One where only some zips failed is still complete;  api_call_log has each zip's status.
+    if zip_codes and failed_zips == len(zip_codes):
+        logger.error("event=pull_all_zips_failed pull_id=%s zips=%d", pull_id, failed_zips)
+        status = "failed"
+    else:
+        status = "complete"
+    _finish_pull(conn, pull_id, total_calls, total_listings, status)
     return pull_id
 
 def _finish_pull(conn, pull_id, actual_api_calls, listings_returned, api_status):

@@ -12,7 +12,8 @@ What they pin:  a pull from the hail zones writes its api_pulls row (source 'zon
 rows in one transaction, requests each zip exactly once and finishes 'complete';  a pull from reports is unchanged (source
 'reports', no zone set, no pull_zips);  a zone list that is not exactly the zips to pull, a duplicate zip, a pull already
 running for the storm, and a bad zone row each raise before anything is requested and leave no api_pulls row;  a RentCast
-failure or auth error marks the pull failed and stops;  the report matcher runs after a pull and the zone matcher never
+failure or auth error marks the pull failed and stops;  a pull where every zip failed is failed, one with some zips
+failed is complete (item 42);  the report matcher runs after a pull and the zone matcher never
 does.
 """
 
@@ -276,6 +277,24 @@ class PullJobsTest(unittest.TestCase):
             "SELECT zip_code, http_status FROM api_call_log WHERE pull_id = %s", (pull["pull_id"],)).fetchall()}
         self.assertEqual(sorted(statuses.values()), [200, 200, 503])
         self.assertEqual(pull["actual_api_calls"], 3 + 1 + 1)
+
+    def test_a_pull_where_every_zip_failed_is_failed_not_complete(self):
+        # item 42:  nothing came back, so 'complete' would read as a pull that worked
+        self.search.side_effect = [RentCastServerError("down", attempts=3, status=503)] * 3
+        self.start()
+        (pull,) = self.pulls()
+        self.assertEqual(pull["api_status"], "failed")
+        self.assertEqual(len(self.requested()), 3)                  # every zip was still tried
+        self.assertEqual(pull["actual_api_calls"], 9)              # and every call counted
+        statuses = [r["http_status"] for r in self.raw.execute(
+            "SELECT http_status FROM api_call_log WHERE pull_id = %s", (pull["pull_id"],)).fetchall()]
+        self.assertEqual(statuses, [503, 503, 503])
+
+    def test_a_zip_with_no_listings_is_an_answer_not_a_failure(self):
+        self.search.side_effect = [([], 1)] * 3                    # what a 404 or an empty zip returns
+        self.start()
+        (pull,) = self.pulls()
+        self.assertEqual(pull["api_status"], "complete")
 
     def test_an_unexpected_error_marks_the_pull_failed_and_stops(self):
         self.search.side_effect = RuntimeError("boom")

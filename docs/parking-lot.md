@@ -1820,7 +1820,7 @@ build and verify it. **When:** when a query reads `report_zip_distances` by `zct
 
 ## 42. A complete pull where every zip failed still counts as pulled
 
-**Status:** open (watch)
+**Status:** resolved 2026-11-02
 
 `run_pull` marks `api_status = 'complete'` once it's iterated every zip,
 regardless of how many individual zips returned a non-200 and zero
@@ -1829,6 +1829,13 @@ same as one that worked.
 
 **When:** edge case; revisit if it's observed for real rather than reasoned
 about.
+
+**Resolved 2026-11-02.** `run_pull` counts the zips RentCast failed to answer; if that is every zip, the pull ends
+`failed` and logs `event=pull_all_zips_failed`. A zip answered with no listings (an empty zip or a 404) counts as
+answered. A pull where only some zips failed stays `complete`, and `api_call_log` keeps each zip's status. The storm list
+already leaves out `failed` pulls, and the banner already shows a failed phase. The automatic match still runs after
+such a pull, which is harmless (it matches listings already held). Tests: two in `tests/test_pull_jobs.py`; the "every
+zip failed" one fails on the old code (checked).
 
 ## 44. A pull job produces two feed lines
 
