@@ -31,7 +31,9 @@ against the live database, with no warning.
                                   # requirements.txt
 
 `scripts/status.sh images` says which images are behind the files they depend
-on, and names the files. `web` and `app` need a rebuild only when
+on, and names the files. It goes by each file's modified time against when the image was
+last built or retagged, so an edit that was built and then committed no longer
+shows (item 172). `web` and `app` need a rebuild only when
 `requirements.txt` or `docker/app.Dockerfile` changes.
 
 The scheduled ingest jobs -- nightly `iem_ingest.timer` and weekly
@@ -88,11 +90,8 @@ Before 2026-10-02 `app` baked both `hailsys/` and `scripts/`, and
 `-v "$PWD/scripts:/app/scripts:ro"`. Item 30 made `app` read the working tree,
 so that workaround is no longer needed.
 
-The `loader` image was built 2026-09-09 and already includes the
-`docker/loader.Dockerfile` change from that day (checked 2026-10-02 with
-`docker history`; parking-lot item 101). Rebuild it only when the Dockerfile
-changes. A from-scratch build has not been tried since the base's EOL date
-(item 3).
+The `loader` image was rebuilt 2026-10-30 on `postgis/postgis:16-3.6` (item 3).
+Rebuild it only when `docker/loader.Dockerfile` changes.
 
 **To check what an image actually runs**, print the source of the function
 you changed from inside it. This reads the baked-in copy, not your working

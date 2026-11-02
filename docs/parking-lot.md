@@ -2584,7 +2584,7 @@ as a new item in the same sweep, not filed here.
 
 ## 172. `scripts/status.sh images` reports an image stale when the file changed before the build
 
-**Status:** open
+**Status:** resolved 2026-11-02
 
 Found 2026-10-06. After `requirements.txt` was edited (17:29:08Z) and `web` and
 `app` rebuilt from it (image created 17:29:22Z), `status.sh images` still printed
@@ -2616,6 +2616,13 @@ was caught before filing.
 byte: edited at 22:25Z, the image built at 22:31Z, the commit made at 22:38Z (`59267c0`). After the item 276 rebuild,
 `load.py` is flagged the same way. `ingest` is the image the check matters for, so a false flag there costs a pointless
 rebuild, or teaches you to ignore it.
+
+**Resolved 2026-11-02.** `cmd_images` compares each file's modified time with the build time instead of listing every
+commit since the build, and takes the build time from when the tag last moved (`LastTagTime`), because a rebuild that is
+all cache keeps the old `Created`. Checked: an edit after the build, a deleted file and a new untracked file are listed;
+an edit built and then committed is not. Afterwards `ingest` and `loader` read OK; `app` and `web` were truly behind
+`docker/app.Dockerfile` (item 222, 10-29), and a cached rebuild cleared them: all four OK. Known limit, in the script's
+comment: a file copied in with an older modified time is missed.
 
 ## 173. Constant Contact's auth server rejects Python's default User-Agent
 

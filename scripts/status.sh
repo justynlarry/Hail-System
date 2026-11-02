@@ -242,34 +242,51 @@ image_paths() {
     esac
 }
 
-# Reports, per image, whether anything it depends on changed since it was built:
-# commits made after the build, and uncommitted edits.  It answers "is my test
-# running old code", the question that cost a false result on 2026-09-24, and
-# it answers "which files", so a comment-only change can be told from a real one.
-# It compares commit times with the build time, so it can over-report: loader
-# shows STALE for a Dockerfile edit that was built before it was committed
-# (parking-lot item 101).  A listed file is a prompt to look, not a verdict.
+# Reports, per image, whether anything it depends on changed since it was built:  a file whose
+# modified time is later than the build, or one deleted since.  It answers "is my test running old
+# code", the question that cost a false result on 2026-09-24, and "which files", so a comment-only
+# change can be told from a real one.
+#
+# Modified times, not commit times (item 172):  an edit that was built and then committed is not
+# stale, and an edit made after the build is, committed or not.  The build time is when the tag last
+# moved, not the image's Created time, because a rebuild that is all cache keeps the old Created but
+# moves the tag.  A checkout or pull that rewrites a file counts as a change, which errs safe;  a file
+# copied in with an older time keeps that time and is missed.  A listed file is a prompt to look, not
+# a verdict.
 cmd_images() {
     echo "== Image freshness =="
     git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1 \
         || { echo "not a git checkout: cannot tell what changed since each build"; return 0; }
 
     local project=${COMPOSE_PROJECT_NAME:-$(basename "$REPO_ROOT")}
-    local svc image created since files paths
+    local svc image tagged created built since files paths
     for svc in ingest app web loader; do
         image="$project-$svc"
         if ! created=$(docker image inspect -f '{{.Created}}' "$image" 2>/dev/null); then
             printf '%-7s not built (no image named %s)\n' "$svc" "$image"
             continue
         fi
-        since=$(date -u -d "$created" '+%Y-%m-%d %H:%M:%S +0000')
+        # "2026-10-29 19:53:44.55 +0000 UTC":  date reads it without the zone name.  An image that
+        # was never tagged here (pulled) has a zero time, so Created stands in.
+        tagged=$(docker image inspect -f '{{.Metadata.LastTagTime}}' "$image")
+        if [[ $tagged == 0001-* || -z $tagged ]]; then
+            built=$(date -u -d "$created" +%s)
+        else
+            built=$(date -u -d "${tagged% UTC}" +%s)
+        fi
+        since=$(date -u -d "@$built" '+%Y-%m-%d %H:%M:%S +0000')
         paths=$(image_paths "$svc")
-        # Word-splitting $paths is the point: it is a list of paths.
+        # Word-splitting $paths is the point: it is a list of paths.  stat fails on a file deleted
+        # from the work tree;  the two lines after it list those.
         # shellcheck disable=SC2086
-        files=$({ git log --since="$since" --name-only --format= -- $paths
-                  git status --porcelain -- $paths | cut -c4-
+        files=$(cd "$REPO_ROOT" && {
+                    git ls-files -z --cached --others --exclude-standard -- $paths \
+                        | xargs -0 -r stat -c '%Y %n' 2>/dev/null \
+                        | awk -v built="$built" '$1 > built { sub(/^[0-9]+ /, ""); print }' || true
+                    git ls-files --deleted -- $paths
+                    git log --since="$since" --diff-filter=D --name-only --format= -- $paths
                 } | sort -u)
-        printf '%-7s built %s  ' "$svc" "$(date -u -d "$created" '+%Y-%m-%d %H:%MZ')"
+        printf '%-7s built %s  ' "$svc" "$(date -u -d "@$built" '+%Y-%m-%d %H:%MZ')"
         if [[ -z $files ]]; then
             echo "OK"
         else
