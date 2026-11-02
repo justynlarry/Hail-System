@@ -405,13 +405,17 @@
 
 
 
- ADDED SINCE  (sql/062 to sql/064, drawn 2026-11-02)
+ ADDED SINCE  (sql/062 to sql/065, drawn 2026-11-02)
  ═══════════════════════════════════════════════════
 
   Schema_Migrations (062)     free-standing: PK FILENAME, SHA256, HOW
                               (applied|baseline), APPLIED_AT, APPLIED_BY.
                               Insert-only, written by scripts/migrate.sh;
                               no grants to hail_app or hail_ingest.
+  Send_Runs (065)             one row per send or resume job: KIND,
+                              STATUS, FK STARTED_BY ► Users, BATCH_ID
+                              (Sent_Emails' batch, no FK), EMAILS, DETAIL.
+                              Inserted running, closed once (by trigger).
 
  Rules on tables drawn above, not drawn as boxes:
    Send_Log: a 'report' row names LEVEL and ZONE_SET_ID together or neither

@@ -88,6 +88,21 @@ def fetch_batch(conn, batch_id):
     return {"emails": rows, "counts": counts}
 
 
+_RUNS_SQL = """
+SELECT r.run_id, r.kind, r.status, r.started_at, r.finished_at, r.batch_id, r.emails, r.detail, u.emp_fname
+FROM send_runs r
+LEFT JOIN users u ON u.emp_id = r.started_by
+ORDER BY r.started_at DESC, r.run_id DESC
+LIMIT %(limit)s
+"""
+
+
+def fetch_runs(conn, *, limit=10):
+    """The newest send and resume jobs (sql/065, item 196), so a job that failed before it queued
+    anything still shows on the history page."""
+    return conn.execute(_RUNS_SQL, {"limit": limit}).fetchall()
+
+
 def fetch_last_sync(conn):
     """The newest unsubscribe sync row (or None), the most common reason
     a send queues nothing"""

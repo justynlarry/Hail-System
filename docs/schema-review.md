@@ -11,7 +11,7 @@ Read `CLAUDE.md` and `docs/database-schema.md` first. Do not skim them; the
 non-obvious reasoning behind several tables is documented there and the DDL is
 supposed to match it.
 
-Review every migration in `sql/` (001 through 064) plus `scripts/load_reference.sh`
+Review every migration in `sql/` (001 through 065) plus `scripts/load_reference.sh`
 and `scripts/load_municipal.sh`.
 This is a **review, not a rewrite** — report findings and wait for my go-ahead
 before changing anything. Do not refactor working code, and do not add anything
@@ -64,7 +64,7 @@ index, `slm_fill_storm_date`, and a `send_log` guard that 060 replaces; 058 a co
 `dnc_list.source` gains `newsletter`, `dnc_import_batches.source` and `note`, and a data fix for the 2026-10-28
 upload that is a no-op on any other database; 062 `schema_migrations`, the record `scripts/migrate.sh` keeps (item 277); 063 `send_log_report_level_with_set` and
 the `pull_zips_with_pull` trigger (item 278); 064 the `dnc_list_link_realtor` and `realtors_link_dnc` triggers and a
-backfill of 12 links (item 130).
+backfill of 12 links (item 130); 065 `send_runs`, a record of each send and resume job (item 196).
 `sql/guard_test.sql` is **not a migration**:
 it tests the guards from 029 on (029, 030, 033 to 037, 041's description rule and 042; the
 guards in 039 and 040 are not covered, item 214) inside a transaction it rolls back, so build with `sql/[0-9]*.sql` and run it
@@ -105,8 +105,8 @@ done
 Since `062` (item 277) the same build is `PGDATABASE=hail_scratch SQL_DIR=sql bash scripts/migrate.sh --apply`, which
 also records each file; `tests/migrate_check.sh` checks that script in a throwaway container.
 
-Then confirm with `\dt` and `\d <table>` on each. Expect **63 tables in
-`public`** (a fresh build through `064`, 2026-11-02; the same through `062` on 2026-10-29): the project's 59, `us_gaz`, `us_lex` and `us_rules`, which
+Then confirm with `\dt` and `\d <table>` on each. Expect **64 tables in
+`public`** (a fresh build through `065`, 2026-11-02; 63 through `064` and through `062`): the project's 60, `us_gaz`, `us_lex` and `us_rules`, which
 `address_standardizer_data_us` creates (`sql/024`), and PostGIS's `spatial_ref_sys`.
 
 **Then compare the fresh build with the running database.** A migration applied by hand can be skipped, and nothing

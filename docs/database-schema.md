@@ -1032,6 +1032,28 @@ retried. An admin's tests in the last hour are counted from this table (the cap 
 in code); failed and unknown attempts count. No email content is kept, only the subject and its size.
 `accepted` is Constant Contact taking the test, not delivery (item 186).
 
+### `send_runs`
+
+One row per send or resume job (`sql/065`, item 196). A send or a resume runs in a background thread
+(`hailsys/web/sendjobs.py`); a job that stopped before it queued anything left no `sent_emails` row, so the history
+page showed nothing. This table is what `/send/batches` shows under "Recent send jobs" (the last 10).
+
+| Field | Purpose |
+|---|---|
+| `run_id` | Surrogate PK |
+| `kind` | `send` or `resume` |
+| `started_by`, `started_at` | FK → `users`; `started_at` set by the trigger |
+| `status` | `running`, then once: `complete`, `nothing_to_send`, `busy` (another send held the lock), `failed` or `abandoned` (found still running by a later job: the earlier one died with its process) |
+| `finished_at` | Set by the trigger when the status leaves `running`; NULL exactly while running |
+| `batch_id` | The batch made or resumed. A resume names it from the start; `complete` requires it; once set it never changes |
+| `emails` | Emails queued (send) or delivered (resume) |
+| `detail` | At most 300 characters: an exception's **class name only**, never its message, because a Constant Contact error can carry the provider's text (items 275, 047). The full error is in the web log |
+
+Guard trigger `trg_send_runs_guard`, as on `drip_step_runs`: a row is inserted `running`, updated once to say how the
+job ended, and never deleted. `hail_app` has `SELECT, INSERT, UPDATE`. A `busy` job writes its row already closed in
+one commit, so a running job never mistakes it for a dead one; the job holding the lock closes any other `running` row
+as `abandoned`. Drip steps keep their own record, `drip_step_runs`.
+
 ### Drip campaigns (item 204)
 
 `sql/046_drip_campaigns.sql` and `sql/047_drip_step_runs.sql`, applied to `hail-dev` only. The follow-up

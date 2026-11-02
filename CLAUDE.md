@@ -89,7 +89,8 @@ addresses.
   and a two-column layout with the preview beside the form.
 - **Sending and monitoring.** The admin-only `/send` screens (preview, confirm, start,
   batches, resume, discard, bounce check; `cc_status_runs`). A call counter,
-  `cc_api_calls`, makes the engine stop at Constant Contact's daily limit (item 191).
+  `cc_api_calls`, makes the engine stop at Constant Contact's daily limit (item 191). Each send and resume job is
+  recorded in `send_runs` (`sql/065`, item 196) and shown on `/send/batches`.
 - **Append-only in the database.** `send_log`, `email_templates`, `sent_emails` and the
   Constant Contact log tables and `email_test_sends`, by triggers (`sql/029`, `030`, `034` to `040`, `044`; applied to
   `hail-dev`, not checked on the production box; `sql/guard_test.sql` tests them). The

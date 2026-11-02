@@ -61,16 +61,74 @@ def calls_budget():
             "usable": max(budget.DAILY_LIMIT - budget.HEADROOM - used, 0)}
 
 
+# ------ send_runs (sql/065, item 196) ------
+# One row per send or resume job, so a job that fails before it queues anything still shows on the history page.
+# The thread writes its row on the connection that holds the lock.  detail is the exception's class name only: a
+# Constant Contact error can carry the provider's own text, and the full error is in the log.
+
+_OPEN_RUN = """
+INSERT INTO send_runs (kind, started_by, batch_id) VALUES (%(kind)s, %(user_id)s, %(batch_id)s)
+RETURNING run_id
+"""
+
+_CLOSE_RUN = """
+UPDATE send_runs SET status = %(status)s, batch_id = coalesce(batch_id, %(batch_id)s), emails = %(emails)s,
+    detail = %(detail)s
+WHERE run_id = %(run_id)s
+"""
+# Only a job holding the lock calls this, so any other 'running' row belongs to a job that died with its process.
+_ABANDON_STALE = """
+UPDATE send_runs SET status = 'abandoned', detail = 'found still running by a later job'
+WHERE status = 'running' AND run_id <> %(run_id)s
+"""
+
+
+def _open_run(conn, kind, user_id, batch_id=None):
+    return conn.execute(_OPEN_RUN, {"kind": kind, "user_id": user_id,
+                                    "batch_id": batch_id}).fetchone()["run_id"]
+
+
+def _close_run(conn, run_id, status, *, batch_id=None, emails=None, detail=None):
+    conn.execute(_CLOSE_RUN, {"run_id": run_id, "status": status, "batch_id": batch_id,
+                              "emails": emails, "detail": detail})
+
+
+def _abandon_stale(conn, run_id):
+    conn.execute(_ABANDON_STALE, {"run_id": run_id})
+
+
+def _record_busy(conn, kind, user_id, batch_id=None):
+    """A job that found the lock taken:  opened and closed in one commit, so a running job never sees it as stale."""
+    _close_run(conn, _open_run(conn, kind, user_id, batch_id), "busy", batch_id=batch_id)
+    conn.commit()
+
+
 def _run(user_id, run_kwargs):
     """Thread body, holds the lock for the whole run.  Logs counts only."""
     try:
         with get_connection() as conn:
             if not conn.execute(_TRY_LOCK, (LOCK_KEY,)).fetchone()["got"]:
+                conn.commit()
+                _record_busy(conn, "send", user_id)
                 logger.warning("event=send_not_started reason=busy")
                 return
             conn.commit()
             try:
-                summary = deliver.run_send(user_id=user_id, **run_kwargs)
+                run_id = _open_run(conn, "send", user_id)
+                _abandon_stale(conn, run_id)
+                conn.commit()
+                try:
+                    summary = deliver.run_send(user_id=user_id, **run_kwargs)
+                except Exception as exc:
+                    conn.rollback()
+                    _close_run(conn, run_id, "failed", detail=type(exc).__name__)
+                    conn.commit()
+                    raise
+                if summary["batch_id"]:
+                    _close_run(conn, run_id, "complete", batch_id=summary["batch_id"], emails=summary["emails"])
+                else:
+                    _close_run(conn, run_id, "nothing_to_send", emails=0)
+                conn.commit()
                 logger.info("event=send_job_complete batch_id=%s emails=%s delivery=%s",
                             summary["batch_id"], summary["emails"], summary.get("delivery"))
             finally:
@@ -88,16 +146,31 @@ def start_send(*, user_id, **run_kwargs):
     thread = threading.Thread(target=_run, args=(user_id, run_kwargs), daemon=True)
     thread.start()
 
+
 def _run_resume(user_id, batch_id, run_kwargs):
-    """Thread body for a resume, same lock as _run so a resume and send don't overlap."""
+    """Thread body for a resume, same lock as _run so a resume and send don't overlap.  emails on its send_runs
+    row is the number delivered."""
     try:
         with get_connection() as conn:
             if not conn.execute(_TRY_LOCK, (LOCK_KEY,)).fetchone()["got"]:
+                conn.commit()
+                _record_busy(conn, "resume", user_id, batch_id)
                 logger.warning("event=resume_not_started reason=busy")
                 return
             conn.commit()
             try:
-                counts = deliver.run_resume(user_id=user_id, batch_id=batch_id, **run_kwargs)
+                run_id = _open_run(conn, "resume", user_id, batch_id)
+                _abandon_stale(conn, run_id)
+                conn.commit()
+                try:
+                    counts = deliver.run_resume(user_id=user_id, batch_id=batch_id, **run_kwargs)
+                except Exception as exc:
+                    conn.rollback()
+                    _close_run(conn, run_id, "failed", detail=type(exc).__name__)
+                    conn.commit()
+                    raise
+                _close_run(conn, run_id, "complete", emails=counts["sent"])
+                conn.commit()
                 logger.info("event=resume_job_complete batch_id=%s delivery=%s", batch_id, counts)
             finally:
                 conn.rollback()

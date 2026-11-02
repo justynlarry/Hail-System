@@ -33,7 +33,7 @@ try:
 except ImportError as exc:
     MISSING = str(exc)
 
-WRITTEN_TABLES = ("sent_emails", "send_log", "email_templates", "api_pulls", "cc_sync_runs")
+WRITTEN_TABLES = ("sent_emails", "send_log", "email_templates", "api_pulls", "cc_sync_runs", "send_runs")
 SENDER = {"from_name": "RBI", "from_email": "from@example.com", "reply_to": "from@example.com"}
 FAKE = [{"realtor_id": 1, "email": "a@example.com", "agent_name": "A",
          "events": [{"listing_id": 1}]},
@@ -267,6 +267,32 @@ class SendScreenTest(unittest.TestCase):
         resp = self.client_as("admin").get("/send/batches")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(self.counts(), before)
+
+    def test_a_failed_send_job_shows_on_the_history_page(self):
+        # item 196:  a job that stopped before it queued anything has no batch, so this table is its only trace
+        run = {"run_id": 1, "kind": "send", "status": "failed", "started_at": datetime.now(timezone.utc),
+               "finished_at": datetime.now(timezone.utc), "batch_id": None, "emails": None,
+               "detail": "SyncFailed", "emp_fname": "Test"}
+        with mock.patch.object(screen.sendstatus, "fetch_runs", return_value=[run]):
+            page = self.client_as("admin").get("/send/batches").get_data(as_text=True)
+        self.assertIn("Recent send jobs", page)
+        self.assertIn("failed", page)
+        self.assertIn("SyncFailed (see the web log)", page)
+
+    def test_a_complete_job_links_its_batch(self):
+        batch = uuid.uuid4()
+        run = {"run_id": 2, "kind": "resume", "status": "complete", "started_at": datetime.now(timezone.utc),
+               "finished_at": datetime.now(timezone.utc), "batch_id": batch, "emails": 4,
+               "detail": None, "emp_fname": "Test"}
+        with mock.patch.object(screen.sendstatus, "fetch_runs", return_value=[run]):
+            page = self.client_as("admin").get("/send/batches").get_data(as_text=True)
+        self.assertIn(f"/send/batch/{batch}", page)
+        self.assertNotIn("see the web log", page)
+
+    def test_no_jobs_yet_says_so(self):
+        with mock.patch.object(screen.sendstatus, "fetch_runs", return_value=[]):
+            page = self.client_as("admin").get("/send/batches").get_data(as_text=True)
+        self.assertIn("No send jobs yet.", page)
 
     def test_an_unknown_or_malformed_batch_is_a_404(self):
         client = self.client_as("admin")

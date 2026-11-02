@@ -393,10 +393,11 @@ def levels():
 def batches():
     with get_connection() as conn:
         rows = sendstatus.fetch_batches(conn)
+        runs = sendstatus.fetch_runs(conn)
         sync = sendstatus.fetch_last_sync(conn)
         check = statuses.last_success(conn)
         conn.rollback()
-    return render_template("send_batches.html", batches=rows, sync=sync, check=check,
+    return render_template("send_batches.html", batches=rows, runs=runs, sync=sync, check=check,
                            busy=sendjobs.is_busy(), display_tz=DISPLAY_TZ)
 
 

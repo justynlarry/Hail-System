@@ -154,7 +154,7 @@ developer said no.
 
 ## 15. Does the frequency cap have a hard floor?
 
-**Status:** open
+**Status:** accepted 2026-11-02
 
 Decided in principle: a short window nobody can click past, plus a soft
 warning above it. The actual numbers are unset, and the hard floor needs
@@ -179,6 +179,9 @@ Admin page with its change history, and the send list drops a realtor emailed in
 is not built: the override is an application choice, and nothing in the database refuses a second
 email to a realtor inside the window. **Still open** for that reason. **When:** before the override
 is used on a real send, or if a duplicate email is ever reported.
+
+**Accepted 2026-11-02 (developer):** no hard floor beyond `email_cap_days` (14) and its visible override on the send
+screen. **When:** before someone other than the developer sends.
 
 ## 16. Merge field vocabulary — where is it stored?
 
@@ -3202,7 +3205,7 @@ cannot be undone with a normal `DELETE`.
 
 ## 196. A send that fails before it queues anything leaves no trace except a log line
 
-**Status:** open (found 2026-10-09, planning the send history page)
+**Status:** resolved 2026-11-02
 
 `sendjobs._run` runs `deliver.run_send` in a background thread and catches any exception, logging
 `event=send_job_failed`. If the failure comes before `queue_batch` commits (the unsubscribe sync
@@ -3220,6 +3223,13 @@ fails silently in practice, whichever is first.
 
 **2026-10-28 (sweep):** item 200 (a failed unsubscribe sync on a resume leaves only a log line) was merged into this
 item: the same gap for the resume job. A `send_runs` table should cover both jobs. Still no such table.
+
+**Resolved 2026-11-02.** `send_runs` (`sql/065`): one row per send or resume job, inserted `running` and closed once as
+`complete`, `nothing_to_send`, `busy`, `failed` (the exception's class name, never its message) or `abandoned`, under a
+guard trigger like `drip_step_runs`'. `sendjobs._run` and `_run_resume` write it on the connection that holds the lock;
+a `busy` job writes its row already closed. `/send/batches` shows the last 10 jobs above the batches. Item 200's case, a
+failed sync on a resume, is a `failed` resume row. Tests: 11 in `test_send_jobs.py` (the writers on a rolled-back
+connection; the job tests replace them, since `send_runs` rows cannot be deleted), 3 in `test_send_screen.py`.
 
 ## 197. A mutation check let a GET reach the real bounce check and write `cc_status_runs` on `hail-dev`
 
