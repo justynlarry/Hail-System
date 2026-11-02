@@ -1452,7 +1452,7 @@ Contact's.
 
 ## 130. `dnc_list.realtor_id` isn't maintained automatically
 
-**Status:** open
+**Status:** resolved 2026-11-02
 
 The DNC import's commit SQL never sets `realtor_id` — today's 108 linked
 rows came from a one-time manual backfill (`UPDATE 108`), run once against
@@ -1475,6 +1475,12 @@ every `realtors` insert.
 not, and a realtor added after the suppression still stays unlinked. 120 active `dnc_list` emails match a
 `realtors` row, 108 are linked: the gap is 12. No code reads `dnc_list.realtor_id`: the send path was built
 without needing it. **When:** when anything reads `dnc_list.realtor_id`.
+
+**Resolved 2026-11-02.** Linked on insert, in the database (`sql/064`): a BEFORE INSERT trigger on `dnc_list` fills
+`realtor_id` from the realtor with the same address when none is given, and an AFTER INSERT trigger on `realtors` links
+the suppressions with the new realtor's address. Updates are not covered: nothing changes `agent_email` after insert. The
+migration linked the 12 unlinked rows, 108 to 120, and none is left. `tests/test_dnc_realtor_link.py` (7, run as
+`hail_app`) pins it, including a check that every suppression of a known realtor is linked.
 
 ## 133. The DNC upload has no `MAX_CONTENT_LENGTH`
 

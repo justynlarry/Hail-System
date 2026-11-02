@@ -647,7 +647,7 @@ The suppression list. Answers one question: *may we send to this address?*
 | `added_at`, `added_by` | When, and the `emp_id` of who suppressed it — the system account's `emp_id` for machine-initiated rows (bounces, complaints, the legacy import) |
 | `source` | `reply` / `unsubscribe` / `hard_bounce` / `complaint` / `manual` / `legacy_import` / `newsletter` (`sql/061`). `unsubscribe` is the hail system's own Constant Contact account, written by the sync, and the by-level report credits it to our emails; `newsletter` is RBI's separate newsletter account, brought in by hand (item 129); `legacy_import` is the 2026-09-29 lists. **Bounces mean bad data; complaints mean bad targeting or copy.** Count them separately when watching deliverability |
 | `reason` | Free text |
-| `realtor_id` | FK, nullable. Convenience only, never a requirement |
+| `realtor_id` | FK, nullable. Convenience only, never a requirement: suppression is enforced on `email_norm`. Kept by the database (`sql/064`, item 130): a new suppression is linked to the realtor with its address, and a new realtor links the suppressions with its address. The insert trigger repeats `lower(trim(email_raw))`, because a generated column is not computed yet in a BEFORE trigger, so it must change with `email_norm` if that ever changes |
 | `name_at_add`, `phone_at_add` | For the best-effort second-address pass — **feeds human review, never automatic enforcement** |
 | `removed_at`, `removed_by` | **Nullable.** Populated only if a suppression is reversed |
 
