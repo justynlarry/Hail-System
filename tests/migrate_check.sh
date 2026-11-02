@@ -13,9 +13,10 @@
 #
 # What it pins: a fresh database is built from every file and each is recorded; the report then shows
 # nothing pending; a database with tables but nothing recorded is refused (hail-dev before its
-# baseline); a baseline records without running and only once; an edited file and a deleted one are
-# caught and nothing is applied; a new file is applied and recorded; a failing file stops the run and is
-# not recorded; two files with one number and an unknown option are refused.
+# baseline); a baseline records without running and only once; a recorded row cannot be changed or
+# deleted (item 282); an edited file and a deleted one are caught and nothing is applied; a new file
+# is applied and recorded; a failing file stops the run and is not recorded; two files with one
+# number and an unknown option are refused.
 
 set -uo pipefail
 
@@ -65,6 +66,10 @@ check "the baseline rows say so" 0 "^$total$" -- \
     rows mc_base "SELECT count(*) FROM schema_migrations WHERE how = 'baseline'"
 check "a second baseline is refused" 1 "already has rows" -- \
     env PGDATABASE=mc_base SQL_DIR=sql bash "$MIGRATE" --baseline "$last"
+check "a recorded row cannot be changed" 1 "insert-only" -- \
+    rows mc_base "UPDATE schema_migrations SET how = 'applied'"
+check "a recorded row cannot be deleted" 1 "insert-only" -- \
+    rows mc_base "DELETE FROM schema_migrations"
 
 cp sql/[0-9]*.sql "$WORK"/
 echo "-- edited" >> "$WORK/011_ingest.sql"

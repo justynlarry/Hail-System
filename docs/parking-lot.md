@@ -7408,3 +7408,52 @@ killed at a 1.2 GB limit; it loaded in 800-row batches, with identical values. N
 **When:** before any `pg_dump` data moves to `rbi-hail01`, and before a pull large enough to matter.
 
 **Related:** items 3, 233.
+
+## 281. `docs/db-schema-diagram.md` stopped at `sql/061`
+
+**Status:** resolved 2026-11-02
+
+Found finishing item 130, and in the schema review of 2026-11-02. The diagram's newest section, drawn 2026-10-29, covers
+`042` to `061`; `062` (`schema_migrations`), `063`'s two rules and `064`'s two triggers were not in it.
+
+**Resolved 2026-11-02.** A section "sql/062 to sql/064" added in the same style.
+
+**When:** the diagram gets a section with each schema review.
+
+**Related:** items 130, 277, 278.
+
+## 282. Nothing tested that `schema_migrations` refuses an update or a delete
+
+**Status:** resolved 2026-11-02
+
+Found in the schema review of 2026-11-02. `sql/062`'s trigger `schema_migrations_insert_only` refuses `UPDATE` and
+`DELETE`, but `tests/migrate_check.sh` used the table only through `migrate.sh`, and `guard_test.sql` stops before `054`.
+
+**Resolved 2026-11-02.** `tests/migrate_check.sh` has two more checks, "a recorded row cannot be changed" and "a recorded
+row cannot be deleted": 16 of 16 pass in a throwaway `16-3.6` container, and both fail when the trigger is dropped.
+
+**Related:** item 277.
+
+## 283. `iem_data_utc_datetime_idx` is a prefix of `uq_iem_natural_key`
+
+**Status:** accepted 2026-11-02
+
+Found in the schema review of 2026-11-02, by §5's rule (an index whose columns are a prefix of a unique constraint is
+redundant). `sql/004`'s `iem_data_utc_datetime_idx` is `(utc_datetime DESC)`; `uq_iem_natural_key` leads with
+`utc_datetime`. Both are used on `hail-dev`: about 5,600 scans of the first, 3,300 of the second. Dropping the first saves
+2.9 MB but sends date-range queries to the 10 MB unique index. Kept. `004` is frozen, so a removal would be a new
+migration. The 2026-10-29 review reported no redundant index and missed this one.
+
+**When:** if `iem_data`'s size or write speed becomes a concern.
+
+## 284. `CHAR(n)` on the FIPS columns
+
+**Status:** accepted 2026-11-02
+
+`county_boundaries.county_fips CHAR(5)` and `state_fips CHAR(2)` (`sql/012`) and `municipal_boundaries.place_fips CHAR(5)`
+(`sql/021`) break §3's no-`CHAR(n)` rule. Left open as a decision in `schema-review.md` §2 and never filed. FIPS codes are
+fixed-width digits, so blank-padding never applies; changing the type is a migration on reference tables for no change
+in behaviour. Accepted as they are.
+
+**When:** if a FIPS code is ever compared with a `TEXT` column and fails to match.
+

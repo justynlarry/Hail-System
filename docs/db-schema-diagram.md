@@ -402,3 +402,23 @@
  Joined spatially, no FK: the likelihood build reads Radar_Zones, IEM_DATA and
  CoCoRaHS_Hail_Reports; zone matching reads Likelihood_Zones and
  Properties.GEOM.
+
+
+
+ ADDED SINCE  (sql/062 to sql/064, drawn 2026-11-02)
+ ═══════════════════════════════════════════════════
+
+  Schema_Migrations (062)     free-standing: PK FILENAME, SHA256, HOW
+                              (applied|baseline), APPLIED_AT, APPLIED_BY.
+                              Insert-only, written by scripts/migrate.sh;
+                              no grants to hail_app or hail_ingest.
+
+ Rules on tables drawn above, not drawn as boxes:
+   Send_Log: a 'report' row names LEVEL and ZONE_SET_ID together or neither
+     (CHECK send_log_report_level_with_set, 063).
+   Pull_Zips: written only in the transaction that creates its pull
+     (trigger pull_zips_with_pull, 063).
+   DNC_List.REALTOR_ID ► Realtors is kept by the database (064): a new
+     suppression gets the realtor with its address (dnc_list_link_realtor),
+     and a new realtor links the suppressions with its address
+     (realtors_link_dnc).

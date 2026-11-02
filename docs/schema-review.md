@@ -106,7 +106,7 @@ Since `062` (item 277) the same build is `PGDATABASE=hail_scratch SQL_DIR=sql ba
 also records each file; `tests/migrate_check.sh` checks that script in a throwaway container.
 
 Then confirm with `\dt` and `\d <table>` on each. Expect **63 tables in
-`public`** (a fresh build through `062`, 2026-10-29): the project's 59, `us_gaz`, `us_lex` and `us_rules`, which
+`public`** (a fresh build through `064`, 2026-11-02; the same through `062` on 2026-10-29): the project's 59, `us_gaz`, `us_lex` and `us_rules`, which
 `address_standardizer_data_us` creates (`sql/024`), and PostGIS's `spatial_ref_sys`.
 
 **Then compare the fresh build with the running database.** A migration applied by hand can be skipped, and nothing
@@ -147,7 +147,7 @@ Without the second realtor and the `dnc_list` row it reports 4 `FAIL`s on `cc_sy
 `ERROR` at the drip seed: missing seed data, not broken guards.
 
 `psql -d hail_scratch -f sql/guard_test.sql` should then print a `PASS` notice for
-every check and no `FAIL`: 249 on 2026-10-29 (24 on 2026-10-05, 29 on 2026-10-13), run against a throwaway
+every check and no `FAIL`: 249 on 2026-10-29 and on 2026-11-02 (24 on 2026-10-05, 29 on 2026-10-13), run against a throwaway
 `postgis/postgis:16-3.4` container (it was 18 when it covered only `029` and
 `030`). The test ends in `ROLLBACK`. Drop the scratch database, or the
 container, when done.
@@ -184,6 +184,8 @@ do not fix without my go-ahead, and remember 001–009 are frozen:
   are fixed-width, so this may be a deliberate choice — flag it as a decision,
   not an error. `sql/021`'s `municipal_boundaries.place_fips CHAR(5)` is the
   same case (with a five-digit `CHECK`), and should get the same answer.
+  **Decided 2026-11-02: accepted as they are** (item 284). FIPS codes are fixed-width digits, so the padding never
+  applies, and changing the type is a migration on reference tables for no change in behaviour.
 
 **Open — observed 2026-09-24, not yet triaged:**
 
@@ -216,7 +218,19 @@ held only in application code) and 279 (two unindexed `template_id` columns, wat
 `guard_test.sql` covers the drip, radar parameter set and `email_test_sends` guards, but not the guards from `054`
 on: the likelihood set triggers, `pull_zips_append_only`, `trg_send_log_kind_pairing` and the `060` freezes
 (checked by grep 2026-10-29). Their Python tests run them (`tests/test_likelihood_schema.py`,
-`tests/test_log_guards.py`, `tests/test_zone_send_schema.py`).
+`tests/test_log_guards.py`, `tests/test_zone_send_schema.py`). Nor does it cover `062` to `064`:
+`tests/migrate_check.sh` checks `schema_migrations` (insert-only since item 282), `tests/test_log_guards.py` and
+`tests/test_zone_send_schema.py` the two `063` rules, and `tests/test_dnc_realtor_link.py` the `064` triggers.
+
+**Run 2026-11-02, `001` to `064`, in a throwaway `postgis/postgis:16-3.6` container (no network), after item 3:** all 64
+files built with no error or warning; 63 tables; `guard_test.sql` 249 of 249 once seeded; a fresh build and `hail-dev`
+identical. §3 to §9 checked from the catalog of the fresh build and by reading: no foreign key type mismatch, no bare
+`TIMESTAMP`, no not-yet column `NOT NULL`, every `email_norm` column `lower(trim(...))`, `034` to `064` wrapped, every §5
+index present, the append-only triggers and grants as §6 states, sixteen settings-history columns, both role search
+paths, no foreign key from `send_log` to `dnc_list`; the loader scripts unchanged since 2026-10-29. Findings: items 281
+(`db-schema-diagram.md` stopped at `061`, drawn), 282 (the `schema_migrations` guard had no test), 283
+(`iem_data_utc_datetime_idx` is a prefix of `uq_iem_natural_key`, kept; the 2026-10-29 run's "no redundant index"
+missed it) and 284 (the `CHAR(n)` FIPS columns, accepted); item 167 unchanged (six foreign keys).
 
 **Things to check in 024–033, from reading them 2026-10-05.** Settled 2026-10-29: `geocode_cache_geom_gix` follows
 the `_gix` naming every GiST index here uses, so it is consistent, not a finding; and a full build has exactly one
