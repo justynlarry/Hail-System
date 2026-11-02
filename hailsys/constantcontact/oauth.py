@@ -81,7 +81,7 @@ def _error_code(exc):
         code = body.get("error") or body.get("errorCode")
     except (ValueError, AttributeError, OSError):
         return "unknown"
-    if isinstance(code, str) and re.fullmatch(r"[a-z_]{1,40}", code):
+    if isinstance(code, str) and re.fullmatch(r"[A-Za-z0-9_]{1,40}", code):
         return code
     return "unknown"
 

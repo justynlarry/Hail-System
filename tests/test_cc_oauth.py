@@ -84,6 +84,12 @@ class LeakTest(unittest.TestCase):
         err = urllib.error.HTTPError("u", 401, "Bad", {}, io.BytesIO(body))
         self.assertEqual(oauth._error_code(err), "invalid_client")
 
+    def test_an_error_code_with_capitals_and_digits_is_read(self):
+        # Okta's own codes look like E0000011; they were logged as unknown before item 174.
+        body = b'{"errorCode":"E0000011","errorSummary":"x"}'
+        err = urllib.error.HTTPError("u", 401, "Bad", {}, io.BytesIO(body))
+        self.assertEqual(oauth._error_code(err), "E0000011")
+
     def test_requests_carry_our_user_agent(self):
         seen = []
 

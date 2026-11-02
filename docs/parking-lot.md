@@ -2653,7 +2653,7 @@ Cloudflare is worth a User-Agent check before the credentials.
 
 ## 174. `_error_code` accepts only lowercase letters and underscores
 
-**Status:** open
+**Status:** resolved 2026-11-02
 
 Found 2026-10-06. `hailsys/constantcontact/oauth.py` line 84 matches
 `r"[a-z_]{1,40}"`, so an error code with a capital or a digit (Okta's own
@@ -2664,6 +2664,10 @@ made; the current tests use lowercase codes and pass either way.
 
 **When:** the next edit to `oauth.py`, or the first time a real error shows up
 as `unknown`.
+
+**Resolved 2026-11-02.** The pattern is `[A-Za-z0-9_]{1,40}`: an Okta-style code such as `E0000011` is read, and spaces
+and punctuation still read as `unknown`. `tests/test_cc_oauth.py` has `test_an_error_code_with_capitals_and_digits_is_read`,
+which fails on the old pattern (checked).
 
 ## 175. The connection bar cannot see a revoked or lapsed grant
 
