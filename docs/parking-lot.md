@@ -6862,7 +6862,7 @@ same check applies to the wider box.
 
 ## 251. The findings panel's listing matrix takes about 8 seconds a day
 
-**Status:** open, not urgent (filed 2026-10-23, Phase 5b slice 6)
+**Status:** resolved 2026-11-02
 
 `findings.listing_matrix` (`hailsys/queries/findings.py`) places about 19,700 held houses by radar layer and by distance to
 the nearest actionable report. Measured on `hail-dev` under `hail_app`: 2024-05-30 in 7.3 s, 2023-06-21 in 8.2 s, a day
@@ -6879,6 +6879,14 @@ matrix per day and parameter set (it only changes with a pull or a rebuild); com
 grow by several times (more pulls, a second market).
 
 **Related:** items 238, 250; slice 6 in `docs/phases.md`.
+
+**Resolved 2026-11-02.** Measured first: the distance subquery took about 6 s of the 8 to 11, the layer subquery 2 to 5.
+`_MATRIX_SQL` now finds each house's layer and distance from the shapes' side, through the GiST indexes on `properties`:
+the layers are cut small with `ST_Subdivide` and joined to the houses inside them, and each report finds the houses
+within 5 miles through `properties_geog_gix`. The same tests and spheroid distances, so the same counts: identical on 30
+days (the 25 with the most HAIL reports and 5 with none). 126 s for the 30 before, 39 s after; 2024-05-30 8.0 s to
+2.3 s, 2023-06-21 11.3 s to 1.9 s. `tests/test_findings.py` passes unchanged. Not done: caching per day and set; revisit
+if held listings grow several times.
 
 ## 252. Slice 6 (findings panel): built; mutation check found one real bug, three survivors accepted
 

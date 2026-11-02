@@ -119,7 +119,7 @@ reaches an email, an export, a pull or the matcher.
 - **The findings panel (slice 6, built 2026-10-23, items 251 and 252).** Under the map, for the radar day picked:
   `/territory/findings`, `hailsys/queries/findings.py`, `_findings.html`. The day at a glance, reports against the layers, the report
   circles against core and margin, and a matrix of held houses by radar layer against distance to the nearest actionable hail
-  report, with the draft tier letters as a labelled annotation. Staff only, read only, counts and no addresses. About 8 s a day.
+  report, with the draft tier letters as a labelled annotation. Staff only, read only, counts and no addresses. About 2 s a day (item 251).
 - **Slice 7 (built 2026-10-26, items 243 and 256):** the admin page's Hail zones section sets the radar threshold, margin and report radius, the
   CoCoRaHS size floor, the three distance edges, the 20-level grid and `storm_states`, adds each change as a new set (`sql/056`,
   `hailsys/queries/likelihoodadmin.py`, `_hail_zones.html`), lists the sets with "use these values again", and has a "try it on a day" button
