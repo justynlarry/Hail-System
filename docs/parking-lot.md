@@ -6804,7 +6804,7 @@ a re-fetch after delete), `test_radar_ingest.py`, `test_radar_health.py`, `test_
 
 ## 248. The radar timing study's opening line counts days skipped by `--limit` as "already done"
 
-**Status:** open, cosmetic (analysis script only; the results are unaffected)
+**Status:** resolved 2026-11-02
 
 Found in the two-day trial on thor, 2026-10-22. With `--limit 2` and an empty `--out`, `radar_study.py` printed
 "495 days listed, 2 to do (493 already done)" when no day had been run. The count is `len(set(days)) - len(todo)` at
@@ -6816,9 +6816,14 @@ done)").
 
 **Related:** `docs/analysis/radar-timing-study-2026-10/README.md`.
 
+**Resolved 2026-11-02.** `main` counts "already done" before `--limit` cuts the list, and names the days left for a
+later run. Checked with the pool faked: three days listed, one done, `--limit 1` prints "1 to do (1 already done, 1 left
+for a later run)".
+
+
 ## 249. The radar timing study drops neighbouring hours at the local-day boundary, and its CSV does not give its units
 
-**Status:** open, minor (analysis script; the summary's results are not changed in substance)
+**Status:** resolved 2026-11-02
 
 Found reading the 495-day run on thor, 2026-10-22. `radar_study.py` loads only the 24 hourly files of a report's local day
 (`docs/analysis/radar-timing-study-2026-10/radar_study.py:105`); the report's own hour is chosen at `:189` and its neighbours at
@@ -6830,6 +6835,14 @@ hour-before value and 64 with no hour-after value (a few of these are NOAA's 12 
 **When:** with item 248, at the next edit to `radar_study.py`, or before it is reused for another study.
 
 **Related:** item 248; `docs/analysis/radar-timing-study-2026-10/README.md`.
+
+**Resolved 2026-11-02.** `process_day` also loads the two hours before the day and the hour after it, for the report
+lookups only. The day's `files`, `missing`, `suspect` and `cells_1in_hours` and its tracks still use its own 24 hours.
+The CSV header gives the units (`mag_in`, `<hour>_<k>km_mm`); the day files keep their keys. Checked with the file loader
+faked: a report at exactly local midnight and one in the last local hour get all three hours (the original script left
+them missing). The README says so. A run now downloads 27 files a day instead of 24. The 2026-10-22 results are not
+rerun: the item said their substance is unchanged.
+
 
 ## 250. Four more daily MESH files hold values above 10 in; check whether hail-dev loaded them
 
@@ -7110,7 +7123,6 @@ click that feels slow can be measured (`tests/test_compose_web_log.py`).
 happens again, read the new access-log time for that request first.
 
 **Related:** items 260, 261; decision log 2026-10-27 (step 2b).
-
 
 
 ## 263. Guard tests scan `__pycache__`, so a stray `.py` there fails an unrelated test

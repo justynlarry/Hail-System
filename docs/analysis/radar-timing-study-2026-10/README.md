@@ -60,6 +60,13 @@ Memory: about 0.3 GB per worker. Use `--cache DIR` to keep the downloads (about 
 hours), `days/*.json` (one record per day, including the storm tracks). Bring `summary.txt` and `reports_timing.csv` back
 to hail-dev and record the result in the decision log.
 
+`reports_timing.csv` names its units in the header (item 249): `mag_in` is the reported size in inches, and
+`prev_`/`own_`/`next_<k>km_mm` the largest radar value within k km, in mm, in the hour before, the report's own hour and
+the hour after. From 2026-11-02 a day also loads the two hours before it and the hour after it, so a report near local
+midnight has all three hours; before that, those values were missing (the 2026-10-22 run: 5 own hours, 26 hours before,
+64 hours after). The day's `files`, `missing` and `suspect` counts and its tracks still use its own 24 hours, so a run
+now downloads 27 files a day.
+
 ## Caveats
 
 - Hail reports only, from the IEM, which are the reports the zones use; reports cluster where people are.

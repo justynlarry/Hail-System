@@ -139,8 +139,11 @@ def process_day(job):
     tz = ZoneInfo(tz_name)
     day = date.fromisoformat(day_iso)
     stamps = day_stamps(day, tz)
+    # A report near local midnight needs the hour before the day's first file and the hour after its last (item
+    # 249):  they are loaded for the report lookups only.  The day's counts and its tracks use its own 24 hours.
+    edges = [stamps[0] - timedelta(hours=2), stamps[0] - timedelta(hours=1), stamps[-1] + timedelta(hours=1)]
     hours = {}
-    for stamp in stamps:
+    for stamp in edges[:2] + stamps + edges[2:]:
         hours[stamp] = load_hour(stamp, cache, keep)
         time.sleep(0.1)                                           # be polite to the open bucket
     # ---- every swath followed hour to hour as its own chain (so two storms in one evening are two tracks)
@@ -193,9 +196,10 @@ def process_day(job):
             for radius in RADII_KM:
                 row[f"{label}_{int(radius)}"] = None if status != "ok" else round(window_max(cells, lat, lon, radius), 1)
         rows.append(row)
-    record = {"day": day_iso, "files": len(stamps), "missing": sum(1 for s in hours.values() if s[0] == "missing"),
-              "suspect": sum(1 for s in hours.values() if s[0] == "suspect"),
-              "cells_1in_hours": sum(1 for s in hours.values() if any(c[2] >= IN for c in s[1])),
+    own_day = [hours[s] for s in stamps]
+    record = {"day": day_iso, "files": len(stamps), "missing": sum(1 for s in own_day if s[0] == "missing"),
+              "suspect": sum(1 for s in own_day if s[0] == "suspect"),
+              "cells_1in_hours": sum(1 for s in own_day if any(c[2] >= IN for c in s[1])),
               "tracks": tracks, "reports": rows}
     tmp = os.path.join(out_dir, "days", day_iso + ".json.part")
     with open(tmp, "w") as f:
@@ -300,11 +304,13 @@ def summarize(out_dir):
     with open(os.path.join(out_dir, "summary.txt"), "w") as f:
         f.write(text + "\n")
     with open(os.path.join(out_dir, "reports_timing.csv"), "w", newline="") as f:
-        cols = ["day", "t", "mag", "lon", "lat"] + [f"{h}_{int(k)}" for h in ("prev", "own", "next") for k in RADII_KM]
-        w = csv.DictWriter(f, fieldnames=cols)
-        w.writeheader()
+        # The header gives the units (item 249):  the report's size in inches, the radar values in mm within k km.
+        keys = ["day", "t", "mag", "lon", "lat"] + [f"{h}_{int(k)}" for h in ("prev", "own", "next") for k in RADII_KM]
+        names = ["day", "t", "mag_in", "lon", "lat"] + [f"{h}_{int(k)}km_mm" for h in ("prev", "own", "next") for k in RADII_KM]
+        w = csv.writer(f)
+        w.writerow(names)
         for r in [dict(row, day=rec["day"]) for rec in records for row in rec["reports"]]:
-            w.writerow({c: r.get(c) for c in cols})
+            w.writerow([r.get(k) for k in keys])
     return text
 
 
@@ -331,10 +337,12 @@ def main(argv=None):
     for d, t, mag, lon, lat in csv.reader(open(args.reports)):
         by_day[d].append((t, float(mag), float(lon), float(lat)))
     days = [l.strip() for l in open(args.days) if l.strip()]
-    todo = [d for d in sorted(set(days)) if not (out / "days" / f"{d}.json").exists()]
-    if args.limit:
-        todo = todo[:args.limit]
-    print(f"{len(days)} days listed, {len(todo)} to do ({len(set(days)) - len(todo)} already done); {args.workers} workers", flush=True)
+    remaining = [d for d in sorted(set(days)) if not (out / "days" / f"{d}.json").exists()]
+    # Counted before --limit cuts the list, so a day left for a later run is not reported as done (item 248).
+    already = len(set(days)) - len(remaining)
+    todo = remaining[:args.limit] if args.limit else remaining
+    later = f", {len(remaining) - len(todo)} left for a later run" if len(todo) < len(remaining) else ""
+    print(f"{len(days)} days listed, {len(todo)} to do ({already} already done{later}); {args.workers} workers", flush=True)
     cache = args.cache or tempfile.mkdtemp(prefix="radar_study_")
     os.makedirs(cache, exist_ok=True)
     jobs = [(d, by_day.get(d, []), cache, str(out), args.tz, args.keep or bool(args.cache)) for d in todo]
