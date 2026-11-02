@@ -7519,7 +7519,7 @@ counts match.
 
 ## 286. Actions tested only as refusals
 
-**Status:** open, part 1 done 2026-11-02 (the admin user actions); part 2 (`/pull`, `/match`, `/cc/*`) next
+**Status:** resolved 2026-11-02
 
 The six admin user actions, `/admin/boot-all`, `/admin/dnc/discard`, `/pull`, `/match`, `/cc/connect`, `/cc/refresh` and
 the `/account/password` change are reached only as refusals in `tests/test_web_smoke.py`. No test runs them as an allowed
@@ -7536,4 +7536,12 @@ their work, on one connection every `get_connection()` in `admin.py` and `views.
 reactivate, sign out one user and everyone, reset password, discard a staged DNC upload, and the own-password change;
 an admin's own row and the system account are refused; the last active admin cannot be demoted (`sql/019`, set to check
 at once). Checked that nothing is kept. Left: `/pull`, `/match`, `/cc/connect`, `/cc/refresh`.
+
+**Part 2, 2026-11-02.** `tests/test_pull_match_cc.py` (12): `/pull` starts with the zips and estimate it recomputed, the
+session's user and the storm's window, and starts nothing on a changed count, nothing to pull or bad input, and reports a
+pull already running; `/match` runs the matcher for the storm's window as the session's user; `/cc/connect` keeps a
+state and sends the admin to Constant Contact, the callback with it completes the connection once, and `/cc/refresh`
+forces a refresh and shows the fixed error text. RentCast, the matcher and the token calls are replaced (each has its own
+tests); nothing is written. With part 1, every action `test_web_smoke.py` reached only as a refusal is now also tested
+doing its work.
 
