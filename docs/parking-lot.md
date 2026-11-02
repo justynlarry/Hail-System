@@ -6694,7 +6694,7 @@ failed run's row is kept, as history.
 
 ## 245. The radar ingest tests commit, and their cleanup collides with a live radar job
 
-**Status:** open (filed 2026-10-22, Phase 5b slice 4)
+**Status:** resolved 2026-11-02
 
 The job commits after each day, so `tests/test_radar_ingest.py` commits too (on 1999 dates) and cleans up on a
 separate connection. The cleanup `DELETE FROM radar_runs WHERE run_id > <newest when the test started>` also matches
@@ -6709,6 +6709,12 @@ ids the tests create instead of deleting by id range.
 **Re-checked 2026-10-28 (sweep).** The second trigger passed without the fix: `b632183` (2026-10-22) edited
 `tests/test_radar_ingest.py` after this item was filed, and the cleanup still deletes by id range (`:165`). **When:**
 before any automated test run (scheduled or CI), or the next edit to the file.
+
+**Resolved 2026-11-02.** The tests record the run ids they start, by wrapping `load.start_run`, and the cleanup deletes
+only those; the 1999-date cleanup is unchanged. `test_a_warnings_failure_fails_the_run_and_is_raised` finds its run by
+that id too. The new test `test_the_cleanup_leaves_a_run_it_did_not_make` fails on the old cleanup (checked). Accepted
+gap: a test session that dies before its cleanup leaves its run rows behind; they are log rows only, and cannot be told
+from a real run that held no days.
 
 ## 246. A radar day keeps the crop box it was loaded with
 

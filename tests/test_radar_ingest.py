@@ -11,9 +11,8 @@ and update settings, see test_radar_zones.py:
 The job commits after each day, so these tests COMMIT.  They use 1999 dates that no real row uses and delete
 what they made, before and after, on a separate connection.
 
-DO NOT RUN THEM WHILE A RADAR JOB IS RUNNING (backfill, nightly).  The cleanup deletes every radar_runs row
-newer than the one that was newest when the test started, which includes the live job's own run row (the
-delete fails on the days that reference it, and the test errors).
+They delete only the runs they made, by id, so a radar job (backfill, nightly) running at the same time keeps its
+own run row (item 245).
 
 What they pin: a finished day is one that ended LAG ago; days run in the order given, one transaction each; a
 day that fails is rolled back whole and the run goes on; the run is recorded with its counts and the days that
@@ -147,8 +146,17 @@ class RunTest(unittest.TestCase):
         self.addCleanup(self.conn.close)
         if not self.conn.execute("SELECT has_table_privilege('warning_loads', 'DELETE') AS ok").fetchone()["ok"]:
             self.skipTest("needs a role that can write the warning tables (hail_admin)")
-        self.first_run = self.conn.execute("SELECT coalesce(max(run_id), 0) AS m FROM radar_runs").fetchone()["m"]
-        self.conn.rollback()
+        # The runs these tests start, by id, so the cleanup never touches a live job's run (item 245).
+        self.run_ids = []
+        real_start_run = load.start_run
+
+        def start_run(conn, mode):
+            run_id = real_start_run(conn, mode)
+            self.run_ids.append(run_id)
+            return run_id
+        patcher = mock.patch.object(load, "start_run", start_run)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.scrub()
         self.addCleanup(self.scrub)
         self.dir = tempfile.TemporaryDirectory()
@@ -162,7 +170,7 @@ class RunTest(unittest.TestCase):
                 c.execute(f"DELETE FROM {table} WHERE day < '2000-01-01'")
             c.execute("DELETE FROM warning_polygons WHERE vtec_year = 1999")
             c.execute("DELETE FROM warning_loads WHERE window_start < '2000-01-01'")
-            c.execute("DELETE FROM radar_runs WHERE run_id > %s", (self.first_run,))
+            c.execute("DELETE FROM radar_runs WHERE run_id = ANY(%s)", (self.run_ids,))
 
     # -- helpers --------------------------------------------------------------------------
 
@@ -454,7 +462,7 @@ class RunTest(unittest.TestCase):
         self.patches(download_fail=fetch.FetchError("iem down"))
         with self.assertRaises(fetch.FetchError):
             ingest.run(self.conn, "nightly", [D1], DENVER, self.dir.name, box=fx.BOX, now=NOW)
-        run = self.table("SELECT * FROM radar_runs WHERE run_id > %s ORDER BY run_id DESC LIMIT 1", self.first_run)[0]
+        run = self.table("SELECT * FROM radar_runs WHERE run_id = %s", self.run_ids[-1])[0]
         self.assertEqual((run["run_status"], run["error_detail"]), ("failed", "FetchError: iem down"))
         self.assertEqual(self.calls, [])
 
@@ -481,6 +489,23 @@ class RunTest(unittest.TestCase):
         out, run = self.run_job(days=(D1, D2))
         self.assertEqual((run["run_status"], run["days_built"], run["days_failed"]), ("complete", 2, 0))
         self.assertEqual(out["failed"], [])
+
+    # -- the cleanup ----------------------------------------------------------------------
+
+    def test_the_cleanup_leaves_a_run_it_did_not_make(self):
+        # A live job's run, started after the test began, must outlast the cleanup (item 245).
+        with self.psycopg.connect(autocommit=True, row_factory=self.dict_row) as c:
+            other = c.execute("INSERT INTO radar_runs (run_mode) VALUES ('manual') RETURNING run_id").fetchone()["run_id"]
+        self.addCleanup(self.drop_run, other)
+        self.patches()
+        self.run_days([D1])
+        self.scrub()
+        self.assertEqual(self.table("SELECT count(*) AS n FROM radar_runs WHERE run_id = %s", other)[0]["n"], 1)
+        self.assertEqual(self.table("SELECT count(*) AS n FROM radar_runs WHERE run_id = ANY(%s)", self.run_ids)[0]["n"], 0)
+
+    def drop_run(self, run_id):
+        with self.psycopg.connect(autocommit=True) as c:
+            c.execute("DELETE FROM radar_runs WHERE run_id = %s", (run_id,))
 
 
 if __name__ == "__main__":

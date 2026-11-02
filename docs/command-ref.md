@@ -76,8 +76,8 @@ calls RentCast, or touches pulls and matching; NOAA radar and IEM warnings are p
   its output is lost to that shell (it is still in `docker logs` until it exits).
 - `scripts/status.sh radar` (own exit status, 1 if no nightly radar run completed in 30 hours) and the
   radar line on the Storm Days page show the state.
-- Do not run `tests/test_radar_ingest.py` while a radar job runs: its cleanup deletes the newest
-  `radar_runs` rows (item 245). The radar database tests need `hail_admin`, see item 241.
+- `tests/test_radar_ingest.py` commits on 1999 dates and deletes only the runs it made, so it is safe
+  beside a running radar job (item 245). The radar database tests need `hail_admin`, see item 241.
 
 Cost us a false test result on 2026-09-24: the same workstate check
 returned a pre-migration answer through `app` and the correct one through
