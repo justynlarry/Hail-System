@@ -7258,7 +7258,7 @@ drafted, whichever comes first.
 
 ## 275. The RentCast zip search writes RentCast's error bodies to the log
 
-**Status:** open (found 2026-10-28, parking-lot sweep, writing the tests for item 228)
+**Status:** resolved 2026-11-02
 
 `hailsys/rentcast/client.py`'s `_get` (the zip search) logs the response body with `body=%r` on its auth, validation,
 retries-exhausted and unexpected-status lines. The by-id lookup (`get_sale_listing`) keeps bodies out of logs on
@@ -7269,6 +7269,12 @@ what a future body might carry, and the two paths of one client disagree about i
 check to `tests/test_rentcast_zip.py`.
 
 **Related:** items 228, 102.
+
+**Resolved 2026-11-02.** The zip search no longer reads the error body at all, as the by-id lookup already did; the
+status stays in every line, and the 400 line keeps `params` (zip and filters, not the key). The body was also in the
+exception messages, which `pull.py` logs as `event=zip_failed`, so those changed too. No database column held it
+(`api_pulls` has no error text). `tests/test_rentcast_zip.py` now has the leak check from `test_rentcast_by_id.py`, and
+it first caught a format string left with `body=%r` and no argument, which would have dropped the log line.
 
 ## 276. `radar_day.py --refetch` fails since `sql/054`, and would leave the likelihood map stale
 

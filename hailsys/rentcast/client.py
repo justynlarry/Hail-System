@@ -129,10 +129,8 @@ def _get(params: dict) -> tuple[list, int]:
 
         except urllib.error.HTTPError as exc:
             status = exc.code
-            try:
-                body = json.loads(exc.read())
-            except (json.JSONDecodeError, ValueError):
-                body = {}
+            # Error body stays out of log lines and exception messages, as in get_sale_listing.
+            # It is RentCast's text, nothing here uses it, pull.py logs the message.
 
             if status == 404:
                 return [], attempt
@@ -141,21 +139,21 @@ def _get(params: dict) -> tuple[list, int]:
                 # A retry can't fix a bad key or a billing/restriction
                 # issue, so this raises immediately -- 'attempt' is 1 here,
                 # the one request that was ever going to be made.
-                logger.error("event=rentcast_auth_error status=%s body=%r", status, body)
-                raise RentCastAuthError(f"status={status} body={body}", 
+                logger.error("event=rentcast_auth_error status=%s", status)
+                raise RentCastAuthError(f"status={status}", 
                                         attempts=attempt, status=status) from exc
 
             if status in (400, 405):
                 # Same reasoning as 401/403: a malformed request or wrong
                 # method won't succeed on retry, so this is immediate too.
-                logger.error("event=rentcast_validation_error status=%s body=%r params=%r",
-                              status, body, params)
-                raise RentCastValidationError(f"status={status} body={body}",
+                logger.error("event=rentcast_validation_error status=%s params=%r",
+                              status, params)
+                raise RentCastValidationError(f"status={status}",
                                                 attempts=attempt, status=status) from exc
 
             if status in RETRYABLE_STATUSES:
                 if attempt >= MAX_RETRIES + 1:
-                    logger.error("event=rentcast_retries_exhausted status=%s body=%r", status, body)
+                    logger.error("event=rentcast_retries_exhausted status=%s", status)
                     raise RentCastServerError(
                         f"status={status} after {attempt} attempts",
                         attempts=attempt, status=status
@@ -166,8 +164,8 @@ def _get(params: dict) -> tuple[list, int]:
                 time.sleep(backoff)
                 continue
 
-            logger.error("event=rentcast_unexpected_status status=%s body=%r", status, body)
-            raise RentCastError(f"unexpected status={status} body={body}",
+            logger.error("event=rentcast_unexpected_status status=%s", status)
+            raise RentCastError(f"unexpected status={status}",
                                 attempts=attempt, status=status) from exc
 
         except urllib.error.URLError as exc:

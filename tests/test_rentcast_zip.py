@@ -10,10 +10,12 @@ error;  429/500/503/504 and an unreachable host are retried with doubling back-o
 401/403 and 400/405 raise at once;  an unexpected status raises;  an answer that is not a list, or cannot be read,
 raises and is not retried;  every error carries the calls already made, earlier pages included, because
 api_call_log records them and they were billed;  and a missing key makes no request.
+No response body or key reaches a log line or an exception message (item 275).
 """
 
 import io
 import json
+import logging
 import os
 import sys
 import unittest
@@ -33,6 +35,7 @@ except ImportError as exc:
 
 ZIP = "80014"
 KEY = "KEY-VALUE"
+SECRET_BODY = "SECRET-BODY-TEXT"
 PAGE = 500
 
 
@@ -48,8 +51,19 @@ def page(n, start=0):
     return [{"id": f"L{start + i}"} for i in range(n)]
 
 
+class Collector(logging.Handler):
+    """Keeps the text of every log line, so a test can look for what must never be in one."""
+    def __init__(self):
+        super().__init__()
+        self.lines = []
+
+    def emit(self, record):
+        self.lines.append(record.getMessage())
+
+
 def http_error(code):
-    return urllib.error.HTTPError("u", code, "x", {}, io.BytesIO(b'{"message": "no"}'))
+    body = json.dumps({"message": SECRET_BODY}).encode()
+    return urllib.error.HTTPError("u", code, "x", {}, io.BytesIO(body))
 
 
 @unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
@@ -177,6 +191,22 @@ class ZipSearchTest(unittest.TestCase):
         self.answers(ok(page(PAGE)), http_error(429), http_error(401))
         exc = self.fails(client.RentCastAuthError)
         self.assertEqual(exc.attempts, 3)          # page 1, then a retried page 2 that ended in 401
+
+    # ---- what reaches a log line ----
+
+    def test_no_response_body_or_key_reaches_a_log_line_or_a_message(self):
+        handler = Collector()
+        client.logger.addHandler(handler)
+        self.addCleanup(client.logger.removeHandler, handler)
+        for code in (400, 401, 403, 418, 503):
+            with self.subTest(code=code):
+                self.urlopen.reset_mock()
+                self.answers(*[http_error(code) for _ in range(client.MAX_RETRIES + 1)])
+                error = self.fails(client.RentCastError)
+                text = " ".join(handler.lines) + f" {error} {error.user_message}"
+                self.assertNotIn(SECRET_BODY, text)
+                self.assertNotIn(KEY, text)
+        self.assertTrue(handler.lines)              # the check above did look at something
 
 
 if __name__ == "__main__":
