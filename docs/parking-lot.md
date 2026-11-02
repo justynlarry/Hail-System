@@ -1728,7 +1728,7 @@ error.
 
 ## 33. `REPORT_POINTS_SQL`'s `LIMIT` keeps the lowest `iem_id`, not the most recent reports
 
-**Status:** open (trigger met 2026-10-28)
+**Status:** resolved 2026-11-02
 
 Because `DISTINCT ON` pins the `ORDER BY`.
 
@@ -1745,6 +1745,13 @@ The fix is product code (for the developer to key in): order by time in an outer
 2,000 kept are the most recent, and show "showing 2,000 of N" on the map.
 
 **When:** before the Territory page is used with "all types" over 90+ days, at the latest before Phase 6.
+
+**Resolved 2026-11-02.** The `DISTINCT ON` now sits in an inner query; the outer query keeps the newest by `utc_datetime`
+and counts the full total before the `LIMIT` (`count(*) OVER ()`). `/map/points.geojson` carries `total` and `limit`, and
+`map.js` says "Showing the newest N of M reports" above the map when capped. The cap stays at 2,000. Measured before the
+fix: "all types, 365 days" showed 2,000 of 5,005 reports, none after 2026-01-26; after, 10-27-2026 back to 03-15-2026.
+Only all types with Actionable Only off reaches the cap (actionable, one year: 838). Tests: `tests/test_report_points.py`
+(6). Browser check of the note: done 2026-11-02.
 
 ## 35. Reverse direction of the radar analysis — signatures with no report
 

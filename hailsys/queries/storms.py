@@ -292,27 +292,37 @@ def fetch_city_days(conn, *, radius_m, window_start, window_end, report_text,
         })
         return cur.fetchall()
 
+
+# DISTINCT ON collapses the one row per nearby zip that the join makes, but it pins the ORDER BY to
+# iem_id, so a LIMIT beside it keeps the lowest ids, the oldest reports (item 33).  The newest-first
+# order and the LIMIT go on the outer query instead, by UTC time, since local time repeats an hour
+# when DST ends.  total is counted before the LIMIT, so the map can explain what it is not showing.
 REPORT_POINTS_SQL = f"""
-SELECT DISTINCT ON (i.iem_id)
-    i.iem_id,
-    i.latitude,
-    i.longitude,
-    {LOCAL_TIME_EXPR} AS local_time,
-    i.report_text,
-    i.magnitude,
-    t.mag_unit,
-    i.report_source,
-    i.report_source_norm
-{_FROM_WHERE}
-{_ACTIONABLE}
-ORDER BY i.iem_id, i.utc_datetime DESC
+SELECT p.*, count(*) OVER () AS total
+FROM (
+    SELECT DISTINCT ON (i.iem_id)
+        i.iem_id,
+        i.utc_datetime,
+        i.latitude,
+        i.longitude,
+        {LOCAL_TIME_EXPR} AS local_time,
+        i.report_text,
+        i.magnitude,
+        t.mag_unit,
+        i.report_source,
+        i.report_source_norm
+    {_FROM_WHERE}
+    {_ACTIONABLE}
+    ORDER BY i.iem_id
+) p
+ORDER BY p.utc_datetime DESC, p.iem_id DESC
 LIMIT %(limit)s
 """
 
 REPORT_POINTS_COLUMNS = [
-    "iem_id", "latitude", "longitude", "local_time",
+    "iem_id", "utc_datetime", "latitude", "longitude", "local_time",
     "report_text", "magnitude", "mag_unit", "report_source",
-    "report_source_norm",
+    "report_source_norm", "total",
 ]
 
 def fetch_report_points(conn, *, radius_m, window_start, window_end,

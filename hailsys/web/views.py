@@ -533,8 +533,12 @@ def map_points():
             limit=POINTS_SQL_LIMIT,
         )
 
+    total = rows[0]["total"] if rows else 0
     return {
         "type": "FeatureCollection",
+        # Not GeoJSON members:  map.js reads them to say when the map is not showing every report (item 33).
+        "total": total,
+        "limit": POINTS_SQL_LIMIT,
         "features": [
             {
                 "type": "Feature",

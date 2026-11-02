@@ -545,7 +545,7 @@ since 2026-09-11.
   the map lives only in `city` mode), `/territory/days` (a city's day-by-day
   fragment, same lazy-fetch pattern), `/export.csv` (zip-level CSV,
   streamed from `fetch_zips`), `/map/points.geojson` (a `FeatureCollection`
-  of report points, capped at 2,000 rows), plus `/login` and `/logout`.
+  of report points, capped at 2,000 rows, newest first; the map says when it is capped, item 33), plus `/login` and `/logout`.
   Every route but `/login` is `@login_required`. **Superseded 2026-09-22:**
   `/pull/estimate`, `/pull` and `/match` carry `@role_required("sender",
   "admin")` instead, which also redirects a signed-out visitor, and the

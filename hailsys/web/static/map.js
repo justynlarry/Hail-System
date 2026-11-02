@@ -127,6 +127,13 @@ document.addEventListener('DOMContentLoaded', function () {
         }).bindTooltip(p.local_time + '<br>' + p.report_text + ' ' + p.magnitude_display +
                        '<br>' + p.report_source));
       });
+
+      // The server keeps the newest reports when a view has more than it sends (item 33).
+      const pointsStatus = document.getElementById('points-status');
+      if (pointsStatus && data.total > data.features.length) {
+        pointsStatus.textContent = 'Showing the newest ' + data.features.length.toLocaleString('en-US') +
+          ' of ' + data.total.toLocaleString('en-US') + ' reports. Narrow the dates or pick a type to see them all.';
+      }
     })
     .catch(function (err) { console.error('points load failed', err); });
 

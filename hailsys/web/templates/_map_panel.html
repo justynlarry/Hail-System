@@ -19,6 +19,7 @@
 <p class="note">No radar or NWS warnings in this window.</p>
 {% endif %}
 
+<p id="points-status" class="note"></p>
 <div id="map" data-match-radius-m="{{ match_radius_m }}" data-radar-url="{{ url_for('main.map_radar') }}"
      data-findings-url="{{ url_for('main.territory_findings') }}"
      data-likelihood-url="{{ url_for('main.map_likelihood') }}"></div>
