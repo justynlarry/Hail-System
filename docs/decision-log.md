@@ -8019,3 +8019,21 @@ started on upgraded data.
 data was lost. The cause of the memory use is item 280. Throwaway restores on `hail-dev` are memory-capped from here on.
 
 **Not yet seen:** a nightly run on the new image. The backup stays until one has passed.
+
+---
+
+## 2026-11-02 — The tunnel config is per machine, not in git (item 287)
+
+**Decision:** `cloudflared/config.yml` is no longer tracked. Each machine keeps its own, copied from the tracked
+`cloudflared/config.example.yml`, beside its own credential `<tunnel-id>.json` (already gitignored). Amends "Tunnel
+topology" (item 110): the routing's shape stays in git, as the example; each machine's tunnel ID and hostname do not.
+
+**Why:** the tracked file was `hail-dev`'s tunnel and hostname, and production has its own (item 110). A production
+clone would have brought `hail-dev`'s config: `cloudflared` would fail to find its credential, or need a local edit that
+every `git pull` fights.
+
+**How:** `git rm --cached` kept `hail-dev`'s file on disk; `docker-compose.yml` is unchanged (it mounts the folder and
+reads `config.yml`). The `hail-dev` tunnel was restarted and registered four connections. Another clone that pulls this
+change loses its `config.yml`; this VM has the only checkout. `docs/deploy.md` step 8 has the production steps; the
+service runs as UID 1000, so production's `hail-user` must be UID 1000 (step 2).
+

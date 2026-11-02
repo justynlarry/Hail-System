@@ -1,0 +1,16 @@
+# This machine's Cloudflare tunnel.  Copy this file to cloudflared/config.yml, which git ignores,
+# and fill in:
+#   <tunnel-id>    from 'cloudflared tunnel create <name>', which also writes the credential <tunnel-id>.json
+#   <hostname>     this machine's public name:  dev.roofbrokersinc-weather.com on hail-dev,
+#                  <name.com> on production.
+# The credential goes beside it, mode 600, owned by hail-user (UID 1000: the service runs as 1000:1000).
+# Each machine has its own tunnel:  two connectors on one tunnel are load-balanced replicas.
+
+tunnel: <tunnel-id>
+credentials-file: /etc/cloudflared/<tunnel-id>.json
+
+ingress:
+  - hostname: <hostname>
+    service: http://web:8000
+  - service: http_status:404
+

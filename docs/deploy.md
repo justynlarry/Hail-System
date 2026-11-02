@@ -70,8 +70,9 @@ Detail: `docs/server-setup.md`, from "Hostname" to "SELinux Configuration".
 - [ ] Timezone UTC; journald persistent with `SystemMaxUse=500M`.
 - [ ] firewalld left on with nothing opened.
 - [ ] Podman removed, Docker CE installed from Docker's repository, `hello-world` runs.
-- [ ] **The account is `hail-user`, and the repo will be `~/hail-system`.** The systemd units name both
-      (`systemd/*.service`); another user or path means editing every unit.
+- [ ] **The account is `hail-user`, UID 1000, and the repo will be `~/hail-system`.** The systemd units name the
+      user and the path (`systemd/*.service`), and the `cloudflared` service runs as `1000:1000` to read its credential.
+      The first account made in the Rocky installer gets UID 1000; check with `id hail-user`.
 - [ ] Tailscale installed and joined (`sudo tailscale up`).
 
 ## 3. Code and files
@@ -135,9 +136,13 @@ Detail: `docs/server-setup.md`, "Data on a new server" (decided 2026-11-02). In 
 ## 8. Access
 
 - [ ] **For the developer:** `tailscale serve --bg 8000`; the app answers at `https://<hostname>.<tailnet>.ts.net`.
-- [ ] **For staff:** this server's own Cloudflare tunnel and credential, routed to `http://web:8000`, with an Access
-      policy (allowed emails, one-time PIN). The tunnel config is per machine (item 287): this server's goes in the
-      machine's own file, not in the tracked `hail-dev` one. Then `docker compose up -d cloudflared`.
+- [ ] **For staff:** this server's own Cloudflare tunnel, never `hail-dev`'s (two connectors on one tunnel are
+      load-balanced replicas). On a machine logged in to the Cloudflare account, `cloudflared tunnel create <name>`
+      writes the credential `<tunnel-id>.json`; route the production hostname to that tunnel. Here:
+      `cp cloudflared/config.example.yml cloudflared/config.yml`, fill in the tunnel ID and hostname, put the
+      credential beside it (mode 600, owned by `hail-user`). Both files stay out of git (item 287). Add the hostname to
+      a Cloudflare Access policy (allowed emails, one-time PIN), then `docker compose up -d cloudflared` and look for
+      `Registered tunnel connection` in its log.
 - [ ] `web` stays bound to `127.0.0.1:8000`; nothing is published on the LAN.
 
 ## 9. Constant Contact

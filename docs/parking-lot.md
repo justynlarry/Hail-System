@@ -7559,7 +7559,7 @@ doing its work.
 
 ## 287. The Cloudflare tunnel config is tracked, and it is `hail-dev`'s
 
-**Status:** open (filed 2026-11-02, planning the production deploy)
+**Status:** resolved 2026-11-02
 
 `cloudflared/config.yml` is in git (decision log, "Tunnel topology", item 110: routing stays in git) and names
 `hail-dev`'s tunnel ID, its credential file and `dev.roofbrokersinc-weather.com`. The same decision gives production its
@@ -7571,4 +7571,8 @@ service reading the machine's file.
 **When:** before the production tunnel is set up (`docs/deploy.md`, step 8).
 
 **Related:** item 110; `docs/deploy.md`.
+
+**Resolved 2026-11-02.** `cloudflared/config.yml` untracked and gitignored; `cloudflared/config.example.yml` tracked,
+with placeholders for the tunnel ID and hostname. `hail-dev`'s file stayed on disk and its tunnel reconnected (four
+connections). Decision log 2026-11-02; `docs/deploy.md` steps 2 (UID 1000) and 8.
 

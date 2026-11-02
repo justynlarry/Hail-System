@@ -1925,7 +1925,7 @@ earlier Cloudflare-tunnel reasoning, which no longer applies in Phase 2 (§6).
 - **Tailscale** for host-to-host file movement, and (Phase 2) for reaching the
   web UI itself, including Funnel for the one-off demo above
 - **Cloudflare Tunnel** (2026-09-30): a `cloudflared` service in
-  `docker-compose.yml` (`cloudflared/config.yml`) publishes `web:8000` at
+  `docker-compose.yml` (`cloudflared/config.yml`, per machine and not in git since item 287) publishes `web:8000` at
   `dev.roofbrokersinc-weather.com`, with Cloudflare Access in front. The domain
   is separate from RBI's own zone. Production is not set up this way, and this is
   `hail-dev`.

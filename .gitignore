@@ -47,5 +47,7 @@ output/
 spatial_ref_sys
 .vscode/
 cloudflared/*.json
+# This machine's tunnel config:  each machine has its own tunnel.  Copy config.example.yml
+cloudflared/config.yml
 claude-resume.txt
 scratchpad/
