@@ -1929,7 +1929,7 @@ earlier Cloudflare-tunnel reasoning, which no longer applies in Phase 2 (§6).
   `dev.roofbrokersinc-weather.com`, with Cloudflare Access in front. The domain
   is separate from RBI's own zone. Production is not set up this way, and this is
   `hail-dev`.
-- Deployed with **Ansible** where practical
+- Deployed **by hand**, following `docs/deploy.md`. No Ansible is used (item 288)
 - Monitoring through an existing instance called **Irin**
 
 ### Logging and operational visibility

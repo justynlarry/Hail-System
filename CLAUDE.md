@@ -154,7 +154,7 @@ Do not build ahead of the current phase.
 - Python backend
 - Web UI, reached over Tailscale for Phase 2 (Cloudflare tunnel revisited at
   Phase 6 — see `docs/decision-log.md`, 2026-09-14)
-- Deployed with Ansible where practical
+- Deployed by hand, following `docs/deploy.md` (no Ansible; item 288)
 
 ## Non-negotiable rules
 

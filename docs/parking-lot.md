@@ -7576,3 +7576,14 @@ service reading the machine's file.
 with placeholders for the tunnel ID and hostname. `hail-dev`'s file stayed on disk and its tunnel reconnected (four
 connections). Decision log 2026-11-02; `docs/deploy.md` steps 2 (UID 1000) and 8.
 
+## 288. The docs said "Deployed with Ansible where practical", and nothing uses Ansible
+
+**Status:** resolved 2026-11-02
+
+Found 2026-11-02, planning the production deploy. `CLAUDE.md` (Stack) and `docs/hail-consolidated.md` both said the system
+is deployed with Ansible where practical. The repo has no playbook, inventory or role; both machines are built by hand.
+
+**Resolved 2026-11-02 (developer decision).** Both now say deployed by hand, following `docs/deploy.md`. Ansible would be a
+new tool for a build that happens once or twice; revisit if a third server or a second customer (item 238) makes the
+hand checklist the slow part.
+
