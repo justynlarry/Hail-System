@@ -501,7 +501,7 @@ the production box. Related: item 102.
 
 ## 53. Zero test coverage under `hailsys/web/`
 
-**Status:** open; narrowed 2026-10-13 (the send and Constant Contact screens are tested; see the last paragraph)
+**Status:** resolved 2026-11-02
 
 Of the 100 test cases in `tests/`, 88 cover `hailsys/iem/` and the ingest
 scripts, and 12 (`tests/test_formatting.py`, 2026-09-22) cover
@@ -544,6 +544,12 @@ refused or redirected). The 28 never reached: `/login`, `/logout`, `/account/pas
 `/admin`, `/territory`, `/pull/estimate` and the map routes, unreached on 2026-10-13, are now reached. A
 smoke test (sign in as each role, GET each unreached GET route, check for no 500 and the right refusals)
 would cover about half the list; it was proposed and not written. The **When** above stands.
+
+**Resolved 2026-11-02.** Re-measured: the suite still reached 53 of 81 routes, the same 28 missing as on 2026-10-28.
+`tests/test_web_smoke.py` (7 tests) reaches the 28: each page signed out, then as viewer, sender and admin, with the
+right status and content type; each action refused for a missing CSRF token, signed out and for every role that may not
+use it; login with a wrong password and logout run whole. Nothing is written (row counts are checked) and nothing outside
+is called. Measured again afterwards: 81 of 81 routes reached, 2,668 tests passed. What is left is item 286.
 
 ## 55. Duplicate properties from RentCast address variants — one lot, two emails
 
@@ -7495,4 +7501,17 @@ tried: 769 rows exported from `hail-dev` and loaded into a throwaway database bu
 source and removal, and a re-run inserted nothing; a load that would weaken a suppression, and a file that is not an
 export, are refused. **When:** the real copy, at step 5 of `server-setup.md`, Data on a new server; resolved once its
 counts match.
+
+## 286. Actions tested only as refusals
+
+**Status:** open (filed 2026-11-02, closing item 53)
+
+The six admin user actions, `/admin/boot-all`, `/admin/dnc/discard`, `/pull`, `/match`, `/cc/connect`, `/cc/refresh` and
+the `/account/password` change are reached only as refusals in `tests/test_web_smoke.py`. No test runs them as an allowed
+user doing the work. `/pull` would spend RentCast calls and `/cc/*` would reach Constant Contact, so a test needs those
+calls replaced, as `test_send_screen.py` does for a send.
+
+**When:** before any of these routes is changed, test that route doing its work first.
+
+**Related:** item 53.
 
