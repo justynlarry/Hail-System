@@ -7467,7 +7467,7 @@ in behaviour. Accepted as they are.
 
 ## 285. The `dnc_list` copy to production is not written
 
-**Status:** open (filed 2026-11-02, planning the production data)
+**Status:** open, script written 2026-11-02; run it when `rbi-hail01` is built
 
 Production starts from code and public sources, but `dnc_list` must come across: 769 rows on `hail-dev` (768 active,
 1 removed), and a production send without them would reach people who asked not to be contacted. `added_by` and
@@ -7479,4 +7479,10 @@ N"; the counts are checked afterwards. The `sql/064` triggers link realtors as t
 **When:** before the first send from `rbi-hail01`.
 
 **Related:** items 130, 280; `server-setup.md`, Data on a new server.
+
+**Update 2026-11-02.** `scripts/dnc_copy.sh` (`export FILE` on the source, `load FILE` on the target) is written and
+tried: 769 rows exported from `hail-dev` and loaded into a throwaway database built through 064, with the same counts by
+source and removal, and a re-run inserted nothing; a load that would weaken a suppression, and a file that is not an
+export, are refused. **When:** the real copy, at step 5 of `server-setup.md`, Data on a new server; resolved once its
+counts match.
 

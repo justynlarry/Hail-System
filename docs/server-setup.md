@@ -185,7 +185,17 @@ list. In order:
    match radius 5.0, RentCast billing day 9, quota 1,000, listing freshness 7 days, match age 30 days, email cap 14
    days. Also the email images, sender and contact settings, and `storm_states`.
 5. **Suppressions: copy `dnc_list` from `hail-dev`,** 768 active and 1 removed (item 285). Do this before any send.
-   Afterwards the counts must match `hail-dev`'s.
+   The file holds real addresses, so keep it under `data/`, and delete it on both machines once the load has
+   reported:
+   ```
+   bash scripts/dnc_copy.sh export data/dnc_list.csv        # on hail-dev
+   scp data/dnc_list.csv rbi-hail01:hail-system/data/       # over Tailscale
+   bash scripts/dnc_copy.sh load data/dnc_list.csv          # on rbi-hail01
+   rm data/dnc_list.csv                                     # on both machines
+   ```
+   The load is one transaction. It refuses, with nothing committed, if an address is missing afterwards, or if an
+   address active in the file is removed on the target. Its last table must show the same active and removed counts
+   as `hail-dev`.
 6. **Public data, rebuilt from source.** Build the `ingest` image first (`docker compose build ingest`):
    ```
    docker compose run --rm ingest python3 scripts/iem_backfill.py --start 2004-01-01 --end <today>
