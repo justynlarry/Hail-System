@@ -46,7 +46,8 @@ UI is reached over Tailscale.
 | The data model, field by field | `docs/database-schema.md` |
 | External APIs and their traps | `docs/data-sources.md` |
 | What's open, deferred or parked | `docs/parking-lot.md` |
-| Building the server | `docs/server-setup.md` |
+| Deploying to a new server, step by step | `docs/deploy.md` |
+| Building the server (the detail behind each step) | `docs/server-setup.md` |
 | Day-to-day Docker and Postgres commands | `docs/command-ref.md` |
 
 ## Running it

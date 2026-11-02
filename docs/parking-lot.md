@@ -7557,3 +7557,18 @@ forces a refresh and shows the fixed error text. RentCast, the matcher and the t
 tests); nothing is written. With part 1, every action `test_web_smoke.py` reached only as a refusal is now also tested
 doing its work.
 
+## 287. The Cloudflare tunnel config is tracked, and it is `hail-dev`'s
+
+**Status:** open (filed 2026-11-02, planning the production deploy)
+
+`cloudflared/config.yml` is in git (decision log, "Tunnel topology", item 110: routing stays in git) and names
+`hail-dev`'s tunnel ID, its credential file and `dev.roofbrokersinc-weather.com`. The same decision gives production its
+own tunnel, credential and hostname (`app.roofbrokersinc-weather.com`). A production clone brings `hail-dev`'s config:
+the `cloudflared` service would fail to find its credential, or would need a local edit that every `git pull` then
+fights. Proposed: a per-machine config outside git (as `.env` is), a tracked example to copy from, and the compose
+service reading the machine's file.
+
+**When:** before the production tunnel is set up (`docs/deploy.md`, step 8).
+
+**Related:** item 110; `docs/deploy.md`.
+

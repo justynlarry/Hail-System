@@ -236,6 +236,8 @@ These have already bitten us. Do not re-discover them.
 ## Conventions
 
 - Ask before installing anything not already present.
+- `docs/deploy.md` is the checklist for a new server. A change to how the system is deployed (a migration rule,
+  a service, a secret, a check) updates it in the same commit.
 - Prefer stdlib and boring dependencies.
 - Scripts that ingest external data must be idempotent and safe to re-run.
 - Failures should be loud. Silent partial success is worse than an error.
