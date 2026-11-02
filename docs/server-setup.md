@@ -161,6 +161,55 @@ mid-sequence, and this class of problem can resurface: `migrate.sh` applies in
 number order and refuses a database that has tables but nothing recorded, so a
 mid-sequence start is caught.
 
+## Data on a new server (decided 2026-11-02)
+
+Production starts from code and public sources, not from a copy of `hail-dev`. The one exception is the suppression
+list. In order:
+
+1. **Schema:** `migrate.sh --apply` (above). It also creates the `system` account, the `settings` row with its
+   defaults, radar parameter set 1, and likelihood set 1 with its 20 rules.
+2. **The first admin**, with the bootstrap script, as `hail_admin`:
+   ```
+   PW=$(grep '^POSTGIS_ROOT_PASSWORD=' .env | cut -d= -f2-)
+   docker compose run --rm -T --no-deps -e PGUSER=hail_admin -e PGPASSWORD="$PW" web \
+       python3 scripts/create_user.py --user-name <name> --first-name <first> --last-name <last> --email <email> --role admin
+   ```
+   Every other user is added on the admin page.
+3. **Reference data.** Copy `data/` across first (below, "to move files untracked in git"), then:
+   ```
+   docker compose run --rm -T loader bash scripts/load_reference.sh    # report types, sources, ZCTAs, counties
+   docker compose run --rm -T loader bash scripts/load_coverage.sh     # config/coverage_zips.txt, 183 zips
+   ```
+   `scripts/load_municipal.sh` is for the parked permits work and can wait.
+4. **Settings, on the admin page,** so each one lands in `settings_history`. `hail-dev`'s values on 2026-11-02: zip and
+   match radius 5.0, RentCast billing day 9, quota 1,000, listing freshness 7 days, match age 30 days, email cap 14
+   days. Also the email images, sender and contact settings, and `storm_states`.
+5. **Suppressions: copy `dnc_list` from `hail-dev`,** 768 active and 1 removed (item 285). Do this before any send.
+   Afterwards the counts must match `hail-dev`'s.
+6. **Public data, rebuilt from source.** Build the `ingest` image first (`docker compose build ingest`):
+   ```
+   docker compose run --rm ingest python3 scripts/iem_backfill.py --start 2004-01-01 --end <today>
+   docker compose run -d --rm ingest python3 scripts/radar_ingest.py backfill        # about 3.6 hours on hail-dev
+   docker compose run --rm ingest python3 scripts/cocorahs_ingest.py backfill
+   docker compose run --rm ingest python3 scripts/likelihood_ingest.py backfill     # after radar and CoCoRaHS
+   ```
+   On `hail-dev` the IEM archive took about ten runs of up to 2½ minutes each. `scripts/status.sh` shows each job's
+   state.
+7. **Timers:** `sudo cp systemd/* /etc/systemd/system/`, `sudo systemctl daemon-reload`, then
+   `sudo systemctl enable --now` on the eight `.timer` units. The units name the user `hail-user` and
+   `/home/hail-user/hail-system`, the same as on `hail-dev`.
+8. **RentCast starts empty.** The first pull is a person's click, as always. `hail-dev`'s listings are mostly past the
+   7-day freshness window, and its matches point at IEM ids the rebuild changes. **Quota:** both machines use one
+   RentCast account, so calls made on `hail-dev` in the current period don't appear in production's usage count for
+   its first period. Accepted 2026-11-02, with the developer as the only user and tracking in beta.
+
+**Never copied from `hail-dev`:**
+- Constant Contact grants (`oauth_tokens`) and the `cc_*` tables: production has its own account (item 183) and token
+  key.
+- Rehearsal sends: `sent_emails`, `send_log`, `email_test_sends` and the drip tables.
+- Email templates: the real ones wait on item 135.
+- Run logs, `schema_migrations`, `geocode_cache` and `address_searches`.
+
 ## Git/Github Setup
 ```
 sudo dnf install -y git

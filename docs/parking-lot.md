@@ -7413,6 +7413,10 @@ killed at a 1.2 GB limit; it loaded in 800-row batches, with identical values. N
 
 **Related:** items 3, 233.
 
+**Update 2026-11-02.** No data moves from `hail-dev` (`server-setup.md`, Data on a new server): production's RentCast
+data starts empty, so this no longer bears on the build. **When:** before restoring `properties` from a `pg_dump`, and
+before a pull large enough to matter.
+
 ## 281. `docs/db-schema-diagram.md` stopped at `sql/061`
 
 **Status:** resolved 2026-11-02
@@ -7460,4 +7464,19 @@ fixed-width digits, so blank-padding never applies; changing the type is a migra
 in behaviour. Accepted as they are.
 
 **When:** if a FIPS code is ever compared with a `TEXT` column and fails to match.
+
+## 285. The `dnc_list` copy to production is not written
+
+**Status:** open (filed 2026-11-02, planning the production data)
+
+Production starts from code and public sources, but `dnc_list` must come across: 769 rows on `hail-dev` (768 active,
+1 removed), and a production send without them would reach people who asked not to be contacted. `added_by` and
+`removed_by` point at `hail-dev`'s users, which will not exist on production. The plan: a small script that reads
+`hail-dev`'s rows and loads them on production, keeping each row's address, date, source, reason and removal; `added_by`
+and `removed_by` become production's `system` account, and the reason gains "copied from hail-dev, added by employee
+N"; the counts are checked afterwards. The `sql/064` triggers link realtors as they arrive.
+
+**When:** before the first send from `rbi-hail01`.
+
+**Related:** items 130, 280; `server-setup.md`, Data on a new server.
 
