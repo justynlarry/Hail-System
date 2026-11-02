@@ -7519,7 +7519,7 @@ counts match.
 
 ## 286. Actions tested only as refusals
 
-**Status:** open (filed 2026-11-02, closing item 53)
+**Status:** open, part 1 done 2026-11-02 (the admin user actions); part 2 (`/pull`, `/match`, `/cc/*`) next
 
 The six admin user actions, `/admin/boot-all`, `/admin/dnc/discard`, `/pull`, `/match`, `/cc/connect`, `/cc/refresh` and
 the `/account/password` change are reached only as refusals in `tests/test_web_smoke.py`. No test runs them as an allowed
@@ -7529,4 +7529,11 @@ calls replaced, as `test_send_screen.py` does for a send.
 **When:** before any of these routes is changed, test that route doing its work first.
 
 **Related:** item 53.
+
+**Part 1, 2026-11-02.** `tests/test_admin_users.py` (16, as `hail_app`) runs the admin user actions as an admin doing
+their work, on one connection every `get_connection()` in `admin.py` and `views.py` is handed and that is rolled back
+(`TestConn`, as in `test_pull_jobs.py`): create (and a duplicate or bad password refused), role change, deactivate,
+reactivate, sign out one user and everyone, reset password, discard a staged DNC upload, and the own-password change;
+an admin's own row and the system account are refused; the last active admin cannot be demoted (`sql/019`, set to check
+at once). Checked that nothing is kept. Left: `/pull`, `/match`, `/cc/connect`, `/cc/refresh`.
 
