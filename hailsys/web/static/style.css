@@ -316,10 +316,6 @@ button.expand:hover { border-color: var(--accent); color: var(--accent); }
    directly under the h1 (territory) had no side margin. */
 .note { font-size: 0.8125rem; color: var(--muted); margin-top: 0.75rem; margin-bottom: 0.75rem; }
 .error { color: var(--error); }
-/* The "h1 ~ p" gutter only reaches paragraphs that are direct siblings of the
-   h1, like .usage-summary. These sit inside a div, so the div takes the same
-   side margin to line up with the RentCast count above it. */
-.ingest-health { margin: 0 1.5rem; }
 .health-ok    { color: var(--ok); font-weight: 600; }
 .health-stale { color: var(--bad); font-weight: 600; }
 
@@ -335,6 +331,69 @@ button.expand:hover { border-color: var(--accent); color: var(--accent); }
 .cc-status a:visited,
 .cc-status a:hover,
 .cc-status a:active { color: #fff; text-decoration: underline; }
+
+/* Storm Days status strip (storms.html): Constant Contact, ingest and radar as
+   equal tiles in one row, stacking on a narrow screen.  The Constant Contact
+   tile is _cc_status.html as the admin page uses it, so the strip takes away its
+   own margin.  The ingest and radar tiles copy its solid-bar look, white text on
+   fixed colours, for the reason given above. */
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.5rem;
+  margin: 0.5rem 1.5rem;
+}
+.status-strip .cc-status { margin: 0; }
+.status-tile { padding: 0.5rem 0.75rem; border-radius: 4px; font-weight: 600; }
+.status-strip .status-tile { color: #fff; }
+.status-tile.health-ok    { background: #1a7f37; }
+.status-tile.health-stale { background: #b42318; }
+.status-tile.health-idle  { background: #57606a; }
+.cc-status small { font-weight: 400; margin-left: 0.5rem; }
+.status-strip small { display: block; margin-left: 0; font-weight: 400; }
+
+/* RentCast usage (_usage_bar.html): the same solid bar, coloured by how much
+   of the month's quota is used.  Yellow takes dark text, because white on
+   yellow is unreadable; the meter's fill is currentColor so it follows the text. */
+.usage-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem;
+  margin: 0.5rem 1.5rem; padding: 0.5rem 0.75rem; border-radius: 4px;
+  color: #fff;
+}
+.usage-ok   { background: #1a7f37; }
+.usage-warn { background: #e3b341; color: #1f2328; }
+.usage-bad  { background: #b42318; }
+.usage-meter {
+  flex: 1 1 8rem; min-width: 8rem; height: 0.5rem; border-radius: 4px;
+  background: rgba(255, 255, 255, 0.35); overflow: hidden;
+}
+.usage-meter span { display: block; height: 100%; background: currentColor; }
+.page .usage-bar { margin-left: 0; margin-right: 0; }
+
+/* The two run-detail expanders under the usage bar sit side by side; an open
+   one takes the full width so its table has room. */
+/* Boxed and laid out like the activity panel's Pulls and Match runs
+   (developer, 2026-11-03), with the same summary style, but an open one spans
+   both columns: the run tables are too wide for half the page. */
+.health-detail {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem 1.5rem;
+  background: var(--panel-2); border: 1px solid var(--border-2); border-radius: 0.5rem;
+  padding: 0.375rem 0.75rem; margin: 0.5rem 1.5rem;
+}
+.health-detail details[open] { grid-column: 1 / -1; }
+.health-detail summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+@media (max-width: 48rem) {
+  .health-detail { grid-template-columns: 1fr; }
+}
+
+/* Storm Days: the line explaining the table, and Download CSV as a secondary
+   (outlined) button beside Apply. */
+.page-intro { color: var(--muted); max-width: 60rem; }
+.filters a.button-link {
+  display: inline-block; padding: 0.4rem 1rem; font-size: 0.875rem;
+  border: 1px solid var(--accent); border-radius: 3px; color: var(--accent);
+}
+.filters a.button-link:hover { background: var(--accent); color: #fff; text-decoration: none; }
 
 /* Pages without .split still need the page margin */
 h1 ~ table, h1 ~ p, h1 ~ .table-scroll { margin-left: 1.5rem; margin-right: 1.5rem; }
@@ -437,9 +496,6 @@ h1 ~ table { width: calc(100% - 3rem); }
 .estimate-summary { font-size: 1.125rem; }
 .estimate-summary strong { color: var(--accent); }
 
-/* Billing-period usage under the cost line: context for it, so it stays
-   body-sized and muted rather than competing with the cost. */
-.usage-summary { color: var(--muted); }
 
 /* Over-quota warning. Warn-and-allow, not a block, so it uses the same
    amber "visibly a warning, not an error" treatment as .coverage-warning
@@ -669,11 +725,15 @@ h1 ~ table { width: calc(100% - 3rem); }
     background: var(--panel-2);
     border: 1px solid var(--border-2);
     border-radius: 0.5rem;
-    padding: 0.75rem 1rem;
+    padding: 0.375rem 0.75rem;
     /* Side margin matches the page gutter; it sits directly under <body>,
-       where nothing else supplies one. */
-    margin: 0 1.5rem 1.5rem;
+       where nothing else supplies one. Slimmed 2026-11-03 (item 201): it is a
+       summary line with two expanders, not a section. */
+    margin: 0.5rem 1.5rem;
 }
+/* The "Since ..." line is the box's first line; .note's own top and bottom
+   margin made the box twice as tall as its text. */
+.activity-panel > .note { margin: 0 0 0.25rem; }
 
 .activity-panel h3 {
     margin: 0.75rem 0 0.25rem;

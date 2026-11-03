@@ -3374,6 +3374,19 @@ builder, drip campaigns) has settled, so a page that is about to change is not p
 page) and 156 (light-mode contrast). Of the three pieces named in the **When**, the template list (item 202) and the
 template builder (item 203) are done and the drip campaigns (item 204) are parked, so the trigger has mostly come.
 
+**Update 2026-11-03 (the page-by-page pass starts).** The developer is going through the pages in order: Storm Days,
+Admin, Territory, Address Search (fine for now), Activity and Exports (to be merged into one page), Send. Campaigns,
+Exports and Send get more work once they are in real use. This pass is a new round of the item and will not close it.
+Each page's agreed changes are listed here as they are agreed.
+
+- **Storm Days (agreed 2026-11-03, not built):** Constant Contact, Ingest and Radar as three equal solid tiles in one row
+  (green OK, red stale or disconnected, grey for radar not yet run). Directly under them, a RentCast usage bar in the same
+  style: green up to 75% of the monthly quota, yellow above 75% up to 90%, red above 90% (and "N over" past 100%). The cut-offs
+  are fixed in code, not admin settings, because they change how the bar looks, not what the system allows. The same bar
+  replaces the grey usage line on Confirm pull and Pull from zones. The ingest and radar detail expanders sit on one line
+  under the bar. Also: a one-line explanation of the table, a hint saying what "Actionable Only" means, and Download CSV as a
+  button. The activity feed stays at the top (developer). The admin page's Constant Contact bar stays a full-width bar.
+
 ## 202. Template list, and a template choice on the send page
 
 **Status:** resolved 2026-10-29 (built 2026-10-13, `c831d2d`, `4c53973`; browser check passed 2026-10-29)
@@ -7601,4 +7614,40 @@ is deployed with Ansible where practical. The repo has no playbook, inventory or
 **Resolved 2026-11-02 (developer decision).** Both now say deployed by hand, following `docs/deploy.md`. Ansible would be a
 new tool for a build that happens once or twice; revisit if a third server or a second customer (item 238) makes the
 hand checklist the slow part.
+
+## 289. No release versions: nothing says which commit a machine runs
+
+**Status:** open
+
+Filed 2026-11-03 (developer request). The repo is in git with a GitHub remote (`justynlarry/Hail-System`; 527 commits on
+`main`, no tags, no other branches). `rbi-hail01` is about to get its first deploy (`docs/deploy.md`), and nothing would
+record which commit it runs, give that state a name, or let it be rolled back to a known good release. The developer
+confirmed 2026-11-03 that "version control" here means **releases**, and wants the version shown in the app.
+
+To settle:
+- a version scheme (for example `v1.0`, `v1.1`), and what makes a change a new number;
+- a git tag on each production deploy, and whether production deploys from `main` or a release branch;
+- a changelog (`CHANGELOG.md` or the tag messages);
+- the version shown in the web UI, for example "v1.2 · abc1234" in the footer, and where the web container reads it from
+  (`web` bind-mounts the repo, so the running code is the working tree, not an image);
+- a `docs/deploy.md` step that records the version deployed to each machine.
+
+**When:** before the first deploy to `rbi-hail01`.
+
+## 290. Templates did not reload from disk; the docs said they did
+
+**Status:** open
+
+Found 2026-11-03, when the Storm Days redesign (item 201) did not show in the browser after a hard refresh. `web` runs
+gunicorn without `--reload`, and `TEMPLATES_AUTO_RELOAD` was unset with debug off (checked in the container:
+`jinja_env.auto_reload` is `False`). So each worker compiles a template the first time it uses it and keeps it, and an edit
+to a template that has already been served needs `docker compose restart web`. `/static/style.css` is read from disk on
+each request, so the page showed the new CSS over the old HTML. CLAUDE.md Conventions and `docs/deploy.md:182` both said
+templates reload on their own; that came from item 260, whose incident fits either reading (the worker that raised had most
+likely not yet loaded `pull_estimate.html`). `docker compose restart web` on 2026-11-03 put the new templates live.
+
+**Fix:** `app.config["TEMPLATES_AUTO_RELOAD"] = True` in `create_app()` (`hailsys/web/__init__.py`), then a restart of
+`web`; correct CLAUDE.md Conventions and `docs/deploy.md`.
+
+**When:** now (it blocks seeing item 201's work).
 

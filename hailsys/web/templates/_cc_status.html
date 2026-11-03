@@ -3,13 +3,12 @@
    is for admins: /cc/ is admin-only and would 403 anyone else. #}
 {% if cc.connected %}
 <div class="cc-status cc-ok">
-  Constant Contact connected (token issued
-  {{ cc.issued_at.astimezone(display_tz).strftime("%Y-%m-%d %H:%M") }}).
-  {% if session.role == 'admin' %}<a href="{{ url_for('cc.index') }}">Manage</a>{% endif %}
+  Constant Contact connected
+  <small>token issued {{ cc.issued_at.astimezone(display_tz).strftime("%Y-%m-%d %H:%M") }}{% if session.role == 'admin' %} · <a href="{{ url_for('cc.index') }}">Manage</a>{% endif %}</small>
 </div>
 {% else %}
 <div class="cc-status cc-down">
-  Constant Contact is NOT connected. Email cannot be sent until it is.
-  {% if session.role == 'admin' %}<a href="{{ url_for('cc.index') }}">Connect it</a>{% endif %}
+  Constant Contact NOT connected
+  <small>Email cannot be sent until it is.{% if session.role == 'admin' %} <a href="{{ url_for('cc.index') }}">Connect it</a>{% endif %}</small>
 </div>
 {% endif %}

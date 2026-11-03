@@ -1,0 +1,16 @@
+{# RentCast requests used this billing period, as a coloured bar.  Green up to
+   75% of the monthly quota, yellow above 75% up to 90%, red above 90%.  The
+   cut-offs are fixed here, not admin settings: they change how the bar looks,
+   not what the system allows, and a pull over quota is still warn-and-allow
+   (developer, 2026-11-03; parking-lot item 201).  A quota of 0 reads as full.
+   Needs `usage` (queries/quota.fetch_usage). #}
+{% set pct = (100 * usage.used / usage.quota) if usage.quota else 100 %}
+{% if pct > 90 %}{% set level = 'bad' %}{% elif pct > 75 %}{% set level = 'warn' %}{% else %}{% set level = 'ok' %}{% endif %}
+<div class="usage-bar usage-{{ level }}">
+  <span>
+    RentCast: <strong>{{ '{:,}'.format(usage.used) }}</strong> of {{ '{:,}'.format(usage.quota) }} requests used
+    this billing period ({{ usage.period_start }} to {{ usage.period_end }}){% if usage.over %},
+    <strong>{{ '{:,}'.format(usage.over) }} over</strong>{% else %}, {{ '{:,}'.format(usage.remaining) }} left{% endif %}.
+  </span>
+  <span class="usage-meter" aria-hidden="true"><span style="width: {{ [pct, 100] | min | round(1) }}%"></span></span>
+</div>

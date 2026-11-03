@@ -268,7 +268,7 @@ class PageTest(unittest.TestCase):
 
     def test_healthy(self):
         text = self.render(radar=radar_health())
-        self.assertIn("Radar layers OK — last nightly completed", text)
+        self.assertIn("Radar OK <small>last nightly completed", text)
         self.assertIn("3 hours ago", text)
         self.assertNotIn("health-stale", text)
 
@@ -276,8 +276,8 @@ class PageTest(unittest.TestCase):
         text = self.render(radar=radar_health(healthy=False, started=False, last_ok=None, age=None, held=4))
         self.assertIn("the nightly job has not run yet", text)
         self.assertIn("4 days loaded", text)
-        self.assertNotIn("Radar layers STALE", text)
-        self.assertNotIn("Radar layers OK", text)
+        self.assertNotIn("Radar STALE", text)
+        self.assertNotIn("Radar OK", text)
 
     def test_one_day_is_singular(self):
         text = self.render(radar=radar_health(healthy=False, started=False, last_ok=None, age=None, held=1))
@@ -285,7 +285,7 @@ class PageTest(unittest.TestCase):
 
     def test_stale_says_how_long(self):
         text = self.render(radar=radar_health(healthy=False, last_ok=NOW - timedelta(hours=40), age=timedelta(hours=40)))
-        self.assertIn("Radar layers STALE — no nightly has completed in", text)
+        self.assertIn("Radar STALE <small>no nightly has completed in", text)
         self.assertIn("40 hours", text)
         self.assertIn("health-stale", text)
 
@@ -347,7 +347,7 @@ class PageTest(unittest.TestCase):
         resp = client.get("/")
         self.assertEqual(resp.status_code, 200)
         text = resp.get_data(as_text=True)
-        self.assertIn("Radar layers", text)
+        self.assertRegex(text, r"Radar (OK|STALE|not started)")
         self.assertIn("Radar detail", text)
         self.assertIn("Ingest detail", text)
 

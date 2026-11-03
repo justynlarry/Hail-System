@@ -111,7 +111,7 @@ class DefaultTypeTest(unittest.TestCase):
         return chosen[0] if chosen else ""
 
     def download_href(self, text):
-        return re.search(r'<a href="(/export\.csv\?[^"]*)">Download CSV</a>', text).group(1)
+        return re.search(r'<a href="(/export\.csv\?[^"]*)"(?: class="button-link")?>Download CSV</a>', text).group(1)
 
     def test_both_pages_open_on_hail(self):
         for path in ("/", "/territory", "/territory?group_by=zip"):

@@ -10,10 +10,7 @@
     request{{ '' if result.estimated_api_calls == 1 else 's' }}.
 </p>
 
-<p class="usage-summary">
-    <strong>{{ usage.used }}</strong> of {{ usage.quota }} requests used this
-    billing period ({{ usage.period_start }} to {{ usage.period_end }}).
-</p>
+{% include "_usage_bar.html" %}
 
 {% if report_text == 'HAIL' %}
 <p class="note">

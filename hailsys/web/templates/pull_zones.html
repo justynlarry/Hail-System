@@ -35,10 +35,7 @@
     request{{ '' if union.estimated_api_calls == 1 else 's' }}
     ({{ view.counts.zones_only }} added by the zones, {{ view.counts.reports_only }} from reports only).
 </p>
-<p class="usage-summary">
-    <strong>{{ usage.used }}</strong> of {{ usage.quota }} requests used this billing period
-    ({{ usage.period_start }} to {{ usage.period_end }}).
-</p>
+{% include "_usage_bar.html" %}
 
 {% if recent_pulls %}
 <h3>Pulls for this day</h3>

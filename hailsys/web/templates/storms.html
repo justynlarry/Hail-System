@@ -3,20 +3,24 @@
 {% block heading %}Recent storm days{% endblock %}
 
 {% block content %}
-{% include "_cc_status.html" %}
+<div class="status-strip">
+    {% include "_cc_status.html" %}
+    {% with part = 'tiles' %}{% include "_ingest_health.html" %}{% endwith %}
+</div>
+{% if usage %}{% include "_usage_bar.html" %}{% endif %}
+<div class="health-detail">
+    {% with part = 'detail' %}{% include "_ingest_health.html" %}{% endwith %}
+</div>
 <script src="{{ url_for('static', filename='storms.js') }}" defer></script>
 {% include "_pull_banner.html" %}
 <section class="activity-panel">
     {% include "_activity.html" %}
 </section>
-{% if usage %}
-<p class="usage-summary">
-  {{ usage.used }} of {{ usage.quota }} RentCast requests used this billing
-  period ({{ usage.period_start }} to {{ usage.period_end }}){% if usage.over %},
-  <strong>{{ usage.over }} over</strong>{% endif %}.
+<p class="page-intro">
+    Each row is one type of storm report on one day. Press <strong>+</strong> to see the zip codes it
+    touched. <strong>Pull</strong> fetches the house listings in those zips from RentCast, which uses
+    requests from the monthly allowance.
 </p>
-{% endif %}
-{% include "_ingest_health.html" %}
     <form method="get" action="{{ url_for('main.index') }}" class="filters">
         <input type="hidden" name="submitted" value="1">
 
@@ -49,8 +53,12 @@
         </span>
 
         <button type="submit">Apply</button>
-        <a href="{{ url_for('main.export_csv') }}?{{ export_query }}">Download CSV</a>
+        <a href="{{ url_for('main.export_csv') }}?{{ export_query }}" class="button-link">Download CSV</a>
     </form>
+<p class="note">
+    <strong>Actionable Only</strong> keeps the report types that can damage a roof (hail, damaging wind,
+    tornadoes, heavy snow and ice), at or above their size floor: hail 1 inch or larger, wind gusts 58 mph or more.
+</p>
 {% if rows %}
     <div class="table-scroll">
     <table>

@@ -1,19 +1,20 @@
-<div class="ingest-health">
+{# Ingest and radar health for Storm Days.  storms.html includes this twice:
+   with part='tiles' inside the status strip, and with part='detail' under the
+   RentCast bar, so the tiles stay on one row and the run tables open below it.
+   With no part set (the tests render it that way) it gives both; the app's
+   Jinja raises on an undefined name, hence the default. #}
+{% set show = part | default('both') %}
+{% if show != 'detail' %}
 {% if health.healthy %}
-    <p class="health-ok">
-        Ingest OK — last nightly completed
-        {{ (health.age.total_seconds() // 3600) | int }} hours ago.
-    </p>
+<div class="status-tile health-ok">Ingest OK <small>last nightly completed {{ (health.age.total_seconds() // 3600) | int }} hours ago</small></div>
+{% elif health.last_ok %}
+<div class="status-tile health-stale">Ingest STALE <small>no nightly has completed in {{ (health.age.total_seconds() // 3600) | int }} hours</small></div>
 {% else %}
-    <p class="health-stale">
-        {% if health.last_ok %}
-        Ingest STALE — no nightly has completed in
-        {{ (health.age.total_seconds() // 3600) | int }} hours.
-        {% else %}
-        Ingest STALE — no nightly run has ever completed.
-        {% endif %}
-    </p>
+<div class="status-tile health-stale">Ingest STALE <small>no nightly run has ever completed</small></div>
 {% endif %}
+{% endif %}
+
+{% if show != 'tiles' %}
 
     <details>
         <summary>Ingest detail</summary>
@@ -50,29 +51,23 @@
         </p>
         {% endif %}
     </details>
+{% endif %}
 
 {% if radar_health %}
 {% set rh = radar_health %}
+{% if show != 'detail' %}
 {% if rh.healthy %}
-    <p class="health-ok">
-        Radar layers OK — last nightly completed
-        {{ (rh.age.total_seconds() // 3600) | int }} hours ago.
-    </p>
+<div class="status-tile health-ok">Radar OK <small>last nightly completed {{ (rh.age.total_seconds() // 3600) | int }} hours ago</small></div>
 {% elif not rh.started %}
-    <p>
-        Radar layers — the nightly job has not run yet.
-        {{ rh.held }} {{ 'day' if rh.held == 1 else 'days' }} loaded.
-    </p>
+<div class="status-tile health-idle">Radar not started <small>the nightly job has not run yet; {{ rh.held }} {{ 'day' if rh.held == 1 else 'days' }} loaded</small></div>
+{% elif rh.last_ok %}
+<div class="status-tile health-stale">Radar STALE <small>no nightly has completed in {{ (rh.age.total_seconds() // 3600) | int }} hours</small></div>
 {% else %}
-    <p class="health-stale">
-        {% if rh.last_ok %}
-        Radar layers STALE — no nightly has completed in
-        {{ (rh.age.total_seconds() // 3600) | int }} hours.
-        {% else %}
-        Radar layers STALE — no nightly run has ever completed.
-        {% endif %}
-    </p>
+<div class="status-tile health-stale">Radar STALE <small>no nightly run has ever completed</small></div>
 {% endif %}
+{% endif %}
+
+{% if show != 'tiles' %}
 
     <details>
         <summary>Radar detail</summary>
@@ -108,4 +103,4 @@
         </div>
     </details>
 {% endif %}
-</div>
+{% endif %}
