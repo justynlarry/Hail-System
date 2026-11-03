@@ -908,6 +908,10 @@ midnight is still unknown (every call this period was mid-day). **Decision 2026-
 **When:** after the 2026-11-09 rollover, read RentCast's per-day counts again. If calls appear on days with no
 `api_call_log` rows, rotate the key.
 
+**2026-11-03:** RentCast shows 41 used, against 17 we can account for (15 logged pull calls, 2 probe calls on 2026-10-16).
+Still the same 24 unexplained; none since the item was filed. The dashboard's two "errors" are our two 404 lookups by id
+(the 2026-10-16 probe, the 2026-11-03 drip rehearsal), which are not billed.
+
 ## 95. No test for the `R` = RAIN / HEAVY RAIN composite key
 
 **Status:** resolved 2026-10-02
@@ -3701,7 +3705,8 @@ Campaign B (7383): step 1 on the screens, then both follow-ups with `scripts/reh
 with only RentCast's lookup answered locally (0 calls): each follow-up checked 2 listings `active` and sent 2 emails
 through Constant Contact, and the campaign ended `complete`. Seed: `sql/dev_rehearsal_seed_drip.sql` (dev only).
 `match_max_age_days` was 45 for the rehearsal and is back to 30. Not seen: the due banner (A's follow-up 2 falls due
-2026-11-04), and whether RentCast bills a 404. Level 2 (steps run by a daily job) stays unbuilt: it would need a written
+2026-11-04). Settled 2026-11-03: a 404 is not billed. RentCast's count rose by exactly the day's 2 pull calls, not 3,
+and it lists the probe's and the rehearsal's 404s as its 2 errors. Level 2 (steps run by a daily job) stays unbuilt: it would need a written
 decision against two non-negotiable rules, and not before items 189 and 129.
 
 ## 226. Read replies from a dedicated Gmail inbox to stop follow-ups
