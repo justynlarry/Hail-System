@@ -3398,6 +3398,11 @@ Each page's agreed changes are listed here as they are agreed.
   a legend click fades the other storms. The colour had been the report source, with no legend; the source is now in each
   dot's tooltip. Also the Storm Days intro, Actionable Only note and Download CSV button, "City"/"Zip code" in Group By,
   and a plain empty-state message.
+- **Activity and Exports (agreed and built 2026-11-03):** one nav entry, "Activity & Exports", and a two-tab bar on
+  both pages; they stay two routes (`/activity`, `/exports`), so links and bookmarks still work. Exports: the two
+  downloads as side-by-side boxes with buttons, "Do-not-contact addresses: Leave out / Include, marked", "Press Apply to
+  count" (not "pull", which means a paid RentCast call), the snapshot note as a warning box, and the realtor button
+  greyed for viewers (item 292). Activity: a button for Download CSV, and no "Back to storm days".
 
 ## 202. Template list, and a template choice on the send page
 
@@ -7676,4 +7681,16 @@ Found 2026-11-03, reading `hailsys/web/__init__.py` for item 290. Lines 14–15 
 first app, but a setting added between them would have been silently lost. Present since `e819ebc` (the scaffold).
 
 **Resolved 2026-11-03.** The developer deleted the second pair while adding item 290's line; `web` restarted cleanly.
+
+## 292. Exports offered viewers a realtor download they could not use
+
+**Status:** resolved 2026-11-03 (template fix in the item 201 Activity and Exports redesign)
+
+Found 2026-11-03 (item 201 pass). `exports.html` showed the Realtors "Download CSV" link to every role, but
+`/exports/realtors.csv` is `role_required("sender", "admin")`, so a viewer's click got a 403 page. Phase 4 greys actions
+a role can't take rather than offering them. Item 153 (viewer access to agent contacts) is about what viewers may see,
+not this.
+
+**Resolved 2026-11-03.** A viewer now sees the button greyed (`action-disabled`) with "Needs sender access", as on
+Storm Days' Pull; senders and admins get the link. The route's own role check is unchanged and still the authority.
 

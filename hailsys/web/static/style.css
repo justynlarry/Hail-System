@@ -389,11 +389,11 @@ button.expand:hover { border-color: var(--accent); color: var(--accent); }
 /* Storm Days: the line explaining the table, and Download CSV as a secondary
    (outlined) button beside Apply. */
 .page-intro { color: var(--muted); max-width: 60rem; }
-.filters a.button-link {
+a.button-link {
   display: inline-block; padding: 0.4rem 1rem; font-size: 0.875rem;
   border: 1px solid var(--accent); border-radius: 3px; color: var(--accent);
 }
-.filters a.button-link:hover { background: var(--accent); color: #fff; text-decoration: none; }
+a.button-link:hover { background: var(--accent); color: #fff; text-decoration: none; }
 
 /* Pages without .split still need the page margin */
 h1 ~ table, h1 ~ p, h1 ~ .table-scroll { margin-left: 1.5rem; margin-right: 1.5rem; }
@@ -803,21 +803,23 @@ h1 ~ table { width: calc(100% - 3rem); }
 /* Admin tabs (item 201, 2026-11-03).  admin.js fills .tabs with one button per
    .tab-panel and adds .tabbed to the page; with no script the bar stays empty
    and hidden, and the sections stack as they did.  Once tabbed, each panel's
-   own h2 repeats its tab's name, so it is hidden. */
+   own h2 repeats its tab's name, so it is hidden.  Activity and Exports use the
+   same bar with links, one per page (_activity_exports_tabs.html). */
 .tabs {
     display: flex; flex-wrap: wrap; gap: 0.25rem;
     border-bottom: 1px solid var(--border);
     margin: 1rem 0 1.25rem;
 }
 .tabs:empty { display: none; }
-.tabs button {
+.tabs button, .tabs a {
     background: none; border: 1px solid transparent; border-bottom: none;
     border-radius: 4px 4px 0 0; margin-bottom: -1px;
     padding: 0.5rem 1rem; cursor: pointer;
     font: inherit; font-weight: 600; color: var(--muted);
 }
-.tabs button:hover { color: var(--text); }
-.tabs button.active {
+.tabs a { display: inline-block; text-decoration: none; }
+.tabs button:hover, .tabs a:hover { color: var(--text); }
+.tabs button.active, .tabs a.active {
     background: var(--bg); color: var(--text);
     border-color: var(--border);
 }

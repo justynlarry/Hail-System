@@ -1,0 +1,6 @@
+{# Activity and Exports share one nav entry and this tab bar (item 201, 2026-11-03).  They stay two
+   routes, so links and bookmarks to either still work, and each tab is a plain link. #}
+<nav class="tabs page-tabs" aria-label="Activity and exports">
+  <a href="{{ url_for('main.activity_page') }}"{% if request.endpoint == 'main.activity_page' %} class="active" aria-current="page"{% endif %}>Activity</a>
+  <a href="{{ url_for('main.exports_page') }}"{% if request.endpoint == 'main.exports_page' %} class="active" aria-current="page"{% endif %}>Exports</a>
+</nav>

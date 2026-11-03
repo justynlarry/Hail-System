@@ -1,9 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Exports{% endblock %}
-{% block heading %}Exports{% endblock %}
+{% block heading %}Activity &amp; Exports{% endblock %}
 
 {% block content %}
 <div class="page">
+{% include "_activity_exports_tabs.html" %}
+<p class="tab-intro">Download spreadsheets (CSV files) of the realtors, and of the listings matched to storms.</p>
+
     <form method="get" action="{{ url_for('main.exports_page') }}" class="filters">
         <input type="hidden" name="submitted" value="1">
 
@@ -28,35 +31,48 @@
         </span>
 
         <span class="field">
-            <label for="dnc">Suppressed</label>
+            <label for="dnc">Do-not-contact addresses</label>
             <select id="dnc" name="dnc">
-                <option value="exclude" {% if dnc_exclude %}selected{% endif %}>Exclude</option>
-                <option value="include" {% if not dnc_exclude %}selected{% endif %}>Include, flagged</option>
+                <option value="exclude" {% if dnc_exclude %}selected{% endif %}>Leave out</option>
+                <option value="include" {% if not dnc_exclude %}selected{% endif %}>Include, marked</option>
             </select>
         </span>
 
         <button type="submit">Apply</button>
     </form>
 
+    <div class="tab-grid">
+    <div class="card">
     <h3>Realtors</h3>
     <p><strong>{{ realtor_count }}</strong> realtor record{{ '' if realtor_count == 1 else 's' }}.
        One row per address, not per person: an agent reachable at two
        addresses appears twice, which is how suppression is keyed.</p>
-    <p><a href="{{ url_for('main.exports_realtors_csv') }}?{{ request.query_string.decode() }}">Download CSV</a></p>
+    {# The file is sender/admin only (bulk contact extraction, item 153); a viewer sees the button
+       greyed rather than a link that ends in a 403 (item 292). #}
+    {% if session.role in ('sender', 'admin') %}
+    <p><a class="button-link" href="{{ url_for('main.exports_realtors_csv') }}?{{ request.query_string.decode() }}">Download CSV</a></p>
+    {% else %}
+    <p><span class="action-disabled" title="Downloading the realtor list requires sender access">Download CSV</span>
+       <small>Needs sender access</small></p>
+    {% endif %}
+    <p class="note">This list ignores the dates and type; only the do-not-contact choice applies.</p>
+    </div>
 
-{% if submitted %}
+    <div class="card">
     <h3>Matched listings</h3>
+{% if submitted %}
     <p><strong>{{ match_count }}</strong> row{{ '' if match_count == 1 else 's' }},
        one per listing per storm day and type, within {{ radius_miles }} miles.</p>
-    <p><a href="{{ url_for('main.exports_matches_csv') }}?{{ request.query_string.decode() }}">Download CSV</a></p>
+    <p><a class="button-link" href="{{ url_for('main.exports_matches_csv') }}?{{ request.query_string.decode() }}">Download CSV</a></p>
 {% else %}
-    <p>Choose a range and press Apply to also pull matched listings.</p>
+    <p>Press <strong>Apply</strong> to count the matched listings in these dates.</p>
 {% endif %}
+    </div>
+    </div>
 
-    <p class="note">
-        A CSV is a snapshot. Anyone suppressed after a download is still in
-        the file, and a list worked outside this system never passes the
-        send-time suppression check.
+    <p class="note warning">
+        <strong>A CSV is a snapshot.</strong> Anyone added to the do-not-contact list after a download is still
+        in the file, and a list worked outside this system never passes the send-time do-not-contact check.
     </p>
 </div>
 {% endblock %}
