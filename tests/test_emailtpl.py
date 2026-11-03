@@ -219,6 +219,65 @@ class EmailTplPagesTest(unittest.TestCase):
             self.assertIn(f'id="b{v["index"]}"', form)
             self.assertIn(f'name="b{v["index"]}_kind" value="{v["kind"]}"', form)
 
+    def test_an_unedited_page_posts_back_exactly_the_template_it_showed(self):
+        # item 294 slice 3:  spacing is shown as named steps, but the posted field is the exact box,
+        # so a page saved with no edits stores identical values, Custom ones (the built-in's 4, 12,
+        # 22, 26, 30 ...) included.  Read the form the way a browser posts it.
+        from html.parser import HTMLParser
+        from werkzeug.datastructures import MultiDict
+        from hailsys.email import blocks as bk
+
+        class Posted(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.pairs, self.select, self.chosen, self.first, self.area = [], None, None, None, None
+            def handle_starttag(self, tag, attrs):
+                a = dict(attrs)
+                if tag == "input" and a.get("name"):
+                    kind = a.get("type", "text")
+                    if kind in ("submit", "button"):
+                        return
+                    if kind in ("checkbox", "radio") and "checked" not in a:
+                        return
+                    self.pairs.append((a["name"], a.get("value", "on" if kind == "checkbox" else "")))
+                elif tag == "textarea" and a.get("name"):
+                    self.area = [a["name"], ""]
+                elif tag == "select":
+                    self.select, self.chosen, self.first = a.get("name"), None, None
+                elif tag == "option" and self.select:
+                    if self.first is None:
+                        self.first = a.get("value", "")
+                    if "selected" in a:
+                        self.chosen = a.get("value", "")
+            def handle_data(self, data):
+                if self.area is not None:
+                    self.area[1] += data
+            def handle_endtag(self, tag):
+                if tag == "textarea" and self.area is not None:
+                    self.pairs.append((self.area[0], self.area[1].lstrip("\n")))
+                    self.area = None
+                elif tag == "select" and self.select:
+                    self.pairs.append((self.select, self.chosen if self.chosen is not None else self.first))
+                    self.select = None
+
+        reader = Posted()
+        reader.feed(self.editor_form())
+        back = bk.clean_template(blockform.parse_form(MultiDict(reader.pairs)))
+        self.assertEqual(back, blockform.starter())
+        spacings = {b.get(k) for b in back["blocks"] for k in ("space_before", "space_after")} - {None}
+        self.assertTrue(spacings - {0, 8, 20, 32}, "the starter should exercise Custom spacing")
+
+    def test_sizes_are_named_and_spacing_has_steps_with_the_exact_box_under_more_options(self):
+        form = self.editor_form()
+        for word in ("Fine print", "Normal", "Large"):
+            self.assertIn(f">{word}</option>", form)
+        self.assertIn('<select class="tpl-preset"', form)
+        self.assertIn("Custom (26 px)", form)                       # the built-in's band of 26
+        self.assertIn("<summary>More options</summary>", form)
+        self.assertRegex(form, r'<select class="tpl-preset" id="(b\d+_space_\w+)-step" data-preset-for="\1">')
+        self.assertNotRegex(form, r'<select class="tpl-preset"[^>]*\sname=')   # the menu is never posted
+        self.assertIn("tplpresets.js", self.text("/templates/new"))
+
     def test_each_block_with_settings_folds_and_its_remove_asks_first(self):
         # item 294 slice 2:  a header button opens and closes the block (blockfold.js); Remove asks,
         # since it throws away what was typed.  The footer has settings but no Remove.
@@ -318,7 +377,7 @@ class EmailTplPagesTest(unittest.TestCase):
         self.load_blocks.return_value = draft
         page = self.text("/templates/edit/spring")
         self.assertRegex(page, r'<input type="checkbox" id="b6_bold" name="b6_bold" checked>')
-        self.assertRegex(page, r'<option value="14" selected>14</option>')
+        self.assertRegex(page, r'<option value="14" selected>Small</option>')    # sizes in words (item 294)
         self.assertIn('id="b6_space_after" name="b6_space_after" value="30"', page)
         self.assertRegex(page, r'<textarea id="b10_items"[^>]*>\[b\]\$35')   # band items, one per line
 

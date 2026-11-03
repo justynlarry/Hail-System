@@ -7792,6 +7792,13 @@ everything, Python included** (2026-11-03, "on this one, you can edit everything
   CSS floated the block's legend, so the fields were laid out beside an ordinary float, and a fieldset never shrinks
   below its widest unbreakable content (the header does not wrap). The legend is no longer floated and `.tpl-block`
   has `min-width: 0`; the developer confirmed the layout in the browser.
+- *Slice 3 done, 2026-11-03:* sizes in words (text Fine print/Small/Medium/Normal, headings Small/Medium/Large;
+  every allowed size is named, so sizes are never Custom) and colours capitalised, from `blockform.py`. Space above and
+  below as None/Tight/Normal/Roomy (0, 8, 20, 32) menus that are never posted; the exact box under "More options" is
+  still the saved field, kept in step by `hailsys/web/static/tplpresets.js`, and any other stored value shows as
+  "Custom (n px)". Without JavaScript the menus stay hidden. Render diff empty (42 of 42); a page round-trip test (the
+  form read the way a browser posts it) gives back the starter exactly, Custom spacings included;
+  `tests/js/tplpresets_check.js`.
 
 **Related:** items 201, 203, 220, 221.
 

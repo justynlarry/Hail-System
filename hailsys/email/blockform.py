@@ -35,6 +35,14 @@ SYSTEM_KINDS = {"headline", "greeting", "storm_panel", "listings"}
 RICH_HELP = "Use the buttons above the box for bold, colour, links and storm details."
 _SPACE = "Pixels, 0 to 40, in steps of 2"
 
+# Sizes and spacing in words (item 294, slice 3).  Every allowed font size has a name, so a size is
+# never "Custom".  Spacing is any even number from 0 to 40, so it gets four named steps; a stored
+# value that is not one of them shows as Custom and is saved as it is, from the exact box under
+# "More options".  The stored values and the compiled email do not change.
+TEXT_SIZE_WORDS = {12: "Fine print", 14: "Small", 15: "Medium", 16: "Normal"}
+HEADING_SIZE_WORDS = {19: "Small", 21: "Medium", 24: "Large"}
+SPACING_PRESETS = [(0, "None"), (8, "Tight"), (20, "Normal"), (32, "Roomy")]
+
 PRESET_LABELS = {
     "hail_alert": "Hail alert (the wording follows the number of storms and listings)",
 }
@@ -77,31 +85,32 @@ def legend(situation=samples.DEFAULT):
                          for name in sorted(blocks.TEXT_TOKENS)]}
 
 
-def _f(key, label, widget, choices=None, help="", rich=False):
+def _f(key, label, widget, choices=None, help="", rich=False, words=None, presets=None):
     """One setting as the form shows it.  'rich' marks text that takes the inline formatting
-    tags (the editor puts a toolbar on it)."""
+    tags (the editor puts a toolbar on it).  'words' names a select's choices; 'presets' gives a
+    number named steps, [(value, word)], with the exact number under More options."""
     return {"key": key, "label": label, "widget": widget, "choices": choices, "help": help,
-            "rich": rich}
+            "rich": rich, "words": words or {}, "presets": presets or []}
 
 
 FIELDS = {
     "text": [
         _f("text", "Text", "textarea", help=RICH_HELP, rich=True),
-        _f("size", "Size", "select", list(blocks.SIZES)),
+        _f("size", "Size", "select", list(blocks.SIZES), words=TEXT_SIZE_WORDS),
         _f("color", "Colour", "select", list(blocks.PALETTE)),
         _f("bold", "Bold", "checkbox"),
         _f("italic", "Italic", "checkbox"),
         _f("align", "Align", "select", ["left", "center"]),
-        _f("space_before", "Space above", "number", help=_SPACE),
-        _f("space_after", "Space below", "number", help=_SPACE),
+        _f("space_before", "Space above", "number", help=_SPACE, presets=SPACING_PRESETS),
+        _f("space_after", "Space below", "number", help=_SPACE, presets=SPACING_PRESETS),
     ],
     "heading": [
         _f("text", "Text", "text", help=RICH_HELP, rich=True),
-        _f("size", "Size", "select", list(blocks.HEADING_SIZES)),
+        _f("size", "Size", "select", list(blocks.HEADING_SIZES), words=HEADING_SIZE_WORDS),
         _f("color", "Colour", "select", list(blocks.PALETTE)),
         _f("align", "Align", "select", ["left", "center"]),
-        _f("space_before", "Space above", "number", help=_SPACE),
-        _f("space_after", "Space below", "number", help=_SPACE),
+        _f("space_before", "Space above", "number", help=_SPACE, presets=SPACING_PRESETS),
+        _f("space_after", "Space below", "number", help=_SPACE, presets=SPACING_PRESETS),
     ],
     "image": [
         _f("image", "Picture", "text", help="A picture name from Admin → Email (for example logo)"),
@@ -112,8 +121,8 @@ FIELDS = {
         _f("label", "Button text", "text"),
         _f("url", "Goes to", "text", help="A web address starting https://, or {schedule_url} for your schedule page"),
         _f("color", "Colour", "select", list(blocks.PALETTE)),
-        _f("space_before", "Space above", "number", help=_SPACE),
-        _f("space_after", "Space below", "number", help=_SPACE),
+        _f("space_before", "Space above", "number", help=_SPACE, presets=SPACING_PRESETS),
+        _f("space_after", "Space below", "number", help=_SPACE, presets=SPACING_PRESETS),
     ],
     "divider": [],
     "band": [
@@ -224,6 +233,9 @@ def fields_for(block, index):
             item["value"] = "\n".join(str(v) for v in value)
         else:
             item["value"] = "" if value is None else str(value)
+        if field["presets"]:
+            # Custom when the stored number is none of the named steps:  shown, and kept as it is.
+            item["custom"] = item["value"] not in {str(v) for v, _ in field["presets"]}
         shown.append(item)
     return shown
 
