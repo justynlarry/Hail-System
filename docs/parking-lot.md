@@ -7713,3 +7713,67 @@ follow-ups, the one reminder that a campaign step is waiting for a click.
 **Resolved 2026-11-03.** `sendzone.zone_index` passes `due_steps` (developer's edit), `send_zone.html` shows the same list
 as the report page, and `test_send_screen.test_the_default_zone_page_lists_due_follow_ups_too` pins it on the default page.
 
+## 294. Template editor remodel: usable by anyone, without memorising anything
+
+**Status:** open (planned 2026-11-03; continues item 221)
+
+Filed 2026-11-03 at the developer's request, from a brief the developer wrote with another assistant and the step-0
+read of the editor in this session. **Goal:** someone who uses the editor 10 to 20 times a year, and remembers nothing
+between visits, can build a template: no tag syntax, field names or pixel rules to learn. The developer: "right now,
+it's a little intimidating, even for me."
+
+**Hard constraints (from the brief).** The stored format does not change (`[b]…[/b]`, `[link=…]`, `{merge_field}` stay
+as they are; the editor translates on screen only). The rendered email of every existing template must not change:
+before slice 1, a test renders every saved template version with the sample storms and snapshots the HTML, and each
+slice re-runs it. Saving still makes a new version. Validation that matters is enforced by the server as well as the
+browser, and fails loudly. CSRF on every new endpoint. Ask before installing anything. One commit per slice. Python
+and SQL are keyed in by the developer (CLAUDE.md); HTML, CSS, JavaScript and tests are written by Claude for this pass.
+
+**Step 0 findings (2026-11-03, verified against the code).**
+- Blocks are stored as JSON in `email_templates.blocks` and compiled to `subject`/`body` on save (`hailsys/email/blocks.py`).
+  Thirteen kinds; the four storm blocks (headline, greeting, storm panel, listings) have no settings. Only the footer is
+  required (once, last; it carries the CAN-SPAM notice), and its Remove is hidden rather than disabled. A template with
+  no listings table is accepted today.
+- There is no friendly title: `template_name` (`[A-Za-z0-9_-]{1,40}`, fixed) is the only name; the editor's "Page title"
+  is the email's browser-tab title. `description` (300 characters) is editable until the template is first used.
+- Sizes: paragraph 12/14/15/16 (default 16), heading 19/21/24 (default 24); every allowed size can be named, so sizes
+  need no "Custom". Spacing: 0 to 40 in steps of 2 above and below paragraphs, headings and buttons (defaults below 20,
+  12, 16). Proposed presets None 0, Tight 8, Normal 20, Roomy 32; any other stored value shows as "Custom (n px)" and is
+  kept. The built-in uses 4, 12, 16, 22, 26 and 30, so many of its blocks will read Custom.
+- Merge fields: `{total}`, `{storm_dates_label}`, `{largest_hail}`, `{nearest_miles}` in rich text, the subject and the
+  preview line; `{schedule_url}` only as a link or button address. Button labels, the band title and testimonials are
+  plain text. Tags: `[b]`, `[b=colour]`, `[i]`, `[color=colour]`, `[link=https://…]` or `[link={schedule_url}]`; seven
+  colours; nesting at most 4; no `[[`.
+- Click-in-preview (slice 7) needs preview-only block markers from Python: a block draws one to three email rows, so
+  the page cannot map a click by order. A WYSIWYG box (slice 10) cannot easily round-trip byte-identically
+  (`[b][i]` and `[i][b]` look the same, as do `[b=navy]` and `[b][color=navy]`).
+
+**Decisions (developer, 2026-11-03).**
+- The **listings table is required** in a report template, as the footer is: an email about a realtor's listing that
+  does not list it is broken. Server-side rule (Python), and the Remove control shown disabled.
+- **Friendly titles reuse `description`**; no migration. The internal name is generated from the title.
+- The **no-JavaScript path stays**: the editor's script already falls back to it when a request fails.
+- **Order:** 1 → 2 → 3 → 5 → 6 → 4 → 7 → 8; slices 9 (merge-field chips) and 10 (toolbar text editor) deferred until
+  the rest has been used. Library options are proposed before anything is installed.
+
+**Slices.**
+1. **Plain labels.** Block types named for what they look like; help text cut to what is needed. Also the raw
+   `[[trackingImage]]` dropped from the editor preview (display only). Done when the render diff is empty.
+2. **Collapsed blocks.** One-line summary per block; one open at a time; the open block survives a redraw.
+3. **More options.** Sizes and spacing as named choices, exact pixels behind "More options"; an unmatched stored value
+   shows as Custom and is saved unchanged. Done when the render diff is empty and an unedited save stores identical values.
+5. **Guardrails.** Footer and listings Remove disabled, not hidden; listings required on the server; a plain message
+   beside the offending block (the server already refuses unknown merge fields and bad links).
+6. **Start choice.** "Start from a previous email" (any template, copied) or the built-in; the original is untouched.
+4. **Automatic internal name** from the friendly title (lowercase, underscores, at most 40, a numeric suffix on
+   collision), stored with the title as the description.
+7. **Live side-by-side preview** with click-a-block-to-open; markers in the preview only, never in a sent email.
+8. **Add a section anywhere,** with a picker showing a small picture of each block type; footer stays last.
+9. *(deferred)* Merge-field chips. 10. *(deferred)* Toolbar text editor.
+
+**Not in scope:** zone templates, which the editor does not build.
+
+**When:** now, slice by slice, each one reported with its render-diff result.
+
+**Related:** items 201, 203, 220, 221.
+
