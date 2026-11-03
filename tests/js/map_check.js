@@ -173,12 +173,27 @@ const DS = {matchRadiusM: '8046.7', radarUrl: '/map/radar.geojson', findingsUrl:
   await e.run();
   check(!e.st.fetches.some(u => u.startsWith('/map/likelihood.geojson')), 'with no likelihood url the page just skips it');
 
-  // ---- colours by source
+  // ---- colours by storm (item 201, 2026-11-03):  one colour per local date and report type, newest first,
+  // the colour a CSS class (storm-1 .. storm-10, storm-older), the same on a point and its circle.
+  const AT = (lon, lat, when, type) => ({...POINT(lon, lat), properties: {...POINT(0, 0).properties, local_time: when, report_text: type}});
   e = makeEnv({dataset: DS, pickerValue: 'all', bodies: {radar: RADAR([]), points: {features: [
-    POINT(-104.9, 39.7), {...POINT(-104.8, 39.6), properties: {...POINT(0, 0).properties, report_source_norm: 'SOMEONE NEW'}}]}}});
+    AT(-104.9, 39.7, '06-08-2026 17:19', 'HAIL'), AT(-104.8, 39.6, '06-09-2026 15:02', 'HAIL'),
+    AT(-104.7, 39.5, '06-08-2026 18:40', 'HAIL'), AT(-104.6, 39.4, '06-08-2026 18:41', 'TSTM WND GST')]}}});
   await e.run();
-  check(e.st.markers[0].opts.color === '#2ca02c' && e.st.circles[0].opts.color === '#2ca02c', 'a known source keeps its colour on point and circle');
-  check(e.st.markers[1].opts.color === '#666' && e.st.circles[1].opts.color === '#666', 'an unknown source is grey');
+  const slot = (o) => (o.opts.className.match(/storm-(\d+|older)/) || [])[0];
+  check(slot(e.st.markers[1]) === 'storm-1', 'the newest storm takes the first colour');
+  check(slot(e.st.markers[0]) === 'storm-2' && slot(e.st.markers[2]) === 'storm-2', 'two reports of one storm share a colour');
+  check(slot(e.st.markers[3]) !== 'storm-2', 'another type on the same day is another storm');
+  check(e.st.markers.every((m, i) => slot(m) === slot(e.st.circles[i])), 'a point and its circle have the same colour');
+  check(/storm-dot/.test(e.st.markers[0].opts.className) && /storm-ring/.test(e.st.circles[0].opts.className), 'points and circles carry their own class');
+  check(e.st.markers.every(m => m.opts.color === undefined), 'no colour is set in the script; style.css has them');
+  check(/Reported by CoCoRaHS/.test(e.st.markers[0].tooltip), 'the reporter, the old colour, is in the tooltip');
+
+  const ELEVEN = Array.from({length: 11}, (_, i) => AT(-104 - i / 10, 39, '06-' + String(i + 1).padStart(2, '0') + '-2026 12:00', 'HAIL'));
+  e = makeEnv({dataset: DS, pickerValue: 'all', bodies: {radar: RADAR([]), points: {features: ELEVEN}}});
+  await e.run();
+  check(slot(e.st.markers[10]) === 'storm-1' && slot(e.st.markers[1]) === 'storm-10', 'ten storms get ten colours, newest first');
+  check(slot(e.st.markers[0]) === 'storm-older', 'the eleventh is grey, never a repeated colour');
 
   // ---- nothing to draw
   e = makeEnv({dataset: DS, pickerValue: 'all', bodies: {radar: RADAR([])}});

@@ -18,19 +18,21 @@ from hailsys.email import blocks, render, samples
 # One more than allowed, so a form that's too long is reported.
 MAX_FORM_BLOCKS = blocks.MAX_BLOCKS + 1
 
+# Named for what each block looks like in the email, not what it is called in the code (item 294,
+# slice 1):  the editor is for someone who uses it a few times a year.
 KIND_LABELS = {
-    "text": "Paragraph", "heading": "Heading", "image": "Image", "button": "Button",
-    "divider": "Divider line", "band": "Highlight band with checklist",
-    "testimonial": "Testimonial", "badges": "Badges (images in a row)",
-    "headline": "Storm headline", "greeting": "Greeting and lede",
-    "storm_panel": "Storm data panel", "listings": "Listings table",
+    "text": "Text", "heading": "Heading", "image": "Picture", "button": "Button",
+    "divider": "Dotted line", "band": "Blue box with a checklist",
+    "testimonial": "Customer review", "badges": "Row of logos",
+    "headline": "Storm headline", "greeting": "Greeting",
+    "storm_panel": "Storm details box", "listings": "The agent's houses",
     "footer": "Footer",
 }
 
 # Wording fixed in code, filled in from the storm data.
 SYSTEM_KINDS = {"headline", "greeting", "storm_panel", "listings"}
 
-RICH_HELP = "Formatting and merge fields: see the guide at the top of the page."
+RICH_HELP = "Use the buttons above the box for bold, colour, links and storm details."
 _SPACE = "Pixels, 0 to 40, in steps of 2"
 
 PRESET_LABELS = {
@@ -102,13 +104,13 @@ FIELDS = {
         _f("space_after", "Space below", "number", help=_SPACE),
     ],
     "image": [
-        _f("image", "Image name", "text", help="A name from Email images on the admin page"),
+        _f("image", "Picture", "text", help="A picture name from Admin → Email (for example logo)"),
         _f("width", "Width", "number", help="Pixels, 40 to 560, in steps of 2"),
-        _f("placement", "Placement", "select", ["header", "body"]),
+        _f("placement", "Where", "select", ["header", "body"]),
     ],
     "button": [
-        _f("label", "Label", "text"),
-        _f("url", "Address", "text", help="https://... or {schedule_url}"),
+        _f("label", "Button text", "text"),
+        _f("url", "Goes to", "text", help="A web address starting https://, or {schedule_url} for your schedule page"),
         _f("color", "Colour", "select", list(blocks.PALETTE)),
         _f("space_before", "Space above", "number", help=_SPACE),
         _f("space_after", "Space below", "number", help=_SPACE),
@@ -116,18 +118,18 @@ FIELDS = {
     "divider": [],
     "band": [
         _f("title", "Title", "text"),
-        _f("intro", "Introduction", "textarea", help=RICH_HELP, rich=True),
+        _f("intro", "Text under the title", "textarea", help=RICH_HELP, rich=True),
         _f("items", "Checklist, one item per line", "lines", help="1 to 10 items; formatting works on each line", rich=True),
     ],
     "testimonial": [
-        _f("quote", "Quote", "textarea"),
+        _f("quote", "What they said", "textarea"),
         _f("who", "Who said it", "text"),
         _f("stars", "Stars", "number", help="0 to 5"),
-        _f("more_label", "Link label", "text", help="Optional, with the address below"),
-        _f("more_url", "Link address", "text", help="https://... or {schedule_url}"),
+        _f("more_label", "Link text", "text", help="Optional, for example See more reviews; needs the address below"),
+        _f("more_url", "Link goes to", "text", help="A web address starting https://, or {schedule_url}"),
     ],
     "badges": [
-        _f("images", "Image names, one per line", "lines", help="1 to 4 names"),
+        _f("images", "Logos, one picture name per line", "lines", help="1 to 4 names from Admin → Email"),
         _f("width", "Width", "number", help="Pixels, 40 to 200, in steps of 2"),
     ],
     "headline": [], "greeting": [], "storm_panel": [], "listings": [],

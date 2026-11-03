@@ -7727,7 +7727,8 @@ as they are; the editor translates on screen only). The rendered email of every 
 before slice 1, a test renders every saved template version with the sample storms and snapshots the HTML, and each
 slice re-runs it. Saving still makes a new version. Validation that matters is enforced by the server as well as the
 browser, and fails loudly. CSRF on every new endpoint. Ask before installing anything. One commit per slice. Python
-and SQL are keyed in by the developer (CLAUDE.md); HTML, CSS, JavaScript and tests are written by Claude for this pass.
+and SQL are keyed in by the developer (CLAUDE.md); HTML, CSS, JavaScript and tests are written by Claude for this pass. **For this remodel the developer lets Claude edit
+everything, Python included** (2026-11-03, "on this one, you can edit everything").
 
 **Step 0 findings (2026-11-03, verified against the code).**
 - Blocks are stored as JSON in `email_templates.blocks` and compiled to `subject`/`body` on save (`hailsys/email/blocks.py`).
@@ -7775,5 +7776,29 @@ and SQL are keyed in by the developer (CLAUDE.md); HTML, CSS, JavaScript and tes
 
 **When:** now, slice by slice, each one reported with its render-diff result.
 
+**Progress.**
+- *Baseline, 2026-11-03* (`45dc839`): `tests/test_template_render_snapshot.py` and 42 renderings in
+  `tests/snapshots/template_render.json`, written before any slice.
+- *Slice 1 done, 2026-11-03:* block types named for what they look like (Text, Picture, Dotted line, Blue box with a
+  checklist, Customer review, Row of logos, Storm details box, The agent's houses ...), field labels and help in plain
+  words, choice menus in words (the stored values unchanged), the storm blocks marked "filled in automatically", the
+  footer's reason given, and `[[trackingImage]]` dropped from the editor preview. Render diff empty (42 of 42).
+
 **Related:** items 201, 203, 220, 221.
+
+## 295. The Territory recolour shipped with a JavaScript check still pinning the old colours
+
+**Status:** resolved 2026-11-03 (fixed in the item 294 slice 1 commit)
+
+Found 2026-11-03 running the full suite in the `test` service. `bf3e6e8` (item 201, Territory) changed `map.js` to
+colour the report points and circles by storm, but `tests/js/map_check.js` still checked colour by source ("a known
+source keeps its colour on point and circle", "an unknown source is grey"). The commit was tested with the Python tests
+in the `web` container only, which does not run `tests/js/` (nor mount `systemd/` and `planning/`).
+
+**Fixed 2026-11-03:** the two checks were replaced by nine storm-colour checks: the newest storm takes the first colour,
+one colour per local date and report type, a point and its circle alike, the colour from a CSS class and not the
+script, the eleventh storm grey rather than a repeat, and the reporter in the tooltip.
+
+**Lesson:** before a commit that touches `hailsys/web/static/*.js`, run the full suite in the `test` service
+(`docker compose --profile test run --rm -T test`, `docs/command-ref.md`), not only the Python tests in `web`.
 

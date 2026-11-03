@@ -1,10 +1,12 @@
 {% if notice %}<p class="note warning">{{ notice }}</p>{% endif %}
+{# Choices shown in words; the stored values (left, center, header, body) are unchanged (item 294). #}
+{% set choice_words = {'left': 'Left', 'center': 'Centred', 'header': 'At the top, as the logo', 'body': 'In the email'} %}
 <input type="hidden" name="n_blocks" value="{{ block_views | length }}">
 {% for bl in block_views %}
 {% set title %}{{ bl.number }}. {{ bl.label }}{% if bl.summary %} <span class="tpl-summary">{{ bl.summary }}</span>{% endif %}{% endset %}
 {% set buttons %}
         {% if bl.footer %}
-        <small>The footer is required and stays last.</small>
+        <small>Required, and always last: it carries the "This is an advertisement" notice the law needs.</small>
         {% else %}
         <button type="submit" name="action" value="up:{{ bl.index }}"
                 formaction="{{ url_for('emailtpl.act') }}#b{{ bl.index - 1 }}"{% if not bl.can_up %} disabled{% endif %}>Move up</button>
@@ -18,7 +20,7 @@
 {# A block with nothing to edit (the storm blocks, the divider): one line. #}
 <div class="tpl-row{% if bl.system %} tpl-system{% endif %}" id="b{{ bl.index }}">
     <input type="hidden" name="b{{ bl.index }}_kind" value="{{ bl.kind }}">
-    <span class="tpl-row-title">{{ title }}{% if bl.system %} <small>(wording fixed, filled in from the storm data)</small>{% endif %}</span>
+    <span class="tpl-row-title">{{ title }}{% if bl.system %} <small>(filled in automatically from the storm data; the wording is fixed){% if bl.kind == 'listings' %} · required{% endif %}</small>{% endif %}</span>
     <span class="tpl-actions">{{ buttons }}</span>
     {% for message in bl.problems %}<p class="error">{{ message }}</p>{% endfor %}
     <div class="block-errors" data-block="{{ bl.index }}"></div>
@@ -53,7 +55,7 @@
         <textarea id="{{ f.name }}" name="{{ f.name }}" rows="5"{% if f.rich %} data-rich="1"{% endif %}>{{ f.value }}</textarea>
         {% elif f.widget == 'select' %}
         <select id="{{ f.name }}" name="{{ f.name }}">
-            {% for c in f.choices %}<option value="{{ c }}"{% if c | string == f.value %} selected{% endif %}>{{ c }}</option>{% endfor %}
+            {% for c in f.choices %}<option value="{{ c }}"{% if c | string == f.value %} selected{% endif %}>{{ choice_words.get(c, c) }}</option>{% endfor %}
         </select>
         {% elif f.widget == 'checkbox' %}
         <input type="checkbox" id="{{ f.name }}" name="{{ f.name }}"{% if f.checked %} checked{% endif %}>

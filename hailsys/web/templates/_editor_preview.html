@@ -1,7 +1,9 @@
+{# Constant Contact swaps [[trackingImage]] for an invisible tracking pixel when it sends; the preview
+   drops the raw tag so it does not show as text.  The saved template keeps it. #}
 {% if preview.ok %}
 <p class="tpl-subject">Subject: <strong>{{ preview.subject }}</strong> <small>&middot; {{ (preview.size / 1000) | round(1) }} KB</small></p>
 {% for w in preview.warnings %}<p class="note warning">{{ w }}</p>{% endfor %}
-<iframe sandbox title="Preview" srcdoc="{{ preview.html }}" class="tpl-frame"></iframe>
+<iframe sandbox title="Preview" srcdoc="{{ preview.html | replace('[[trackingImage]]', '') }}" class="tpl-frame"></iframe>
 {% else %}
 <p class="note warning">There is no preview yet. Fix these first:</p>
 <ul>

@@ -173,7 +173,7 @@ class EmailTplPagesTest(unittest.TestCase):
             self.assertIn(f'name="b{i}_kind" value="{block["kind"]}"', page)
         self.assertIn('name="name"', page)
         self.assertIn("Cannot be changed later", page.replace("It cannot", "Cannot"))
-        self.assertIn("wording fixed", page)                      # the system blocks say so
+        self.assertIn("the wording is fixed", page)               # the system blocks say so
         self.assertEqual(self.load_blocks.call_count, 0)
 
     def editor_form(self, path="/templates/new"):
@@ -337,7 +337,9 @@ class EmailTplPagesTest(unittest.TestCase):
         value = re.search(r'srcdoc="([^"]*)"', page).group(1)
         self.assertNotIn("<", value)                               # no raw markup in the attribute
         self.assertIn("&lt;html", value)
-        self.assertIn("[[trackingImage]]", value)                  # and it is the whole email
+        self.assertIn("&lt;/html&gt;", value)                       # and it is the whole email
+        # Constant Contact's tag is dropped from the on-screen preview only (item 294, slice 1).
+        self.assertNotIn("[[trackingImage]]", value)
         self.assertIn("&lt;/html&gt;", value)
 
     def test_a_new_template_starts_with_an_empty_name(self):
@@ -650,7 +652,7 @@ class EmailTplActionsTest(unittest.TestCase):
         last = len(self.draft["blocks"]) - 1
         self.assertNotIn(f'value="up:{last}"', page)
         self.assertNotIn(f'value="remove:{last}"', page)
-        self.assertIn("The footer is required and stays last.", page)
+        self.assertIn("Required, and always last", page)
         self.assertRegex(page, r'value="down:%d"[^>]*disabled>Move down' % (last - 1))
 
     # ---- safety ----

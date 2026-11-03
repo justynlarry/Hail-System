@@ -368,7 +368,7 @@ class DescribeTest(unittest.TestCase):
         self.assertEqual([x["kind"] for x in shown], ["text", "headline", "divider", "footer"])
         self.assertEqual([x["number"] for x in shown], [1, 2, 3, 4])
         self.assertEqual([x["index"] for x in shown], [0, 1, 2, 3])
-        self.assertEqual(shown[0]["label"], "Paragraph")
+        self.assertEqual(shown[0]["label"], "Text")
         self.assertEqual(shown[0]["fields"][0]["name"], "b0_text")
 
     def test_system_and_footer_flags(self):
@@ -473,7 +473,7 @@ class RichFieldsAndLegendTest(unittest.TestCase):
             for x in fields:
                 if x["rich"] and x["key"] != "items":
                     self.assertEqual(x["help"], f.RICH_HELP)
-        self.assertIn("guide at the top of the page", f.RICH_HELP)      # the legend's place on the page
+        self.assertIn("buttons above the box", f.RICH_HELP)             # the toolbar on every rich box
         items = next(x for x in f.FIELDS["band"] if x["key"] == "items")
         self.assertIn("formatting works on each line", items["help"])
 
