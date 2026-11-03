@@ -14,8 +14,11 @@ def create_app():
     app = Flask(__name__)
     app.secret_key = os.environ["FLASK_SECRET_KEY"]
 
-    app = Flask(__name__)
-    app.secret_key = os.environ["FLASK_SECRET_KEY"]
+    # Gunicorn runs without --reload and debug is off, so without this, Jinja
+    # compiles each template once per worker and doesn't reread the file:
+    # a template edit needed a restart, though the docs said it didn't.
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
+
 
     # Caps every request body.  Set app-wide, not in the view.
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 *1024

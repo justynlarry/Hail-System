@@ -118,7 +118,7 @@ class ZoneEstimateWebTest(unittest.TestCase):
         self.assertRegex(html, r"Today's pull from storm reports:\s*<strong>3</strong>\s*zips, about\s*<strong>3</strong>")
         self.assertRegex(html, r"With the hail zones:\s*<strong>4</strong>\s*zips,\s*about\s*<strong>5</strong>")
         self.assertIn("1 added by the zones, 1 from reports only", html)
-        self.assertIn("10</strong> of 1000 requests used", html)
+        self.assertIn("10</strong> of 1,000 requests used", html)
 
     def test_each_zip_has_a_row_with_its_basis_level_overlap_and_share(self):
         html = self.text()

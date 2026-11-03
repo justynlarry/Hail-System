@@ -179,5 +179,6 @@ Every one of these, not most:
       never edited once applied.
 - [ ] Rebuild `ingest` after a change to anything it imports (`scripts/status.sh images` names the files), and `web` or
       `app` after a change to `requirements.txt` or `docker/app.Dockerfile`.
-- [ ] `docker compose restart web` after a Python change; templates reload on their own.
+- [ ] `docker compose restart web` after a Python change; templates reload on their own, because `create_app()` sets
+      `TEMPLATES_AUTO_RELOAD` (item 290).
 - [ ] `scripts/status.sh images`: all OK.

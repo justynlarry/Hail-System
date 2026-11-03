@@ -800,6 +800,96 @@ h1 ~ table { width: calc(100% - 3rem); }
     margin-bottom: 0;
 }
 
+/* Admin tabs (item 201, 2026-11-03).  admin.js fills .tabs with one button per
+   .tab-panel and adds .tabbed to the page; with no script the bar stays empty
+   and hidden, and the sections stack as they did.  Once tabbed, each panel's
+   own h2 repeats its tab's name, so it is hidden. */
+.tabs {
+    display: flex; flex-wrap: wrap; gap: 0.25rem;
+    border-bottom: 1px solid var(--border);
+    margin: 1rem 0 1.25rem;
+}
+.tabs:empty { display: none; }
+.tabs button {
+    background: none; border: 1px solid transparent; border-bottom: none;
+    border-radius: 4px 4px 0 0; margin-bottom: -1px;
+    padding: 0.5rem 1rem; cursor: pointer;
+    font: inherit; font-weight: 600; color: var(--muted);
+}
+.tabs button:hover { color: var(--text); }
+.tabs button.active {
+    background: var(--bg); color: var(--text);
+    border-color: var(--border);
+}
+.admin-page.tabbed .tab-panel > h2 { display: none; }
+.tab-intro { color: var(--muted); max-width: 60rem; margin: 0 0 1rem; }
+
+/* Two cards side by side where there is room, one column where there is not.
+   wide-left gives the hail-zone form, whose level grid is the widest thing on
+   the page, more of the row.  .tab-stack is a column of cards in one cell. */
+/* Boxes in a row share one height (developer, 2026-11-03), except on Hail
+   zones, where the form is far taller than the column beside it and
+   stretching that column would leave a box mostly empty.  A grid after a
+   table gets space above it, or its boxes sit hard against the table. */
+.tab-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+    gap: 1.25rem; align-items: stretch;
+    margin-bottom: 1.5rem;
+}
+.table-scroll + .tab-grid { margin-top: 1.5rem; }
+.tab-grid.wide-left { grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem); align-items: start; }
+@media (max-width: 64rem) {
+    .tab-grid.wide-left { grid-template-columns: minmax(0, 1fr); }
+}
+.tab-stack { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+.card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    min-width: 0;
+}
+fieldset.card { margin: 0; }
+.card > legend { font-weight: 600; padding: 0 0.25rem; }
+.card > h3:first-child { margin-top: 0; }
+/* .admin-form caps a form at 24rem, right for Add user; the settings form
+   holds a row of cards, so it takes the full width. */
+.admin-form.wide { max-width: none; }
+/* Hail zones: the numbers and the level grid side by side inside the form's
+   card, wrapping to one column when the card is too narrow for both.  The
+   name, trial day and save end the level-grid column (.zone-save). */
+.zone-form-cols { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
+.zone-form-cols > div { flex: 1 1 24rem; min-width: 0; }
+.zone-form-cols h3 { margin-top: 0; }
+.zone-save { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; max-width: 36rem; }
+.zone-save p { margin: 0; }
+
+/* Radio choices (the do-not-contact "Reason for removal").  .admin-form
+   stacks a label over its input and stretches inputs to full width, which put
+   each radio button on its own line above its text; these sit side by side. */
+.admin-form fieldset.choices {
+    display: flex; flex-direction: column; gap: 0.375rem;
+    margin: 0; padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border); border-radius: 4px;
+}
+.admin-form fieldset.choices legend {
+    padding: 0 0.25rem; font-size: 0.875rem; font-weight: 600; color: var(--muted);
+}
+.admin-form label.choice {
+    flex-direction: row; align-items: center; gap: 0.5rem;
+    color: var(--text); font-weight: 400;
+}
+.admin-form label.choice input { width: auto; margin: 0; }
+/* A button that disrupts other people (Sign out all users): red, fixed colours
+   like the status bars so it reads the same in both themes.  The form carries
+   data-confirm, so admin.js asks before it submits. */
+.admin-page button.danger {
+    background: #b42318; color: #fff; border: none; border-radius: 3px;
+    padding: 0.4rem 1rem; cursor: pointer; font-size: 0.875rem; font-weight: 600;
+}
+.admin-page button.danger:hover { background: #912018; }
+
 /* Deactivated users: muted but still readable -- same opacity convention
    as .agent-unknown on the match page, not a new colour. */
 .admin-page tr.inactive {

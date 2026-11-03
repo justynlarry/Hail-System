@@ -248,7 +248,9 @@ These have already bitten us. Do not re-discover them.
   Constant Contact daily limit and headroom, the suppression rule, `MAX_EMAILS_LIMIT`). Decision
   log 2026-10-13. Done for the email images and sender (decision log 2026-10-14).
 - `web`, `app` and `loader` bind-mount the repo (edit = deploy). **Templates reload from disk but Python does not:** restart `web`
-  (`docker compose restart web`) after changing `.py` files, before relying on a template that uses them (item 260). Only `ingest`
+  (`docker compose restart web`) after changing `.py` files, before relying on a template that uses them (item 260).
+  Templates reload only because `create_app()` sets `TEMPLATES_AUTO_RELOAD`; gunicorn has no `--reload` and debug is off,
+  and before that setting a template edit also needed a restart (item 290). Only `ingest`
   runs image-baked code, on purpose, because the nightly timers should run a
   known artifact -- rebuild it before testing ingest changes, and run
   `scripts/status.sh images` to see whether it is behind. See

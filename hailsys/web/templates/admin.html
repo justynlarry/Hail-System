@@ -8,45 +8,22 @@
 {%- endmacro %}
 
 {% block content %}
-<div class="page admin-page">
+{# Tabs (item 201, 2026-11-03).  Each <section class="tab-panel"> is one tab; admin.js builds
+   the tab buttons from their data-tab-title and shows one at a time.  Without the script every
+   section shows, one after another, as the page did before.  data-open-tab names the tab a
+   re-rendered page must open on: a hail-zone trial, or an Add user form sent back with an error. #}
+<div class="page admin-page"
+     data-open-tab="{% if trial %}hail-zones{% elif form.user_name or form.first_name or form.last_name or form.email %}users{% endif %}">
+<script src="{{ url_for('static', filename='admin.js') }}" defer></script>
 
-<section>
-  <details {% if form.user_name or form.first_name or form.last_name or form.email %}open{% endif %}>
-    <summary>Add user</summary>
-    <form method="post" action="{{ url_for('admin.create_user') }}" class="admin-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label>User name
-        <input name="user_name" value="{{ form.user_name }}" required autocomplete="off"></label>
-      <label>First name
-        <input name="first_name" value="{{ form.first_name }}" required></label>
-      <label>Last name
-        <input name="last_name" value="{{ form.last_name }}" required></label>
-      <label>Email
-        <input type="email" name="email" value="{{ form.email }}" required></label>
-      <label>Role
-        <select name="role">
-          {% for r in roles %}
-          <option value="{{ r }}" {% if (form.role or 'viewer') == r %}selected{% endif %}>{{ r }}</option>
-          {% endfor %}
-        </select></label>
-      <label>Password
-        <input type="password" name="password" minlength="{{ min_password_length }}"
-               required autocomplete="new-password"></label>
-      <label>Confirm password
-        <input type="password" name="confirm" minlength="{{ min_password_length }}"
-               required autocomplete="new-password"></label>
-      <button type="submit">Create user</button>
-    </form>
-  </details>
-</section>
+{% include "_cc_status.html" %}
 
-<section>
-  <h2>Integrations</h2>
-  {% include "_cc_status.html" %}
-</section>
+<nav class="tabs" role="tablist" aria-label="Admin sections"></nav>
 
-<section>
+<section id="users" class="tab-panel" data-tab-title="Users">
   <h2>Users</h2>
+  <p class="tab-intro">Who can sign in, and what each can do. Viewers browse and export. Senders can also pull
+    listings from RentCast and match them. Admins can also send email and use this page.</p>
   <div class="table-scroll">
   <table>
     <thead>
@@ -83,7 +60,8 @@
           <form method="post" action="{{ url_for('admin.boot_user', emp_id=u.emp_id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit">Sign out</button></form>
-          <form method="post" action="{{ url_for('admin.deactivate_user', emp_id=u.emp_id) }}">
+          <form method="post" action="{{ url_for('admin.deactivate_user', emp_id=u.emp_id) }}"
+                data-confirm="Deactivate {{ u.user_name }}? They are signed out and cannot sign in until reactivated.">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit">Deactivate</button></form>
           {% else %}
@@ -114,83 +92,154 @@
     </tbody>
   </table>
   </div>
+
+  <div class="tab-grid">
+  <details {% if form.user_name or form.first_name or form.last_name or form.email %}open{% endif %}>
+    <summary>Add user</summary>
+    <form method="post" action="{{ url_for('admin.create_user') }}" class="admin-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>User name
+        <input name="user_name" value="{{ form.user_name }}" required autocomplete="off"></label>
+      <label>First name
+        <input name="first_name" value="{{ form.first_name }}" required></label>
+      <label>Last name
+        <input name="last_name" value="{{ form.last_name }}" required></label>
+      <label>Email
+        <input type="email" name="email" value="{{ form.email }}" required></label>
+      <label>Role
+        <select name="role">
+          {% for r in roles %}
+          <option value="{{ r }}" {% if (form.role or 'viewer') == r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select></label>
+      <label>Password
+        <input type="password" name="password" minlength="{{ min_password_length }}"
+               required autocomplete="new-password"></label>
+      <label>Confirm password
+        <input type="password" name="confirm" minlength="{{ min_password_length }}"
+               required autocomplete="new-password"></label>
+      <button type="submit">Create user</button>
+    </form>
+  </details>
+
+    <div class="card">
+      <h3>Sign everyone out</h3>
+      <p>Last system-wide sign-out: {{ ts(settings.global_sessions_invalidated_at) }}</p>
+      <form method="post" action="{{ url_for('admin.boot_all') }}"
+            data-confirm="Sign out every user, you included? Everyone has to sign in again.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="danger">Sign out all users</button>
+      </form>
+      <small>This signs you out too.</small>
+    </div>
+  </div>
 </section>
 
-<section>
+<section id="settings" class="tab-panel" data-tab-title="Settings">
   <h2>Settings</h2>
-  <form method="post" action="{{ url_for('admin.update_settings') }}" class="admin-form">
+  <p class="tab-intro">The numbers that decide which zips a pull covers, which houses match a storm, and which
+    realtors can be emailed. Every change is kept in History.</p>
+  <form method="post" action="{{ url_for('admin.update_settings') }}" class="admin-form wide">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <table class="settings-table">
-      <tbody>
-        <tr><th><label for="zip_radius">Zip radius</label></th>
-            <td><input id="zip_radius" name="zip_radius" type="number"
-                       step="0.1" min="0.1" max="{{ '%.1f'|format(ceiling_miles) }}"
-                       value="{{ settings.default_zip_radius_miles }}" required> mi</td></tr>
-        <tr><th><label for="match_radius">Match radius</label></th>
-            <td><input id="match_radius" name="match_radius" type="number"
-                       step="0.1" min="0.1" max="{{ '%.1f'|format(ceiling_miles) }}"
-                       value="{{ settings.default_match_radius_miles }}" required> mi
-                <br><small>Changing this hides existing matches until storms are
-                re-matched, and it's the number that appears in emails.</small></td></tr>
-        <tr><th><label for="billing_day">RentCast billing day</label></th>
-            <td><input id="billing_day" name="billing_day" type="number"
-                       min="1" max="28" step="1"
-                       value="{{ settings.rentcast_billing_day }}" required>
-                <br><small>Day of month the plan resets. Capped at 28 — later days
-                have no February equivalent.</small></td></tr>
-        <tr><th><label for="monthly_quota">Monthly request quota</label></th>
-            <td><input id="monthly_quota" name="monthly_quota" type="number"
-                       min="1" step="1"
-                       value="{{ settings.rentcast_monthly_quota }}" required>
-                <br><small>Overage is billed, not blocked — the pull estimate
-                warns and allows.</small></td></tr>
-        <tr><th><label for="freshness_days">Listing freshness (days)</label></th>
-            <td><input id="freshness_days" name="freshness_days" type="number"
-                       step="1" min="1" max="90"
-                       value="{{ settings.listing_freshness_days }}" required></td></tr>
-        <tr><th><label for="match_max_age_days">Storm age limit (days)</label></th>
-            <td><input id="match_max_age_days" name="match_max_age_days" type="number"
-                       step="1" min="1" max="90"
-                       value="{{ settings.match_max_age_days }}" required>
-                <br><small>A storm older than this is not emailed about.</small></td></tr>
-        <tr><th><label for="email_cap_days">Email cap (days)</label></th>
-            <td><input id="email_cap_days" name="email_cap_days" type="number"
-                       step="1" min="1" max="90"
-                       value="{{ settings.email_cap_days }}" required>
-                <br><small>A realtor emailed within this many days is held back unless
-                the sender overrides it.</small></td></tr>
-        <tr><th><label for="drip_max_followups">Most follow-ups per campaign</label></th>
-            <td><input id="drip_max_followups" name="drip_max_followups" type="number"
-                       step="1" min="0" max="10"
-                       value="{{ settings.drip_max_followups }}" required>
-                <br><small>0 turns new campaigns off. Applies to campaigns started
-                afterwards.</small></td></tr>
-        <tr><th><label for="drip_max_gap_days">Longest gap between steps (days)</label></th>
-            <td><input id="drip_max_gap_days" name="drip_max_gap_days" type="number"
-                       step="1" min="1" max="30"
-                       value="{{ settings.drip_max_gap_days }}" required>
-                <br><small>Each follow-up has its own gap, up to this. For 7 days then 14,
-                set this to 14 or more. Applies to campaigns started afterwards.</small></td></tr>
+    <div class="tab-grid">
+    <fieldset class="card">
+      <legend>Map and matching</legend>
+      <table class="settings-table">
+        <tbody>
+          <tr><th><label for="zip_radius">Zip radius</label></th>
+              <td><input id="zip_radius" name="zip_radius" type="number"
+                         step="0.1" min="0.1" max="{{ '%.1f'|format(ceiling_miles) }}"
+                         value="{{ settings.default_zip_radius_miles }}" required> mi
+                  <br><small>How far from a storm report a zip code counts as hit. This decides
+                  which zips a pull covers, and so what it costs.</small></td></tr>
+          <tr><th><label for="match_radius">Match radius</label></th>
+              <td><input id="match_radius" name="match_radius" type="number"
+                         step="0.1" min="0.1" max="{{ '%.1f'|format(ceiling_miles) }}"
+                         value="{{ settings.default_match_radius_miles }}" required> mi
+                  <br><small>Changing this hides existing matches until storms are
+                  re-matched, and it's the number that appears in emails.</small></td></tr>
+          <tr><th><label for="freshness_days">Listing freshness (days)</label></th>
+              <td><input id="freshness_days" name="freshness_days" type="number"
+                         step="1" min="1" max="90"
+                         value="{{ settings.listing_freshness_days }}" required>
+                  <br><small>A listing RentCast hasn't seen in this many days isn't emailed
+                  about; it may have sold.</small></td></tr>
+          <tr><th><label for="match_max_age_days">Storm age limit (days)</label></th>
+              <td><input id="match_max_age_days" name="match_max_age_days" type="number"
+                         step="1" min="1" max="90"
+                         value="{{ settings.match_max_age_days }}" required>
+                  <br><small>A storm older than this is not emailed about.</small></td></tr>
+        </tbody>
+      </table>
+      <p class="note">Both radii are capped at {{ "%.1f"|format(ceiling_miles) }} mi. Raising that needs a
+        migration and a full recompute, not a settings change.</p>
+    </fieldset>
 
-        <tr><th>Ceiling (read-only)</th>
-            <td>{{ "%.1f"|format(ceiling_miles) }} mi — raising it needs a migration
-                and a full recompute, not a settings change.</td></tr>
-        <tr><th>This billing period</th>
-            <td>{{ usage.used }} of {{ usage.quota }} requests used
-                ({{ usage.remaining }} remaining{% if usage.over %},
-                {{ usage.over }} over{% endif %})
-                <br><small>{{ usage.period_start }} to {{ usage.period_end }},
-                exclusive</small></td></tr>
-      </tbody>
-    </table>
+    <fieldset class="card">
+      <legend>RentCast</legend>
+      <table class="settings-table">
+        <tbody>
+          <tr><th><label for="billing_day">RentCast billing day</label></th>
+              <td><input id="billing_day" name="billing_day" type="number"
+                         min="1" max="28" step="1"
+                         value="{{ settings.rentcast_billing_day }}" required>
+                  <br><small>Day of month the plan resets. Capped at 28 — later days
+                  have no February equivalent.</small></td></tr>
+          <tr><th><label for="monthly_quota">Monthly request quota</label></th>
+              <td><input id="monthly_quota" name="monthly_quota" type="number"
+                         min="1" step="1"
+                         value="{{ settings.rentcast_monthly_quota }}" required>
+                  <br><small>Overage is billed, not blocked — the pull estimate
+                  warns and allows.</small></td></tr>
+          <tr><th>This billing period</th>
+              <td>{{ usage.used }} of {{ usage.quota }} requests used
+                  ({{ usage.remaining }} remaining{% if usage.over %},
+                  {{ usage.over }} over{% endif %})
+                  <br><small>{{ usage.period_start }} to {{ usage.period_end }},
+                  exclusive</small></td></tr>
+        </tbody>
+      </table>
+    </fieldset>
+
+    <fieldset class="card">
+      <legend>Email limits</legend>
+      <table class="settings-table">
+        <tbody>
+          <tr><th><label for="email_cap_days">Email cap (days)</label></th>
+              <td><input id="email_cap_days" name="email_cap_days" type="number"
+                         step="1" min="1" max="90"
+                         value="{{ settings.email_cap_days }}" required>
+                  <br><small>A realtor emailed within this many days is held back unless
+                  the sender overrides it.</small></td></tr>
+          <tr><th><label for="drip_max_followups">Most follow-ups per campaign</label></th>
+              <td><input id="drip_max_followups" name="drip_max_followups" type="number"
+                         step="1" min="0" max="10"
+                         value="{{ settings.drip_max_followups }}" required>
+                  <br><small>0 turns new campaigns off. Applies to campaigns started
+                  afterwards.</small></td></tr>
+          <tr><th><label for="drip_max_gap_days">Longest gap between steps (days)</label></th>
+              <td><input id="drip_max_gap_days" name="drip_max_gap_days" type="number"
+                         step="1" min="1" max="30"
+                         value="{{ settings.drip_max_gap_days }}" required>
+                  <br><small>Each follow-up has its own gap, up to this. For 7 days then 14,
+                  set this to 14 or more. Applies to campaigns started afterwards.</small></td></tr>
+        </tbody>
+      </table>
+    </fieldset>
+    </div>
     <button type="submit">Save settings</button>
   </form>
 </section>
 
 {% include "_hail_zones.html" %}
 
-<section id="email">
+<section id="email" class="tab-panel" data-tab-title="Email">
   <h2>Email</h2>
+  <p class="tab-intro">What every email carries: who it is from, where replies go, the contact address and
+    schedule link at the foot, and the images the templates use.</p>
+  <div class="tab-grid">
+  <div class="card">
+  <h3>Sender and links</h3>
   <form method="post" action="{{ url_for('admin.update_email_settings') }}" class="admin-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <table class="settings-table">
@@ -218,7 +267,9 @@
     </table>
     <button type="submit">Save email settings</button>
   </form>
+  </div>
 
+  <div class="card">
   <h3>Email images</h3>
   <p class="note">
     Images for email templates, by name. Editing an address changes new emails only; sent
@@ -226,6 +277,23 @@
     is loaded by your browser from its address; the server never fetches it. Images are
     retired, never deleted, and the three the built-in template needs cannot be retired.
   </p>
+  <details>
+    <summary>Add an image</summary>
+    <form method="post" action="{{ url_for('admin.add_image') }}" class="admin-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Name
+        <input name="name" required maxlength="40" pattern="[A-Za-z0-9_\-]+"
+               autocomplete="off"></label>
+      <label>Address (https)
+        <input name="url" type="url" required maxlength="500" size="50"></label>
+      <label>Alt text
+        <input name="alt_text" required maxlength="200"></label>
+      <button type="submit">Add image</button>
+    </form>
+  </details>
+  </div>
+  </div>
+
   <div class="table-scroll">
   <table>
     <thead><tr><th>Name</th><th>Image</th><th>Address (https)</th><th>Alt text</th>
@@ -274,35 +342,59 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   </form>
   {% endfor %}
-
-  <details>
-    <summary>Add an image</summary>
-    <form method="post" action="{{ url_for('admin.add_image') }}" class="admin-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label>Name
-        <input name="name" required maxlength="40" pattern="[A-Za-z0-9_\-]+"
-               autocomplete="off"></label>
-      <label>Address (https)
-        <input name="url" type="url" required maxlength="500" size="50"></label>
-      <label>Alt text
-        <input name="alt_text" required maxlength="200"></label>
-      <button type="submit">Add image</button>
-    </form>
-  </details>
 </section>
 
-<section>
-  <h2>Sessions</h2>
-  <p>Last system-wide sign-out: {{ ts(settings.global_sessions_invalidated_at) }}</p>
-  <form method="post" action="{{ url_for('admin.boot_all') }}">
+<section id="dnc" class="tab-panel" data-tab-title="Do-not-contact">
+  <h2>Do-not-contact list</h2>
+  <p class="tab-intro">
+    Add a Constant Contact export (unsubscribed contacts only) or type addresses in. Either way you'll see
+    what would be added before anything is written. Unsubscribes from the hail system's own Constant Contact
+    account arrive by the sync on its own; this is for everything else.
+  </p>
+  {% macro source_choice(prefix) %}
+    <fieldset class="choices">
+      <legend>Reason for removal</legend>
+      {% for key, label in dnc_sources.items() %}
+      <label class="choice"><input type="radio" name="source" value="{{ key }}" id="{{ prefix }}-{{ key }}"
+                    {% if loop.first %}checked{% endif %} required> {{ label }}</label>
+      {% endfor %}
+    </fieldset>
+  {% endmacro %}
+
+  <div class="tab-grid">
+  <div class="card">
+  <h3>Upload a file</h3>
+  <form method="post" action="{{ url_for('admin.dnc_upload') }}"
+        enctype="multipart/form-data" class="admin-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button type="submit">Sign out all users</button>
+    <label>CSV file
+      <input type="file" name="file" accept=".csv,text/csv" required></label>
+    <br><small>Columns must be named exactly <code>Email address</code>, <code>Email status</code> and
+      <code>Created At</code>, as Constant Contact exports them.</small>
+    {{ source_choice('file') }}
+    <button type="submit">Upload and preview</button>
   </form>
-  <small>This signs you out too.</small>
+  </div>
+  <div class="card">
+  <h3>Type addresses in</h3>
+  <form method="post" action="{{ url_for('admin.dnc_typed') }}" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p><label for="dnc-addresses">Addresses (separate with spaces, commas or new lines)</label><br>
+       <textarea id="dnc-addresses" name="addresses" rows="4" cols="50" required></textarea></p>
+    {{ source_choice('typed') }}
+    <p><label for="dnc-note">Note (optional, kept with each address)</label>
+       <input id="dnc-note" name="note" type="text" maxlength="200" size="50"
+              placeholder="For example: called the office"></p>
+    <button type="submit">Preview</button>
+  </form>
+  </div>
+  </div>
 </section>
 
-<section>
+<section id="history" class="tab-panel" data-tab-title="History">
   <h2>Settings history</h2>
+  <p class="tab-intro">Every change to the settings, newest first. Each row is the full set of values after
+    that change.</p>
   <div class="table-scroll">
   <table>
     <thead><tr><th>When</th><th>By</th><th>Zip radius</th><th>Match radius</th>
@@ -335,48 +427,6 @@
     </tbody>
   </table>
   </div>
-</section>
-
-<section>
-  <h2>Do-not-contact list</h2>
-  <p class="note">
-    Add a Constant Contact export (unsubscribed contacts only) or type addresses in. Either way you'll see
-    what would be added before anything is written. Unsubscribes from the hail system's own Constant Contact
-    account arrive by the sync on its own; this is for everything else.
-  </p>
-  {% macro source_choice(prefix) %}
-    <fieldset>
-      <legend>These are</legend>
-      {% for key, label in dnc_sources.items() %}
-      <label><input type="radio" name="source" value="{{ key }}" id="{{ prefix }}-{{ key }}"
-                    {% if loop.first %}checked{% endif %} required> {{ label }}</label><br>
-      {% endfor %}
-    </fieldset>
-  {% endmacro %}
-
-  <h3>Upload a file</h3>
-  <form method="post" action="{{ url_for('admin.dnc_upload') }}"
-        enctype="multipart/form-data" class="admin-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label>CSV file
-      <input type="file" name="file" accept=".csv,text/csv" required></label>
-    <br><small>Columns must be named exactly <code>Email address</code>, <code>Email status</code> and
-      <code>Created At</code>, as Constant Contact exports them.</small>
-    {{ source_choice('file') }}
-    <button type="submit">Upload and preview</button>
-  </form>
-
-  <h3>Type addresses in</h3>
-  <form method="post" action="{{ url_for('admin.dnc_typed') }}" class="admin-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p><label for="dnc-addresses">Addresses (separate with spaces, commas or new lines)</label><br>
-       <textarea id="dnc-addresses" name="addresses" rows="4" cols="50" required></textarea></p>
-    {{ source_choice('typed') }}
-    <p><label for="dnc-note">Note (optional, kept with each address)</label>
-       <input id="dnc-note" name="note" type="text" maxlength="200" size="50"
-              placeholder="For example: called the office"></p>
-    <button type="submit">Preview</button>
-  </form>
 </section>
 
 </div>

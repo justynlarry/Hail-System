@@ -4,9 +4,9 @@
                       'outer': 'NWS warning only', 'none': 'No radar layer'} %}
 {% set level_names = {'agree': 'Agree', 'one_source': 'One source', 'context': 'Context',
                       'none': 'None (not drawn)'} %}
-<section id="hail-zones">
+<section id="hail-zones" class="tab-panel" data-tab-title="Hail zones">
   <h2>Hail zones</h2>
-  <p class="note">These numbers decide the Agree, One source and Context areas on the Territory map. The
+  <p class="tab-intro">These numbers decide the Agree, One source and Context areas on the Territory map. The
     levels rank where to look first; they are not probabilities. Saving adds a new set, never edits one,
     and the newest set is in use at once. The map draws only days built with the set in use.</p>
 
@@ -20,8 +20,15 @@
   </div>
   {% endif %}
 
-  <form method="post" action="{{ url_for('admin.update_hail_zones') }}" class="admin-form">
+  <div class="tab-grid wide-left">
+  <div class="card">
+  <form method="post" action="{{ url_for('admin.update_hail_zones') }}" class="admin-form wide">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {# The numbers and the level grid side by side, both in this one form and card;
+       they wrap to one column where the card is too narrow for both. #}
+    <div class="zone-form-cols">
+    <div>
+    <h3>Thresholds and distances</h3>
     <table class="settings-table">
       <tbody>
         {% for key, label, unit, step, low, high, help in [
@@ -43,8 +50,11 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
 
+    <div>
     <h3>Level for each layer and distance</h3>
+    <div class="table-scroll">
     <table class="settings-table">
       <thead>
         <tr><th></th>
@@ -64,20 +74,29 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
 
-    <p><label for="zone_name">Name this change</label>
-       <input id="zone_name" name="name" type="text" maxlength="100" size="50"
-              value="{{ zone_form.name }}" placeholder="What changed and why" required></p>
-    <p><label for="trial_day">Try on a day</label>
-       <input id="trial_day" name="day" type="date" value="{{ try_day.isoformat() if try_day else '' }}">
-       <button type="submit" formaction="{{ url_for('admin.try_hail_zones') }}" formnovalidate>
-         Try on this day</button><br>
-       <small>Builds that day with these numbers and with the set in use, shows both, and keeps
-       nothing. It takes a couple of seconds.</small></p>
-    <button type="submit">Save as a new set</button>
+    {# Under the level grid (developer, 2026-11-03): name, try and save end the column. #}
+    <div class="zone-save">
+      <p><label for="zone_name">Name this change</label>
+         <input id="zone_name" name="name" type="text" maxlength="100" size="50"
+                value="{{ zone_form.name }}" placeholder="What changed and why" required></p>
+      <p><label for="trial_day">Try on a day</label>
+         <input id="trial_day" name="day" type="date" value="{{ try_day.isoformat() if try_day else '' }}">
+         <button type="submit" formaction="{{ url_for('admin.try_hail_zones') }}" formnovalidate>
+           Try on this day</button><br>
+         <small>Builds that day with these numbers and with the set in use, shows both, and keeps
+         nothing. It takes a couple of seconds.</small></p>
+      <button type="submit">Save as a new set</button>
+    </div>
+    </div>
+    </div>
   </form>
+  </div>
 
+  <div class="tab-stack">
   {% if trial %}
+  <div class="card">
   <h3>Trial for {{ trial.day.isoformat() }}</h3>
   {% if not trial.changed %}
   <p class="note">These numbers are the set in use, so both columns are the same.</p>
@@ -102,9 +121,40 @@
     </tbody>
   </table>
   <p class="note">Nothing was saved. To keep these numbers, name the change and save it above.</p>
+  </div>
   {% endif %}
 
+  <div class="card">
+  <h3>Warning states</h3>
+  <form method="post" action="{{ url_for('admin.update_storm_states') }}" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p><label for="storm_states">States whose NWS warnings are fetched</label>
+       <input id="storm_states" name="storm_states" type="text" value="{{ storm_states }}"
+              size="12" required>
+       <button type="submit">Save states</button><br>
+       <small>Two-letter codes separated by commas, for example CO,WY. The change is logged in the
+       settings history and applies to warnings fetched from now on.</small></p>
+  </form>
+  </div>
+
+  <div class="card">
+  <h3 id="observer-wording">CoCoRaHS observer wording</h3>
+  <form method="post" action="{{ url_for('admin.update_observer_wording') }}" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <p>Now: <strong>{{ 'approved' if observer_wording else 'not approved' }}</strong>.</p>
+    <p><label><input type="checkbox" name="approved" value="1" {% if observer_wording %}checked{% endif %}>
+       Zone emails may rest on a volunteer observer (CoCoRaHS) report</label>
+       <button type="submit">Save</button><br>
+       <small>Tick only after the CoCoRaHS usage policy has been read in full and the decision log says so.
+       While it is not approved, observer matches are counted on the send page but not sent, and the
+       database refuses them too. The change is logged in the settings history.</small></p>
+  </form>
+  </div>
+  </div>
+  </div>
+
   <h3>Sets so far</h3>
+  <div class="table-scroll">
   <table class="settings-table">
     <thead>
       <tr><th>Set</th><th>Saved</th><th>By</th><th>Name</th><th>Radar</th><th>Floor</th><th>Bands (mi)</th><th></th></tr>
@@ -124,27 +174,5 @@
       {% endfor %}
     </tbody>
   </table>
-
-  <h3>Warning states</h3>
-  <form method="post" action="{{ url_for('admin.update_storm_states') }}" class="admin-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p><label for="storm_states">States whose NWS warnings are fetched</label>
-       <input id="storm_states" name="storm_states" type="text" value="{{ storm_states }}"
-              size="12" required>
-       <button type="submit">Save states</button><br>
-       <small>Two-letter codes separated by commas, for example CO,WY. The change is logged in the
-       settings history and applies to warnings fetched from now on.</small></p>
-  </form>
-
-  <h3 id="observer-wording">CoCoRaHS observer wording</h3>
-  <form method="post" action="{{ url_for('admin.update_observer_wording') }}" class="admin-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p>Now: <strong>{{ 'approved' if observer_wording else 'not approved' }}</strong>.</p>
-    <p><label><input type="checkbox" name="approved" value="1" {% if observer_wording %}checked{% endif %}>
-       Zone emails may rest on a volunteer observer (CoCoRaHS) report</label>
-       <button type="submit">Save</button><br>
-       <small>Tick only after the CoCoRaHS usage policy has been read in full and the decision log says so.
-       While it is not approved, observer matches are counted on the send page but not sent, and the
-       database refuses them too. The change is logged in the settings history.</small></p>
-  </form>
+  </div>
 </section>

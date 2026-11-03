@@ -3386,6 +3386,13 @@ Each page's agreed changes are listed here as they are agreed.
   replaces the grey usage line on Confirm pull and Pull from zones. The ingest and radar detail expanders sit on one line
   under the bar. Also: a one-line explanation of the table, a hint saying what "Actionable Only" means, and Download CSV as a
   button. The activity feed stays at the top (developer). The admin page's Constant Contact bar stays a full-width bar.
+- **Admin (agreed and built 2026-11-03):** six tabs (Users, Settings, Hail zones, Email, Do-not-contact, History),
+  built by `admin.js` from the page's sections; without the script the sections stack as before. The open tab is
+  remembered for the browser tab, so a save comes back to it; a `#fragment` or a re-rendered page (a hail-zone trial, a
+  refused Add user form) opens its own tab. Each tab has a one-line explanation; Settings is one form in three boxes (Map
+  and matching, RentCast, Email limits) with help text on zip radius and listing freshness; Sessions moved into Users;
+  boxes in a row share one height, except on Hail zones. Deactivate and "Sign out all users" (now red) ask before they
+  submit. The do-not-contact choice is headed "Reason for removal", with the radio buttons beside their text.
 
 ## 202. Template list, and a template choice on the send page
 
@@ -7636,7 +7643,7 @@ To settle:
 
 ## 290. Templates did not reload from disk; the docs said they did
 
-**Status:** open
+**Status:** resolved 2026-11-03 (developer's edit to `hailsys/web/__init__.py`; `web` restarted, `jinja_env.auto_reload` now `True`)
 
 Found 2026-11-03, when the Storm Days redesign (item 201) did not show in the browser after a hard refresh. `web` runs
 gunicorn without `--reload`, and `TEMPLATES_AUTO_RELOAD` was unset with debug off (checked in the container:
@@ -7650,4 +7657,18 @@ likely not yet loaded `pull_estimate.html`). `docker compose restart web` on 202
 `web`; correct CLAUDE.md Conventions and `docs/deploy.md`.
 
 **When:** now (it blocks seeing item 201's work).
+
+**Resolved 2026-11-03.** The developer added `app.config["TEMPLATES_AUTO_RELOAD"] = True` to `create_app()`; after
+`docker compose restart web` the app reports `jinja_env.auto_reload` `True`. CLAUDE.md Conventions and `docs/deploy.md`
+now say templates reload because of that setting. A `.py` change still needs the restart (item 260).
+
+## 291. `create_app()` built the Flask app twice
+
+**Status:** resolved 2026-11-03 (developer's edit, the same one as item 290's)
+
+Found 2026-11-03, reading `hailsys/web/__init__.py` for item 290. Lines 14–15 and 17–18 were the same
+`app = Flask(__name__)` and `app.secret_key = …`; the second replaced the first. Harmless while nothing configured the
+first app, but a setting added between them would have been silently lost. Present since `e819ebc` (the scaffold).
+
+**Resolved 2026-11-03.** The developer deleted the second pair while adding item 290's line; `web` restarted cleanly.
 

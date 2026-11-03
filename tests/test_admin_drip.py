@@ -156,9 +156,11 @@ class AdminDripTest(unittest.TestCase):
         page = self.client().get("/admin/").get_data(as_text=True)
         self.assertIn('name="drip_max_followups"', page)
         self.assertIn('name="drip_max_gap_days"', page)
-        self.assertIn(f'name="drip_max_followups" type="number"\n                       step="1" '
-                      f'min="0" max="10"\n                       value="{row["f"]}"', page)
-        self.assertIn(f'min="1" max="30"\n                       value="{row["g"]}"', page)
+        # Whitespace collapsed, so re-indenting the template (item 201's tabs) does not break this.
+        flat = " ".join(page.split())
+        self.assertIn(f'name="drip_max_followups" type="number" step="1" '
+                      f'min="0" max="10" value="{row["f"]}"', flat)
+        self.assertIn(f'min="1" max="30" value="{row["g"]}"', flat)
 
     def test_the_boxes_are_inside_the_settings_form(self):
         page = self.client().get("/admin/").get_data(as_text=True)
