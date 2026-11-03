@@ -7,6 +7,10 @@
 <script src="{{ url_for('static', filename='map.js') }}" defer></script>
 <script src="{{ url_for('static', filename='storms.js') }}" defer></script>
 
+<p class="page-intro">
+    Where storms hit across the territory. Each row is a {{ 'city' if group_by == 'city' else 'zip code' }} and a type of
+    storm report; the map shows every report in the dates picked, one colour per storm.
+</p>
 <form method="get" action="{{ url_for('main.territory') }}" class="filters">
     <input type="hidden" name="submitted" value="1">
 
@@ -14,7 +18,7 @@
         <label for="group_by">Group By</label>
         <select id="group_by" name="group_by">
             {% for g in group_bys %}
-            <option value="{{ g }}" {% if g == group_by %}selected{% endif %}>{{ g }}</option>
+            <option value="{{ g }}" {% if g == group_by %}selected{% endif %}>{{ {'city': 'City', 'zip': 'Zip code'}.get(g, g) }}</option>
             {% endfor %}
         </select>
     </span>
@@ -48,11 +52,15 @@
     </span>
 
     <button type="submit">Apply</button>
-    <a href="{{ url_for('main.export_csv') }}?{{ export_query }}">Download CSV</a>
+    <a href="{{ url_for('main.export_csv') }}?{{ export_query }}" class="button-link">Download CSV</a>
 </form>
+<p class="note">
+    <strong>Actionable Only</strong> keeps the report types that can damage a roof (hail, damaging wind,
+    tornadoes, heavy snow and ice), at or above their size floor: hail 1 inch or larger, wind gusts 58 mph or more.
+</p>
 
 {% if not rows %}
-<p>Nothing Matches These Filters</p>
+<p class="empty-state">No storm reports match these filters. Try a wider date range, or All types.</p>
 
 {% elif group_by == 'city' %}
 <div class="split">

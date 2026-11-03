@@ -3393,6 +3393,11 @@ Each page's agreed changes are listed here as they are agreed.
   and matching, RentCast, Email limits) with help text on zip radius and listing freshness; Sessions moved into Users;
   boxes in a row share one height, except on Hail zones. Deactivate and "Sign out all users" (now red) ask before they
   submit. The do-not-contact choice is headed "Reason for removal", with the radio buttons beside their text.
+- **Territory (agreed and built 2026-11-03):** report circles and dots coloured by storm (one local date and report
+  type), the ten newest storms in ten fixed colours and older ones grey, with a "Storms on the map" legend under the map;
+  a legend click fades the other storms. The colour had been the report source, with no legend; the source is now in each
+  dot's tooltip. Also the Storm Days intro, Actionable Only note and Download CSV button, "City"/"Zip code" in Group By,
+  and a plain empty-state message.
 
 ## 202. Template list, and a template choice on the send page
 

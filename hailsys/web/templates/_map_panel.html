@@ -24,6 +24,14 @@
      data-findings-url="{{ url_for('main.territory_findings') }}"
      data-likelihood-url="{{ url_for('main.map_likelihood') }}"></div>
 
+{# Filled by map.js: one row per storm on the map (a day and a report type) in its colour, newest first;
+   a click fades the others (item 201, 2026-11-03). #}
+<details class="storm-legend-box" open>
+    <summary>Storms on the map</summary>
+    <ul id="storm-legend" class="storm-legend"></ul>
+    <p id="storm-legend-note" class="note">Loading storm reports…</p>
+</details>
+
 {% if radar_days and likelihood_set %}
 <details class="radar-legend-box likelihood-legend-box" open>
     <summary>Hail likelihood</summary>

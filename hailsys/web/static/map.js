@@ -80,53 +80,137 @@ document.addEventListener('DOMContentLoaded', function () {
   map.createPane('report-points');
   map.getPane('report-points').style.zIndex = 460;
 
-  // Keys are report_source_norm values (upper/trim), the top 5 sources by
-  // report_count in reference/sources.csv. report_source itself is free
-  // text with inconsistent case, so it is never the match key.
-  const SOURCE_COLORS = {
-    'COCORAHS': '#2ca02c',
-    'MESONET': '#ff7f0e',
-    'TRAINED SPOTTER': '#d62728',
-    'PUBLIC': '#1f77b4',
-    'CO-OP OBSERVER': '#9467bd',
-  };
+  // Each storm -- one local date and one report type, as a Storm Days row -- gets its own colour, so
+  // every circle and dot of 2026-08-13 HAIL matches (developer, 2026-11-03; item 201).  The colours are
+  // ten CSS slots, storm-1 to storm-10 in style.css, given newest storm first; older storms share the
+  // grey storm-older, because cycling the ten would give two storms one colour.  Who reported a point
+  // (it was the colour until 2026-11-03, with no legend) is in its tooltip.
+  const STORM_SLOTS = 10;
 
   const circles = L.layerGroup().addTo(map);
   const points = L.layerGroup().addTo(map);
+  const legendList = document.getElementById('storm-legend');
+  const legendNote = document.getElementById('storm-legend-note');
 
   // The circle claims the match radius, which is a setting.  The server sends it in metres; with no
   // number the circles are left out rather than drawn at a guess (item 216).
   const matchRadiusM = parseFloat(container.dataset.matchRadiusM);
   if (!(matchRadiusM > 0)) console.error('map: no match radius from the server, circles not drawn');
 
+  // local_time arrives as MM-DD-YYYY HH:MM (views.py), in Denver time; the storm's date is its day.
+  function stormDate(localTime) {
+    const d = localTime.slice(0, 10).split('-');
+    return d[2] + '-' + d[0] + '-' + d[1];
+  }
+
+  // Click a storm in the legend to fade the others; click it again, or "Show all", to undo.
+  const storms = {};          // key -> { slot, date, type, layers: [{layer, kind}] }
+  let highlighted = null;
+  const FULL = { ring: { opacity: 1, fillOpacity: 0.05 }, dot: { opacity: 1, fillOpacity: 0.9 } };
+  const FADED = { ring: { opacity: 0.12, fillOpacity: 0 }, dot: { opacity: 0.15, fillOpacity: 0.12 } };
+
+  function highlight(key) {
+    highlighted = (highlighted === key) ? null : key;
+    Object.keys(storms).forEach(function (k) {
+      const on = highlighted === null || k === highlighted;
+      storms[k].layers.forEach(function (l) {
+        l.layer.setStyle((on ? FULL : FADED)[l.kind]);
+        if (on && highlighted !== null && l.kind === 'dot') l.layer.bringToFront();
+      });
+    });
+    if (legendList) {
+      legendList.querySelectorAll('button[data-key]').forEach(function (b) {
+        b.setAttribute('aria-pressed', b.dataset.key === highlighted ? 'true' : 'false');
+      });
+      legendList.classList.toggle('has-highlight', highlighted !== null);
+    }
+  }
+
+  function legendRow(key, slotClass, text) {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.key = key;
+    b.setAttribute('aria-pressed', 'false');
+    const sw = document.createElement('span');
+    sw.className = 'swatch ' + slotClass;
+    b.appendChild(sw);
+    b.appendChild(document.createTextNode(text));
+    b.addEventListener('click', function () { highlight(key); });
+    li.appendChild(b);
+    return li;
+  }
+
+  function plural(n, word) { return n.toLocaleString('en-US') + ' ' + word + (n === 1 ? '' : 's'); }
+
   const params = new URLSearchParams(window.location.search);
   fetch('/map/points.geojson?' + params)
     .then(function (r) { return r.json(); })
     .then(function (data) {
+      // Number the storms newest first, so the colours go to the storms most likely to be worked.
+      const counts = {};
+      data.features.forEach(function (f) {
+        const key = stormDate(f.properties.local_time) + '|' + f.properties.report_text;
+        counts[key] = (counts[key] || 0) + 1;
+      });
+      const keys = Object.keys(counts).sort(function (a, b) {
+        const [da, ta] = a.split('|'), [db, tb] = b.split('|');
+        return da < db ? 1 : da > db ? -1 : (ta < tb ? -1 : ta > tb ? 1 : 0);
+      });
+      keys.forEach(function (key, i) {
+        const [date, type] = key.split('|');
+        storms[i < STORM_SLOTS ? key : 'older'] = storms[i < STORM_SLOTS ? key : 'older'] ||
+          { slot: i < STORM_SLOTS ? 'storm-' + (i + 1) : 'storm-older', date: date, type: type, layers: [] };
+        if (i >= STORM_SLOTS) storms.older.count = (storms.older.count || 0) + 1;
+      });
+
       data.features.forEach(function (f) {
         const [lon, lat] = f.geometry.coordinates;
         const p = f.properties;
-        const color = SOURCE_COLORS[p.report_source_norm] || '#666';
+        const key = stormDate(p.local_time) + '|' + p.report_text;
+        const storm = storms[key] || storms.older;
 
         // L.circle takes metres and draws a true circle on the ground.
         // L.circleMarker takes pixels and would grow as you zoom out,
         // which would be a lie about how far the radius is.
+        // The colour comes from the storm-N class in style.css, per theme.
         if (matchRadiusM > 0) {
-          circles.addLayer(L.circle([lat, lon], {
+          const ring = L.circle([lat, lon], {
             pane: 'report-circles', radius: matchRadiusM,
-            color: color, weight: 1, fillOpacity: 0.05,
+            weight: 1, fillOpacity: 0.05, className: 'storm-ring ' + storm.slot,
             interactive: false,
-          }));
+          });
+          circles.addLayer(ring);
+          storm.layers.push({ layer: ring, kind: 'ring' });
         }
 
         // Formatted by hailsys/formatting.py; the raw p.magnitude stays in the
         // feature for anything that sorts or sizes by it.
-        points.addLayer(L.circleMarker([lat, lon], {
-          pane: 'report-points',
-          radius: 5, color: color, fillColor: color, fillOpacity: 0.9, weight: 1,
+        const dot = L.circleMarker([lat, lon], {
+          pane: 'report-points', radius: 5, fillOpacity: 0.9, weight: 1,
+          className: 'storm-dot ' + storm.slot,
         }).bindTooltip(p.local_time + '<br>' + p.report_text + ' ' + p.magnitude_display +
-                       '<br>' + p.report_source));
+                       '<br>Reported by ' + p.report_source);
+        points.addLayer(dot);
+        storm.layers.push({ layer: dot, kind: 'dot' });
       });
+
+      if (legendList) {
+        keys.slice(0, STORM_SLOTS).forEach(function (key) {
+          const s = storms[key];
+          legendList.appendChild(legendRow(key, s.slot, s.date + ' · ' + s.type + ' · ' + plural(counts[key], 'report')));
+        });
+        if (storms.older) {
+          const n = storms.older.layers.filter(function (l) { return l.kind === 'dot'; }).length;
+          legendList.appendChild(legendRow('older', 'storm-older',
+            'Older storms in grey · ' + plural(storms.older.count, 'storm') + ', ' + plural(n, 'report')));
+        }
+        if (legendNote) {
+          legendNote.textContent = keys.length
+            ? 'Each colour is one storm: one day and one report type. Click a storm to fade the others; click it again to show all.'
+            : 'No storm reports in this view.';
+        }
+      }
 
       // The server keeps the newest reports when a view has more than it sends (item 33).
       const pointsStatus = document.getElementById('points-status');
@@ -135,7 +219,10 @@ document.addEventListener('DOMContentLoaded', function () {
           ' of ' + data.total.toLocaleString('en-US') + ' reports. Narrow the dates or pick a type to see them all.';
       }
     })
-    .catch(function (err) { console.error('points load failed', err); });
+    .catch(function (err) {
+      console.error('points load failed', err);
+      if (legendNote) legendNote.textContent = 'The storm reports could not be loaded.';
+    });
 
   // Radar layers (Phase 5b), staff only.  Colours come from style.css by class, per theme.
   const radar = {};

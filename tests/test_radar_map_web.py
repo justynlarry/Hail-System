@@ -269,7 +269,7 @@ class PageTest(Base):
     def test_a_window_with_no_storm_rows_has_no_map_and_no_picker(self):
         self.stub(rows=())
         text = self.page()
-        self.assertIn("Nothing Matches These Filters", text)
+        self.assertIn("No storm reports match these filters", text)
         self.assertNotIn('id="map"', text)
 
     def test_the_script_is_loaded_and_the_storm_days_page_has_no_map(self):

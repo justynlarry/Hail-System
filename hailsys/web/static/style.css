@@ -1268,3 +1268,44 @@ path.lk-context { fill: var(--lk-context); stroke: var(--lk-context); stroke-das
 .findings-flags { list-style: none; margin: 0; padding: 0; }
 .findings .tier { font-size: .7rem; font-weight: 600; color: var(--muted); vertical-align: super; }
 .findings .matrix { display: block; overflow-x: auto; }
+
+/* Storms on the Territory map (map.js, item 201, 2026-11-03): one colour per storm (a day and a report
+   type), newest first, the rest grey.  Ten slots, chosen by search so that every pair is at least 16 apart
+   (OKLab x100) under normal vision and checked with the dataviz validator.  Ten cannot all be told apart
+   under colour-blindness, and several sit below 3:1 on the map's grey, so identity never rests on colour
+   alone: the legend names each storm, each dot's tooltip carries its date, a legend click fades the
+   others, and each dot has a ring in the text colour.  The same ten in both themes:  the dark map is a
+   mid-grey, where the brighter steps hold up better than darker ones would. */
+:root {
+  --storm-1: #389ffa;  --storm-2: #fa8638;  --storm-3: #05c705;  --storm-4: #ad1f7e;  --storm-5: #2706f9;
+  --storm-6: #1fad91;  --storm-7: #fa38ed;  --storm-8: #ad581f;  --storm-9: #f90647;  --storm-10: #a806f9;
+  --storm-older: #8a8f96;
+}
+.storm-1 { --storm: var(--storm-1); }   .storm-2 { --storm: var(--storm-2); }
+.storm-3 { --storm: var(--storm-3); }   .storm-4 { --storm: var(--storm-4); }
+.storm-5 { --storm: var(--storm-5); }   .storm-6 { --storm: var(--storm-6); }
+.storm-7 { --storm: var(--storm-7); }   .storm-8 { --storm: var(--storm-8); }
+.storm-9 { --storm: var(--storm-9); }   .storm-10 { --storm: var(--storm-10); }
+.storm-older { --storm: var(--storm-older); }
+path.storm-ring { stroke: var(--storm); fill: var(--storm); }
+path.storm-dot  { stroke: var(--text); fill: var(--storm); }
+/* Laid out like the radar legend (.radar-legend), under its own names:  the radar legend is drawn only
+   when there is radar, and a test holds it to that. */
+.storm-legend { list-style: none; margin: .5rem 0 0; padding: 0; font-size: .85rem; }
+.storm-legend li { margin-bottom: .2rem; }
+.storm-legend .swatch { flex: none; width: 1.1rem; height: .7rem; border: 2px solid var(--storm);
+                        background: var(--storm); opacity: .85; }
+
+/* Legend rows are buttons (a click highlights that storm), styled as plain rows. */
+.storm-legend button {
+  display: flex; align-items: center; gap: 0.5rem; width: 100%;
+  background: none; border: 1px solid transparent; border-radius: 3px;
+  padding: 0.125rem 0.25rem; cursor: pointer;
+  font: inherit; color: var(--text); text-align: left;
+}
+.storm-legend button:hover { border-color: var(--border); }
+.storm-legend button[aria-pressed="true"] { border-color: var(--accent); font-weight: 600; }
+.storm-legend.has-highlight button[aria-pressed="false"] { opacity: 0.55; }
+
+/* A view with nothing to show says so plainly, at the page gutter. */
+.empty-state { margin: 1rem 1.5rem; color: var(--muted); }
