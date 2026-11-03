@@ -7807,6 +7807,12 @@ everything, Python included** (2026-11-03, "on this one, you can edit everything
   already existed. Both saved block templates had the listings block. Test fixtures that saved a template without it
   (`test_preview`, `test_templatestore`, `test_emailadmin`, `test_zone_templatestore`) now include it. Render diff
   empty (42 of 42).
+- *Slice 6 done, 2026-11-03:* "New template" opens `/templates/start`: the built-in, a copy of any active block
+  template (also a Copy button on each row of the list), or Blank (`blockform.blank()`: the listings block, the footer
+  and the standard subject). Each opens the editor as a new, unnamed template with a note saying where it started; a
+  copy is only read (`load_blocks`), so the original never changes, and an unknown, retired or non-block name returns
+  to the start page. Blank is `?start=blank`, since a template may be called "blank"; `/templates/new` alone is still
+  the built-in. Render diff empty (42 of 42).
 
 **Related:** items 201, 203, 220, 221.
 

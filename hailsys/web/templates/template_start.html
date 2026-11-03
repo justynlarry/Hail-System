@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}New template{% endblock %}
+{% block heading %}New template: where to start{% endblock %}
+
+{# What a new template starts from (item 294, slice 6).  Each choice opens the editor with a draft;
+   nothing is saved until Create template, and a copied template is only read. #}
+{% block content %}
+<div class="page">
+<p class="tab-intro">Pick a starting point. You can change everything afterwards, and nothing is saved until you
+    press <strong>Create template</strong>. Copying a template never changes it.</p>
+
+<div class="tab-grid">
+    <div class="card start-choice">
+        <h3>The built-in hail alert</h3>
+        <p>The standard email: logo, storm details, the agent's houses, a button to schedule, a checklist box,
+           a customer review and the footer.</p>
+        <p><a class="button-link" href="{{ url_for('emailtpl.new') }}">Start from the built-in</a></p>
+    </div>
+
+    <div class="card start-choice">
+        <h3>A previous email</h3>
+        {% if copies %}
+        <p>A copy of one of your saved templates.</p>
+        <ul class="start-list">
+            {% for r in copies %}
+            <li>
+                <a class="button-link" href="{{ url_for('emailtpl.new', **{'from': r.template_name}) }}">Copy {{ r.template_name }}</a>
+                {% if r.description %}<span class="note">{{ r.description }}</span>{% endif %}
+                <small class="note">{% if r.last_used %}last used {{ r.last_used.astimezone(display_tz).strftime('%Y-%m-%d') }}{% else %}never used{% endif %}</small>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="note">No saved templates to copy yet. Start from the built-in, then save it, and it appears here.</p>
+        {% endif %}
+    </div>
+
+    <div class="card start-choice">
+        <h3>Blank</h3>
+        <p>Only what every email must have: the agent's houses and the footer. Add the rest yourself.</p>
+        <p><a class="button-link" href="{{ url_for('emailtpl.new', start='blank') }}">Start blank</a></p>
+    </div>
+</div>
+
+<p><a href="{{ url_for('emailtpl.index') }}">Back to all templates</a></p>
+</div>
+{% endblock %}

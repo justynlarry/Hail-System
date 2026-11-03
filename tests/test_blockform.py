@@ -342,6 +342,14 @@ class DraftOperationsTest(unittest.TestCase):
         for index in (-1, 4, 99):
             self.assertEqual(f.remove_block(self.base(), index), self.base(), index)
 
+    def test_blank_is_the_required_blocks_only_and_is_a_valid_template(self):
+        # item 294, slice 6:  "Start blank" must still save and send.
+        draft = f.blank()
+        self.assertEqual(self.kinds(draft), ["listings", "footer"])
+        self.assertEqual(b.clean_template(draft), draft)
+        b.check_required(draft)
+        b.compile_blocks(draft)
+
     def test_the_listings_block_cannot_be_removed_and_says_why(self):
         # item 294, slice 5:  like the footer, the listings table stays; the page shows its Remove
         # disabled with this reason.

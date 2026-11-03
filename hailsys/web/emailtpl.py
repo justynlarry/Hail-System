@@ -66,8 +66,8 @@ def _context(draft, name, is_new, situation, notice=None, test_notice=None, unsa
             "legend": blockform.legend()}
 
 
-def _editor(draft, name, is_new):
-    context = _context(draft, name, is_new, _situation(request.args.get("situation")))
+def _editor(draft, name, is_new, notice=None):
+    context = _context(draft, name, is_new, _situation(request.args.get("situation")), notice)
     return render_template("template_edit.html", **context)
 
 
@@ -127,9 +127,43 @@ def index():
                            builtin_name=templatestore.TEMPLATE_NAME)
 
 
+@emailtpl_bp.route("/start")
+def start():
+    """What a new template starts from (item 294, slice 6):  the built-in, a copy of a saved block
+    template, or blank.  Each is a link to /new?from=...;  nothing is written."""
+    with get_connection() as conn:
+        rows = templatelist.fetch_all(conn, kind="report")
+        conn.rollback()
+    copies = [r for r in rows if r["has_blocks"] and r["template_name"] != templatestore.TEMPLATE_NAME]
+    return render_template("template_start.html", copies=copies, display_tz=DISPLAY_TZ,
+                           builtin_name=templatestore.TEMPLATE_NAME)
+
+
 @emailtpl_bp.route("/new")
 def new():
-    return _editor(blockform.starter(), "", True)
+    """The editor for a new template.  ?start=blank starts blank; otherwise ?from= names a saved block
+    template to copy, and nothing (or the built-in's name) is the built-in.  Blank has its own
+    parameter because a template may be called "blank".  A copy is only read:  the new template is
+    saved under its own name, so the original never changes."""
+    source = request.args.get("from") or templatestore.TEMPLATE_NAME
+    if request.args.get("start") == "blank":
+        return _editor(blockform.blank(), "", True,
+                       "Starting blank: only the required blocks.  Add more with Add a block.")
+    if source == templatestore.TEMPLATE_NAME:
+        return _editor(blockform.starter(), "", True)
+    draft = None
+    with get_connection() as conn:
+        try:
+            draft = templatestore.load_blocks(conn, source)
+        except templatestore.TemplateNotFound:
+            draft = None
+        finally:
+            conn.rollback()
+    if draft is None:
+        flash(f"There is no active template built from blocks named {source[:60]} to copy.  Pick another.")
+        return redirect(url_for("emailtpl.start"))
+    return _editor(draft, "", True,
+                   f"Starting from a copy of {source}.  Give it a new name; {source} itself is not changed.")
 
 
 @emailtpl_bp.route("/edit/<name>")

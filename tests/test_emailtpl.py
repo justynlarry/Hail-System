@@ -112,7 +112,7 @@ class EmailTplPagesTest(unittest.TestCase):
         self.assertEqual(resp.status_code, 200, path)
         return resp.get_data(as_text=True)
 
-    PATHS = ("/templates/", "/templates/new", "/templates/edit/spring")
+    PATHS = ("/templates/", "/templates/start", "/templates/new", "/templates/edit/spring")
 
     # ---- who may see them ----
 
@@ -144,7 +144,7 @@ class EmailTplPagesTest(unittest.TestCase):
         self.assertIn('href="/templates/edit/spring"', page)
         self.assertNotIn('href="/templates/edit/plain"', page)
         self.assertNotIn('href="/templates/edit/hail_alert"', page)
-        self.assertIn('href="/templates/new"', page)
+        self.assertIn('href="/templates/start"', page)                # New template asks where to start (slice 6)
         self.assertIn("2026-10-14", page)
 
     def test_the_built_in_is_listed_even_before_it_is_saved(self):
@@ -218,6 +218,60 @@ class EmailTplPagesTest(unittest.TestCase):
         for v in plain:
             self.assertIn(f'id="b{v["index"]}"', form)
             self.assertIn(f'name="b{v["index"]}_kind" value="{v["kind"]}"', form)
+
+    # ---- where a new template starts (item 294, slice 6) ----
+
+    def test_the_start_page_offers_the_built_in_each_saved_block_template_and_blank(self):
+        page = self.text("/templates/start")
+        self.assertIn('href="/templates/new">Start from the built-in', page)
+        self.assertIn('href="/templates/new?from=spring">Copy spring', page)
+        self.assertNotIn("from=plain", page)                    # not built from blocks: nothing to copy
+        self.assertNotIn("from=hail_alert", page)               # the built-in has its own choice
+        self.assertIn('href="/templates/new?start=blank">Start blank', page)
+
+    def test_the_list_offers_a_copy_of_each_block_template(self):
+        page = self.text("/templates/")
+        self.assertIn('href="/templates/new?from=spring">Copy</a>', page)
+        self.assertNotIn("from=plain", page)
+
+    def test_a_copy_opens_as_a_new_template_with_no_name_and_says_so(self):
+        copied = blockform.starter()
+        copied["blocks"][6]["text"] = "Words only spring has"
+        self.load_blocks.return_value = copied
+        page = self.text("/templates/new?from=spring")
+        self.load_blocks.assert_called_once()
+        self.assertEqual(self.load_blocks.call_args.args[1], "spring")
+        self.assertIn("Words only spring has", page)
+        self.assertIn('name="mode" value="new"', page)
+        self.assertIn('<input type="text" id="name" name="name" maxlength="40" value="">', page)
+        self.assertIn("Starting from a copy of spring.", page)
+
+    def test_a_copy_of_an_unknown_or_retired_template_goes_back_to_the_start_page(self):
+        self.load_blocks.side_effect = emailtpl.templatestore.TemplateNotFound("gone")
+        resp = self.get("/templates/new?from=gone")
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp.headers["Location"].endswith("/templates/start"))
+
+    def test_a_copy_of_a_template_not_built_from_blocks_goes_back_too(self):
+        self.load_blocks.return_value = None
+        resp = self.get("/templates/new?from=plain")
+        self.assertEqual(resp.status_code, 302)
+
+    def test_blank_has_only_the_required_blocks_and_previews(self):
+        page = self.text("/templates/new?start=blank")
+        self.load_blocks.assert_not_called()
+        self.assertEqual(page.count('class="tpl-keep"'), 2)     # the agent's houses and the footer
+        self.assertIn('name="b0_kind" value="listings"', page)
+        self.assertIn('name="b1_kind" value="footer"', page)
+        self.assertNotIn('name="b2_kind"', page)
+        self.assertIn("Starting blank", page)
+        self.assertIn('<iframe sandbox title="Preview"', page)  # a valid template: it previews
+
+    def test_no_from_and_the_built_in_name_both_start_from_the_built_in(self):
+        for path in ("/templates/new", "/templates/new?from=hail_alert"):
+            with self.subTest(path=path):
+                self.assertIn("Find out now, while you have time to deal with it.", self.text(path))
+        self.load_blocks.assert_not_called()
 
     def test_an_unedited_page_posts_back_exactly_the_template_it_showed(self):
         # item 294 slice 3:  spacing is shown as named steps, but the posted field is the exact box,

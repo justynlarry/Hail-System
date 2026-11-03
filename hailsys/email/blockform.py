@@ -173,6 +173,13 @@ def starter():
     return blocks.clean_template(copy.deepcopy(blocks.HAIL_ALERT_BLOCKS))
 
 
+def blank():
+    """The "Blank" start (item 294, slice 6):  only the required blocks (the agent's houses and the
+    footer) and the standard subject, defaults filled in."""
+    return blocks.clean_template({"title": "", "preheader": "", "subject": {"preset": "hail_alert"},
+                                  "blocks": [{"kind": "listings"}, {"kind": "footer"}]})
+
+
 # ------ form -> draft --------------------------------------------------------------
 
 def _read(field, raw):
