@@ -63,7 +63,8 @@ def _context(draft, name, is_new, situation, notice=None, test_notice=None, unsa
             "preheader": draft.get("preheader", ""), "subject": blockform.subject_form(draft),
             "block_views": blockform.describe(draft, shown["problems"]), "preview": shown,
             "situations": samples.SITUATIONS, "situation": situation,
-            "addable": blockform.ADDABLE, "notice": notice, "test_notice": test_notice,
+            "addable": blockform.ADDABLE, "kind_hints": blockform.KIND_HINTS,
+            "notice": notice, "test_notice": test_notice,
             "test_address": _my_address(), "unsaved": unsaved,
             # A new template's friendly title, kept across every redraw of the form (slice 4).
             "friendly_title": (request.form.get("friendly_title") or "").strip(),
@@ -75,14 +76,17 @@ def _editor(draft, name, is_new, notice=None):
     return render_template("template_edit.html", **context)
 
 
-def _apply(draft, action, add_kind):
+def _apply(draft, action, add_kind, add_at=""):
     """(the draft after the action, a notice to show or None).  An action that is not
-    understood, or cannot be done, changes nothing."""
+    understood, or cannot be done, changes nothing.  add_at is where "+ Add a section here" adds
+    (item 294, slice 8):  empty or not a number means just above the footer."""
     verb, _, arg = action.partition(":")
     if verb == "add":
         if add_kind not in dict(blockform.ADDABLE):
             return draft, "Pick a kind of block to add."
-        done = blockform.add_block(draft, add_kind)
+        place = add_at.strip()
+        at = int(place) if place.isascii() and place.isdigit() and len(place) <= 3 else None
+        done = blockform.add_block(draft, add_kind, at)
         if len(done["blocks"]) == len(draft["blocks"]):
             return draft, f"A template is limited to {blocks.MAX_BLOCKS} blocks."
         return done, None
@@ -213,7 +217,7 @@ def act():
         if saved is not None:
             return jsonify(redirect=saved.location) if fetch else saved
     else:
-        done, notice = _apply(draft, action, request.form.get("add_kind", ""))
+        done, notice = _apply(draft, action, request.form.get("add_kind", ""), request.form.get("add_at", ""))
     context = _context(done, name, is_new, _situation(request.form.get("situation")), notice,
                        unsaved=True)
     if fetch:

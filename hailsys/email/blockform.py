@@ -274,14 +274,31 @@ def _is_kept(block):
     return isinstance(block, dict) and block.get("kind") in KEEP
 
 
-def add_block(template, kind):
+def add_block(template, kind, at=None):
+    """A copy with a new block of this kind before block `at` ("+ Add a section here", item 294,
+    slice 8), or just above the footer when `at` is None, not a whole number, or past the footer:
+    nothing is ever added below the footer."""
     done = copy.deepcopy(template)
     block_list = done["blocks"]
     if kind not in FIELDS or kind == "footer" or len(block_list) >= blocks.MAX_BLOCKS:
         return done
-    at = len(block_list) - 1 if block_list and _is_footer(block_list[-1]) else len(block_list)
+    last = len(block_list) - 1 if block_list and _is_footer(block_list[-1]) else len(block_list)
+    if not (isinstance(at, int) and not isinstance(at, bool) and 0 <= at <= last):
+        at = last
     block_list.insert(at, new_block(kind))
     return done
+
+
+# One line for each block type in the "Add a section here" picker (item 294, slice 8).
+KIND_HINTS = {
+    "text": "A paragraph of words", "heading": "A bold title line", "image": "A picture or logo",
+    "button": "A coloured link people click", "divider": "A dotted line between parts",
+    "band": "A blue box with a title and ticked items", "testimonial": "Stars and a quote from a customer",
+    "badges": "Logos side by side", "headline": "The storm headline, filled in for you",
+    "greeting": "Hello and the opening line, filled in for you",
+    "storm_panel": "Date, hail size and distance, filled in for you",
+    "listings": "The agent's houses, filled in for you",
+}
 
 
 def _can_move(block_list, index, step):

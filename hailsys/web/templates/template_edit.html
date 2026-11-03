@@ -2,6 +2,7 @@
 {% block title %}{% if is_new %}New template{% else %}{{ name }}{% endif %}{% endblock %}
 {% block heading %}{% if is_new %}New template{% else %}Template: {{ name }}{% endif %}{% endblock %}
 
+{% from "_block_pictures.html" import picture %}
 {% block content %}
 <div class="page tpl-page">
 <p class="note">
@@ -107,11 +108,21 @@
             <h3>Blocks</h3>
             <div id="blocks">{% include "_editor_blocks.html" %}</div>
 
+            {# The picker "+ Add a section here" opens (tplpicker.js, item 294 slice 8).  It lives
+               outside #blocks, which is redrawn, and is moved under the insert line that opened it. #}
+            <div id="tpl-picker" class="tpl-picker" role="group" aria-label="Pick a section to add" hidden>
+                {% for kind, label in addable %}
+                <button type="button" data-kind="{{ kind }}">{{ picture(kind) }}<span><strong>{{ label }}</strong>
+                    <small>{{ kind_hints.get(kind, '') }}</small></span></button>
+                {% endfor %}
+            </div>
+
             <p class="tpl-field tpl-add" id="add-block">
                 <label for="add_kind">Add a block</label>
                 <select id="add_kind" name="add_kind">
                     {% for kind, label in addable %}<option value="{{ kind }}">{{ label }}</option>{% endfor %}
                 </select>
+                <input type="hidden" name="add_at" value="">
                 <button type="submit" name="action" value="add"
                         formaction="{{ url_for('emailtpl.act') }}#add-block">Add</button>
                 <small>New blocks go above the footer.</small>
@@ -140,5 +151,6 @@
 <script src="{{ url_for('static', filename='tplpresets.js') }}" defer></script>
 <script src="{{ url_for('static', filename='tplname.js') }}" defer></script>
 <script src="{{ url_for('static', filename='tplpreview.js') }}" defer></script>
+<script src="{{ url_for('static', filename='tplpicker.js') }}" defer></script>
 </div>
 {% endblock %}

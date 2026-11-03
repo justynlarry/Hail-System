@@ -8,7 +8,8 @@
 //   - a click on a header opens that block and closes the others (a second click closes it);
 //   - templates.js redraws the whole list after Move, Add and Remove.  The click is seen here
 //     first (a capture listener), so after the redraw the open block follows a moved block, a
-//     new block opens, and a removed one is forgotten;
+//     new block opens where it was added (add_at, from "+ Add a section here"), and a removed
+//     one is forgotten;
 //   - on a full page load, the #bN the block buttons put in the address opens that block;
 //   - after a redraw or a load, a block the server marked with a problem opens, so its message
 //     is never hidden.  A problem found while you type (the live preview) only marks its block,
@@ -55,6 +56,8 @@
   function follow(action, n) {
     var m = /^(up|down|remove):(\d+)$/.exec(action || '');
     if (action === 'add') { return n - 2; }               // a new block goes just above the footer
+    var at = /^add:(\d+)$/.exec(action || '');
+    if (at) { return Math.min(parseInt(at[1], 10), n - 2); }   // or where "+ Add a section here" was
     if (!m || open === null) { return open; }
     var i = parseInt(m[2], 10);
     if (m[1] === 'up') { return open === i ? i - 1 : (open === i - 1 ? i : open); }
@@ -85,7 +88,13 @@
       event.stopPropagation();          // templates.js listens on the form too:  it must not post
       return;
     }
-    if (button.value !== 'preview' && button.value !== 'save') { pending = button.value; }
+    if (button.value === 'add') {
+      // "+ Add a section here" fills add_at (tplpicker.js); empty means just above the footer.
+      var place = form.querySelector('input[name="add_at"]');
+      pending = place && /^\d+$/.test(place.value) ? 'add:' + place.value : 'add';
+    } else if (button.value !== 'preview' && button.value !== 'save') {
+      pending = button.value;
+    }
   }, true);
 
   // templates.js replaces the list after a block action, and adds problem lines while you type.

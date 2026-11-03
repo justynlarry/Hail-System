@@ -221,6 +221,21 @@ class EmailTplPagesTest(unittest.TestCase):
 
     # ---- where a new template starts (item 294, slice 6) ----
 
+    def test_every_block_has_an_add_here_line_before_it_and_the_picker_offers_every_kind(self):
+        # item 294, slice 8:  never after the footer; one picker with a drawing per kind.
+        page = self.text("/templates/new")
+        n = len(blockform.starter()["blocks"])
+        self.assertEqual(page.count('class="tpl-insert"'), n)
+        for i in range(n):
+            self.assertIn(f'class="tpl-insert" data-at="{i}"', page)
+        self.assertNotIn(f'data-at="{n}"', page)
+        self.assertEqual(page.count('id="tpl-picker"'), 1)
+        for kind, label in blockform.ADDABLE:
+            self.assertIn(f'<button type="button" data-kind="{kind}"><svg class="tpl-pic"', page)
+        self.assertNotIn('data-kind="footer"', page)
+        self.assertIn('<input type="hidden" name="add_at" value="">', page)
+        self.assertIn("tplpicker.js", page)
+
     def test_the_on_screen_preview_marks_its_blocks_for_clicking(self):
         # item 294, slice 7:  the marks are in the editor's preview, escaped inside srcdoc, and the
         # page loads the script that reads them.
@@ -637,6 +652,19 @@ class EmailTplActionsTest(unittest.TestCase):
         self.assertEqual(len(kinds), len(self.draft["blocks"]) + 1)
         self.assertEqual(kinds[-2:], ["heading", "footer"])
         self.assertIn('name="n_blocks" value="18"', got["blocks"])
+
+    def test_add_here_puts_the_new_block_where_it_was_asked(self):
+        # item 294, slice 8:  add_at comes from "+ Add a section here".
+        got = self.act("add", add_kind="heading", add_at="2")
+        kinds = self.kinds_in(got["blocks"])
+        self.assertEqual(kinds[2], "heading")
+        self.assertEqual(kinds[3:], [b["kind"] for b in self.draft["blocks"]][2:])
+
+    def test_a_bad_or_past_the_footer_place_adds_above_the_footer(self):
+        for at in ("", "abc", "999", "-1", "1e3", "２"):
+            with self.subTest(at=at):
+                kinds = self.kinds_in(self.act("add", add_kind="heading", add_at=at)["blocks"])
+                self.assertEqual(kinds[-2:], ["heading", "footer"])
 
     def test_every_kind_can_be_added(self):
         for kind, _ in blockform.ADDABLE:

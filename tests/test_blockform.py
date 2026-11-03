@@ -301,6 +301,25 @@ class DraftOperationsTest(unittest.TestCase):
         got = f.add_block(self.base(), "heading")
         self.assertEqual(self.kinds(got), ["text", "divider", "text", "heading", "footer"])
 
+    def test_a_block_can_be_added_anywhere_above_the_footer(self):
+        # item 294, slice 8:  "+ Add a section here" adds before block `at`.
+        self.assertEqual(self.kinds(f.add_block(self.base(), "heading", 0)),
+                         ["heading", "text", "divider", "text", "footer"])
+        self.assertEqual(self.kinds(f.add_block(self.base(), "heading", 2)),
+                         ["text", "divider", "heading", "text", "footer"])
+        self.assertEqual(self.kinds(f.add_block(self.base(), "heading", 3)),        # before the footer
+                         ["text", "divider", "text", "heading", "footer"])
+
+    def test_a_place_that_is_not_one_adds_just_above_the_footer(self):
+        for at in (None, 4, 99, -1, True, "2", 1.5):
+            with self.subTest(at=at):
+                self.assertEqual(self.kinds(f.add_block(self.base(), "heading", at)),
+                                 ["text", "divider", "text", "heading", "footer"])
+
+    def test_every_addable_kind_has_a_picker_line(self):
+        for kind, _ in f.ADDABLE:
+            self.assertTrue(f.KIND_HINTS.get(kind), kind)
+
     def test_adding_without_a_footer_appends(self):
         got = f.add_block({"blocks": [{"kind": "divider"}]}, "text")
         self.assertEqual(self.kinds(got), ["divider", "text"])

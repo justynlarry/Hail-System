@@ -7831,6 +7831,14 @@ everything, Python included** (2026-11-03, "on this one, you can edit everything
   preview, marks removed, to equal the unmarked one. Two bugs caught before the browser: an unreadable frame raised, and
   a srcdoc frame's first, empty about:blank document would have been hooked instead of the email (hooks are now per
   document). The developer confirmed clicking works. Render diff empty (42 of 42).
+- *Slice 8 done, 2026-11-03:* a faint "+ Add a section here" line before every block, the footer included, never after
+  it; it opens a picker (`hailsys/web/static/tplpicker.js`) of the block types, each with a small drawing
+  (`_block_pictures.html`, inline SVG in theme colours) and a one-line hint (`blockform.KIND_HINTS`). A choice fills
+  the hidden `add_at` field and presses the existing Add button, so it is the same server action; `add_block` takes the
+  place, and a missing, bad or below-footer one adds just above the footer. `blockfold.js` opens the new block where it
+  landed. The arrows and the Add a block menu (the no-JavaScript path) stay. Drag handles skipped (developer): a move is
+  a one-step server action, so dragging would need a new move-to action and touch support. Render diff empty (42 of 42).
+- *Slices 9 (merge-field chips) and 10 (toolbar text editor):* deferred until the developer has used slices 1 to 8.
 
 **Related:** items 201, 203, 220, 221.
 

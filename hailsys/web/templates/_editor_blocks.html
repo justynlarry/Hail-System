@@ -3,6 +3,10 @@
 {% set choice_words = {'left': 'Left', 'center': 'Centred', 'header': 'At the top, as the logo', 'body': 'In the email'} %}
 <input type="hidden" name="n_blocks" value="{{ block_views | length }}">
 {% for bl in block_views %}
+{# "+ Add a section here" before every block, the footer included, never after it (item 294,
+   slice 8).  tplpicker.js opens the picker; without it these stay hidden. #}
+<button type="button" class="tpl-insert" data-at="{{ bl.index }}" aria-expanded="false"
+        aria-controls="tpl-picker">+ Add a section here</button>
 {% set title %}{{ bl.number }}. {{ bl.label }}{% if bl.keep %} <small class="tpl-keep" title="{{ bl.keep }}">required</small>{% endif %}{% if bl.summary %} <span class="tpl-summary">{{ bl.summary }}</span>{% endif %}{% endset %}
 {% set buttons %}
         {% if bl.footer %}

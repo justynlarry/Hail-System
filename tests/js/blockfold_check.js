@@ -44,7 +44,9 @@ function makePage({kinds, problems = [], hash = '', confirmAnswer = true}) {
   box.querySelectorAll = (sel) => (sel === 'fieldset.tpl-block[data-fold]' ? box.folds : []);
   box.querySelector = (sel) => (sel === 'input[name="n_blocks"]' ? {value: String(box.n)} : null);
   box.contains = () => true;
-  const form = {classList: classList(), addEventListener(t, f, capture) { if (t === 'click' && capture) st.captureClick = f; }};
+  st.addAt = {value: ''};                                           // the add_at field ("+ Add a section here")
+  const form = {classList: classList(), addEventListener(t, f, capture) { if (t === 'click' && capture) st.captureClick = f; },
+                querySelector: (sel) => (sel === 'input[name="add_at"]' ? st.addAt : null)};
   global.document = {getElementById: (id) => ({editor: form, blocks: box}[id] || null)};
   global.window = {MutationObserver: true, location: {hash}, confirm(m) { st.confirms.push(m); return confirmAnswer; }};
   global.MutationObserver = function (fn) { st.observer = fn; this.observe = () => {}; };
@@ -97,6 +99,13 @@ p.clickAction('add'); p.redraw('RFRFF');
 check(JSON.stringify(p.openOnes()) === '[3]', 'a new block (just above the footer) opens');
 p.clickAction('preview'); p.redraw('RFRFF');
 check(JSON.stringify(p.openOnes()) === '[3]', 'a preview changes nothing');
+p.st.addAt.value = '1';                                  // "+ Add a section here" before block 1
+p.clickAction('add'); p.redraw('RFFRFF');
+check(JSON.stringify(p.openOnes()) === '[1]', 'a block added in the middle opens where it was added');
+p.st.addAt.value = '99';
+p.clickAction('add'); p.redraw('RFFRFFF');
+check(JSON.stringify(p.openOnes()) === '[5]', 'a place past the footer opens the block just above it');
+p.st.addAt.value = '';
 
 p = makePage({kinds: KINDS, hash: '#b4'});
 check(JSON.stringify(p.openOnes()) === '[4]', '#b4 in the address opens block 4 on load');
