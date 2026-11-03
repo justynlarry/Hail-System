@@ -307,7 +307,7 @@ class DncPagesTest(unittest.TestCase):
 
     def test_the_preview_says_what_the_rows_will_be_recorded_as_and_the_note(self):
         html = self.client_as().get("/admin/dnc/preview/tok").get_data(as_text=True)
-        self.assertIn("These are: <strong>Other requests (a phone call, email, in person)</strong>", html)
+        self.assertIn("Reason for removal: <strong>Other requests (a phone call, email, in person)</strong>", html)
         self.assertIn("Note: <strong>called the office</strong>", html)
         self.assertIn("<code>manual</code>", html)
 

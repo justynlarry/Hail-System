@@ -12,7 +12,7 @@
     {{ batch.uploaded_at.astimezone(display_tz).strftime('%Y-%m-%d %H:%M') }}.
     Nothing has been written yet.
 </p>
-<p>These are: <strong>{{ source_labels[batch.source] }}</strong>{% if batch.note %}.
+<p>Reason for removal: <strong>{{ source_labels[batch.source] }}</strong>{% if batch.note %}.
    Note: <strong>{{ batch.note }}</strong>{% endif %}.
    They will be recorded as <code>{{ batch.source }}</code>.</p>
 

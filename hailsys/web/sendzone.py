@@ -12,7 +12,7 @@ from flask import abort, flash, g, redirect, render_template, request, session, 
 
 from hailsys.db import get_connection
 from hailsys.email import render, templatestore, zonecontext
-from hailsys.queries import sendlist, templatelist, zonesend
+from hailsys.queries import dripscreen, sendlist, templatelist, zonesend
 from hailsys.tuning import DISPLAY_TZ
 from hailsys.web import sendjobs
 
@@ -112,6 +112,8 @@ def zone_index(reason_labels, default_max_emails, max_emails_limit):
                 conn, days, now=now, set_id=current["set_id"], levels=levels,
                 max_age_days=s["match_max_age_days"], cap_days=s["email_cap_days"],
                 freshness_days=s["listing_freshness_days"])
+        # Send opens on this page, so it carries the report page's follow-up reminder.
+        due = dripscreen.due_steps(conn, today=now.astimezone(DISPLAY_TZ).date())
         conn.rollback()
     reasons = [(r, reason_labels[r]) for r in sendlist.REASONS]
     reasons.append((zonesend.BLOCKED, BLOCKED_LABEL))
@@ -124,6 +126,7 @@ def zone_index(reason_labels, default_max_emails, max_emails_limit):
         found=found, counts=counts(found), reasons=reasons, listing_count=listing_count,
         templates=names, chosen=chosen, sample=sample(found, current, subject_src, body_src),
         budget=sendjobs.calls_budget(), busy=sendjobs.is_busy(),
+        due_steps=due,
         default_max_emails=default_max_emails, max_emails_limit=max_emails_limit,
         display_tz=DISPLAY_TZ)
 

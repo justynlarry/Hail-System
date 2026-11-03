@@ -1,14 +1,27 @@
 {% extends "base.html" %}
 {% block title %}Send{% endblock %}
-{% block heading %}Send — preview{% endblock %}
+{% block heading %}Send email{% endblock %}
 
+{# The report send page, laid out as six numbered steps that are always on the page (item 201,
+   2026-11-03):  a step that cannot be used yet is greyed with the reason, so the page looks the same
+   from the first visit to the send.  Nothing here writes or sends:  Preview is a GET, and the send
+   itself is the Review page's button.  The zone page (send_zone.html) has the same steps. #}
+{% set hints = {
+    'too_old': 'Pick a newer storm, or raise Storm age limit on Admin → Settings.',
+    'inactive_listing': 'Nothing to do: the house is off the market.',
+    'stale_listing': "Pull the storm's zips again from Storm Days, then preview again.",
+    'no_agent_email': 'Nothing to do: RentCast has no email for that agent.',
+    'already_emailed': 'Nothing to do: that realtor already had an email about this house.',
+    'on_dnc_list': 'Nothing to do: they asked not to be contacted.',
+    'within_cap': 'To include them anyway, tick the override in step 6.',
+    'duplicate_address': 'Nothing to do: the house is covered by another listing.',
+} %}
+
+{# Constant Contact swaps [[trackingImage]] for an invisible open-tracking pixel when it sends; the
+   on-screen preview drops the raw tag so it does not show as text.  The email itself keeps it. #}
 {% block content %}
-<div class="page">
-{% with mode = 'reports' %}{% include "_send_mode.html" %}{% endwith %}
-<p class="note">
-    This page previews first. Nothing is written or sent until you review a send and press
-    Send now. <a href="{{ url_for('send.batches') }}">Recent sends</a>
-</p>
+<div class="page send-page">
+
 {% if busy %}
 <p class="note warning">A send is running. <a href="{{ url_for('send.batches') }}">See progress</a>.</p>
 {% endif %}
@@ -22,9 +35,21 @@
 </ul>
 {% endif %}
 {% include "_budget.html" %}
+<p class="note">Nothing is written or sent until you press the send button on the Review page.
+    <a href="{{ url_for('send.batches') }}">Recent sends</a></p>
+
+<section class="send-step">
+    <div class="step-head"><span class="step-no">1</span><h3>What is this email about?</h3></div>
+    {% with mode = 'reports' %}{% include "_send_mode.html" %}{% endwith %}
+</section>
 
 <form method="get" action="{{ url_for('send.index') }}">
+    <input type="hidden" name="mode" value="reports">
+
+<section class="send-step">
+    <div class="step-head"><span class="step-no">2</span><h3>Storm days</h3></div>
     {% if available %}
+    <p class="step-help">Tick the storm days to email about. Each count is the matched listings for that day.</p>
     <table>
         <thead><tr><th></th><th>Storm day</th><th>Matches</th></tr></thead>
         <tbody>
@@ -40,10 +65,22 @@
         </tbody>
     </table>
     {% else %}
-    <p class="note">No storm days with hail matches inside the age limit.</p>
+    <div class="note warning send-empty">
+        <p><strong>No storm days to send for.</strong> Sending needs listings matched to a storm from the
+           last {{ g.settings.match_max_age_days }} days (the storm age limit), and there are none.</p>
+        <p>To get some:</p>
+        <ul>
+            <li>On <a href="{{ url_for('main.index') }}">Storm Days</a>, find a recent storm, press
+                <strong>Pull</strong> to fetch its listings, then <strong>Match</strong>.</li>
+            <li>For an older storm, raise <strong>Storm age limit</strong> on
+                <a href="{{ url_for('admin.index') }}#settings">Admin → Settings</a>.</li>
+        </ul>
+    </div>
     {% endif %}
+</section>
 
-    <h3>Template</h3>
+<section class="send-step">
+    <div class="step-head"><span class="step-no">3</span><h3>Template</h3></div>
     <p>
         Chosen: <strong>{{ chosen }}</strong>{% if selected.description %} &mdash; {{ selected.description }}{% endif %}
     </p>
@@ -52,10 +89,10 @@
     {% endif %}
     <input type="hidden" name="template" value="{{ chosen }}">
     <input type="hidden" name="tpage" value="{{ tpage }}">
-    <table>
+    <div class="table-scroll">
+    <table class="template-table">
         <thead>
-            <tr><th></th><th>Template</th><th>Description</th><th>Subject</th><th>Version</th>
-                <th>Created</th><th>Last used</th><th>Sends</th></tr>
+            <tr><th></th><th>Template</th><th>Description</th><th class="num">Sends</th></tr>
         </thead>
         <tbody>
             {% for t in templates %}
@@ -74,26 +111,26 @@
                     {{ r.description or '' }}
                     {% endif %}
                 </td>
-                <td>{% if t.subject %}{{ t.subject | truncate(70) }}{% endif %}</td>
-                <td>
-                    {% if r.versions %}v{{ r.versions }}{% else %}not saved yet{% endif %}
-                    {% if t.file_changed %}<br><span class="note">files changed since this version; the next send saves a new one</span>{% endif %}
-                </td>
-                <td>{% if r.created_at %}{{ r.emp_fname }} {{ r.emp_lname }},
-                    {{ r.created_at.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</td>
-                <td>{% if r.last_used %}{{ r.last_used.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</td>
-                <td>{{ r.sends }}</td>
+                <td class="num">{{ r.sends }}</td>
             </tr>
-            <tr>
+            <tr class="template-detail">
                 <td></td>
-                <td colspan="7">
+                <td colspan="3">
                     <details>
                         <summary>Show sample</summary>
+                        {# Version, author and last use live here, so the list itself stays four columns wide. #}
+                        <p class="note">
+                            {% if r.versions %}v{{ r.versions }}{% else %}not saved yet{% endif %}
+                            {% if r.created_at %} · {{ r.emp_fname }} {{ r.emp_lname }},
+                            {{ r.created_at.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}
+                            {% if r.last_used %} · last used {{ r.last_used.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}
+                            {% if t.file_changed %}<br>files changed since this version; the next send saves a new one{% endif %}
+                        </p>
                         {% if t.problem %}
                         <p class="note warning">The sample could not be built: {{ t.problem }}</p>
                         {% else %}
                         <p>Subject: <strong>{{ t.subject }}</strong></p>
-                        <iframe sandbox title="Sample of {{ r.template_name }}" srcdoc="{{ t.html }}"
+                        <iframe sandbox title="Sample of {{ r.template_name }}" srcdoc="{{ t.html | replace('[[trackingImage]]', '') }}"
                                 style="width:100%; height:600px; border:1px solid var(--border);"></iframe>
                         {% endif %}
                     </details>
@@ -102,6 +139,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
     {% if tpages > 1 %}
     <p>
         <button type="submit" name="tpage" value="{{ tpage - 1 }}" {% if tpage <= 1 %}disabled{% endif %}>Previous</button>
@@ -109,8 +147,21 @@
         <button type="submit" name="tpage" value="{{ tpage + 1 }}" {% if tpage >= tpages %}disabled{% endif %}>Next</button>
     </p>
     {% endif %}
+</section>
 
-    {% if available %}<button type="submit">Preview</button>{% endif %}
+<section class="send-step">
+    <div class="step-head"><span class="step-no">4</span><h3>Preview</h3></div>
+    {% if available %}
+    <p class="step-help">Press <strong>Preview</strong> to see who would get an email for the ticked days. Nothing is
+       sent or saved.</p>
+    {# formaction adds #who, so after the reload the page opens on the results (step 5); the paging
+       buttons and the rest of the form keep the plain address. #}
+    <button type="submit" class="primary" formaction="{{ url_for('send.index') }}#who">Preview</button>
+    {% else %}
+    <p class="step-help">There are no storm days to preview (see step 2).</p>
+    <button type="button" class="primary" disabled>Preview</button>
+    {% endif %}
+</section>
 </form>
 
 {# A description is saved by its own small form: it cannot sit inside the page's GET form. #}
@@ -124,53 +175,72 @@
 </form>
 {% endfor %}
 
-{% if found is not none %}
-<h3>Preview for {{ ticked | length }} storm day{{ '' if ticked | length == 1 else 's' }}</h3>
-<p class="estimate-summary">
-    <strong>{{ found.realtors | length }}</strong>
-    email{{ '' if found.realtors | length == 1 else 's' }} would be queued,
-    covering <strong>{{ listing_count }}</strong>
-    listing{{ '' if listing_count == 1 else 's' }}.
-    ({{ found.considered.matches }} matches for {{ found.considered.realtors }} realtors
-    were considered.)
-</p>
+<section id="who" class="send-step{% if found is none %} step-locked{% endif %}">
+    <div class="step-head"><span class="step-no">5</span><h3>Who would get it</h3></div>
+{% if found is none %}
+    <p class="step-help">Tick one or more storm days and press <strong>Preview</strong>: the people who would get
+       an email, and anyone left out and why, appear here.</p>
+{% else %}
+    <p class="estimate-summary">
+        <strong>{{ found.realtors | length }}</strong>
+        email{{ '' if found.realtors | length == 1 else 's' }} would be queued,
+        covering <strong>{{ listing_count }}</strong>
+        listing{{ '' if listing_count == 1 else 's' }}.
+        ({{ found.considered.matches }} matches for {{ found.considered.realtors }} realtors
+        were considered.)
+    </p>
+    {% if not found.realtors %}
+    <p class="note warning">No one would get an email: every match for these days was left out. The table below
+       says why, and what to do about it.</p>
+    {% endif %}
 
-<table>
-    <thead><tr><th>Left out because</th><th>Matches</th><th>Realtors</th></tr></thead>
-    <tbody>
-        {% for key, label in reasons %}
-        <tr>
-            <td>{{ label }}</td>
-            <td>{{ found.excluded[key].matches }}</td>
-            <td>{{ found.excluded[key].realtors }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+    <div class="table-scroll">
+    <table class="left-out">
+        <thead><tr><th>Left out because</th><th>Matches</th><th>Realtors</th><th>What to do</th></tr></thead>
+        <tbody>
+            {% for key, label in reasons %}
+            <tr{% if not found.excluded[key].matches %} class="zero"{% endif %}>
+                <td>{{ label }}</td>
+                <td>{{ found.excluded[key].matches }}</td>
+                <td>{{ found.excluded[key].realtors }}</td>
+                <td>{% if found.excluded[key].matches %}{{ hints.get(key, '') }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
 
-{% if found.excluded.stale_listing.matches %}
-<p class="note warning">
-    {{ found.excluded.stale_listing.matches }} match{{ '' if found.excluded.stale_listing.matches == 1 else 'es' }}
-    dropped because RentCast has not seen the listing recently. Pull the storm's zips
-    again from the <a href="{{ url_for('main.index') }}">Storm Days</a> page, then preview again.
-</p>
+    {% if found.excluded.stale_listing.matches %}
+    <p class="note warning">
+        {{ found.excluded.stale_listing.matches }} match{{ '' if found.excluded.stale_listing.matches == 1 else 'es' }}
+        dropped because RentCast has not seen the listing recently. Pull the storm's zips
+        again from the <a href="{{ url_for('main.index') }}">Storm Days</a> page, then preview again.
+    </p>
+    {% endif %}
+
+    {% if not found.realtors %}
+    <p class="note">No sample here: nobody is on the list. Open <strong>Show sample</strong> under a template in
+       step 3 to see it with stand-in data.</p>
+    {% elif sample_problem %}
+    <p class="note warning">The sample email could not be built: {{ sample_problem }}</p>
+    {% elif sample_html %}
+    <h3>Sample (first on the list)</h3>
+    <p>Subject: <strong>{{ sample_subject }}</strong></p>
+    <iframe sandbox title="Sample email" srcdoc="{{ sample_html | replace('[[trackingImage]]', '') }}"
+            style="width:100%; height:600px; border:1px solid var(--border);"></iframe>
+    {% endif %}
 {% endif %}
+</section>
 
-{% if sample_problem %}
-<p class="note warning">The sample email could not be built: {{ sample_problem }}</p>
-{% elif sample_html %}
-<h3>Sample (first on the list)</h3>
-<p>Subject: <strong>{{ sample_subject }}</strong></p>
-<iframe sandbox title="Sample email" srcdoc="{{ sample_html }}"
-        style="width:100%; height:600px; border:1px solid var(--border);"></iframe>
-{% endif %}
-
-{% if found.realtors %}
-<h3>Review a send</h3>
+<section class="send-step{% if not (found and found.realtors) %} step-locked{% endif %}">
+    <div class="step-head"><span class="step-no">6</span><h3>Review a send</h3></div>
+{% if found and found.realtors %}
 <form method="post" action="{{ url_for('send.confirm') }}" class="confirm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% for d in ticked | sort %}<input type="hidden" name="day" value="{{ d.isoformat() }}">{% endfor %}
     <input type="hidden" name="template" value="{{ chosen }}">
+    <p class="step-help">Name the addresses this send may go to, then press <strong>Review send</strong>. The next
+       page shows exactly what will go out; nothing is sent until you press its button.</p>
     <p>
         <label for="allowed">Send only to these addresses (required; separate with spaces,
         commas or new lines):</label><br>
@@ -189,9 +259,20 @@
         ({{ found.excluded.within_cap.realtors }} realtor{{ '' if found.excluded.within_cap.realtors == 1 else 's' }})</label>
     </p>
     {% endif %}
-    <button type="submit">Review send</button>
+    <button type="submit" class="primary">Review send</button>
 </form>
+{% else %}
+    {# Shown greyed, with no form, so nothing here can be submitted. #}
+    <p class="step-help">
+        {% if found is none %}Nothing to send yet: press <strong>Preview</strong> first (step 4).
+        {% else %}This preview has no one to email: everyone was left out (see step 5).{% endif %}
+    </p>
+    <p><label>Send only to these addresses (required; separate with spaces, commas or new lines):</label><br>
+       <textarea rows="4" cols="50" disabled></textarea></p>
+    <p><label>Send at most <input type="number" value="{{ default_max_emails }}" disabled></label>
+       emails now. The rest stay queued for a later, explicit run.</p>
+    <button type="button" class="primary" disabled>Review send</button>
 {% endif %}
-{% endif %}
+</section>
 </div>
 {% endblock %}

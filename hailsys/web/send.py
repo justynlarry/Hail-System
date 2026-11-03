@@ -156,7 +156,7 @@ def _campaign_templates():
 
 @send_bp.route("/")
 def index():
-    if request.args.get("mode") == "zones":
+    if request.args.get("mode") != "reports":
         return sendzone.zone_index(REASON_LABELS, DEFAULT_MAX_EMAILS, MAX_EMAILS_LIMIT)
     now = datetime.now(timezone.utc)
     s = g.settings
@@ -234,7 +234,7 @@ def parse_allow_list(text):
 
 
 def _back(days):
-    return redirect(url_for("send.index", day=[d.isoformat() for d in days],
+    return redirect(url_for("send.index", mode="reports", day=[d.isoformat() for d in days],
                             template=request.form.get("template") or None))
 
 
@@ -511,7 +511,7 @@ def template_description(template_id):
         abort(404)
     else:
         flash("Description saved.")
-    return redirect(url_for("send.index", day=[d.isoformat() for d in days],
+    return redirect(url_for("send.index", mode="reports", day=[d.isoformat() for d in days],
                             template=request.form.get("template") or None,
                             tpage=request.form.get("tpage") or None))
 

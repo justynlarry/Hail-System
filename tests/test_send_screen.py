@@ -107,7 +107,7 @@ class SendScreenTest(unittest.TestCase):
                {"campaign_id": 6, "name": "Other", "step_no": 1,
                 "due": date(2026, 10, 10), "days_late": 0}]
         with mock.patch.object(screen.dripscreen, "due_steps", return_value=due):
-            text = self.client_as("admin").get("/send/").get_data(as_text=True)
+            text = self.client_as("admin").get("/send/?mode=reports").get_data(as_text=True)
         self.assertIn("Follow-ups ready to send", text)
         self.assertIn('href="/campaigns/5/step/2"', text)
         self.assertIn("Storm 2026-10-01: follow-up 2", text)
@@ -116,6 +116,19 @@ class SendScreenTest(unittest.TestCase):
         self.assertIn("due Oct 10</li>", text)               # on time: nothing about being late
 
     def test_the_banner_is_absent_when_nothing_is_due(self):
+        with mock.patch.object(screen.dripscreen, "due_steps", return_value=[]):
+            text = self.client_as("admin").get("/send/?mode=reports").get_data(as_text=True)
+        self.assertNotIn("Follow-ups ready to send", text)
+
+    def test_the_default_zone_page_lists_due_follow_ups_too(self):
+        # Send opens on hail zones (item 201), so the reminder must be there as well (item 293).
+        due = [{"campaign_id": 5, "name": "Storm 2026-10-01", "step_no": 2,
+                "due": date(2026, 10, 8), "days_late": 2}]
+        with mock.patch.object(screen.dripscreen, "due_steps", return_value=due):
+            text = self.client_as("admin").get("/send/").get_data(as_text=True)
+        self.assertIn('aria-current="page">Hail zones', text)
+        self.assertIn("Follow-ups ready to send", text)
+        self.assertIn('href="/campaigns/5/step/2"', text)
         with mock.patch.object(screen.dripscreen, "due_steps", return_value=[]):
             text = self.client_as("admin").get("/send/").get_data(as_text=True)
         self.assertNotIn("Follow-ups ready to send", text)
@@ -129,15 +142,15 @@ class SendScreenTest(unittest.TestCase):
 
         with mock.patch.object(screen, "datetime", Frozen), \
              mock.patch.object(screen.dripscreen, "due_steps", return_value=[]) as due:
-            self.client_as("admin").get("/send/")
+            self.client_as("admin").get("/send/?mode=reports")
         self.assertEqual(due.call_args.kwargs["today"], date(2026, 10, 10))
 
     def test_a_bad_day_is_a_400(self):
-        self.assertEqual(self.client_as("admin").get("/send/?day=not-a-date").status_code, 400)
+        self.assertEqual(self.client_as("admin").get("/send/?mode=reports&day=not-a-date").status_code, 400)
 
     def test_a_preview_lists_every_rule_and_writes_nothing(self):
         before = self.counts()
-        resp = self.client_as("admin").get("/send/?day=2026-09-19&day=2026-09-22")
+        resp = self.client_as("admin").get("/send/?mode=reports&day=2026-09-19&day=2026-09-22")
         self.assertEqual(resp.status_code, 200)
         text = resp.get_data(as_text=True)
         for label in screen.REASON_LABELS.values():
@@ -591,18 +604,18 @@ class SendScreenTest(unittest.TestCase):
 
     def test_the_send_page_shows_the_call_count(self):
         self.budget_stub()
-        text = self.client_as("admin").get("/send/").get_data(as_text=True)
+        text = self.client_as("admin").get("/send/?mode=reports").get_data(as_text=True)
         self.assertIn("<strong>1234</strong>", text)
         self.assertIn("About 8566 more", text)
 
     def test_the_call_count_is_a_warning_when_nothing_is_usable(self):
         self.budget_stub(used=9900, remaining=100, usable=0)
-        text = self.client_as("admin").get("/send/").get_data(as_text=True)
+        text = self.client_as("admin").get("/send/?mode=reports").get_data(as_text=True)
         self.assertIn('class="note warning">\n    Constant Contact calls', text)
 
     def test_the_call_count_is_not_a_warning_with_budget_left(self):
         self.budget_stub()
-        text = self.client_as("admin").get("/send/").get_data(as_text=True)
+        text = self.client_as("admin").get("/send/?mode=reports").get_data(as_text=True)
         self.assertIn('class="note">\n    Constant Contact calls', text)
 
     def test_the_batch_page_shows_the_call_count_while_emails_are_queued(self):
@@ -742,6 +755,8 @@ class SendScreenTest(unittest.TestCase):
         return fetch_page
 
     def send_page(self, query=""):
+        # The report page asks for its mode:  /send/ alone is the hail-zone page (item 201, 2026-11-03).
+        query = "?mode=reports" + ("&" + query[1:] if query.startswith("?") else query)
         return self.client_as("admin").get("/send/" + query).get_data(as_text=True)
 
     def test_every_template_is_a_row_with_a_radio_and_its_columns(self):

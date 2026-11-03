@@ -3403,6 +3403,14 @@ Each page's agreed changes are listed here as they are agreed.
   downloads as side-by-side boxes with buttons, "Do-not-contact addresses: Leave out / Include, marked", "Press Apply to
   count" (not "pull", which means a paid RentCast call), the snapshot note as a warning box, and the realtor button
   greyed for viewers (item 292). Activity: a button for Download CSV, and no "Back to storm days".
+- **Send (agreed and built 2026-11-03):** opens on hail zones (`mode=reports` for the report page; developer's edit to
+  `send.py`), with the mode as a two-way toggle. Both pages are six numbered steps that are always on the page (what
+  the email is about, storm days, template, preview, who would get it, review), a step that cannot be used yet greyed
+  with its reason; the greyed review step has no form, so it cannot be submitted. An empty storm-day list explains the
+  age limit and what to do; the left-out table has a "What to do" column; Preview jumps to the results; the report
+  template list is four columns. The on-screen previews drop Constant Contact's `[[trackingImage]]` tag (the email
+  keeps it). Both Review pages: an explanation, the details in one box, the send button as the main button, and "Back
+  to the preview". The zone page now carries the follow-up reminder and the call count (item 293).
 
 ## 202. Template list, and a template choice on the send page
 
@@ -7693,4 +7701,15 @@ not this.
 
 **Resolved 2026-11-03.** A viewer now sees the button greyed (`action-disabled`) with "Needs sender access", as on
 Storm Days' Pull; senders and admins get the link. The route's own role check is unchanged and still the authority.
+
+## 293. Making hail zones the Send default hid the due follow-ups reminder
+
+**Status:** resolved 2026-11-03 (developer's edit to `hailsys/web/sendzone.py`; template and test in the item 201 Send commit)
+
+Found 2026-11-03 (item 201 Send redesign). `/send/` now opens on hail zones (`send.py:159`, developer's edit), but the
+"Follow-ups ready to send" list was built only by the report view, so an admin opening Send no longer saw due drip
+follow-ups, the one reminder that a campaign step is waiting for a click.
+
+**Resolved 2026-11-03.** `sendzone.zone_index` passes `due_steps` (developer's edit), `send_zone.html` shows the same list
+as the report page, and `test_send_screen.test_the_default_zone_page_lists_due_follow_ups_too` pins it on the default page.
 

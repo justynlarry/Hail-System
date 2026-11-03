@@ -212,18 +212,28 @@ class ZonePageTest(unittest.TestCase):
                 with self.subTest(role=role):
                     self.assertNotEqual(self.page(role=role).status_code, 200)
 
+    # The switch is a two-way toggle (item 201):  the page's own mode is the link marked current, and each
+    # link names its mode, so it works whichever mode is the default.
+    REPORTS_ON = 'class="active" aria-current="page">NWS reports'
+    ZONES_ON = 'class="active" aria-current="page">Hail zones'
+
     def test_both_modes_show_the_switch_and_link_to_each_other(self):
-        report = self.client_as().get("/send/").get_data(as_text=True)
+        report = self.client_as().get("/send/?mode=reports").get_data(as_text=True)
         self.assertIn("Send from:", report)
         self.assertIn('href="/send/?mode=zones"', report)
-        self.assertIn("<strong>NWS reports</strong>", report)
+        self.assertIn(self.REPORTS_ON, report)
+        self.assertNotIn(self.ZONES_ON, report)
         zones = self.html()
-        self.assertIn("<strong>Hail zones</strong>", zones)
-        self.assertIn('href="/send/"', zones)
+        self.assertIn(self.ZONES_ON, zones)
+        self.assertNotIn(self.REPORTS_ON, zones)
+        self.assertIn('href="/send/?mode=reports"', zones)
 
-    def test_any_other_mode_is_the_report_page(self):
-        html = self.client_as().get("/send/?mode=nonsense").get_data(as_text=True)
-        self.assertIn("<strong>NWS reports</strong>", html)
+    def test_no_mode_or_any_other_mode_is_the_zone_page(self):
+        # Hail zones is the default (item 201, 2026-11-03); only mode=reports opens the report page.
+        for query in ("", "?mode=nonsense"):
+            with self.subTest(query=query):
+                html = self.client_as().get("/send/" + query).get_data(as_text=True)
+                self.assertIn(self.ZONES_ON, html)
 
     # ---- the form ----
 
@@ -341,7 +351,8 @@ class ZonePageTest(unittest.TestCase):
         self.assertIn("wording rules", got["problem"])
 
     def test_with_nothing_previewed_the_sample_is_stand_in(self):
-        self.assertIn("Sample (stand-in data)", self.html())
+        # The stand-in sample sits under Show sample in the template step (item 201).
+        self.assertRegex(self.html(), r"<summary>Show sample of \S+ \(stand-in data\)</summary>")
 
     def test_the_page_writes_nothing(self):
         before = self.counts()

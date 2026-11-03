@@ -1,28 +1,60 @@
 {% extends "base.html" %}
 {% block title %}Send{% endblock %}
-{% block heading %}Send — hail zones preview{% endblock %}
+{% block heading %}Send email{% endblock %}
 
+{# The zone send page:  the same six steps as send.html (item 201, 2026-11-03), always on the page, a
+   step that cannot be used yet greyed with the reason.  Nothing here writes or sends. #}
+{% set hints = {
+    'too_old': 'Pick a newer storm, or raise Storm age limit on Admin → Settings.',
+    'inactive_listing': 'Nothing to do: the house is off the market.',
+    'stale_listing': 'Pull the zips again from the hail zones page for that day, then preview again.',
+    'no_agent_email': 'Nothing to do: RentCast has no email for that agent.',
+    'already_emailed': 'Nothing to do: that realtor already had an email about this house.',
+    'on_dnc_list': 'Nothing to do: they asked not to be contacted.',
+    'within_cap': 'A zone send has no override: wait for the email cap (Admin → Settings) to pass.',
+    'duplicate_address': 'Nothing to do: the house is covered by another listing.',
+    'observer_wording_not_approved': 'Approve the observer wording on Admin → Hail zones.',
+} %}
+
+{# Constant Contact swaps [[trackingImage]] for an invisible open-tracking pixel when it sends; the
+   on-screen preview drops the raw tag so it does not show as text.  The email itself keeps it. #}
 {% block content %}
-<div class="page">
-{% with mode = 'zones' %}{% include "_send_mode.html" %}{% endwith %}
-<p class="note">
-    Emails here rest on the hail-likelihood zones (radar and observer reports), not on a National Weather
-    Service report, so they use a zone template: no hail size and no distance. This page previews first.
-    Nothing is written or sent until you review a send and press Send now.
-    <a href="{{ url_for('send.batches') }}">Recent sends</a>
-    | <a href="{{ url_for('send.levels') }}">By level</a>
-</p>
+<div class="page send-page">
+
 {% if busy %}
 <p class="note warning">A send is running. <a href="{{ url_for('send.batches') }}">See progress</a>.</p>
 {% endif %}
+{# Hail zones is the page Send opens on (item 201), so the follow-up reminder the report page carries is
+   shown here too, once the view passes due_steps. #}
+{% if due_steps is defined and due_steps %}
+<p class="note warning">Follow-ups ready to send:</p>
+<ul>
+    {% for d in due_steps %}
+    <li><a href="{{ url_for('drip.step', campaign_id=d.campaign_id, step_no=d.step_no) }}">{{ d.name }}: follow-up {{ d.step_no }}</a>
+        &mdash; due {{ d.due.strftime('%b %d') }}{% if d.days_late %}, {{ d.days_late }} day{{ '' if d.days_late == 1 else 's' }} late{% endif %}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% include "_budget.html" %}
+<p class="note">Nothing is written or sent until you press the send button on the Review page.
+    <a href="{{ url_for('send.batches') }}">Recent sends</a>
+    | <a href="{{ url_for('send.levels') }}">By level</a></p>
 
-<p>Hail-zone set in use: <strong>{{ current.set_id }}</strong> ({{ current.name }}).
-   Only matches made with this set are offered.</p>
+<section class="send-step">
+    <div class="step-head"><span class="step-no">1</span><h3>What is this email about?</h3></div>
+    {% with mode = 'zones' %}{% include "_send_mode.html" %}{% endwith %}
+    <p>Hail-zone set in use: <strong>{{ current.set_id }}</strong> ({{ current.name }}).
+       Only matches made with this set are offered.</p>
+</section>
 
 <form method="get" action="{{ url_for('send.index') }}">
     <input type="hidden" name="mode" value="zones">
     <input type="hidden" name="levels_shown" value="1">
+
+<section class="send-step">
+    <div class="step-head"><span class="step-no">2</span><h3>Storm days and levels</h3></div>
     {% if available %}
+    <p class="step-help">Tick the storm days to email about. The counts are the zone matches at each level.</p>
     <table>
         <thead><tr><th></th><th>Storm day</th><th>Agree</th><th>One source</th></tr></thead>
         <tbody>
@@ -39,8 +71,19 @@
         </tbody>
     </table>
     {% else %}
-    <p class="note">No storm day has zone matches made with this set that are recent enough to send. Zone matches
-       are made from the <a href="{{ url_for('main.index') }}">Storm Days</a> page, through Compare with the hail zones.</p>
+    <div class="note warning send-empty">
+        <p><strong>No storm days to send for.</strong> A zone send needs zone matches, made with the hail-zone set in
+           use, for a storm from the last {{ g.settings.match_max_age_days }} days (the storm age limit), and there
+           are none.</p>
+        <p>To get some:</p>
+        <ul>
+            <li>On <a href="{{ url_for('main.index') }}">Storm Days</a>, press <strong>Pull</strong> on a recent HAIL
+                day, then <strong>Compare with the hail zones</strong>. On that page, pull the zones' zips if they are
+                not pulled yet, then press <strong>Match listings in the zones</strong>.</li>
+            <li>For an older storm, raise <strong>Storm age limit</strong> on
+                <a href="{{ url_for('admin.index') }}#settings">Admin → Settings</a>.</li>
+        </ul>
+    </div>
     {% endif %}
 
     <h3>Levels</h3>
@@ -52,88 +95,133 @@
         <br><small>Agree: radar and a ground report point the same way. One source: one of them alone.
         Context (warnings only) makes no matches and is never sent.</small>
     </p>
+</section>
 
-    <h3>Template</h3>
-    <table>
+<section class="send-step">
+    <div class="step-head"><span class="step-no">3</span><h3>Template</h3></div>
+    <p>Chosen: <strong>{{ chosen }}</strong></p>
+    <p class="step-help">The wording of the email. A zone email needs a zone template, which says the house is in a
+       hail zone rather than giving a hail size and distance.{% if templates | length == 1 %} The built-in one is the
+       only zone template so far.{% endif %}</p>
+    <table class="template-table">
+        <thead><tr><th></th><th>Template</th><th>Description</th></tr></thead>
         <tbody>
             {% for name in templates %}
             <tr>
                 <td><input type="radio" name="template" value="{{ name }}" id="tpl-{{ loop.index }}"
                            {% if name == chosen %}checked{% endif %}></td>
                 <td><label for="tpl-{{ loop.index }}">{{ name }}</label></td>
+                <td>{% if loop.first %}The built-in zone email{% endif %}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+    {% if sample.problem %}
+    <p class="note warning">The sample email could not be built: {{ sample.problem }}</p>
+    {% elif sample.html %}
+    <details>
+        <summary>Show sample of {{ chosen }} ({{ sample.source }})</summary>
+        <p>Subject: <strong>{{ sample.subject }}</strong></p>
+        <iframe sandbox title="Sample of {{ chosen }}" srcdoc="{{ sample.html | replace('[[trackingImage]]', '') }}"
+                style="width:100%; height:600px; border:1px solid var(--border);"></iframe>
+    </details>
+    {% endif %}
+</section>
 
-    {% if available %}<button type="submit">Preview</button>{% endif %}
+<section class="send-step">
+    <div class="step-head"><span class="step-no">4</span><h3>Preview</h3></div>
+    {% if available %}
+    <p class="step-help">Press <strong>Preview</strong> to see who would get an email for the ticked days and levels.
+       Nothing is sent or saved.</p>
+    {# formaction adds #who, so after the reload the page opens on the results (step 5); the paging
+       buttons and the rest of the form keep the plain address. #}
+    <button type="submit" class="primary" formaction="{{ url_for('send.index') }}#who">Preview</button>
+    {% else %}
+    <p class="step-help">There are no storm days to preview (see step 2).</p>
+    <button type="button" class="primary" disabled>Preview</button>
+    {% endif %}
+</section>
 </form>
 
-{% if found is not none %}
-<h3>Preview for {{ ticked | length }} storm day{{ '' if ticked | length == 1 else 's' }}</h3>
-<p class="estimate-summary">
-    <strong>{{ found.realtors | length }}</strong>
-    email{{ '' if found.realtors | length == 1 else 's' }} would be queued,
-    covering <strong>{{ listing_count }}</strong>
-    listing{{ '' if listing_count == 1 else 's' }}.
-    ({{ found.considered.matches }} matches for {{ found.considered.realtors }} realtors
-    were considered.)
-</p>
+<section id="who" class="send-step{% if found is none %} step-locked{% endif %}">
+    <div class="step-head"><span class="step-no">5</span><h3>Who would get it</h3></div>
+{% if found is none %}
+    <p class="step-help">Tick one or more storm days and a level, and press <strong>Preview</strong>: the people who
+       would get an email, and anyone left out and why, appear here.</p>
+{% else %}
+    <p class="estimate-summary">
+        <strong>{{ found.realtors | length }}</strong>
+        email{{ '' if found.realtors | length == 1 else 's' }} would be queued,
+        covering <strong>{{ listing_count }}</strong>
+        listing{{ '' if listing_count == 1 else 's' }}.
+        ({{ found.considered.matches }} matches for {{ found.considered.realtors }} realtors
+        were considered.)
+    </p>
+    {% if not found.realtors %}
+    <p class="note warning">No one would get an email: every match for these days was left out. The table below
+       says why, and what to do about it.</p>
+    {% endif %}
 
-{% if found.realtors %}
-<table>
-    <thead><tr><th>On the list</th><th>Matches</th></tr></thead>
-    <tbody>
-        {% for key, label in level_labels.items() if key in counts.level %}
-        <tr><td>Level: {{ label }}</td><td>{{ counts.level[key] }}</td></tr>
-        {% endfor %}
-        {% for key, label in basis_labels.items() if key in counts.basis %}
-        <tr><td>Basis: {{ label }}</td><td>{{ counts.basis[key] }}</td></tr>
-        {% endfor %}
-    </tbody>
-</table>
-{% endif %}
+    {% if found.realtors %}
+    <table>
+        <thead><tr><th>On the list</th><th>Matches</th></tr></thead>
+        <tbody>
+            {% for key, label in level_labels.items() if key in counts.level %}
+            <tr><td>Level: {{ label }}</td><td>{{ counts.level[key] }}</td></tr>
+            {% endfor %}
+            {% for key, label in basis_labels.items() if key in counts.basis %}
+            <tr><td>Basis: {{ label }}</td><td>{{ counts.basis[key] }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
 
-<table>
-    <thead><tr><th>Left out because</th><th>Matches</th><th>Realtors</th></tr></thead>
-    <tbody>
-        {% for key, label in reasons %}
-        <tr>
-            <td>{{ label }}</td>
-            <td>{{ found.excluded[key].matches }}</td>
-            <td>{{ found.excluded[key].realtors }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+    <div class="table-scroll">
+    <table class="left-out">
+        <thead><tr><th>Left out because</th><th>Matches</th><th>Realtors</th><th>What to do</th></tr></thead>
+        <tbody>
+            {% for key, label in reasons %}
+            <tr{% if not found.excluded[key].matches %} class="zero"{% endif %}>
+                <td>{{ label }}</td>
+                <td>{{ found.excluded[key].matches }}</td>
+                <td>{{ found.excluded[key].realtors }}</td>
+                <td>{% if found.excluded[key].matches %}{{ hints.get(key, '') }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
 
-{% if found.excluded.observer_wording_not_approved.matches %}
-<p class="note warning">
-    {{ found.excluded.observer_wording_not_approved.matches }}
-    match{{ '' if found.excluded.observer_wording_not_approved.matches == 1 else 'es' }}
-    rest on a volunteer observer report and wait until the observer wording is approved on the
-    <a href="{{ url_for('admin.index') }}#observer-wording">admin page</a>.
-</p>
-{% endif %}
-{% if found.excluded.stale_listing.matches %}
-<p class="note warning">
-    {{ found.excluded.stale_listing.matches }} match{{ '' if found.excluded.stale_listing.matches == 1 else 'es' }}
-    dropped because RentCast has not seen the listing recently. Pull the zips again, then preview again.
-</p>
-{% endif %}
-{% endif %}
+    {% if found.excluded.observer_wording_not_approved.matches %}
+    <p class="note warning">
+        {{ found.excluded.observer_wording_not_approved.matches }}
+        match{{ '' if found.excluded.observer_wording_not_approved.matches == 1 else 'es' }}
+        rest on a volunteer observer report and wait until the observer wording is approved on the
+        <a href="{{ url_for('admin.index') }}#observer-wording">admin page</a>.
+    </p>
+    {% endif %}
+    {% if found.excluded.stale_listing.matches %}
+    <p class="note warning">
+        {{ found.excluded.stale_listing.matches }} match{{ '' if found.excluded.stale_listing.matches == 1 else 'es' }}
+        dropped because RentCast has not seen the listing recently. Pull the zips again, then preview again.
+    </p>
+    {% endif %}
 
-{% if sample.problem %}
-<p class="note warning">The sample email could not be built: {{ sample.problem }}</p>
-{% elif sample.html %}
-<h3>Sample ({{ sample.source }})</h3>
-<p>Subject: <strong>{{ sample.subject }}</strong></p>
-<iframe sandbox title="Sample email" srcdoc="{{ sample.html }}"
-        style="width:100%; height:600px; border:1px solid var(--border);"></iframe>
+    {% if not found.realtors %}
+    <p class="note">No sample here: nobody is on the list. Open <strong>Show sample</strong> in step 3 to see the
+       template with stand-in data.</p>
+    {% elif sample.html %}
+    <h3>Sample ({{ sample.source }})</h3>
+    <p>Subject: <strong>{{ sample.subject }}</strong></p>
+    <iframe sandbox title="Sample email" srcdoc="{{ sample.html | replace('[[trackingImage]]', '') }}"
+            style="width:100%; height:600px; border:1px solid var(--border);"></iframe>
+    {% endif %}
 {% endif %}
+</section>
 
+<section class="send-step{% if not (found and found.realtors) %} step-locked{% endif %}">
+    <div class="step-head"><span class="step-no">6</span><h3>Review a send</h3></div>
 {% if found and found.realtors %}
-<h3>Review a send</h3>
 <form method="post" action="{{ url_for('send.zone_confirm') }}" class="confirm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% for d in ticked | sort %}<input type="hidden" name="day" value="{{ d.isoformat() }}">{% endfor %}
@@ -141,6 +229,8 @@
     <!-- The set the preview used:  start refuses if a newer one has been saved since. -->
     <input type="hidden" name="set_id" value="{{ current.set_id }}">
     <input type="hidden" name="template" value="{{ chosen }}">
+    <p class="step-help">Name the addresses this send may go to, then press <strong>Review send</strong>. The next
+       page shows exactly what will go out; nothing is sent until you press its button.</p>
     <p>
         <label for="allowed">Send only to these addresses (required; separate with spaces,
         commas or new lines):</label><br>
@@ -153,8 +243,20 @@
         emails now. The rest stay queued for a later, explicit run.
     </p>
     <p class="note">A zone send has no cap override and no follow-ups.</p>
-    <button type="submit">Review send</button>
+    <button type="submit" class="primary">Review send</button>
 </form>
+{% else %}
+    {# Shown greyed, with no form, so nothing here can be submitted. #}
+    <p class="step-help">
+        {% if found is none %}Nothing to send yet: press <strong>Preview</strong> first (step 4).
+        {% else %}This preview has no one to email: everyone was left out (see step 5).{% endif %}
+    </p>
+    <p><label>Send only to these addresses (required; separate with spaces, commas or new lines):</label><br>
+       <textarea rows="4" cols="50" disabled></textarea></p>
+    <p><label>Send at most <input type="number" value="{{ default_max_emails }}" disabled></label>
+       emails now. The rest stay queued for a later, explicit run.</p>
+    <button type="button" class="primary" disabled>Review send</button>
 {% endif %}
+</section>
 </div>
 {% endblock %}

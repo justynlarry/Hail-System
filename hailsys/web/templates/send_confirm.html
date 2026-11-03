@@ -3,7 +3,10 @@
 {% block heading %}Confirm send{% endblock %}
 
 {% block content %}
-<div class="page">
+{# The last step of a send (item 201, 2026-11-03):  what goes out, to whom, and one button. #}
+<div class="page send-page">
+<p class="step-help">The last step. Check who this goes to and what it says, then press the send button at the
+    bottom. Going back to the preview sends nothing.</p>
 <p class="estimate-summary">
     <strong>{{ mine | length }}</strong> email{{ '' if mine | length == 1 else 's' }} ready
     for {{ form.days | length }} storm day{{ '' if form.days | length == 1 else 's' }}.
@@ -18,8 +21,11 @@
     queued. Nothing is lost: resume them on a later day.
 </p>
 {% endif %}
+<div class="card send-summary">
 <p>From: <strong>{{ sender.from_name }} &lt;{{ sender.from_email }}&gt;</strong></p>
 <p>Template: <strong>{{ form.template }}</strong>{% if template_row and template_row.description %} &mdash; {{ template_row.description }}{% endif %}</p>
+
+</div>
 
 <table>
     <thead><tr><th>To</th><th>Events</th></tr></thead>
@@ -83,8 +89,10 @@
             of this send stays queued, resume or discard those before the first follow-up.</p>
     </fieldset>
     {% endif %}
-    <button type="submit" {% if busy %}disabled{% endif %}>Send {{ going }} email{{ '' if going == 1 else 's' }} now</button>
-    <a href="{{ url_for('send.index', day=form.days | map('string') | list) }}">Cancel</a>
+    <p class="send-actions">
+    <button type="submit" class="primary" {% if busy %}disabled{% endif %}>Send {{ going }} email{{ '' if going == 1 else 's' }} now</button>
+    <a class="button-link" href="{{ url_for('send.index', mode='reports', day=form.days | map('string') | list, template=form.template) }}">Back to the preview</a>
+    </p>
 </form>
 
 <p class="note">Nothing is sent until you press the button above.</p>

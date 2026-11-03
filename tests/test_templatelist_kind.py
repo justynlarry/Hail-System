@@ -156,7 +156,8 @@ class SendPageAsksForReportTest(unittest.TestCase):
                 mock.patch.object(tl, "fetch_one", spy(tl.fetch_one)), \
                 mock.patch.object(tl, "fetch_all", spy(tl.fetch_all)), \
                 mock.patch.object(screen.dripscreen, "due_steps", return_value=[]):
-            self.assertEqual(self.client.get("/send/").status_code, 200)
+            # The report page (/send/ alone is the hail-zone page since item 201).
+            self.assertEqual(self.client.get("/send/?mode=reports").status_code, 200)
             self.assertEqual(self.client.get("/templates/").status_code, 200)
             screen._campaign_templates()
             screen._template_available(f"nope-{uuid.uuid4().hex[:6]}")

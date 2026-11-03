@@ -1311,3 +1311,49 @@ path.storm-dot  { stroke: var(--text); fill: var(--storm); }
 
 /* A view with nothing to show says so plainly, at the page gutter. */
 .empty-state { margin: 1rem 1.5rem; color: var(--muted); }
+
+/* Send (item 201, 2026-11-03):  numbered steps that are always on the page.  A step that cannot be used
+   yet (.step-locked) is greyed but still readable, with its reason in .step-help, so a first-time user
+   sees the whole path rather than a page that changes as they go. */
+.send-step {
+  border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2);
+  padding: 0.75rem 1rem; margin: 0 0 1rem;
+}
+.step-head { display: flex; align-items: center; gap: 0.625rem; margin-bottom: 0.5rem; }
+.step-head h3 { margin: 0; }
+.step-no {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 1.75rem; height: 1.75rem; border-radius: 50%;
+  background: var(--accent-fill); color: #fff; font-weight: 700; font-size: 0.875rem;
+}
+.step-help { color: var(--muted); max-width: 60rem; margin: 0.25rem 0 0.75rem; }
+.step-locked { opacity: 0.6; }
+.step-locked .step-no { background: var(--muted); }
+.send-step table { margin-bottom: 0.5rem; }
+.send-empty ul { margin: 0.25rem 0 0; }
+.send-empty p { margin: 0 0 0.375rem; }
+.left-out tr.zero td { color: var(--muted); }
+.template-table td:nth-child(3) { min-width: 14rem; }
+.template-detail td { padding-top: 0; }
+
+/* The send mode as a two-way toggle rather than two links. */
+.send-mode { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.send-mode-label { color: var(--muted); font-weight: 600; }
+.seg-toggle { display: inline-flex; border: 1px solid var(--accent); border-radius: 4px; overflow: hidden; }
+.seg-toggle a {
+  padding: 0.375rem 1rem; text-decoration: none; color: var(--accent); font-weight: 600;
+}
+.seg-toggle a + a { border-left: 1px solid var(--accent); }
+.seg-toggle a:hover { background: var(--panel); }
+.seg-toggle a.active { background: var(--accent-fill); color: #fff; }
+
+/* The one button each step leads to.  .send-page scopes it, so other pages' buttons are untouched. */
+.send-page button.primary {
+  background: var(--accent-fill); color: #fff; border: none; border-radius: 3px;
+  padding: 0.5rem 1.25rem; font-size: 0.9375rem; font-weight: 600; cursor: pointer;
+}
+.send-page button.primary:hover:not(:disabled) { background: var(--accent-fill-hover); }
+.send-page button.primary:disabled { background: var(--muted); cursor: not-allowed; }
+.send-summary { max-width: 48rem; margin-bottom: 1rem; }
+.send-summary p { margin: 0.25rem 0; }
+.send-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 1rem; }
