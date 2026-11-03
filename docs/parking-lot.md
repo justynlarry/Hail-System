@@ -7813,6 +7813,14 @@ everything, Python included** (2026-11-03, "on this one, you can edit everything
   copy is only read (`load_blocks`), so the original never changes, and an unknown, retired or non-block name returns
   to the start page. Blank is `?start=blank`, since a template may be called "blank"; `/templates/new` alone is still
   the built-in. Render diff empty (42 of 42).
+- *Slice 4 done, 2026-11-03:* a new template asks "Name this template" (any words, at most 100 characters) instead
+  of an internal name. On Create, `templatestore.name_from_title` makes the name (lowercase letters and digits joined by
+  underscores, at most 40, `_2`, `_3` ... when any version, active or retired, in any case, or a built-in already has
+  it), and the title is stored as the description in the same transaction; `tplname.js` shows the name as you type,
+  with the same rules (a Python and a Node test share the examples). A save posted with a name and no title keeps that
+  name. Accented letters drop out of the name ("Café" gives `caf`); the title keeps them. The developer created
+  `throwaway_template` and "Throwaway Template 2" (`throwaway_template_2`) on `hail-dev` to check it. Render diff empty
+  (42 of 42).
 
 **Related:** items 201, 203, 220, 221.
 

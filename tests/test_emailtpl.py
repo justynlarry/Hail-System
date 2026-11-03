@@ -171,8 +171,8 @@ class EmailTplPagesTest(unittest.TestCase):
         self.assertIn(f'name="n_blocks" value="{len(starter["blocks"])}"', page)
         for i, block in enumerate(starter["blocks"]):
             self.assertIn(f'name="b{i}_kind" value="{block["kind"]}"', page)
-        self.assertIn('name="name"', page)
-        self.assertIn("Cannot be changed later", page.replace("It cannot", "Cannot"))
+        self.assertIn('name="friendly_title"', page)              # a new template is named by its title (slice 4)
+        self.assertIn("that part cannot change later", page)      # the internal name (slice 4)
         self.assertIn("the wording is fixed", page)               # the system blocks say so
         self.assertEqual(self.load_blocks.call_count, 0)
 
@@ -221,6 +221,13 @@ class EmailTplPagesTest(unittest.TestCase):
 
     # ---- where a new template starts (item 294, slice 6) ----
 
+    def test_a_new_template_asks_for_a_title_not_an_internal_name(self):
+        page = self.text("/templates/new")
+        self.assertIn('<label for="friendly_title">Name this template</label>', page)
+        self.assertNotIn('id="name" name="name"', page)
+        self.assertIn("data-name-preview", page)
+        self.assertIn("tplname.js", page)
+
     def test_the_start_page_offers_the_built_in_each_saved_block_template_and_blank(self):
         page = self.text("/templates/start")
         self.assertIn('href="/templates/new">Start from the built-in', page)
@@ -243,7 +250,7 @@ class EmailTplPagesTest(unittest.TestCase):
         self.assertEqual(self.load_blocks.call_args.args[1], "spring")
         self.assertIn("Words only spring has", page)
         self.assertIn('name="mode" value="new"', page)
-        self.assertIn('<input type="text" id="name" name="name" maxlength="40" value="">', page)
+        self.assertIn('id="friendly_title" name="friendly_title" maxlength="100" value=""', page)
         self.assertIn("Starting from a copy of spring.", page)
 
     def test_a_copy_of_an_unknown_or_retired_template_goes_back_to_the_start_page(self):
@@ -470,7 +477,7 @@ class EmailTplPagesTest(unittest.TestCase):
         self.assertIn("&lt;/html&gt;", value)
 
     def test_a_new_template_starts_with_an_empty_name(self):
-        self.assertIn('<input type="text" id="name" name="name" maxlength="40" value="">',
+        self.assertIn('id="friendly_title" name="friendly_title" maxlength="100" value=""',
                       self.text("/templates/new"))
 
     def test_the_templates_link_is_highlighted_on_these_pages(self):
@@ -702,14 +709,16 @@ class EmailTplActionsTest(unittest.TestCase):
 
     def test_name_mode_title_preheader_and_subject_come_back(self):
         values = self.form(action="preview", title="My title", preheader="My line",
-                           subject_mode="text", subject_text="Hello {total}", situation="several")
+                           subject_mode="text", subject_text="Hello {total}", situation="several",
+                           friendly_title="Spring storm")
         page = self.post(values).get_data(as_text=True)
         self.assertIn('value="My title"', page)
         self.assertIn('value="My line"', page)
         self.assertIn('name="subject_mode" value="text" checked', page)
         self.assertIn('value="Hello {total}"', page)
         self.assertIn('<option value="several" selected>', page)
-        self.assertIn('<input type="text" id="name" name="name" maxlength="40" value="spring">', page)
+        # A new template's friendly title comes back (item 294, slice 4); it has no internal-name box.
+        self.assertIn('id="friendly_title" name="friendly_title" maxlength="100" value="Spring storm"', page)
 
     def test_an_existing_template_keeps_its_name_in_a_hidden_field(self):
         page = self.post(self.form(action="preview", mode="edit")).get_data(as_text=True)
@@ -909,6 +918,55 @@ class EmailTplSaveRetireTest(unittest.TestCase):
         self.assertEqual(kwargs["created_by"], self.users["admin"])
         self.assertEqual(kwargs["template"], blockform.parse_form(self.form()))
         self.assertEqual(self.fake.commits, 1)
+
+    # ---- a new template named from its title (item 294, slice 4) ----
+
+    def test_a_titled_new_template_is_named_from_the_title_and_keeps_it_as_the_description(self):
+        with mock.patch.object(emailtpl.templatestore, "name_from_title",
+                               return_value="spring_storm") as made, \
+                mock.patch.object(emailtpl.templatestore, "set_description") as described:
+            resp = self.post("/templates/edit", self.form(name="", friendly_title="  Spring storm  "))
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp.headers["Location"].endswith("/templates/edit/spring_storm"))
+        self.assertEqual(made.call_args.args[1], "Spring storm")
+        self.assertEqual(self.save.call_args.kwargs["name"], "spring_storm")
+        self.assertTrue(self.save.call_args.kwargs["must_be_new"])
+        described.assert_called_once_with(self.fake, 11, "Spring storm")
+        self.assertEqual(self.fake.commits, 1)
+
+    def test_a_titled_save_says_both_names(self):
+        with mock.patch.object(emailtpl.templatestore, "name_from_title", return_value="spring_storm"), \
+                mock.patch.object(emailtpl.templatestore, "set_description"):
+            text = self.post("/templates/edit", self.form(name="", friendly_title="Spring storm"),
+                             follow=True).get_data(as_text=True)
+        self.assertIn("Created Spring storm.  Its internal name is spring_storm.", text)
+
+    def test_a_new_template_with_no_title_and_no_name_is_not_saved(self):
+        text = self.post("/templates/edit", self.form(name="", friendly_title="   ")).get_data(as_text=True)
+        self.assertIn("Give the template a name before creating it.", text)
+        self.save.assert_not_called()
+
+    def test_a_title_over_the_limit_is_not_saved_and_the_typed_title_is_kept(self):
+        long_title = "t" * 101
+        text = self.post("/templates/edit", self.form(name="", friendly_title=long_title)).get_data(as_text=True)
+        self.assertIn("limited to 100 characters", text)
+        self.assertIn(f'value="{long_title}"', text)
+        self.save.assert_not_called()
+
+    def test_a_refused_title_rolls_back_and_says_why(self):
+        with mock.patch.object(emailtpl.templatestore, "name_from_title",
+                               side_effect=emailtpl.templatestore.TemplateRefused("Give the template a name with "
+                                                                                   "at least one letter or number.")):
+            text = self.post("/templates/edit", self.form(name="", friendly_title="!!!")).get_data(as_text=True)
+        self.assertIn("at least one letter or number", text)
+        self.save.assert_not_called()
+        self.assertEqual(self.fake.commits, 0)
+
+    def test_editing_an_existing_template_ignores_a_title(self):
+        with mock.patch.object(emailtpl.templatestore, "name_from_title") as made:
+            self.post("/templates/edit", self.form(mode="edit", friendly_title="Something else"))
+        made.assert_not_called()
+        self.assertEqual(self.save.call_args.kwargs["name"], "spring")
 
     def test_the_outcome_is_flashed_on_the_next_page(self):
         text = self.post("/templates/edit", self.form(), follow=True).get_data(as_text=True)

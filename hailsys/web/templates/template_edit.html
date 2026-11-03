@@ -66,11 +66,17 @@
     <div class="tpl-columns">
         <div class="tpl-left">
             <p class="tpl-field">
-                <label for="name">Name</label>
                 {% if is_new %}
-                <input type="text" id="name" name="name" maxlength="40" value="{{ name }}">
-                <small>Letters, digits, hyphens and underscores, up to 40. It cannot be changed later.</small>
+                {# The friendly title (item 294, slice 4):  the internal name is made from it when the
+                   template is created, and the title is kept as its description. #}
+                <label for="friendly_title">Name this template</label>
+                <input type="text" id="friendly_title" name="friendly_title" maxlength="100" value="{{ friendly_title }}"
+                       placeholder="For example: Spring storm follow-up" autocomplete="off">
+                <small>Any words you like; it is shown with the template on the Send page. Inside the system it is
+                    saved as <code id="name-preview" data-name-preview>…</code> (a number is added if that is taken),
+                    and that part cannot change later.</small>
                 {% else %}
+                <label for="name">Name</label>
                 <strong>{{ name }}</strong>
                 {% endif %}
             </p>
@@ -131,5 +137,6 @@
 <script src="{{ url_for('static', filename='templates.js') }}" defer></script>
 <script src="{{ url_for('static', filename='blockfold.js') }}" defer></script>
 <script src="{{ url_for('static', filename='tplpresets.js') }}" defer></script>
+<script src="{{ url_for('static', filename='tplname.js') }}" defer></script>
 </div>
 {% endblock %}

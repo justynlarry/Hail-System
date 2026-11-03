@@ -321,6 +321,42 @@ class SaveBlocksTest(unittest.TestCase):
 
     # ---- images ----
 
+    # ---- the name made from a friendly title (item 294, slice 4) ----
+
+    def test_a_title_becomes_a_name_with_the_same_rules_as_the_page(self):
+        # The same examples as tests/js/tplname_check.js, so the page and the server agree.
+        for title, want in (("Spring storm follow-up", "spring_storm_follow_up"),
+                            ("  Hail!!  Alert 2026 ", "hail_alert_2026"),
+                            ("Café crème", "caf_cr_me"),
+                            ("A" * 39 + " b", "a" * 39),
+                            ("x" * 60, "x" * 40)):
+            with self.subTest(title=title):
+                name = ts.name_from_title(self.conn, title)
+                self.assertEqual(name, want)
+                self.assertTrue(ts.NAME_RE.fullmatch(name))
+
+    def test_a_taken_name_gets_a_number_and_built_ins_count_as_taken(self):
+        word = "taken" + self.name[2:]                          # unique to this test run
+        self.save(name=word)
+        self.assertEqual(ts.name_from_title(self.conn, word.upper()), word + "_2")     # any case
+        self.save(name=word + "_2")
+        self.assertEqual(ts.name_from_title(self.conn, word), word + "_3")
+        self.assertEqual(ts.name_from_title(self.conn, "Hail alert"), "hail_alert_2")  # the built-ins
+        self.assertEqual(ts.name_from_title(self.conn, "hail alert zone"), "hail_alert_zone_2")
+
+    def test_the_number_keeps_the_name_within_forty_characters(self):
+        long_title = "z" * 45
+        self.save(name="z" * 40)                                   # take the plain form
+        made = ts.name_from_title(self.conn, long_title)
+        self.assertEqual(made, "z" * 38 + "_2")
+        self.assertTrue(ts.NAME_RE.fullmatch(made))
+
+    def test_a_title_with_no_letters_or_digits_is_refused(self):
+        for title in ("", "   ", "!!!", None):
+            with self.subTest(title=title):
+                with self.assertRaises(ts.TemplateRefused):
+                    ts.name_from_title(self.conn, title)
+
     def test_a_template_without_the_listings_block_is_refused_and_nothing_is_written(self):
         # item 294, slice 5:  the server, not only the page, keeps the listings table.  This is what
         # a hand-made POST to the editor's save reaches.

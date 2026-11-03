@@ -187,6 +187,29 @@ def load(conn, name=TEMPLATE_NAME):
     return row["subject"], row["body"], row["template_id"]
 
 
+MAX_TITLE = 100        # the friendly title a new template is given; stored as its description
+
+
+def name_from_title(conn, title):
+    """The internal name for a new template, made from its friendly title (item 294, slice 4).
+
+    Lowercase letters and digits joined by underscores, at most 40 characters, so it always passes
+    NAME_RE.  A name already used by any version, active or retired, in any case, or a built-in's
+    name, gets _2, _3 ... so a new template never becomes a version of another and an old name in
+    the history is never reused.  Raises TemplateRefused for a title with no letters or digits."""
+    base = re.sub(r"[^a-z0-9]+", "_", (title or "").lower()).strip("_")[:40].rstrip("_")
+    if not base:
+        raise TemplateRefused("Give the template a name with at least one letter or number.")
+    taken = {r["n"] for r in conn.execute("SELECT DISTINCT lower(template_name) AS n FROM email_templates")}
+    taken |= set(_BUILTIN)
+    name, n = base, 1
+    while name in taken:
+        n += 1
+        suffix = f"_{n}"
+        name = base[:40 - len(suffix)].rstrip("_") + suffix
+    return name
+
+
 def set_description(conn, template_id, text):
     """Set the note shown beside an active template.  User commits.
     

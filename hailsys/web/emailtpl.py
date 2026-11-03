@@ -63,6 +63,8 @@ def _context(draft, name, is_new, situation, notice=None, test_notice=None, unsa
             "situations": samples.SITUATIONS, "situation": situation,
             "addable": blockform.ADDABLE, "notice": notice, "test_notice": test_notice,
             "test_address": _my_address(), "unsaved": unsaved,
+            # A new template's friendly title, kept across every redraw of the form (slice 4).
+            "friendly_title": (request.form.get("friendly_title") or "").strip(),
             "legend": blockform.legend()}
 
 
@@ -89,23 +91,35 @@ def _apply(draft, action, add_kind):
         return blockform.move_block(draft, index, -1 if verb == "up" else 1), None
     return draft, None
 
-def _save(draft, name, is_new):
-    """(a redirect, None) after a save that worked, or (None, a notice) when it was refused."""
+def _save(draft, name, is_new, title=""):
+    """(a redirect, None) after a save that worked, or (None, a notice) when it was refused.
+
+    A new template is named from its friendly title (item 294, slice 4):  the internal name is made
+    from it, and the title is stored as the description, in the same transaction.  A new template
+    posted with a name and no title (an older form, a test) keeps that name."""
     try:
         blocks.clean_template(draft)
     except blocks.BlockError:
         return None, "Not saved.  Fix the problems marked below."
+    if is_new and not title and not name:
+        return None, "Give the template a name before creating it."
+    if len(title) > templatestore.MAX_TITLE:
+        return None, f"The name is limited to {templatestore.MAX_TITLE} characters."
     with get_connection() as conn:
         try:
+            if is_new and title:
+                name = templatestore.name_from_title(conn, title)
             before = None if is_new else templatestore.active_id(conn, name)
             saved = templatestore.save_blocks(conn, created_by=session["emp_id"], name=name,
                                               template=draft, must_be_new=is_new)
-        except templatestore.TemplateRefused as exc:
+            if is_new and title:
+                templatestore.set_description(conn, saved, title)
+        except (templatestore.TemplateRefused, ValueError) as exc:
             conn.rollback()
             return None, str(exc)
         conn.commit()
     if is_new:
-        flash(f"Created {name}.")
+        flash(f"Created {title or name}." + (f"  Its internal name is {name}." if title else ""))
     elif saved == before:
         flash(f"No changes: {name} is already saved as it is.")
     else:
@@ -191,8 +205,9 @@ def act():
     is_new = request.form.get("mode") == "new"
     fetch = request.headers.get("X-Requested-With") == "fetch"
     done, notice = draft, None
+    title = (request.form.get("friendly_title") or "").strip()
     if action == "save":
-        saved, notice = _save(draft, name, is_new)
+        saved, notice = _save(draft, name, is_new, title)
         if saved is not None:
             return jsonify(redirect=saved.location) if fetch else saved
     else:
