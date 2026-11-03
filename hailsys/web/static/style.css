@@ -1244,6 +1244,32 @@ path.lk-context { fill: var(--lk-context); stroke: var(--lk-context); stroke-das
 .tpl-row .tpl-actions { margin-top: 0; }
 .tpl-actions button { margin-right: 0.4rem; }
 
+/* Folding blocks (blockfold.js, item 294 slice 2).  The legend is a header row:  the toggle
+   (number, type, first words) on the left, the arrow buttons on the right.  Without the script
+   (no .folding on the form) nothing is closed and the toggle is plain text. */
+.tpl-block legend.tpl-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  width: 100%; box-sizing: border-box; padding: 0 0.25rem; float: left;
+}
+.tpl-block legend.tpl-head + * { clear: both; }
+.tpl-head .tpl-actions { margin: 0; flex: none; white-space: nowrap; }
+.tpl-toggle {
+  flex: 1 1 auto; min-width: 0; text-align: left; background: none; border: none; padding: 0.35rem 0;
+  font: inherit; font-weight: 600; color: var(--text); cursor: default;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.folding .tpl-toggle { cursor: pointer; }
+.folding .tpl-toggle::before { content: "\25BE"; display: inline-block; width: 1.1em; color: var(--muted); }
+.folding .tpl-block.is-closed .tpl-toggle::before { content: "\25B8"; }
+.tpl-toggle:hover { color: var(--accent); }
+.tpl-block.is-closed { padding-top: 0.15rem; padding-bottom: 0.15rem; margin-bottom: 0.4rem; }
+.tpl-block.is-closed .tpl-body { display: none; }
+.tpl-block.has-problem { border-color: var(--error); }
+.tpl-block.has-problem .tpl-toggle::after { content: " \2014 needs fixing"; color: var(--error); font-weight: 600; }
+.tpl-icon { min-width: 1.9rem; padding: 0.1rem 0.4rem; font-size: 0.95rem; line-height: 1.2; cursor: pointer; }
+.tpl-icon:disabled { opacity: 0.35; cursor: default; }
+.tpl-remove:not(:disabled):hover { color: var(--error); border-color: var(--error); }
+
 /* The formatting buttons need JavaScript, so they stay hidden until the script switches them on */
 .tpl-toolbar { display: none; margin-bottom: 0.25rem; }
 .js .tpl-toolbar { display: flex; flex-wrap: wrap; gap: 0.3rem; }

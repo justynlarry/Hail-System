@@ -7783,6 +7783,11 @@ everything, Python included** (2026-11-03, "on this one, you can edit everything
   checklist, Customer review, Row of logos, Storm details box, The agent's houses ...), field labels and help in plain
   words, choice menus in words (the stored values unchanged), the storm blocks marked "filled in automatically", the
   footer's reason given, and `[[trackingImage]]` dropped from the editor preview. Render diff empty (42 of 42).
+- *Slice 2 done, 2026-11-03:* each block with settings is a one-line header (number, type, first words) with
+  ↑ ↓ × buttons, closed by default and opened one at a time (`hailsys/web/static/blockfold.js`, its own script beside
+  `templates.js`). The open block follows Move, a new block opens after Add, `#bN` opens a block on load, and a block
+  with a server problem opens and is marked; a live problem only marks its block. × asks before removing a block with
+  settings. Without JavaScript every block stays open. Render diff empty (42 of 42); `tests/js/blockfold_check.js`.
 
 **Related:** items 201, 203, 220, 221.
 

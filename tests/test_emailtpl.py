@@ -219,6 +219,18 @@ class EmailTplPagesTest(unittest.TestCase):
             self.assertIn(f'id="b{v["index"]}"', form)
             self.assertIn(f'name="b{v["index"]}_kind" value="{v["kind"]}"', form)
 
+    def test_each_block_with_settings_folds_and_its_remove_asks_first(self):
+        # item 294 slice 2:  a header button opens and closes the block (blockfold.js); Remove asks,
+        # since it throws away what was typed.  The footer has settings but no Remove.
+        form = self.editor_form()
+        boxes = form.count('<fieldset class="tpl-block"')
+        self.assertTrue(boxes)
+        self.assertEqual(form.count(' data-fold="'), boxes)
+        self.assertEqual(form.count('<button class="tpl-toggle" type="button" aria-expanded="true"'), boxes)
+        self.assertEqual(form.count('class="tpl-body"'), boxes)
+        self.assertEqual(form.count(' data-confirm="Remove this '), boxes - 1)
+        self.assertIn("blockfold.js", self.text("/templates/new"))
+
     def test_each_heading_shows_its_summary_escaped(self):
         form = self.editor_form()
         shown = [v["summary"] for v in blockform.describe(blockform.starter()) if v["summary"]]
@@ -640,20 +652,21 @@ class EmailTplActionsTest(unittest.TestCase):
         page = self.client_as().get("/templates/new").get_data(as_text=True)
         self.assertRegex(page, r'<form id="editor" method="post" action="/templates/edit" data-unsaved="0">')
         self.assertIn('name="csrf_token"', page)
-        self.assertRegex(page, r'value="up:5"\s+formaction="/templates/edit#b4"')
-        self.assertRegex(page, r'value="down:5"\s+formaction="/templates/edit#b6"')
-        self.assertRegex(page, r'value="remove:5"\s+formaction="/templates/edit#b5"')
+        # The arrow buttons carry a class, a title and a label between the value and the address (item 294).
+        self.assertRegex(page, r'value="up:5"[^>]*\sformaction="/templates/edit#b4"')
+        self.assertRegex(page, r'value="down:5"[^>]*\sformaction="/templates/edit#b6"')
+        self.assertRegex(page, r'value="remove:5"[^>]*\sformaction="/templates/edit#b5"')
         self.assertRegex(page, r'value="add"\s+formaction="/templates/edit#add-block"')
 
     def test_the_first_block_cannot_move_up_and_the_footer_has_no_buttons(self):
         page = self.client_as().get("/templates/new").get_data(as_text=True)
-        self.assertRegex(page, r'value="up:0"[^>]*disabled>Move up')
+        self.assertRegex(page, r'value="up:0"[^>]*aria-label="Move up"[^>]*disabled>')
         self.assertNotRegex(page, r'value="down:0"[^>]*disabled>')
         last = len(self.draft["blocks"]) - 1
         self.assertNotIn(f'value="up:{last}"', page)
         self.assertNotIn(f'value="remove:{last}"', page)
         self.assertIn("Required, and always last", page)
-        self.assertRegex(page, r'value="down:%d"[^>]*disabled>Move down' % (last - 1))
+        self.assertRegex(page, r'value="down:%d"[^>]*aria-label="Move down"[^>]*disabled>' % (last - 1))
 
     # ---- safety ----
 

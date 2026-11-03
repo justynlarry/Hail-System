@@ -8,12 +8,13 @@
         {% if bl.footer %}
         <small>Required, and always last: it carries the "This is an advertisement" notice the law needs.</small>
         {% else %}
-        <button type="submit" name="action" value="up:{{ bl.index }}"
-                formaction="{{ url_for('emailtpl.act') }}#b{{ bl.index - 1 }}"{% if not bl.can_up %} disabled{% endif %}>Move up</button>
-        <button type="submit" name="action" value="down:{{ bl.index }}"
-                formaction="{{ url_for('emailtpl.act') }}#b{{ bl.index + 1 }}"{% if not bl.can_down %} disabled{% endif %}>Move down</button>
-        <button type="submit" name="action" value="remove:{{ bl.index }}"
-                formaction="{{ url_for('emailtpl.act') }}#b{{ bl.index }}">Remove</button>
+        {# Small arrow buttons; the words are in title and aria-label for the mouse and the screen reader. #}
+        <button type="submit" name="action" value="up:{{ bl.index }}" class="tpl-icon" title="Move up" aria-label="Move up"
+                formaction="{{ url_for('emailtpl.act') }}#b{{ bl.index - 1 }}"{% if not bl.can_up %} disabled{% endif %}>&uarr;</button>
+        <button type="submit" name="action" value="down:{{ bl.index }}" class="tpl-icon" title="Move down" aria-label="Move down"
+                formaction="{{ url_for('emailtpl.act') }}#b{{ bl.index + 1 }}"{% if not bl.can_down %} disabled{% endif %}>&darr;</button>
+        <button type="submit" name="action" value="remove:{{ bl.index }}" class="tpl-icon tpl-remove" title="Remove" aria-label="Remove"
+                formaction="{{ url_for('emailtpl.act') }}#b{{ bl.index }}"{% if bl.fields %} data-confirm="Remove this {{ bl.label | lower }} block? Anything typed in it is lost."{% endif %}>&times;</button>
         {% endif %}
 {% endset %}
 {% if not bl.fields %}
@@ -26,9 +27,13 @@
     <div class="block-errors" data-block="{{ bl.index }}"></div>
 </div>
 {% else %}
-<fieldset class="tpl-block" id="b{{ bl.index }}">
-    <legend>{{ title }}</legend>
+{# A block with settings: its legend is a header that opens and closes it (blockfold.js, item 294 slice 2).
+   Without JavaScript every block stays open, as before. #}
+<fieldset class="tpl-block" id="b{{ bl.index }}" data-fold="{{ bl.index }}">
+    <legend class="tpl-head"><button class="tpl-toggle" type="button" aria-expanded="true"
+            aria-controls="b{{ bl.index }}-body">{{ title }}</button><span class="tpl-actions">{{ buttons }}</span></legend>
     <input type="hidden" name="b{{ bl.index }}_kind" value="{{ bl.kind }}">
+    <div class="tpl-body" id="b{{ bl.index }}-body">
     <div class="tpl-fields">
     {% for f in bl.fields %}
     {% set small = f.widget in ('select', 'number', 'checkbox') %}
@@ -70,7 +75,7 @@
     </div>
     {% for message in bl.problems %}<p class="error">{{ message }}</p>{% endfor %}
     <div class="block-errors" data-block="{{ bl.index }}"></div>
-    <div class="tpl-actions">{{ buttons }}</div>
+    </div>
 </fieldset>
 {% endif %}
 {% endfor %}
