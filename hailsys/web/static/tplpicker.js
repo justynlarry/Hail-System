@@ -1,11 +1,12 @@
-// "+ Add a section here" in the template editor (parking-lot item 294, slice 8).
+// "+" (Add a section above) in the template editor (parking-lot item 294, slice 8).
 //
-// Between the blocks are buttons (.tpl-insert, data-at="N": add before block N).  A click opens
-// the picker (#tpl-picker, one button per block type with a small drawing) beside it; choosing a
+// Each block's line has a + button (.tpl-insert, data-at="N": add before block N).  A click opens
+// the picker (#tpl-picker, one button per block type with a small drawing) just above that block,
+// where the new one will go; choosing a
 // type writes the type into the "Add a block" menu (add_kind) and the place into the add_at field,
 // then clicks the form's own Add button, so the add goes through templates.js like any other block
 // action and blockfold.js opens the new block where it landed.  Escape, or a click elsewhere,
-// closes the picker.  Without JavaScript the insert buttons are hidden (.picker-on) and the menu
+// closes the picker.  Without JavaScript the + buttons are hidden (.picker-on) and the menu
 // at the foot of the blocks adds just above the footer, as before.
 (function () {
   var form = document.getElementById('editor');
@@ -14,6 +15,13 @@
   form.classList.add('picker-on');
 
   var at = null;          // where the open picker will add, or null when it is closed
+  var blocksBox = document.getElementById('blocks');
+
+  // The picker's resting place is the form, outside the block list, which templates.js redraws.
+  function home() {
+    if (picker.parentNode && picker.parentNode !== form) { picker.parentNode.removeChild(picker); }
+    if (!picker.parentNode) { form.appendChild(picker); }
+  }
 
   function close() {
     picker.hidden = true;
@@ -26,7 +34,9 @@
     close();
     at = button.getAttribute('data-at');
     button.setAttribute('aria-expanded', 'true');
-    button.parentNode.insertBefore(picker, button.nextSibling);   // the picker sits under its button
+    // Just above the block, where the new one goes (the + sits in the block's header line).
+    var block = button.closest('.tpl-block, .tpl-row') || button;
+    block.parentNode.insertBefore(picker, block);
     picker.hidden = false;
     var first = picker.querySelector('button[data-kind]');
     if (first) { first.focus(); }
@@ -40,8 +50,7 @@
     menu.value = kind;
     place.value = at;
     close();
-    picker.parentNode.removeChild(picker);        // out of the block list before it is redrawn
-    form.appendChild(picker);
+    home();                                       // out of the block list before it is redrawn
     go.click();
     place.value = '';                             // the menu at the foot adds above the footer again
   }
@@ -65,4 +74,12 @@
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape' && !picker.hidden) { close(); }
   });
+
+  // An arrow or x on another block redraws the list while the picker is open in it:  the picker
+  // is dropped with the old list, so close it and bring it home rather than act on a lost element.
+  if (blocksBox && window.MutationObserver) {
+    new MutationObserver(function () {
+      if (!picker.hidden && !blocksBox.contains(picker)) { close(); home(); }
+    }).observe(blocksBox, { childList: true });
+  }
 })();

@@ -221,13 +221,15 @@ class EmailTplPagesTest(unittest.TestCase):
 
     # ---- where a new template starts (item 294, slice 6) ----
 
-    def test_every_block_has_an_add_here_line_before_it_and_the_picker_offers_every_kind(self):
-        # item 294, slice 8:  never after the footer; one picker with a drawing per kind.
+    def test_every_block_has_an_add_above_button_and_the_picker_offers_every_kind(self):
+        # item 294, slice 8:  a + on each block's line (the footer's adds above it, so never after
+        # it); one picker with a drawing per kind.
         page = self.text("/templates/new")
         n = len(blockform.starter()["blocks"])
-        self.assertEqual(page.count('class="tpl-insert"'), n)
+        self.assertEqual(page.count('class="tpl-icon tpl-insert"'), n)
         for i in range(n):
-            self.assertIn(f'class="tpl-insert" data-at="{i}"', page)
+            self.assertIn(f'class="tpl-icon tpl-insert" data-at="{i}"', page)
+        self.assertEqual(page.count('title="Add a section above" aria-label="Add a section above">+</button>'), n)
         self.assertNotIn(f'data-at="{n}"', page)
         self.assertEqual(page.count('id="tpl-picker"'), 1)
         for kind, label in blockform.ADDABLE:

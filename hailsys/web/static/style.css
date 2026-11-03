@@ -1247,15 +1247,19 @@ path.lk-context { fill: var(--lk-context); stroke: var(--lk-context); stroke-das
 /* Folding blocks (blockfold.js, item 294 slice 2).  The legend is a header row:  the toggle
    (number, type, first words) on the left, the arrow buttons on the right.  Without the script
    (no .folding on the form) nothing is closed and the toggle is plain text. */
-/* The legend stays the fieldset's own header (not floated:  a floated legend becomes an ordinary
-   float, and an open block's fields were laid out beside it, under the preview).  min-width: 0
-   because a fieldset otherwise never shrinks below its widest unbreakable content, and the
-   header text does not wrap. */
+/* The legend is floated, full width, so it is no longer drawn as the fieldset's caption:  a
+   caption legend has the box's top border and background start halfway down its text (developer,
+   2026-11-03).  The fields clear it (.tpl-body), so an open block's fields start below the header;
+   the first try at this cleared the hidden input instead, and the fields slid under the preview.
+   A fieldset contains its floats, so a closed block keeps its height.  min-width: 0 because a
+   fieldset otherwise never shrinks below its widest unbreakable content (the header does not wrap). */
 .tpl-block { min-width: 0; }
 .tpl-block legend.tpl-head {
+  float: left; width: 100%; box-sizing: border-box;
   display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-  width: 100%; box-sizing: border-box; padding: 0 0.25rem;
+  padding: 0 0.25rem;
 }
+.tpl-block .tpl-body { clear: both; }
 .tpl-head .tpl-actions { margin: 0; flex: none; white-space: nowrap; }
 .tpl-toggle {
   flex: 1 1 auto; min-width: 0; text-align: left; background: none; border: none; padding: 0.35rem 0;
@@ -1286,24 +1290,23 @@ path.lk-context { fill: var(--lk-context); stroke: var(--lk-context); stroke-das
 /* A block that cannot be removed (footer, listings):  a small tag in its header (item 294, slice 5). */
 .tpl-keep { margin-left: 0.4rem; padding: 0 0.35rem; border: 1px solid var(--border); border-radius: 3px;
   font-size: 0.7rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
-/* "+ Add a section here" and its picker (tplpicker.js, item 294 slice 8).  The insert lines are
-   faint until hovered, so a closed list stays tidy; without the script they are not shown. */
+/* + (Add a section above) and its picker (tplpicker.js, item 294 slice 8).  The + sits on each
+   block's line with the arrows; without the script it is not shown. */
 .tpl-insert { display: none; }
-.picker-on .tpl-insert {
-  display: block; width: 100%; margin: -0.25rem 0 0.15rem; padding: 0.05rem 0;
-  border: 1px dashed transparent; border-radius: 4px; background: none;
-  font-size: 0.75rem; color: var(--muted); opacity: 0.35; cursor: pointer; text-align: center;
-}
-.picker-on .tpl-insert:hover, .picker-on .tpl-insert:focus-visible, .picker-on .tpl-insert[aria-expanded="true"] {
-  opacity: 1; border-color: var(--accent); color: var(--accent);
-}
+.picker-on .tpl-insert { display: inline-block; font-weight: 700; }
+.picker-on .tpl-insert:hover, .picker-on .tpl-insert[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+/* Exactly two equal columns (one on a narrow screen) and equal rows, no wider than the left column:
+   "as many as fit" made uneven choices and, given too much width, one long row under the preview. */
 .tpl-picker {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.4rem;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 0.4rem;
+  width: 100%; max-width: 100%; box-sizing: border-box; clear: both;
   margin: 0 0 0.6rem; padding: 0.5rem; border: 1px solid var(--accent); border-radius: 6px; background: var(--panel);
 }
+@media (max-width: 36rem) { .tpl-picker { grid-template-columns: minmax(0, 1fr); } }
 .tpl-picker[hidden] { display: none; }
 .tpl-picker button {
   display: flex; align-items: center; gap: 0.5rem; text-align: left; padding: 0.35rem 0.45rem;
+  min-width: 0; overflow: hidden; white-space: normal;
   border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text);
   font: inherit; font-size: 0.8125rem; cursor: pointer;
 }

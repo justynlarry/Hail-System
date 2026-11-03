@@ -1,8 +1,10 @@
 {# Small drawings of each block type for the "Add a section here" picker (item 294, slice 8).
    Inline SVG in currentColor and the accent, so they follow the theme; decorative only (the name
    beside each is the label).  picture(kind) draws one; an unknown kind draws a plain box. #}
+{# width, height and fill on the <svg> too:  if the stylesheet has not arrived (a stale copy in the
+   browser) a drawing stays small and grey instead of filling the line in black. #}
 {% macro picture(kind) -%}
-<svg class="tpl-pic" viewBox="0 0 60 36" aria-hidden="true" focusable="false">
+<svg class="tpl-pic" viewBox="0 0 60 36" width="52" height="31" fill="#64748b" aria-hidden="true" focusable="false">
 {%- if kind == 'text' -%}
   <rect x="6" y="8" width="48" height="3" rx="1.5"/><rect x="6" y="15" width="44" height="3" rx="1.5"/>
   <rect x="6" y="22" width="48" height="3" rx="1.5"/><rect x="6" y="29" width="30" height="3" rx="1.5"/>

@@ -7838,6 +7838,13 @@ everything, Python included** (2026-11-03, "on this one, you can edit everything
   place, and a missing, bad or below-footer one adds just above the footer. `blockfold.js` opens the new block where it
   landed. The arrows and the Add a block menu (the no-JavaScript path) stay. Drag handles skipped (developer): a move is
   a one-step server action, so dragging would need a new move-to action and touch support. Render diff empty (42 of 42).
+- *Slice 8 follow-ups, 2026-11-03 (developer's review):* the insert lines between blocks broke the page up, so each
+  block's own line has a + (hover: "Add a section above"; the footer's adds at the end) and the picker opens just above
+  that block. The fieldset header is floated full width with `.tpl-body` cleared, so a block's box and background wrap
+  the whole header line instead of starting halfway down it. The picker is exactly two equal columns (one when narrow),
+  no wider than the left column, its drawings carry their own size and colour, and it closes and goes back to the form
+  when a redraw drops it (a later choice raised). The developer's screenshot of the picker in one line under the preview
+  turned out to be a stale script and stylesheet in the browser (DevTools' Disable cache had switched itself off).
 - *Slices 9 (merge-field chips) and 10 (toolbar text editor):* deferred until the developer has used slices 1 to 8.
 
 **Related:** items 201, 203, 220, 221.
