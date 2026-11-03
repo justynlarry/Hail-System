@@ -26,11 +26,13 @@ except ImportError as exc:
     MISSING = str(exc)
 
 FOOTER = {"kind": "footer"}
+LISTINGS = {"kind": "listings"}          # required in a report template (item 294, slice 5)
 SUBJECT = {"text": "Storms near {total} homes"}
 
 
 def tpl(*body, **over):
-    t = {"title": "", "preheader": "", "subject": SUBJECT, "blocks": list(body) + [FOOTER]}
+    # The listings block goes after the body, so a problem's block number is unchanged.
+    t = {"title": "", "preheader": "", "subject": SUBJECT, "blocks": list(body) + [LISTINGS, FOOTER]}
     t.update(over)
     return t
 
@@ -152,8 +154,17 @@ class PreviewTest(unittest.TestCase):
         self.assertIn('src="https://x.test/promo.png"', got["html"])
         self.assertIn('alt="Promo"', got["html"])
 
+    def test_a_template_without_the_listings_block_says_so_and_does_not_preview(self):
+        # item 294, slice 5:  shown while you work, as a problem of the whole template.
+        bare = tpl({"kind": "text", "text": "ok"})
+        bare["blocks"] = [x for x in bare["blocks"] if x["kind"] != "listings"]
+        got = p.build_preview(bare, settings())
+        self.assertFalse(got["ok"])
+        self.assertEqual([n for n, _ in got["problems"]], [None])
+        self.assertIn("agent's houses block is required", got["problems"][0][1])
+
     def test_a_template_too_big_to_compile_is_a_problem_not_an_exception(self):
-        big = tpl(*[{"kind": "text", "text": "&" * b.MAX_TEXT}] * (b.MAX_BLOCKS - 1))
+        big = tpl(*[{"kind": "text", "text": "&" * b.MAX_TEXT}] * (b.MAX_BLOCKS - 2))   # + listings + footer
         got = p.build_preview(big, settings())
         self.assertFalse(got["ok"])
         self.assertIn("too large", got["problems"][0][1])

@@ -24,6 +24,26 @@ FOOTER = {"kind": "footer"}
 SUBJECT = {"text": "Storms near {total} homes"}
 
 
+class RequiredBlocksTest(unittest.TestCase):
+    # item 294, slice 5:  check_required, not clean_template, keeps the listings table, so the
+    # small fixtures in this file still compile.
+    def test_the_listings_block_is_required(self):
+        if MISSING:
+            self.skipTest(MISSING)
+        with_it = b.clean_template(tpl({"kind": "listings"}))
+        b.check_required(with_it)                       # no error
+        without = b.clean_template(tpl({"kind": "text", "text": "x"}))
+        with self.assertRaises(b.BlockError) as caught:
+            b.check_required(without)
+        self.assertEqual([n for n, _ in caught.exception.problems], [None])
+        self.assertIn("agent's houses", str(caught.exception))
+
+    def test_the_built_in_has_every_required_block(self):
+        if MISSING:
+            self.skipTest(MISSING)
+        b.check_required(b.clean_template(b.HAIL_ALERT_BLOCKS))
+
+
 def tpl(*body, **over):
     t = {"title": "Hail", "preheader": "", "subject": SUBJECT,
          "blocks": list(body) + [FOOTER]}

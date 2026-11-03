@@ -7799,6 +7799,14 @@ everything, Python included** (2026-11-03, "on this one, you can edit everything
   "Custom (n px)". Without JavaScript the menus stay hidden. Render diff empty (42 of 42); a page round-trip test (the
   form read the way a browser posts it) gives back the starter exactly, Custom spacings included;
   `tests/js/tplpresets_check.js`.
+- *Slice 5 done, 2026-11-03:* the listings block ("The agent's houses") is required: `blocks.check_required`, called
+  by `templatestore.save_blocks` (every editor save, so a hand-made POST is refused) and by the editor preview (shown
+  as a whole-template problem). Not in `clean_template`, so small test fixtures still compile. `remove_block` keeps it
+  as it keeps the footer; both show their Remove disabled, with the reason on hover, and a REQUIRED tag. Unknown
+  merge fields and bad links were already refused by the server beside their block, and the unsaved-changes warning
+  already existed. Both saved block templates had the listings block. Test fixtures that saved a template without it
+  (`test_preview`, `test_templatestore`, `test_emailadmin`, `test_zone_templatestore`) now include it. Render diff
+  empty (42 of 42).
 
 **Related:** items 201, 203, 220, 221.
 

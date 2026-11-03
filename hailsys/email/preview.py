@@ -34,6 +34,7 @@ def build_preview(template, settings, situation=samples.DEFAULT):
     render but will cause trouble (a message Gmail would clip)."""
     try:
         cleaned = blocks.clean_template(template)
+        blocks.check_required(cleaned)              # shown here, refused at save (item 294, slice 5)
     except blocks.BlockError as exc:
         return _fail(exc.problems)
     except Exception:                       # a draft is untrusted: never let it raise

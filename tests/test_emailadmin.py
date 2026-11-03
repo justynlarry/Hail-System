@@ -184,7 +184,9 @@ class EmailAdminTest(unittest.TestCase):
         templatestore.save_blocks(
             self.conn, created_by=self.system, name=template_name,
             template={"title": "T", "subject": {"text": "Storms near {total} homes"},
-                      "blocks": [use, {"kind": "text", "text": "Hello"}, {"kind": "footer"}]})
+                      # the listings block is required in a saved template (item 294, slice 5)
+                      "blocks": [use, {"kind": "text", "text": "Hello"}, {"kind": "listings"},
+                                 {"kind": "footer"}]})
         return template_name
 
     def retire(self, row):
@@ -228,7 +230,8 @@ class EmailAdminTest(unittest.TestCase):
         templatestore.save_blocks(
             self.conn, created_by=self.system, name=template,
             template={"title": "T", "subject": {"text": "Storms near {total} homes"},
-                      "blocks": [{"kind": "text", "text": "No image now"}, {"kind": "footer"}]})
+                      "blocks": [{"kind": "text", "text": "No image now"}, {"kind": "listings"},
+                                 {"kind": "footer"}]})
         self.retire(row)
         self.assertFalse(self.image(self.name)["is_active"])
 

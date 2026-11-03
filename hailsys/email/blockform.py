@@ -258,6 +258,15 @@ def _is_footer(block):
     return isinstance(block, dict) and block.get("kind") == "footer"
 
 
+# Blocks that cannot be removed, and the reason the disabled Remove button gives (item 294, slice 5).
+KEEP = {"footer": "Required: it carries the \"This is an advertisement\" notice the law needs",
+        "listings": "Required: an email about a realtor's listing has to list it"}
+
+
+def _is_kept(block):
+    return isinstance(block, dict) and block.get("kind") in KEEP
+
+
 def add_block(template, kind):
     done = copy.deepcopy(template)
     block_list = done["blocks"]
@@ -287,7 +296,7 @@ def move_block(template, index, step):
 def remove_block(template, index):
     done = copy.deepcopy(template)
     block_list = done["blocks"]
-    if 0 <= index < len(block_list) and not _is_footer(block_list[index]):
+    if 0 <= index < len(block_list) and not _is_kept(block_list[index]):
         del block_list[index]
     return done
 
@@ -324,5 +333,6 @@ def describe(template, problems=()):
             "summary": _summary(block),
             "system": kind in SYSTEM_KINDS, "footer": kind == "footer",
             "fields": fields_for(block, i), "problems": by_number.get(i + 1, []),
-            "can_up": _can_move(block_list, i, -1), "can_down": _can_move(block_list, i, 1)})
+            "can_up": _can_move(block_list, i, -1), "can_down": _can_move(block_list, i, 1),
+            "keep": KEEP.get(kind)})
     return shown

@@ -342,6 +342,16 @@ class DraftOperationsTest(unittest.TestCase):
         for index in (-1, 4, 99):
             self.assertEqual(f.remove_block(self.base(), index), self.base(), index)
 
+    def test_the_listings_block_cannot_be_removed_and_says_why(self):
+        # item 294, slice 5:  like the footer, the listings table stays; the page shows its Remove
+        # disabled with this reason.
+        draft = tpl({"kind": "text", "text": "a"}, {"kind": "listings"})
+        self.assertEqual(f.remove_block(draft, 1), draft)
+        views = {v["kind"]: v for v in f.describe(draft)}
+        self.assertIn("has to list it", views["listings"]["keep"])
+        self.assertIn("advertisement", views["footer"]["keep"])
+        self.assertIsNone(views["text"]["keep"])
+
     def test_no_operation_changes_the_draft_it_is_given(self):
         base = self.base()
         before = copy.deepcopy(base)

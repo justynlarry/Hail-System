@@ -117,6 +117,7 @@ def save_blocks(conn, *, created_by, name, template, must_be_new=False):
         raise TemplateRefused(f"{name.lower()} is the built-in template's name.  Pick another.")
     try:
         cleaned = blocklib.clean_template(template)
+        blocklib.check_required(cleaned)            # the listings block (item 294, slice 5)
         subject_src, body_src = blocklib.compile_blocks(cleaned)
     except blocklib.BlockError as exc:
         raise TemplateRefused(str(exc)) from None

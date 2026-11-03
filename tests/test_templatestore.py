@@ -205,7 +205,8 @@ class EnsureCurrentTest(unittest.TestCase):
 def block_template(text="Hello", **over):
     t = {"title": "Test", "subject": {"text": "Storms near {total} homes"},
          "blocks": [{"kind": "image", "image": "logo", "placement": "header"},
-                    {"kind": "text", "text": text}, {"kind": "footer"}]}
+                    {"kind": "text", "text": text}, {"kind": "listings"},   # required (item 294)
+                    {"kind": "footer"}]}
     t.update(over)
     return t
 
@@ -319,6 +320,18 @@ class SaveBlocksTest(unittest.TestCase):
         self.assertEqual(len(self.rows(f"Zz-{self.name}")), 2)
 
     # ---- images ----
+
+    def test_a_template_without_the_listings_block_is_refused_and_nothing_is_written(self):
+        # item 294, slice 5:  the server, not only the page, keeps the listings table.  This is what
+        # a hand-made POST to the editor's save reaches.
+        before = self.conn.execute("SELECT count(*) AS n FROM email_templates").fetchone()["n"]
+        bare = block_template()
+        bare["blocks"] = [b for b in bare["blocks"] if b["kind"] != "listings"]
+        with self.assertRaises(ts.TemplateRefused) as caught:
+            self.save(bare)
+        self.assertIn("agent's houses block is required", str(caught.exception))
+        after = self.conn.execute("SELECT count(*) AS n FROM email_templates").fetchone()["n"]
+        self.assertEqual(after, before)
 
     def test_a_missing_image_is_refused_by_name(self):
         t = block_template()

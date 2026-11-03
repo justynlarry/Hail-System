@@ -3,25 +3,32 @@
 {% set choice_words = {'left': 'Left', 'center': 'Centred', 'header': 'At the top, as the logo', 'body': 'In the email'} %}
 <input type="hidden" name="n_blocks" value="{{ block_views | length }}">
 {% for bl in block_views %}
-{% set title %}{{ bl.number }}. {{ bl.label }}{% if bl.summary %} <span class="tpl-summary">{{ bl.summary }}</span>{% endif %}{% endset %}
+{% set title %}{{ bl.number }}. {{ bl.label }}{% if bl.keep %} <small class="tpl-keep" title="{{ bl.keep }}">required</small>{% endif %}{% if bl.summary %} <span class="tpl-summary">{{ bl.summary }}</span>{% endif %}{% endset %}
 {% set buttons %}
         {% if bl.footer %}
-        <small>Required, and always last: it carries the "This is an advertisement" notice the law needs.</small>
+        {# Shown disabled, not hidden (item 294, slice 5):  the footer never moves or goes. #}
+        <button type="button" class="tpl-icon" title="The footer always stays last" aria-label="Move up" disabled>&uarr;</button>
+        <button type="button" class="tpl-icon" title="The footer always stays last" aria-label="Move down" disabled>&darr;</button>
+        <button type="button" class="tpl-icon tpl-remove" title="{{ bl.keep }}" aria-label="Remove" disabled>&times;</button>
         {% else %}
         {# Small arrow buttons; the words are in title and aria-label for the mouse and the screen reader. #}
         <button type="submit" name="action" value="up:{{ bl.index }}" class="tpl-icon" title="Move up" aria-label="Move up"
                 formaction="{{ url_for('emailtpl.act') }}#b{{ bl.index - 1 }}"{% if not bl.can_up %} disabled{% endif %}>&uarr;</button>
         <button type="submit" name="action" value="down:{{ bl.index }}" class="tpl-icon" title="Move down" aria-label="Move down"
                 formaction="{{ url_for('emailtpl.act') }}#b{{ bl.index + 1 }}"{% if not bl.can_down %} disabled{% endif %}>&darr;</button>
+        {% if bl.keep %}
+        <button type="button" class="tpl-icon tpl-remove" title="{{ bl.keep }}" aria-label="Remove" disabled>&times;</button>
+        {% else %}
         <button type="submit" name="action" value="remove:{{ bl.index }}" class="tpl-icon tpl-remove" title="Remove" aria-label="Remove"
                 formaction="{{ url_for('emailtpl.act') }}#b{{ bl.index }}"{% if bl.fields %} data-confirm="Remove this {{ bl.label | lower }} block? Anything typed in it is lost."{% endif %}>&times;</button>
+        {% endif %}
         {% endif %}
 {% endset %}
 {% if not bl.fields %}
 {# A block with nothing to edit (the storm blocks, the divider): one line. #}
 <div class="tpl-row{% if bl.system %} tpl-system{% endif %}" id="b{{ bl.index }}">
     <input type="hidden" name="b{{ bl.index }}_kind" value="{{ bl.kind }}">
-    <span class="tpl-row-title">{{ title }}{% if bl.system %} <small>(filled in automatically from the storm data; the wording is fixed){% if bl.kind == 'listings' %} · required{% endif %}</small>{% endif %}</span>
+    <span class="tpl-row-title">{{ title }}{% if bl.system %} <small>(filled in automatically from the storm data; the wording is fixed)</small>{% endif %}</span>
     <span class="tpl-actions">{{ buttons }}</span>
     {% for message in bl.problems %}<p class="error">{{ message }}</p>{% endfor %}
     <div class="block-errors" data-block="{{ bl.index }}"></div>

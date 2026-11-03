@@ -146,7 +146,8 @@ class ZoneStoreTest(unittest.TestCase):
 
     def test_the_editor_cannot_rebuild_or_retire_either_built_in(self):
         template = {"title": "T", "subject": {"text": "Storms near {total} homes"},
-                    "blocks": [{"kind": "text", "text": "Hello"}, {"kind": "footer"}]}
+                    # a valid template (listings included, item 294), so only the name can refuse it
+                    "blocks": [{"kind": "text", "text": "Hello"}, {"kind": "listings"}, {"kind": "footer"}]}
         for name in (ts.TEMPLATE_NAME, ts.ZONE_TEMPLATE_NAME, ts.ZONE_TEMPLATE_NAME.upper()):
             with self.subTest(name=name):
                 with self.assertRaises(ts.TemplateRefused):

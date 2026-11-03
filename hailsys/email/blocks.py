@@ -657,6 +657,25 @@ def clean_template(template):
     return out
 
 
+# Blocks a report email must carry (item 294, slice 5;  developer, 2026-11-03).  An email about a
+# realtor's listing that does not list it is broken.  Checked where the editor saves a template
+# (templatestore.save_blocks) and in the editor preview, not in clean_template, so a small test
+# fixture of one paragraph and a footer still compiles.  The footer has its own rule above.
+REQUIRED_KINDS = {
+    "listings": "The agent's houses block is required: an email about a realtor's listing has to "
+                "list it.  Add it back with Add a block.",
+}
+
+
+def check_required(template):
+    """BlockError, with each missing block as a whole-template problem, if a cleaned template lacks
+    a required block."""
+    kinds = {b.get("kind") for b in template.get("blocks", []) if isinstance(b, dict)}
+    missing = [message for kind, message in REQUIRED_KINDS.items() if kind not in kinds]
+    if missing:
+        raise BlockError("; ".join(missing), [(None, m) for m in missing])
+
+
 def images_used(template):
     """The names of the email images a block template refers to, as a set.
 

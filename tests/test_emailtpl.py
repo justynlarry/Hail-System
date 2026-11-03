@@ -315,7 +315,9 @@ class EmailTplPagesTest(unittest.TestCase):
         for f in rich:
             self.assertIn(f'<span class="tpl-toolbar" data-for="{f["name"]}">', form)
         # a named control would be posted with the form and change the draft
-        controls = re.findall(r'<(?:button type="button"|select data-)[^>]*>', form)
+        # Inside the toolbars:  the disabled Remove of a required block is a type="button" too.
+        bars = "".join(re.findall(r'<span class="tpl-toolbar".*?</span>', form, re.S))
+        controls = re.findall(r'<(?:button type="button"|select data-)[^>]*>', bars)
         self.assertEqual(len(controls), 5 * len(rich))
         for control in controls:
             self.assertNotIn(" name=", control)
@@ -712,9 +714,10 @@ class EmailTplActionsTest(unittest.TestCase):
         self.assertRegex(page, r'<form id="editor" method="post" action="/templates/edit" data-unsaved="0">')
         self.assertIn('name="csrf_token"', page)
         # The arrow buttons carry a class, a title and a label between the value and the address (item 294).
-        self.assertRegex(page, r'value="up:5"[^>]*\sformaction="/templates/edit#b4"')
-        self.assertRegex(page, r'value="down:5"[^>]*\sformaction="/templates/edit#b6"')
-        self.assertRegex(page, r'value="remove:5"[^>]*\sformaction="/templates/edit#b5"')
+        # Block 6, a text block:  block 5 is the listings table, which has no live Remove (slice 5).
+        self.assertRegex(page, r'value="up:6"[^>]*\sformaction="/templates/edit#b5"')
+        self.assertRegex(page, r'value="down:6"[^>]*\sformaction="/templates/edit#b7"')
+        self.assertRegex(page, r'value="remove:6"[^>]*\sformaction="/templates/edit#b6"')
         self.assertRegex(page, r'value="add"\s+formaction="/templates/edit#add-block"')
 
     def test_the_first_block_cannot_move_up_and_the_footer_has_no_buttons(self):
@@ -724,7 +727,16 @@ class EmailTplActionsTest(unittest.TestCase):
         last = len(self.draft["blocks"]) - 1
         self.assertNotIn(f'value="up:{last}"', page)
         self.assertNotIn(f'value="remove:{last}"', page)
-        self.assertIn("Required, and always last", page)
+        # Shown disabled with the reason, not hidden (item 294, slice 5); the listings block likewise.
+        plain = page.replace("&#34;", '"').replace("&#39;", "'")
+        self.assertIn('title="Required: it carries the "This is an advertisement" notice the law needs" '
+                      'aria-label="Remove" disabled>', plain)
+        listings = [i for i, x in enumerate(self.draft["blocks"]) if x.get("kind") == "listings"]
+        self.assertTrue(listings)
+        self.assertNotIn(f'value="remove:{listings[0]}"', page)
+        self.assertIn('title="Required: an email about a realtor\'s listing has to list it" '
+                      'aria-label="Remove" disabled>', plain)
+        self.assertEqual(page.count('class="tpl-keep"'), 2)
         self.assertRegex(page, r'value="down:%d"[^>]*aria-label="Move down"[^>]*disabled>' % (last - 1))
 
     # ---- safety ----

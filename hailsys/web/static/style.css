@@ -1277,6 +1277,9 @@ path.lk-context { fill: var(--lk-context); stroke: var(--lk-context); stroke-das
 .tpl-more { flex: 1 1 100%; margin: 0.35rem 0 0; }
 .tpl-more summary { cursor: pointer; font-size: 0.8125rem; color: var(--muted); }
 .tpl-more[open] summary { margin-bottom: 0.25rem; }
+/* A block that cannot be removed (footer, listings):  a small tag in its header (item 294, slice 5). */
+.tpl-keep { margin-left: 0.4rem; padding: 0 0.35rem; border: 1px solid var(--border); border-radius: 3px;
+  font-size: 0.7rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
 .tpl-icon { min-width: 1.9rem; padding: 0.1rem 0.4rem; font-size: 0.95rem; line-height: 1.2; cursor: pointer; }
 .tpl-icon:disabled { opacity: 0.35; cursor: default; }
 .tpl-remove:not(:disabled):hover { color: var(--error); border-color: var(--error); }
