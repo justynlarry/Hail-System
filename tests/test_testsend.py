@@ -193,6 +193,9 @@ class SendTestTest(unittest.TestCase):
         self.assertEqual(fields["subject"], got["subject"])
         self.assertIn("Hail storms were reported near several of your listings", fields["subject"])
         self.assertIn("[[trackingImage]]", fields["html_content"])
+        # The editor's preview marks its blocks for clicking (item 294, slice 7); a test send is the
+        # email exactly, so it carries none.
+        self.assertNotIn("data-block", fields["html_content"])
         self.assertEqual((fields["from_name"], fields["from_email"], fields["reply_to_email"]),
                          ("Sender", "from@example.test", "r@example.test"))
         self.assertIn("sample data: Several storms and listings", self.cc.tested[2])

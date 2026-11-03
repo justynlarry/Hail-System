@@ -221,6 +221,14 @@ class EmailTplPagesTest(unittest.TestCase):
 
     # ---- where a new template starts (item 294, slice 6) ----
 
+    def test_the_on_screen_preview_marks_its_blocks_for_clicking(self):
+        # item 294, slice 7:  the marks are in the editor's preview, escaped inside srcdoc, and the
+        # page loads the script that reads them.
+        page = self.text("/templates/new")
+        self.assertIn("data-block=&#34;0&#34;", page)
+        self.assertIn("tplpreview.js", page)
+        self.assertIn("Click any part of the preview to open that block", page)
+
     def test_a_new_template_asks_for_a_title_not_an_internal_name(self):
         page = self.text("/templates/new")
         self.assertIn('<label for="friendly_title">Name this template</label>', page)
@@ -272,7 +280,7 @@ class EmailTplPagesTest(unittest.TestCase):
         self.assertIn('name="b1_kind" value="footer"', page)
         self.assertNotIn('name="b2_kind"', page)
         self.assertIn("Starting blank", page)
-        self.assertIn('<iframe sandbox title="Preview"', page)  # a valid template: it previews
+        self.assertIn('<iframe sandbox="allow-same-origin" title="Preview"', page)  # a valid template: it previews
 
     def test_no_from_and_the_built_in_name_both_start_from_the_built_in(self):
         for path in ("/templates/new", "/templates/new?from=hail_alert"):
@@ -461,7 +469,9 @@ class EmailTplPagesTest(unittest.TestCase):
 
     def test_the_preview_is_a_sandboxed_iframe_with_the_subject_and_size(self):
         page = self.text("/templates/new")
-        self.assertIn('<iframe sandbox title="Preview" srcdoc="', page)
+        # Same-origin so the editor's script can see a click (slice 7); never scripts inside it.
+        self.assertIn('<iframe sandbox="allow-same-origin" title="Preview" srcdoc="', page)
+        self.assertNotIn("allow-scripts", page)
         self.assertIn("A hail storm was reported near your listing at 123 Example St", page)
         self.assertIn("KB", page)
 

@@ -37,7 +37,9 @@ def _preview(draft, situation):
             conn.rollback()
     except render.SettingsError as exc:
         return _no_preview(str(exc))
-    return preview.build_preview(draft, settings, situation)
+    # The on-screen preview only carries the block marks a click needs (item 294, slice 7);
+    # testsend.py builds its own, unmarked.
+    return preview.build_preview(draft, settings, situation, mark_blocks=True)
 
 
 def _situation(raw):

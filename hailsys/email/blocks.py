@@ -695,9 +695,20 @@ def images_used(template):
     return used
 
 
-def compile_blocks(template):
+# The attribute the editor preview puts on each block's rows (item 294, slice 7).  Only with
+# compile_blocks(mark=True), which only the on-screen editor preview asks for:  a saved template,
+# a send and a test send are compiled without it.
+BLOCK_MARK = ' data-block="{}"'
+
+
+def compile_blocks(template, mark=False):
     """(subject_src, body_src) for templatestore and render.  BlockError if anything is wrong,
-    including anything render.validate_template refuses."""
+    including anything render.validate_template refuses.
+
+    mark=True is for the editor preview only:  every <tr of block N gets data-block="N" (N counted
+    from 0, as the form's b0, b1 ...), so a click in the preview can open that block.  Typed text
+    is escaped, so the only "<tr" in a block's HTML is a real row.  The size limit is measured
+    without the marks, so a preview never fails where the email would pass."""
     t = clean_template(template)
     if "preset" in t["subject"]:
         subject = SUBJECT_PRESETS[t["subject"]["preset"]]
@@ -709,11 +720,13 @@ def compile_blocks(template):
     if preheader:
         parts.append(_PREHEADER_OPEN + preheader + " " + _PREHEADER_FILLER + _PREHEADER_CLOSE)
     parts.append(_FRAME_OPEN)
-    parts.extend(RENDERERS[b["kind"]](b) for b in t["blocks"])
-    parts.append(_FRAME_CLOSE)
-    body = "\n".join(parts)
+    pieces = [RENDERERS[b["kind"]](b) for b in t["blocks"]]
+    body = "\n".join(parts + pieces + [_FRAME_CLOSE])
     if len(body.encode("utf-8")) > MAX_HTML:
         raise BlockError(f"the template is too large (over {MAX_HTML // 1000} KB)")
+    if mark:
+        pieces = [piece.replace("<tr", "<tr" + BLOCK_MARK.format(i)) for i, piece in enumerate(pieces)]
+        body = "\n".join(parts + pieces + [_FRAME_CLOSE])
     try:
         render.validate_template(subject, body)
     except render.RenderError as exc:

@@ -24,6 +24,39 @@ FOOTER = {"kind": "footer"}
 SUBJECT = {"text": "Storms near {total} homes"}
 
 
+class PreviewMarksTest(unittest.TestCase):
+    # item 294, slice 7:  compile_blocks(mark=True) puts data-block="N" on every row of block N, for
+    # the editor preview only; without mark the email has none, and the marks are the only change.
+    def test_every_row_of_a_block_carries_its_number_and_nothing_else_changes(self):
+        if MISSING:
+            self.skipTest(MISSING)
+        template = b.clean_template(b.HAIL_ALERT_BLOCKS)
+        plain_subject, plain_body = b.compile_blocks(template)
+        subject, body = b.compile_blocks(template, mark=True)
+        self.assertEqual(subject, plain_subject)
+        self.assertNotIn("data-block", plain_body)
+        self.assertEqual(re.sub(r' data-block="\d+"', "", body), plain_body)
+        numbers = {int(n) for n in re.findall(r'<tr data-block="(\d+)"', body)}
+        self.assertEqual(numbers, set(range(len(template["blocks"]))))
+        # Every row after the frame opens belongs to a block (the frame's own rows come before it).
+        blocks_part = body[body.index(b._FRAME_OPEN) + len(b._FRAME_OPEN):]
+        self.assertNotRegex(blocks_part, r"<tr(?! data-block=)[ >]", "a row inside a block without its mark")
+
+    def test_typed_text_cannot_fake_a_mark(self):
+        if MISSING:
+            self.skipTest(MISSING)
+        sneaky = tpl({"kind": "text", "text": 'x <tr data-block="9"> y'}, {"kind": "listings"})
+        _, body = b.compile_blocks(sneaky, mark=True)
+        self.assertNotIn('data-block="9"', body)
+
+    def test_the_size_limit_ignores_the_marks(self):
+        if MISSING:
+            self.skipTest(MISSING)
+        big = tpl(*[{"kind": "text", "text": "&" * 1500}] * 10, {"kind": "listings"})
+        b.compile_blocks(big)                                   # within the limit without marks
+        b.compile_blocks(big, mark=True)                        # so with them too
+
+
 class RequiredBlocksTest(unittest.TestCase):
     # item 294, slice 5:  check_required, not clean_template, keeps the listings table, so the
     # small fixtures in this file still compile.

@@ -35,6 +35,9 @@ sys.path.insert(0, str(ROOT))
 
 SNAPSHOT = Path(__file__).resolve().parent / "snapshots" / "template_render.json"
 
+import re
+MARK = re.compile(r' data-block="\d+"')          # the editor preview's block marks (item 294, slice 7)
+
 try:
     from hailsys.email import blocks, preview, render, samples, templatestore, zonecontext
     MISSING = None
@@ -91,6 +94,11 @@ def _from_blocks(template, label):
         if not p["ok"]:
             raise AssertionError(f"{label}: the editor preview failed: {p['problems']}")
         out[f"{label}|preview|{key}"] = _digest(p["subject"], p["html"])
+        # The on-screen preview carries data-block marks (slice 7).  With them removed it must be
+        # the unmarked preview exactly, so the marks are the only difference.
+        marked = preview.build_preview(template, settings, key, mark_blocks=True)
+        if not marked["ok"] or MARK.sub("", marked["html"]) != p["html"] or marked["size"] != p["size"]:
+            raise AssertionError(f"{label}|{key}: the marked preview differs by more than its marks")
     return out
 
 

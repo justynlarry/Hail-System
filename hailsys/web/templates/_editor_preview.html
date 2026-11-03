@@ -3,7 +3,10 @@
 {% if preview.ok %}
 <p class="tpl-subject">Subject: <strong>{{ preview.subject }}</strong> <small>&middot; {{ (preview.size / 1000) | round(1) }} KB</small></p>
 {% for w in preview.warnings %}<p class="note warning">{{ w }}</p>{% endfor %}
-<iframe sandbox title="Preview" srcdoc="{{ preview.html | replace('[[trackingImage]]', '') }}" class="tpl-frame"></iframe>
+{# allow-same-origin and still no allow-scripts (item 294, slice 7):  nothing in the frame can run, but
+   the editor page's own script (tplpreview.js) can see a click in it and open that block.  The html is
+   the compiled email, every typed character escaped; scripts plus same-origin would be the dangerous pair. #}
+<iframe sandbox="allow-same-origin" title="Preview" srcdoc="{{ preview.html | replace('[[trackingImage]]', '') }}" class="tpl-frame"></iframe>
 {% else %}
 <p class="note warning">There is no preview yet. Fix these first:</p>
 <ul>

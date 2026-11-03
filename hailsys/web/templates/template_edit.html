@@ -130,6 +130,7 @@
             {% if test_notice %}<p class="note tpl-result" id="test-result">{{ test_notice }}</p>{% endif %}
             <p class="note">The test button sends this draft, with the sample storm above, to your own address only, through
             Constant Contact. Up to 5 an hour. It is not a real send.</p>
+            <p class="note">Click any part of the preview to open that block in the form.</p>
             <div id="preview">{% include "_editor_preview.html" %}</div>
         </aside>
     </div>
@@ -138,5 +139,6 @@
 <script src="{{ url_for('static', filename='blockfold.js') }}" defer></script>
 <script src="{{ url_for('static', filename='tplpresets.js') }}" defer></script>
 <script src="{{ url_for('static', filename='tplname.js') }}" defer></script>
+<script src="{{ url_for('static', filename='tplpreview.js') }}" defer></script>
 </div>
 {% endblock %}

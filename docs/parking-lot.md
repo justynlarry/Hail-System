@@ -7821,6 +7821,16 @@ everything, Python included** (2026-11-03, "on this one, you can edit everything
   name. Accented letters drop out of the name ("Café" gives `caf`); the title keeps them. The developer created
   `throwaway_template` and "Throwaway Template 2" (`throwaway_template_2`) on `hail-dev` to check it. Render diff empty
   (42 of 42).
+- *Slice 7 done, 2026-11-03:* a click in the editor preview opens that block in the form (and brings it into view; a
+  one-line storm row is flashed), hovering outlines it, and a click never follows a link inside the preview
+  (`hailsys/web/static/tplpreview.js`). The preview frame is `sandbox="allow-same-origin"` with no `allow-scripts`, so
+  nothing in it runs but the page's script can see the click. Each block's rows carry `data-block="N"` from
+  `blocks.compile_blocks(mark=True)`, asked for only by the on-screen preview (`preview.build_preview(mark_blocks=True)`):
+  `testsend.py` reuses `build_preview`, so the marks are off by default and tests pin a test send and a saved template
+  free of them. The size limit and the Gmail warning ignore the marks. The snapshot test now also requires the marked
+  preview, marks removed, to equal the unmarked one. Two bugs caught before the browser: an unreadable frame raised, and
+  a srcdoc frame's first, empty about:blank document would have been hooked instead of the email (hooks are now per
+  document). The developer confirmed clicking works. Render diff empty (42 of 42).
 
 **Related:** items 201, 203, 220, 221.
 

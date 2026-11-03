@@ -357,6 +357,13 @@ class SaveBlocksTest(unittest.TestCase):
                 with self.assertRaises(ts.TemplateRefused):
                     ts.name_from_title(self.conn, title)
 
+    def test_a_saved_template_carries_no_preview_marks(self):
+        # item 294, slice 7:  only the on-screen preview is marked; what is saved, and so sent, is not.
+        template_id = self.save()
+        body = self.conn.execute("SELECT body FROM email_templates WHERE template_id = %s",
+                                 (template_id,)).fetchone()["body"]
+        self.assertNotIn("data-block", body)
+
     def test_a_template_without_the_listings_block_is_refused_and_nothing_is_written(self):
         # item 294, slice 5:  the server, not only the page, keeps the listings table.  This is what
         # a hand-made POST to the editor's save reaches.
