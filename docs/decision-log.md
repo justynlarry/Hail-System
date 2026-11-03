@@ -8037,3 +8037,23 @@ reads `config.yml`). The `hail-dev` tunnel was restarted and registered four con
 change loses its `config.yml`; this VM has the only checkout. `docs/deploy.md` step 8 has the production steps; the
 service runs as UID 1000, so production's `hail-user` must be UID 1000 (step 2).
 
+---
+
+## 2026-11-03 — Drip campaigns rehearsed on test addresses (item 204, piece 7)
+
+**What ran:** two campaigns on `hail-dev`, to the developer's own `+t10` to `+t13` addresses only (seed
+`sql/dev_rehearsal_seed_drip.sql`). A (7382), entirely on the screens with real RentCast: step 1, a recipient stopped as
+`replied`, and follow-up 1 ending `nothing_to_send` when RentCast answered 404 for the test listing. B (7383): step 1 on the
+screens, then both follow-ups sent (2 emails each) and the campaign `complete`.
+
+**Why B's follow-ups used a stand-in for RentCast:** a follow-up re-checks each listing before sending. A test listing's
+made-up id is a 404, so its recipient is dropped; a real listing names its real agent, and item 227 drops a listing whose
+agent is not the address emailed. So no follow-up can reach a test address through real RentCast. `scripts/rehearse_drip.py`
+(dev only) runs the real job under the send lock with only `client.get_sale_listing` answered locally, for rehearsal
+listings only, refusing any campaign with a recipient who is not a test address and any zip pull. The sync, the follow-up
+list, the queue and the Constant Contact sends were real.
+
+**Costs:** RentCast 1 logged call (the 404; whether a 404 is billed is still open). Constant Contact: 8 emails.
+**Setting:** `match_max_age_days` 30 to 45 for the rehearsal (the latest HAIL day in reach was 2026-09-20) and back to 30,
+both in `settings_history`.
+

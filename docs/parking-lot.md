@@ -3484,7 +3484,7 @@ vocabulary (`ALLOWED_VARS` is it).
 
 ## 204. Drip campaigns: an initial email, then follow-ups
 
-**Status:** open, **parked 2026-10-20 by developer decision: only piece 7's dev rehearsal remains** (filed 2026-10-13, by developer request; the owner asked for it). **Plan agreed
+**Status:** resolved 2026-11-03 (all seven pieces; Level 2 not built, see below)
 2026-10-16**, Level 1. **Piece 1 (the RentCast probe) done 2026-10-16**; the check method changed
 as a result (below). **Pieces 2 and 3 done 2026-10-16** (`sql/045`, `sql/046`, the by-id client, the check log writer, the quota sum, the cheaper-method choice). **Piece 4 done 2026-10-19** (`hailsys/queries/dripfollowup.py`, `queue_batch(send_list=...)`). **Piece 5 done 2026-10-19** (`sql/047`, `hailsys/rentcast/dripstep.py`, `hailsys/email/dripstep.py`, `sendjobs.start_drip_step`). **Piece 6 done 2026-10-20** (commits `313df2e` to `8021288`; `/campaigns`, the follow-up part of the `/send` confirm page, the due banner). Piece 7 (these docs and a dev rehearsal) is next. **No campaign has been run yet**: nothing in `sent_emails` came from one.
 
@@ -3693,6 +3693,16 @@ own test addresses (it spends a few real RentCast calls and sends through Consta
 not before 189 and 129.
 
 **Related:** items 189, 191, 203, 226, 227.
+
+**Piece 7, rehearsed 2026-11-03 on `hail-dev`, test addresses only.** Campaign A (7382, on the screens, real RentCast):
+step 1 sent to `+t10` and `+t11`; `+t11` stopped as `replied`; follow-up 1 checked `+t10`'s test listing by id, RentCast
+answered 404 (`not_found`, logged as 1 call), `+t10` was stopped `no_active_listings`, and the run ended `nothing_to_send`.
+Campaign B (7383): step 1 on the screens, then both follow-ups with `scripts/rehearse_drip.py`, which runs the real job
+with only RentCast's lookup answered locally (0 calls): each follow-up checked 2 listings `active` and sent 2 emails
+through Constant Contact, and the campaign ended `complete`. Seed: `sql/dev_rehearsal_seed_drip.sql` (dev only).
+`match_max_age_days` was 45 for the rehearsal and is back to 30. Not seen: the due banner (A's follow-up 2 falls due
+2026-11-04), and whether RentCast bills a 404. Level 2 (steps run by a daily job) stays unbuilt: it would need a written
+decision against two non-negotiable rules, and not before items 189 and 129.
 
 ## 226. Read replies from a dedicated Gmail inbox to stop follow-ups
 

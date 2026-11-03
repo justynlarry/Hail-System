@@ -83,7 +83,7 @@ addresses.
   admin-only `/templates` editor (`hailsys/web/emailtpl.py`) builds, previews, saves and retires block
   templates; its JavaScript is checked in a Node container (item 222). A golden test pins the block-built
   `hail_alert` to the shipped file. The built-in template still renders from its files (item 220). Not on
-  the production box: `sql/039` to `051`. `sql/045` to `047` are the drip-campaign settings and tables (item 204, in progress: the campaign screens at `/campaigns` and the follow-up part of the `/send` confirm page exist; no campaign has been run yet, the dev rehearsal is piece 7). The editor's "Send a test to <your address>" button
+  the production box: `sql/039` to `051`. `sql/045` to `047` are the drip-campaign settings and tables (item 204: the campaign screens at `/campaigns` and the follow-up part of the `/send` confirm page; rehearsed 2026-11-03 on test addresses (two campaigns); no campaign has been run for a real recipient). The editor's "Send a test to <your address>" button
   (`testsend.py`, `email_test_sends`) emails the draft to the clicking admin only, three Constant Contact
   calls, at most 5 an hour; it is not a send. The editor has a formatting guide, a toolbar on the rich text boxes (`templates.js`)
   and a two-column layout with the preview beside the form.
