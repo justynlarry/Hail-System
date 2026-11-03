@@ -1247,11 +1247,15 @@ path.lk-context { fill: var(--lk-context); stroke: var(--lk-context); stroke-das
 /* Folding blocks (blockfold.js, item 294 slice 2).  The legend is a header row:  the toggle
    (number, type, first words) on the left, the arrow buttons on the right.  Without the script
    (no .folding on the form) nothing is closed and the toggle is plain text. */
+/* The legend stays the fieldset's own header (not floated:  a floated legend becomes an ordinary
+   float, and an open block's fields were laid out beside it, under the preview).  min-width: 0
+   because a fieldset otherwise never shrinks below its widest unbreakable content, and the
+   header text does not wrap. */
+.tpl-block { min-width: 0; }
 .tpl-block legend.tpl-head {
   display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-  width: 100%; box-sizing: border-box; padding: 0 0.25rem; float: left;
+  width: 100%; box-sizing: border-box; padding: 0 0.25rem;
 }
-.tpl-block legend.tpl-head + * { clear: both; }
 .tpl-head .tpl-actions { margin: 0; flex: none; white-space: nowrap; }
 .tpl-toggle {
   flex: 1 1 auto; min-width: 0; text-align: left; background: none; border: none; padding: 0.35rem 0;

@@ -7788,6 +7788,10 @@ everything, Python included** (2026-11-03, "on this one, you can edit everything
   `templates.js`). The open block follows Move, a new block opens after Add, `#bN` opens a block on load, and a block
   with a server problem opens and is marked; a live problem only marks its block. × asks before removing a block with
   settings. Without JavaScript every block stays open. Render diff empty (42 of 42); `tests/js/blockfold_check.js`.
+  *Fix, 2026-11-03 (developer's report):* an opened block's fields were pushed right, under the preview. The slice 2
+  CSS floated the block's legend, so the fields were laid out beside an ordinary float, and a fieldset never shrinks
+  below its widest unbreakable content (the header does not wrap). The legend is no longer floated and `.tpl-block`
+  has `min-width: 0`; the developer confirmed the layout in the browser.
 
 **Related:** items 201, 203, 220, 221.
 
