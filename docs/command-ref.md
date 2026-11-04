@@ -189,8 +189,8 @@ The container keeps the image it was created from, so after `docker compose buil
 on 2026-11-04 `web` had been serving a 2026-10-30 image through a 2026-11-02 rebuild. Plain `up -d web` did not help
 on this machine: after a rebuild the same day it printed `Running` and changed nothing. To see which image the running container uses, compare
 `docker inspect $(docker compose ps -q web) --format '{{.Image}}'` with
-`docker image inspect hail-system-web --format '{{.Id}}'`. `scripts/status.sh images` checks the tagged image, not the
-running container, so it reads OK either way.
+`docker image inspect hail-system-web --format '{{.Id}}'`, or run `scripts/status.sh images`: it prints `OLD IMAGE` under
+a service whose running container is not on the tagged image (item 302), with the command that fixes it.
 
 ## Posgres (in Docker)
 1. Create Database:

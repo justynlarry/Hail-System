@@ -8099,12 +8099,12 @@ what staff see.
 
 ## 302. A restarted `web` keeps its old image, and `status.sh images` reports OK
 
-**Status:** open (found 2026-11-04, item 300 work; docs fixed the same day, `status.sh` not)
+**Status:** resolved 2026-11-04 (found the same day, item 300 work)
 
 Found 2026-11-04. The running `web` container had been created 2026-10-30 from image `91f564…` (Python 3.12.15,
 WTForms 3.2.2), while `hail-system-web:latest` was a 2026-11-02 build (3.12.16, WTForms 3.3.2): every
 `docker compose restart web` since had restarted the same container, and a container keeps the image it was created
-from. Only `docker compose up -d web` recreates it. (A second case the same day was not this: `web` was recreated at
+from. Recreating it takes `docker compose up -d --force-recreate web` (below). (A second case the same day was not this: `web` was recreated at
 23:01:03Z and the final item 300 rebuild was tagged at 23:04:06Z, so it was one build behind because nothing had run
 since, not because a restart kept it. Docker's events log showed the order.)
 
@@ -8130,5 +8130,16 @@ failure:** `cmd_images` should also compare
 by the developer).
 
 **When:** the `status.sh` change before the first update to `rbi-hail01` (`deploy.md` §12).
+
+**Resolved 2026-11-04.** `scripts/status.sh` `cmd_images` now finds each running container of each service by
+Compose's labels (`com.docker.compose.project`, `.service`, `.oneoff=False`; not `docker compose ps`, which needs `.env`),
+compares its `.Image` with the tag's `.Id`, and prints, under that service's line,
+`OLD IMAGE: <container> runs <id>, the tag is <id>.  docker compose up -d --force-recreate <service>`. One-off `run`
+containers and stopped ones are left out (the exited `app-1` from September would otherwise always show). Informational,
+like the rest of `images`: the exit status is unchanged. Checked: `bash -n`; on the live stack four `OK` lines and no
+warning (`web` on `d72bca…`); with a shell-function stand-in for `docker` reporting `3fa444…` for running containers, the
+warning appeared under `web` only and the exit status stayed 0. No Docker state was changed by the check. shellcheck is
+not installed here, so it was not run. Written by Claude at the developer's request (an exception to the keyed-in rule,
+2026-11-04). `deploy.md` §12 and `command-ref.md` now point at the check.
 
 **Related:** items 289, 290, 300.

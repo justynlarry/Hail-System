@@ -259,7 +259,7 @@ cmd_images() {
         || { echo "not a git checkout: cannot tell what changed since each build"; return 0; }
 
     local project=${COMPOSE_PROJECT_NAME:-$(basename "$REPO_ROOT")}
-    local svc image tagged created built since files paths
+    local svc image tagged created built since files paths tag_id cid cname cimage
     for svc in ingest app web loader; do
         image="$project-$svc"
         if ! created=$(docker image inspect -f '{{.Created}}' "$image" 2>/dev/null); then
@@ -293,6 +293,23 @@ cmd_images() {
             echo "STALE: $(wc -l <<<"$files") file(s) it depends on changed since:"
             sed 's/^/          /' <<<"$files"
         fi
+
+        # A running container keeps the image it was created from (item 302):  `restart`, and on
+        # 2026-11-04 even plain `up -d`, left web on its old image after a rebuild while this check
+        # read OK.  So compare each running container of the service with the tag.  Found by
+        # Compose's labels, not `docker compose ps`, so it works without .env;  one-off `run`
+        # containers and stopped ones are left out.
+        tag_id=$(docker image inspect -f '{{.Id}}' "$image")
+        for cid in $(docker ps -q --filter "label=com.docker.compose.project=$project" \
+                                  --filter "label=com.docker.compose.service=$svc" \
+                                  --filter "label=com.docker.compose.oneoff=False"); do
+            cname=$(docker inspect -f '{{.Name}}' "$cid")
+            cimage=$(docker inspect -f '{{.Image}}' "$cid")
+            if [[ $cimage != "$tag_id" ]]; then
+                printf '         OLD IMAGE: %s runs %s, the tag is %s.  docker compose up -d --force-recreate %s\n' \
+                    "${cname#/}" "${cimage:7:12}" "${tag_id:7:12}" "$svc"
+            fi
+        done
     done
 }
 
@@ -307,7 +324,7 @@ usage: status.sh [runs|data|rejects|nightly|radar|cocorahs|likelihood|images|all
   radar    the last five radar runs, days held, and whether a nightly radar run is fresh;  exits 1 if stale
   cocorahs the last five CoCoRaHS runs, reports stored, and whether a nightly run is fresh;  exits 1 if stale
   likelihood the last five likelihood runs, days built, and whether a nightly run is fresh;  exits 1 if stale
-  images   whether each Docker image is behind the code or files it depends on
+  images   whether each Docker image is behind the code or files it depends on, and whether a running container is on an older image
   all      all of the above (default), exiting 1 if the IEM nightly is stale (radar shown, not counted)
 
 environment: DB_SERVICE=$DB_SERVICE DB_USER=$DB_USER DB_NAME=$DB_NAME STALE_HOURS=$STALE_HOURS
