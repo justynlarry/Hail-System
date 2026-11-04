@@ -5,8 +5,10 @@
   /* --accent is link and accent TEXT; --accent-fill is a filled button's
      background (white text on it).  One value in light mode, two in dark,
      where a colour light enough to read as text is too light to carry white. */
-  --accent: #2b7cd3;
-  --accent-fill: #2b7cd3;
+  /* #1f6fc4, not the old #2b7cd3, for WCAG AA (item 156): 5.09:1 on white and as a button under white
+     text, 4.70 on --panel (#2b7cd3 was 4.26 and 3.94).  The hover, #2268b4 (5.66), is still darker. */
+  --accent: #1f6fc4;
+  --accent-fill: #1f6fc4;
   --accent-fill-hover: #2268b4;
   --border: #d8dee6;
   --panel: #f4f6f9;
@@ -35,7 +37,7 @@
   --b-none-bg: #e0e7ff;         --b-none-fg: #3730a3;
   --b-sent-bg: #dcfce7;         --b-sent-fg: #166534;
   --b-pulling-bg: #f3e8ff;      --b-pulling-fg: #6b21a8;
-  --b-stale-bg: #f1f5f9;        --b-stale-fg: #64748b;
+  --b-stale-bg: #f1f5f9;        --b-stale-fg: #566376;   /* 5.57:1 (was #64748b, 4.34; item 156) */
 
   /* Map: there is no basemap, so these are most of what the map looks like. */
   --map-bg: #ddd;
@@ -263,6 +265,9 @@ table {
 }
 thead th {
   background: var(--panel);
+  /* Slightly see-through, so a .table-scroll's right-edge scroll shadow shows behind the header row
+     too (item 113); browsers without color-mix keep the solid line above. */
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
   border-bottom: 2px solid var(--border);
   color: var(--muted);
   font-weight: 600;
@@ -719,19 +724,15 @@ h1 ~ table { width: calc(100% - 3rem); }
        end; the second is a fixed shadow on the box's right edge. Until the
        table is scrolled to its end the cover is off-screen and the shadow
        shows; at the end the cover hides it, and if nothing overflows it is
-       never seen. Cells with their own background (the header row) paint
-       over it, so it shows beside the body rows. */
+       never seen. The header row's cells are slightly see-through (below), so
+       the shadow shows behind them too (item 113). */
     background:
         linear-gradient(to left, var(--bg) 30%, transparent) right center / 2rem 100% no-repeat local,
         linear-gradient(to left, var(--scroll-shadow), transparent) right center / 1rem 100% no-repeat scroll;
 }
-/* Numbers read wrong split across lines; addresses are fine wrapped, but
-   need a floor so they don't collapse to one word per line. */
+/* Numbers read wrong split across lines. */
 .table-scroll td.num {
     white-space: nowrap;
-}
-.table-scroll td.addr {
-    min-width: 12rem;
 }
 
 /* Activity panel at the top of the storm browser. Boxed so it reads as

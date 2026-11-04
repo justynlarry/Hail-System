@@ -1976,7 +1976,7 @@ columns as they scroll sideways (the smaller option above; cards stay declined).
 
 ## 113. Small CSS leftovers
 
-**Status:** open (watch)
+**Status:** resolved 2026-11-04 (item 201 pass; one point accepted)
 
 - The `.table-scroll` shadow is drawn as a background, which cells with their
   own background paint over, so it doesn't show behind a table's header row.
@@ -1993,6 +1993,15 @@ columns as they scroll sideways (the smaller option above; cards stay declined).
 
 **Re-checked 2026-10-28 (sweep).** All four are still there (`style.css:643-656`, `:661`, `:802`, `:340` and `:345`).
 **When:** with the planned site redesign, item 201 (developer, 2026-10-28; same as items 108 and 112).
+
+**Resolved 2026-11-04.** Re-checked against today's CSS: (1) the header row of a `.table-scroll` now has a slightly
+see-through background (`color-mix(in srgb, var(--panel) 85%, transparent)`, with the solid colour first for browsers
+without it), so the right-edge scroll shadow shows behind it too; (2) the settings form is no longer capped:  the Admin tabs
+give it `admin-form wide` (item 201, 2026-11-03); (3) `.table-scroll td.addr` and the match page's `addr` class are
+removed, the width now set by `.col-addr` (item 108); (4) **accepted:** `h1 ~ table` still matches no page and stays as the
+documented guard for a future one.  **When (4):** if a page puts a table straight under its heading, check the rule then.
+A scan of every class in `style.css` against the templates, scripts and Python found nothing else unused (`storm-N` and
+`usage-*` are built in `map.js` and `_usage_bar.html`).
 
 ## 115. Nothing writes `'cancelled'` except the sweep
 
@@ -2257,7 +2266,7 @@ as an admin returned a 302 to `/` with the "no zips to pull" flash, left
 
 ## 156. Four light-mode colour pairs are below WCAG AA contrast
 
-**Status:** open
+**Status:** resolved 2026-11-04 (item 201 pass)
 
 Found 2026-10-02 while adding dark mode, by computing contrast ratios for the
 text and background pairs in `style.css`. These four were already below 4.5:1
@@ -2282,6 +2291,12 @@ app in light mode.
 
 **Re-triggered 2026-10-28 (sweep).** The colours are unchanged (`style.css:8`, `:9`, `:38`). **When:** with the
 planned site redesign, item 201 (developer, 2026-10-28), at the latest before Phase 6.
+
+**Resolved 2026-11-04 (developer's yes).** Light mode `--accent` and `--accent-fill` are `#1f6fc4` (5.09:1 on white and
+as a button under white text, 4.70 on `--panel`, 4.86 on `--panel-2`) and `--b-stale-fg` is `#566376` (5.57); the hover
+`#2268b4` (5.66) is unchanged and still darker. Every text pair in `style.css`, including the ones added on 2026-11-03/04
+(status tiles, usage bar, chips, tag markers, warning tags, formatted boxes), was measured in both themes:  all are now at
+or above 4.5:1. Dark mode was already compliant and is unchanged.
 
 ## 157. `database-schema.md` was behind `sql/029`–`033`
 

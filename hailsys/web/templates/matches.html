@@ -93,7 +93,7 @@
             <tbody>
                 {% for row in listings %}
                 <tr{% if row.send_note %} class="not-sent"{% endif %}>
-                    <td class="col-addr addr">{{ row.property_address }}
+                    <td class="col-addr">{{ row.property_address }}
                         {% if row.send_note %}
                         <span class="send-tag" title="{% if row.send_note == 'stale_listing' %}RentCast last saw this listing {{ row.list_last_seen.astimezone(display_tz).strftime('%Y-%m-%d') if row.list_last_seen else 'never' }}; the send list leaves out listings not seen in {{ freshness_days }} days{% else %}The listing is marked {{ row.list_status or 'unknown' }}; only active listings are emailed{% endif %}">{{ note_words[row.send_note] }}{% if row.send_note == 'stale_listing' and row.list_last_seen %} &middot; last seen {{ row.list_last_seen.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</span>
                         {% endif %}
