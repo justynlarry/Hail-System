@@ -1596,7 +1596,7 @@ not these interim numbers.
 
 ## 140. Match page: mark, don't hide, listings past the freshness threshold
 
-**Status:** open
+**Status:** resolved 2026-11-04 (item 201 match-page pass)
 
 Once a listing-freshness threshold exists (decision log, item 55 area —
 threshold work in progress as of 2026-09-29, `sql/028`), the match page
@@ -1610,6 +1610,12 @@ what the export contains.
 **Re-triggered 2026-10-28 (sweep).** Both conditions above have been met and this is still not built:
 `listing_freshness_days` is used only by the send lists (`hailsys/web/send.py`, `sendzone.py`, `drip.py`), and
 the match page does not mark a listing past it. **When:** with the planned site redesign, item 201 (with items 108, 112).
+
+**Resolved 2026-11-04.** Each listing the send list would leave out keeps its row, dimmed, with a tag ("Not seen
+recently · last seen <date>" or "No longer active") and a summary line with the count and the advice to pull again. The
+rule is one function, `sendlist.listing_reason`, used by the send list's `_reason` and by the match page, so the two cannot
+disagree; `matches.fetch_match_detail` returns `list_status` and `list_last_seen` for it. On `hail-dev`, 2026-09-22 HAIL
+shows 773 of 773 tagged, as the send preview reports. `tests/test_match_page.py`.
 
 ## 143. Structured address input for search
 
@@ -1911,7 +1917,7 @@ and report progress against that.
 
 ## 108. Match-page column widths are positional
 
-**Status:** open (watch)
+**Status:** resolved 2026-11-04 (item 201 match-page pass)
 
 `style.css` sizes the matched-listings columns with
 `.agent-group th:nth-child(n), td:nth-child(n)` rules, one per column, nine
@@ -1925,9 +1931,12 @@ column and a narrow Address.
 
 **2026-10-28 (sweep):** waits on the planned site redesign, item 201 (developer's decision). **When:** with item 201, or if these columns change first.
 
+**Resolved 2026-11-04.** The widths are set by column class (`.match-table .col-addr` ... `.col-mls`) on each `th` and
+`td` in `matches.html`, not by `nth-child`, so a column added, removed or moved takes its width with it.
+
 ## 109. The match page on a phone: one column at a time
 
-**Status:** open (watch)
+**Status:** resolved 2026-11-04 (item 201 match-page pass)
 
 The nine fixed columns total 71rem, and `table-layout: fixed` can't shrink
 below that, so on a phone each agent group scrolls sideways inside its own
@@ -1944,6 +1953,9 @@ and not once per agent; or a narrower Address column with a sticky first
 column, which would change the widths in item 108.
 
 **When:** if anyone actually works it on a phone.
+
+**Resolved 2026-11-04.** Under 48rem the Address column is 12rem and `position: sticky` on the left, over the other
+columns as they scroll sideways (the smaller option above; cards stay declined). The developer checked it in the browser.
 
 ## 112. The territory layout on tablets and landscape phones
 
@@ -3403,6 +3415,10 @@ Each page's agreed changes are listed here as they are agreed.
   downloads as side-by-side boxes with buttons, "Do-not-contact addresses: Leave out / Include, marked", "Press Apply to
   count" (not "pull", which means a paid RentCast call), the snapshot note as a warning box, and the realtor button
   greyed for viewers (item 292). Activity: a button for Download CSV, and no "Back to storm days".
+- **Match page (agreed and built 2026-11-04):** an intro line; the send list's "won't be emailed" listings tagged and dimmed,
+  never hidden (item 140); widths by column class (item 108); the address pinned on a narrow screen (item 109); clearer column
+  names ("Largest hail" on a HAIL page, "Largest reported" otherwise); the listing count beside each agent; Download CSV
+  as a button at the top; for admins, "Send to these realtors" (opens Send with the day previewed); "zips" (item 297).
 - **Send (agreed and built 2026-11-03):** opens on hail zones (`mode=reports` for the report page; developer's edit to
   `send.py`), with the mode as a two-way toggle. Both pages are six numbered steps that are always on the page (what
   the email is about, storm days, template, preview, who would get it, review), a step that cannot be used yet greyed
@@ -7915,4 +7931,14 @@ version, so a changed file kept its address and a kept copy (in the browser, or 
 every `url_for('static', ...)`, on every page: a changed file gets a new address, an unchanged one keeps its address and
 still caches, a missing file gets no version and still 404s, and an explicit `v=` is left alone.
 `tests/test_static_version.py` pins it; one editor test that matched the bare script address now allows the version.
+
+## 297. The match page's Incomplete box says "zip s"
+
+**Status:** resolved 2026-11-04 (item 201 match-page pass)
+
+Found 2026-11-04 reading `matches.html:18` (item 201 match-page pass): `zip {{ '' if storm_zip_count == 1 else 's' }}`
+has a space before the plural, so a storm touching 14 zips reads "14 zip s". **Fix:** drop the space. **When:** with the
+match page pass (item 201).
+
+**Resolved 2026-11-04.** The space is gone; `tests/test_match_page.py` checks "zips".
 

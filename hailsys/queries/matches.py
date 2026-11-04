@@ -17,6 +17,9 @@ SELECT
     l.list_price,
     l.list_date,
     l.list_mls_number,
+    -- For the "won't be emailed" tags (item 140):  the same two fields the send list judges by.
+    l.list_status,
+    l.list_last_seen,
     r.realtor_id,
     r.agent_name,
     r.agent_email,
@@ -43,7 +46,7 @@ WHERE i.utc_datetime >= %(window_start)s
    AND m.radius_used = %(radius_miles)s::numeric
 GROUP BY
     l.listing_id, p.property_address, p.city, p.zip_code, p.property_type,
-    p.year_built, l.list_price, l.list_date, l.list_mls_number,
+    p.year_built, l.list_price, l.list_date, l.list_mls_number, l.list_status, l.list_last_seen,
     r.realtor_id, r.agent_name, r.agent_email, r.agent_phone,
     r.agent_office_name
 -- Sorted by Agent first because the view groups on realtor_id with

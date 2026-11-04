@@ -652,24 +652,37 @@ h1 ~ table { width: calc(100% - 3rem); }
     table-layout: fixed;
     font-size: 0.8125rem;
 }
-.agent-group th:nth-child(1),
-.agent-group td:nth-child(1) { width: 22rem; }   /* Address */
-.agent-group th:nth-child(2),
-.agent-group td:nth-child(2) { width: 5rem; }    /* Zip */
-.agent-group th:nth-child(3),
-.agent-group td:nth-child(3) { width: 9rem; }    /* Type */
-.agent-group th:nth-child(4),
-.agent-group td:nth-child(4) { width: 5rem; }    /* Built */
-.agent-group th:nth-child(5),
-.agent-group td:nth-child(5) { width: 7rem; }    /* Price */
-.agent-group th:nth-child(6),
-.agent-group td:nth-child(6) { width: 6rem; }    /* Nearest */
-.agent-group th:nth-child(7),
-.agent-group td:nth-child(7) { width: 5rem; }    /* Max */
-.agent-group th:nth-child(8),
-.agent-group td:nth-child(8) { width: 5rem; }    /* Reports */
-.agent-group th:nth-child(9),
-.agent-group td:nth-child(9) { width: 7rem; }    /* MLS */
+/* Widths by column name, not position (item 108):  a column added, removed or moved in matches.html
+   takes its own width with it instead of shifting every width after it. */
+.match-table .col-addr    { width: 22rem; }
+.match-table .col-zip     { width: 5rem; }
+.match-table .col-type    { width: 9rem; }
+.match-table .col-built   { width: 5rem; }
+.match-table .col-price   { width: 7rem; }
+.match-table .col-near    { width: 6.5rem; }
+.match-table .col-max     { width: 6.5rem; }
+.match-table .col-reports { width: 6rem; }
+.match-table .col-mls     { width: 7rem; }
+
+/* A listing the send list leaves out (item 140):  marked and dimmed, never hidden, so the count still
+   matches the export.  The tag says why; hovering gives the detail. */
+.match-table tr.not-sent td { color: var(--muted); }
+.send-tag {
+  display: inline-block; margin-left: 0.35rem; padding: 0 0.4rem; border: 1px solid var(--warn-border);
+  border-radius: 3px; background: var(--warn-bg); color: var(--text); font-size: 0.72rem; font-weight: 600;
+  white-space: nowrap; cursor: help;
+}
+.agent-count { margin-left: 0.4rem; color: var(--muted); font-size: 0.8rem; font-weight: 400; }
+.match-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.25rem 0 0.75rem; }
+
+/* On a narrow screen (item 109):  the address stays in view, pinned on the left and narrower, while
+   the other columns scroll sideways under it.  Stacked cards were declined (2026-09-24):  they lose
+   the side-by-side comparison this page is for. */
+@media (max-width: 48rem) {
+  .match-table .col-addr { width: 12rem; position: sticky; left: 0; z-index: 1; background: var(--bg);
+                           box-shadow: 1px 0 0 var(--border); }
+  .match-table thead .col-addr { z-index: 2; background: var(--panel); }   /* keeps the header's own colour */
+}
 
 /* Condensed: this page is read by scanning down it, and the gap between
    an agent's last listing and the next agent's name was doing more

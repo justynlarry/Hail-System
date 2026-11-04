@@ -16,7 +16,7 @@ from hailsys.rentcast.estimate import estimate_pull, estimate_zips
 from hailsys.web.jobs import start_pull, PullInProgress
 from hailsys.db import get_connection
 from hailsys.formatting import csv_safe, magnitude
-from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest, ccstate, radar, radar_map, findings, likelihood_map, zonepull
+from hailsys.queries import activity, matches,storms, workstate, quota, exports, ingest, ccstate, radar, radar_map, findings, likelihood_map, zonepull, sendlist
 from hailsys.tuning import (
     DISPLAY_TZ,
     RECENT_PULL_WINDOW_DAYS,
@@ -999,6 +999,13 @@ def storm_matches():
     unpulled_zips = [z for z in storm_zips if z not in coverage]
     oldest_pull = min(coverage.values()) if coverage else None
 
+    # Mark, don't hide (item 140):  a listing the send list would leave out keeps its row and gets a
+    # tag, by the send list's own rule, so this page's count still matches the export.
+    freshest_day = datetime.now(DISPLAY_TZ).date() - timedelta(days=g.settings["listing_freshness_days"])
+    for r in rows:
+        r["send_note"] = sendlist.listing_reason(r["list_status"], r["list_last_seen"], freshest_day)
+    not_sent = sum(1 for r in rows if r["send_note"])
+
     groups = [
         (realtor_id, list(listings))
         for realtor_id, listings in groupby(rows, key=lambda r: r["realtor_id"])
@@ -1016,6 +1023,8 @@ def storm_matches():
         storm_zip_count=len(storm_zips),
         unpulled_zips=unpulled_zips,
         oldest_pull=oldest_pull,
+        not_sent=not_sent,
+        freshness_days=g.settings["listing_freshness_days"],
         display_tz=DISPLAY_TZ,
     )
 

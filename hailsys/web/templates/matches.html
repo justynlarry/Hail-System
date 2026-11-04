@@ -2,22 +2,44 @@
 {% block title %}Matched listings{% endblock %}
 {% block heading %}{{ storm_date }} {{ report_text or 'all types' }} — matched listings{% endblock %}
 
+{# The match page (item 201 pass, 2026-11-04):  an intro, a tag on each listing the send list would
+   leave out (item 140, by sendlist.listing_reason, so the page and Send agree), column classes
+   instead of positions (item 108), and the address column pinned on a narrow screen (item 109). #}
+{% set note_words = {'inactive_listing': 'No longer active', 'stale_listing': 'Not seen recently'} %}
+
 {% block content %}
 <div class="page">
+<p class="page-intro">Houses for sale within {{ radius_miles }} miles of this storm's reports, grouped by listing agent.
+    A tag marks any listing that will not be emailed, and why.</p>
+
 <p class="match-summary">
     <strong>{{ listing_count }}</strong> listing{{ '' if listing_count == 1 else 's' }}
     across <strong>{{ agent_count }}</strong> agent{{ '' if agent_count == 1 else 's' }},
     within {{ radius_miles }} miles.
-    <a href="{{ url_for('main.storm_matches_csv') }}?{{ request.query_string.decode() }}">Download CSV</a>
 </p>
+<p class="match-actions">
+    <a class="button-link" href="{{ url_for('main.storm_matches_csv') }}?{{ request.query_string.decode() }}">Download CSV</a>
+    {% if session.role == 'admin' and listing_count %}
+    {# Opens the Send page with this day previewed:  nothing is sent from here. #}
+    <a class="button-link" href="{{ url_for('send.index', mode='reports', day=storm_date.isoformat()) }}">Send to these realtors</a>
+    {% endif %}
+</p>
+
+{% if not_sent %}
+<p class="note warning">
+    <strong>{{ not_sent }}</strong> of these {{ listing_count }} will not be emailed: RentCast has not seen
+    {{ 'it' if not_sent == 1 else 'them' }} in the last {{ freshness_days }} days, or the listing is no longer active.
+    Pull this storm's zips again from <a href="{{ url_for('main.index') }}">Storm Days</a> to refresh them.
+</p>
+{% endif %}
 
 {% if unpulled_zips %}
 <div class="coverage-warning">
     <p>
         <strong>Incomplete:</strong> this storm touched {{ storm_zip_count }}
-        zip {{ '' if storm_zip_count == 1 else 's' }}, and 
+        zip{{ '' if storm_zip_count == 1 else 's' }}, and
         {{ unpulled_zips | length }} {{ 'has' if unpulled_zips | length ==1 else 'have' }}
-        never been pulled from RentCast.  Listings in 
+        never been pulled from RentCast.  Listings in
         {{ 'that zip' if unpulled_zips | length == 1 else 'those zips' }}
         can't appear here until {{ 'it is' if unpulled_zips | length == 1 else 'they are' }}.
     </p>
@@ -39,13 +61,13 @@
     {% set agent = listings[0] %}
     <div class="agent-group{% if realtor_id is none %} agent-unknown{% endif %}">
         {% if realtor_id is none %}
-        <h3>No agent on record ({{ listings | length }})</h3>
+        <h3>No agent on record <span class="agent-count">{{ listings | length }} listing{{ '' if listings | length == 1 else 's' }}</span></h3>
         <p class="note">
             RentCast returned no agent email for these listings. They can
             still be looked up by MLS number.
         </p>
         {% else %}
-        <h3>{{ agent.agent_name or 'Unnamed agent' }}</h3>
+        <h3>{{ agent.agent_name or 'Unnamed agent' }} <span class="agent-count">{{ listings | length }} listing{{ '' if listings | length == 1 else 's' }}</span></h3>
         <p class="agent-contact">
             {{ agent.agent_email }}
             {% if agent.agent_phone %} · {{ agent.agent_phone }}{% endif %}
@@ -54,36 +76,40 @@
         {% endif %}
 
         <div class="table-scroll">
-        <table>
+        <table class="match-table">
             <thead>
                 <tr>
-                    <th>Address</th>
-                    <th>Zip</th>
-                    <th>Type</th>
-                    <th class="num">Built</th>
-                    <th class="num">Price</th>
-                    <th class="num">Nearest</th>
-                    <th class="num">Max</th>
-                    <th class="num">Reports</th>
-                    <th>MLS</th>
+                    <th class="col-addr">Address</th>
+                    <th class="col-zip">Zip</th>
+                    <th class="col-type">Property type</th>
+                    <th class="col-built num">Built</th>
+                    <th class="col-price num">Price</th>
+                    <th class="col-near num">Nearest report</th>
+                    <th class="col-max num">{{ 'Largest hail' if report_text == 'HAIL' else 'Largest reported' }}</th>
+                    <th class="col-reports num">Reports nearby</th>
+                    <th class="col-mls">MLS</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in listings %}
-                <tr>
-                    <td class="addr">{{ row.property_address }}</td>
-                    <td>{{ row.zip_code }}</td>
-                    <td>{{ row.property_type }}</td>
-                    <td class="num">{{ row.year_built or '' }}</td>
-                    <td class="num">
+                <tr{% if row.send_note %} class="not-sent"{% endif %}>
+                    <td class="col-addr addr">{{ row.property_address }}
+                        {% if row.send_note %}
+                        <span class="send-tag" title="{% if row.send_note == 'stale_listing' %}RentCast last saw this listing {{ row.list_last_seen.astimezone(display_tz).strftime('%Y-%m-%d') if row.list_last_seen else 'never' }}; the send list leaves out listings not seen in {{ freshness_days }} days{% else %}The listing is marked {{ row.list_status or 'unknown' }}; only active listings are emailed{% endif %}">{{ note_words[row.send_note] }}{% if row.send_note == 'stale_listing' and row.list_last_seen %} &middot; last seen {{ row.list_last_seen.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</span>
+                        {% endif %}
+                    </td>
+                    <td class="col-zip">{{ row.zip_code }}</td>
+                    <td class="col-type">{{ row.property_type }}</td>
+                    <td class="col-built num">{{ row.year_built or '' }}</td>
+                    <td class="col-price num">
                         {% if row.list_price is not none %}${{ '{:,.0f}'.format(row.list_price) }}{% endif %}
                     </td>
-                    <td class="num">{{ row.nearest_miles }} mi</td>
-                    <td class="num">
+                    <td class="col-near num">{{ row.nearest_miles }} mi</td>
+                    <td class="col-max num">
                         {{ row.max_magnitude | magnitude(row.mag_unit) }}
                     </td>
-                    <td class="num">{{ row.report_count }}</td>
-                    <td>{{ row.list_mls_number or '' }}</td>
+                    <td class="col-reports num">{{ row.report_count }}</td>
+                    <td class="col-mls">{{ row.list_mls_number or '' }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -92,10 +118,7 @@
     </div>
 {% endfor %}
 {% else %}
-<p>No matched listings for this storm day at {{ radius_miles }} miles.</p>
+<p class="empty-state">No matched listings for this storm day at {{ radius_miles }} miles.</p>
 {% endif %}
-
-<p><a href="{{ url_for('main.storm_matches_csv') }}?{{ request.query_string.decode() }}">Download CSV</a></p>
-<p><a href="{{ url_for('main.index') }}">Back to storm days</a></p>
 </div>
 {% endblock %}

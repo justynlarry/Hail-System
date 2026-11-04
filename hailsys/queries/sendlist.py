@@ -85,15 +85,24 @@ def _finite(value):
     return value is not None and Decimal(str(value)).is_finite()
 
 
+def listing_reason(list_status, list_last_seen, freshest_day):
+    """'inactive_listing', 'stale_listing' or None:  the two rules about the listing itself, in the
+    order the send list applies them.  The match page marks listings with the same function (item
+    140), so the page and the send list cannot disagree about which listings will not be emailed."""
+    if list_status != "Active":
+        return "inactive_listing"
+    if list_last_seen is None or list_last_seen.astimezone(DISPLAY_TZ).date() < freshest_day:
+        return "stale_listing"
+    return None
+
+
 def _reason(hit, oldest_day, freshest_day):
     """The first rule that drops this hit, or None."""
     if _day(hit) < oldest_day:
         return "too_old"
-    if hit["list_status"] != "Active":
-        return "inactive_listing"
-    seen = hit["list_last_seen"]
-    if seen is None or seen.astimezone(DISPLAY_TZ).date() < freshest_day:
-        return "stale_listing"
+    listing = listing_reason(hit["list_status"], hit["list_last_seen"], freshest_day)
+    if listing:
+        return listing
     if hit["realtor_id"] is None or not hit["email"]:
         return "no_agent_email"
     if hit["already_sent"]:
