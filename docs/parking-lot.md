@@ -7865,3 +7865,18 @@ script, the eleventh storm grey rather than a repeat, and the reporter in the to
 **Lesson:** before a commit that touches `hailsys/web/static/*.js`, run the full suite in the `test` service
 (`docker compose --profile test run --rm -T test`, `docs/command-ref.md`), not only the Python tests in `web`.
 
+## 296. Browsers behind the Cloudflare tunnel could run stale CSS and JavaScript after a change
+
+**Status:** resolved 2026-11-04 (static links versioned; same commit)
+
+Found 2026-11-03, during item 294: the developer's browser at `dev.roofbrokersinc-weather.com` ran a `tplpicker.js` and
+a stylesheet from before the change (screenshot: the picker opened inside a block header, the drawings unstyled), and
+the `web` log showed no request for the new files in 40 minutes, although the origin sends `Cache-Control: no-cache`.
+It cleared when DevTools' Disable cache was switched back on, which staff will not have. Static links carried no
+version, so a changed file kept its address and a kept copy (in the browser, or let through by Cloudflare) was used.
+
+**Resolved 2026-11-04.** `create_app()` has a `url_defaults` hook that adds the file's modification time as `?v=` to
+every `url_for('static', ...)`, on every page: a changed file gets a new address, an unchanged one keeps its address and
+still caches, a missing file gets no version and still 404s, and an explicit `v=` is left alone.
+`tests/test_static_version.py` pins it; one editor test that matched the bare script address now allows the version.
+

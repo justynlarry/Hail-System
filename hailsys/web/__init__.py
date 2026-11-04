@@ -20,6 +20,19 @@ def create_app():
     app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 
+    # Every link to a static file carries the file's modification time, ?v=1793750123 (item 296).
+    # Behind the Cloudflare tunnel a browser kept running an old script and stylesheet after they
+    # changed, without asking the server, although it sends no-cache.  A changed file now has a new
+    # address, so no copy of the old one can be served; an unchanged file keeps its address and
+    # still caches.  A file that is not there gets no version, and Flask answers it with a 404.
+    @app.url_defaults
+    def _version_static_files(endpoint, values):
+        if endpoint == "static" and "filename" in values and "v" not in values:
+            try:
+                values["v"] = int(os.stat(os.path.join(app.static_folder, values["filename"])).st_mtime)
+            except (OSError, TypeError, ValueError):
+                pass
+
     # Caps every request body.  Set app-wide, not in the view.
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 *1024
 

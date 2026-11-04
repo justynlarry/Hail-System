@@ -1166,10 +1166,12 @@ class EditorScriptTest(unittest.TestCase):
         return self.client.get("/templates/new").get_data(as_text=True)
 
     def test_the_script_is_served_and_the_editor_page_loads_it_once(self):
+        import re
         resp = self.client.get("/static/templates.js")
         self.assertEqual(resp.status_code, 200)
         resp.close()
-        self.assertEqual(self.page().count('src="/static/templates.js"'), 1)
+        # Static links carry ?v=<modification time> (item 296).
+        self.assertEqual(len(re.findall(r'src="/static/templates\.js\?v=\d+"', self.page())), 1)
         for path in ("/templates/", "/templates/retire/x"):
             self.assertNotIn("templates.js", self.client.get(path).get_data(as_text=True))
 
