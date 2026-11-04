@@ -8116,8 +8116,16 @@ Two things let it go unseen:
    `rbi-hail01` would leave the rebuilt image unused in the same way. `docs/command-ref.md`'s "restart vs up -d" note
    named only compose-file changes.
 
-**Fixed 2026-11-04 (docs):** `deploy.md` §12 now says `up -d web` after a rebuild, with the check (the container's
-`.Image` against the tag's `.Id`), and `command-ref.md` says the same. **Open:** `cmd_images` should also compare
+**Plain `up -d` is not enough either (observed 2026-11-04).** After the final item 300 rebuild (tagged 23:04:06Z),
+`docker compose up -d web` printed `Running` and changed nothing: Docker's events log shows no `web` activity from
+23:03 to 23:08. `docker compose up -d --force-recreate web` recreated it at 23:08:39Z on the tagged image (`d72bca…`).
+Docker Compose v5.6.1. **Cause not found:** the old container's `com.docker.compose.image` label (`sha256:4d0f…`)
+matched neither the image it ran (`3fa444…`) nor the tag (`d72bca…`), so why Compose saw nothing to change is not known.
+
+**Fixed 2026-11-04 (docs):** `deploy.md` §12 says `up -d --force-recreate web` after a rebuild, with the check (the
+container's `.Image` against the tag's `.Id`), and `command-ref.md` says the same (first written as plain `up -d` in
+`1eb925b`; corrected the same day). **Open, and now the part that matters most, since nothing else shows this
+failure:** `cmd_images` should also compare
 `docker inspect` of each running service container with its tagged image and say STALE when they differ (code, keyed in
 by the developer).
 

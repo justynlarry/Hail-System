@@ -204,9 +204,9 @@ Every one of these, not most:
 - [ ] Rebuild `ingest` after a change to anything it imports (`scripts/status.sh images` names the files), and `web` or
       `app` after a change to `requirements.txt` or `docker/app.Dockerfile`.
 - [ ] `scripts/status.sh images`: all OK.
-- [ ] **If `web` was rebuilt, `docker compose up -d web`, not `restart`** (item 302): `restart` keeps the existing
-      container, and with it the image it was created from, so a rebuilt `web` never goes live. `up -d` recreates it on
-      the new image. Check with `docker inspect $(docker compose ps -q web) --format '{{.Image}}'` against
+- [ ] **If `web` was rebuilt, `docker compose up -d --force-recreate web`** (item 302): `restart` keeps the existing
+      container, and with it the image it was created from, so a rebuilt `web` never goes live. Plain `up -d` is not
+      enough either: on 2026-11-04 it printed `Running` after a rebuild and left `web` on the old image. Check with `docker inspect $(docker compose ps -q web) --format '{{.Image}}'` against
       `docker image inspect hail-system-web --format '{{.Id}}'`: the two must match. `status.sh images` does not check
       this yet.
 - [ ] Otherwise `docker compose restart web`, every time: it reads the version once, at startup (item 289), and Python only

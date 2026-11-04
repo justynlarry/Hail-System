@@ -181,9 +181,13 @@ when the container is recreated:
 
     docker compose up -d web    # recreates web if its compose config or its image changed
 
-**A rebuilt image needs `up -d` too** (item 302). The container keeps the image it was created from, so after
-`docker compose build web`, `restart` runs the old image: on 2026-11-04 `web` had been serving a 2026-10-30 image
-through a 2026-11-02 rebuild. To see which image the running container uses, compare
+**A rebuilt image needs `--force-recreate`** (item 302):
+
+    docker compose up -d --force-recreate web
+
+The container keeps the image it was created from, so after `docker compose build web`, `restart` runs the old image:
+on 2026-11-04 `web` had been serving a 2026-10-30 image through a 2026-11-02 rebuild. Plain `up -d web` did not help
+on this machine: after a rebuild the same day it printed `Running` and changed nothing. To see which image the running container uses, compare
 `docker inspect $(docker compose ps -q web) --format '{{.Image}}'` with
 `docker image inspect hail-system-web --format '{{.Id}}'`. `scripts/status.sh images` checks the tagged image, not the
 running container, so it reads OK either way.
