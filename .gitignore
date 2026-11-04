@@ -51,3 +51,7 @@ cloudflared/*.json
 cloudflared/config.yml
 claude-resume.txt
 scratchpad/
+
+# ---- The release stamp (item 289) ---------------------------------------
+# Written on each machine by scripts/write_version.sh at deploy; says which tag that machine runs.
+hailsys/VERSION

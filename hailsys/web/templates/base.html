@@ -65,5 +65,9 @@
         {% endif %}
         {% endwith %}
     {% block content %}{% endblock %}
+    {# The release this server runs (item 289):  hailsys/VERSION, written by scripts/write_version.sh. #}
+    <footer class="site-footer">
+        {% if app_version %}{{ app_version.describe }} &middot; {{ app_version.commit }}{% else %}development{% endif %}
+    </footer>
     </body>
 </html>

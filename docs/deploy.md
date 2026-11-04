@@ -17,6 +17,9 @@ Two rules for every server:
 
 ## rbi-hail01: where it stands
 
+**Release running:** none yet; the first deploy will be `v0.9.0` (item 289). Production runs a tag, never `main`, and
+its footer shows the release (for example `v0.9.0 · abc1234`); update this line at each deploy.
+
 Update this table as the build moves. Item numbers are in `docs/parking-lot.md`.
 
 | Step | State (2026-11-02) |
@@ -81,6 +84,10 @@ Detail: `docs/server-setup.md`, "Git/Github Setup" and "to move files untracked 
 
 - [ ] git installed, an SSH key for this server added to GitHub, `ssh -T git@github.com` answers.
 - [ ] `git clone git@github.com:justynlarry/Hail-System.git ~/hail-system`.
+- [ ] Check out the release, not `main` (item 289): on `hail-dev`, `scripts/release.sh v0.9.0` tags and pushes it (it
+      refuses unless `CHANGELOG.md` has its section and `main` is clean and pushed); here, `git fetch --tags` and
+      `git checkout v0.9.0`.
+- [ ] `scripts/write_version.sh`: writes `hailsys/VERSION`, which the footer shows after `web` starts (§5).
 - [ ] From `hail-dev`, rsync `data/` and `reference/` into `~/hail-system/` (dry run first; trailing slashes matter).
       These hold the TIGER shapefiles the reference load needs.
 
@@ -104,6 +111,8 @@ Detail: `docs/server-setup.md`, "Git/Github Setup" and "to move files untracked 
 - [ ] `docker compose build web app ingest loader`
 - [ ] `docker compose up -d postgis web` and wait for `postgis` to report `healthy` (`docker compose ps`).
 - [ ] `scripts/status.sh images` reads OK for all four.
+- [ ] The footer of the login page shows the release (for example `v0.9.0 · abc1234`), not "development": if it says
+      "development", `scripts/write_version.sh` was not run (§3); run it and `docker compose restart web`.
 
 The `cloudflared` service waits for step 8.
 
@@ -174,11 +183,17 @@ Every one of these, not most:
 
 ## 12. Updating the server later
 
-- [ ] `git pull`.
+- [ ] On `hail-dev`: add the release's section to `CHANGELOG.md`, commit and push, then `scripts/release.sh vX.Y.Z`
+      (`--check` first to see what it would tag). PATCH for fixes only, MINOR for anything people will notice, MAJOR
+      for a milestone (item 289).
+- [ ] Here: `git fetch --tags`, `git checkout vX.Y.Z`, `scripts/write_version.sh`. To roll back, check out the previous
+      tag the same way (a migration that has run is not undone by a checkout: read `sql/` first).
 - [ ] `docker compose run --rm -T loader bash scripts/migrate.sh`, read what is pending, then `--apply`. A migration is
       never edited once applied.
 - [ ] Rebuild `ingest` after a change to anything it imports (`scripts/status.sh images` names the files), and `web` or
       `app` after a change to `requirements.txt` or `docker/app.Dockerfile`.
-- [ ] `docker compose restart web` after a Python change; templates reload on their own, because `create_app()` sets
-      `TEMPLATES_AUTO_RELOAD` (item 290).
 - [ ] `scripts/status.sh images`: all OK.
+- [ ] `docker compose restart web`, every time: it reads the version once, at startup (item 289), and Python only
+      reloads on a restart (templates reload on their own, because `create_app()` sets `TEMPLATES_AUTO_RELOAD`, item
+      290). Check the footer shows the new release with no `-dirty` and no `-N-g...` part, and update "Release
+      running" at the top of this file.

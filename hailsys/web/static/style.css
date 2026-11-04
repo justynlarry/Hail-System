@@ -112,6 +112,9 @@ body {
   line-height: 1.5;
 }
 
+/* The release the server runs (base.html, item 289):  small and out of the way. */
+.site-footer { margin: 2rem 1.5rem 1rem; color: var(--muted); font-size: 0.75rem; text-align: right; }
+
 /* Header bar: app name + nav on the left, session info + sign out on the
    right, one bar rather than a stacked userbar/nav pair. */
 .site-header {

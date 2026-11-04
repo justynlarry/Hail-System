@@ -7659,6 +7659,17 @@ To settle:
 
 **When:** before the first deploy to `rbi-hail01`.
 
+**Decided and built 2026-11-04 (developer's answers).** `vMAJOR.MINOR.PATCH`: PATCH for fixes, MINOR for anything people
+will notice, MAJOR for a milestone; the first production deploy is `v0.9.0` and `v1.0.0` is the pilot (Phase 6).
+Production runs an annotated tag pushed to GitHub, never `main`; no release branch. `scripts/release.sh vX.Y.Z` (and
+`--check`) tags `main` only when the tree is clean, `main` is level with `origin/main`, the tag is new here and on
+GitHub, and `CHANGELOG.md` has its section. `scripts/write_version.sh` writes `hailsys/VERSION` (git-ignored: the
+`web` container mounts only `hailsys/` and cannot run git) as `<git describe --tags --always --dirty> <short commit>`;
+`hailsys/version.py` reads it at startup and the footer shows "v0.9.0 · abc1234", or "development" with no stamp.
+`CHANGELOG.md` has the `v0.9.0` section, untagged until the first deploy. `docs/deploy.md` §3, §5 and §12 and its
+"Release running" line carry the steps; `tests/test_version.py`. Status stays open until `v0.9.0` is tagged and
+deployed to `rbi-hail01`.
+
 ## 290. Templates did not reload from disk; the docs said they did
 
 **Status:** resolved 2026-11-03 (developer's edit to `hailsys/web/__init__.py`; `web` restarted, `jinja_env.auto_reload` now `True`)

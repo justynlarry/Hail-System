@@ -63,6 +63,15 @@ def create_app():
         user=getattr(g, "user", None)
         return {"can_pull": bool(user and user ["role"] in ("sender", "admin"))}
 
+    # The release this code is, for the footer (item 289).  Read once, at startup:  a deploy writes
+    # hailsys/VERSION and then restarts web.  None (no file) shows as "development".
+    from hailsys.version import read_version
+    app_version = read_version()
+
+    @app.context_processor
+    def inject_version():
+        return {"app_version": app_version}
+
     # Both blueprints are imported inside the factory, not the module top.
     # They import the blueprint's own app context, so importing at module
     # level makes the package unimportable without a configured app,
