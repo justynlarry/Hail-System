@@ -1331,6 +1331,7 @@ path.lk-context { fill: var(--lk-context); stroke: var(--lk-context); stroke-das
   background: var(--accent-fill); color: #fff; font-size: 0.8em; font-weight: 600; line-height: 1.6;
   white-space: nowrap; cursor: default; user-select: none;
 }
+.tpl-chipbox-multi { min-height: 5.5rem; }
 .tpl-chip-picker { margin-top: 0.25rem; font-size: 0.8125rem; }
 .chips-on .tpl-chip-plain { display: none; }
 

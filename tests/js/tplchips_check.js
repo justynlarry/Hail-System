@@ -35,12 +35,12 @@ class Node_ {
   dispatchEvent(ev) { st.dispatched.push({node: this, type: ev.type, bubbles: ev.bubbles}); return true; }
 }
 class Text_ extends Node_ { constructor(t) { super(3); this.nodeValue = t; } }
-const st = {dispatched: [], writes: 0};
+const st = {dispatched: [], writes: 0, textWrites: 0};
 
 function makeInput(name, value, label) {
   const input = new Node_(1, 'INPUT');
   input.name = name; input.id = name; let v = value;
-  Object.defineProperty(input, 'value', {get: () => v, set: (x) => { st.writes++; v = x; }});
+  Object.defineProperty(input, 'value', {get: () => v, set: (x) => { st.writes++; if (name === 'b6_text') st.textWrites++; v = x; }});
   input.attrs['aria-label'] = label;
   return input;
 }
@@ -53,7 +53,15 @@ const label = new Node_(1, 'LABEL'); label.attrs.for = 'preheader'; label.textCo
 const LABELS = {total: 'Number of houses', storm_dates_label: 'Storm date(s)', largest_hail: 'Largest hail size',
                 nearest_miles: 'Distance to nearest report'};
 const form = new Node_(1, 'FORM');
-form.querySelectorAll = (sel) => (sel === 'input[data-chips="line"]' ? [subject, preheader] : []);
+// A text block's field (multi-line) and its toolbar, as _editor_blocks.html draws them.
+const textField = makeInput('b6_text', 'Hello {total} homes\nSecond line', '');
+textField.tagName = 'TEXTAREA';
+field.appendChild(textField);
+const toolbar = new Node_(1, 'SPAN'); toolbar.attrs['data-for'] = 'b6_text';
+const chipAttr = (node, kind) => { node.attrs['data-chips'] = kind; };
+chipAttr(subject, 'line'); chipAttr(preheader, 'line'); chipAttr(textField, 'multi');
+form.querySelectorAll = (sel) => (sel === '[data-chips]' ? [subject, preheader, textField] : []);
+form.contains = (n) => true;
 form.querySelector = (sel) => (sel === '.tpl-chip-menu[data-chips-for="preheader"]' ? menuSpot : null);
 global.document = {
   getElementById: (id) => ({editor: form, 'chip-labels': {textContent: JSON.stringify(LABELS)}}[id] || null),
@@ -61,7 +69,7 @@ global.document = {
   createTextNode: (t) => new Text_(t),
   querySelector: (sel) => (sel === 'label[for="preheader"]' ? label : null),
 };
-global.window = {getSelection: () => null};
+global.window = {getSelection: () => null, prompt: () => st.promptAnswer};
 global.Event = function (type, opts) { this.type = type; this.bubbles = !!(opts && opts.bubbles); };
 new Function(src)();
 
@@ -121,6 +129,61 @@ check(st.dispatched.length === before + 1, 'and the field\'s own change goes out
 menu.value = 'not_a_field';
 menu.fire('change');
 check(preheader.value.endsWith('{nearest_miles}'), 'an unknown choice adds nothing');
+
+// ---- slice 9b:  a multi-line box and the toolbar ----
+const tbox = boxOf(textField);
+check(tbox.getAttribute('aria-multiline') === 'true', 'a text block\'s field becomes a multi-line box');
+check(serialize(tbox, true) === 'Hello {total} homes\nSecond line' && st.textWrites === 0, 'showing its line breaks, without writing it');
+const MULTI = ['one\ntwo', 'ends with a break\n', '\nstarts with one', 'a\n\n\nb', '[b]Item {largest_hail}[/b]\nItem two\n'];
+MULTI.forEach((text) => {
+  const box = document.createElement('div');
+  render(box, text, true);
+  check(serialize(box, true) === text, 'multi-line round trip: ' + JSON.stringify(text));
+});
+const fill = document.createElement('div');
+render(fill, 'last line\n', true);
+check(fill.childNodes[fill.childNodes.length - 1].getAttribute('data-filler') === '1',
+      'a final line break gets a filler so the cursor can sit on the empty line, and it is not read back');
+check(serialize(fill, false) === 'last line ', 'a one-line read turns line breaks into spaces');
+
+const enter = tbox.fire('keydown', {key: 'Enter'});
+check(enter.prevented === true && textField.value === 'Hello {total} homes\nSecond line\n',
+      'Enter in a multi-line box adds a line break as text (no browser <div>)');
+tbox.fire('paste', {clipboardData: {getData: () => 'pasted one\r\npasted two'}});
+check(textField.value === 'Hello {total} homes\nSecond line\npasted one\npasted two',
+      'a paste keeps its lines in a multi-line box (the filler stays last)');
+
+// The toolbar acts on the box, and templates.js does not see it.
+const button = (attrs) => { const b = new Node_(1, 'BUTTON'); Object.assign(b.attrs, attrs);
+  b.closest = (sel) => (sel.includes('.tpl-toolbar') || sel.includes('[data-') ? (sel === '.tpl-toolbar' ? toolbar : b) : null); return b; };
+const formClick = form.handlers.click[0], formChange = form.handlers.change[0], formDown = form.handlers.mousedown[0];
+const clickEv = (target) => ({target, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; }});
+let e = clickEv(button({'data-wrap': 'b'}));
+formDown(e);
+check(e.prevented === true, 'pressing a toolbar button keeps the cursor in the box');
+e = clickEv(button({'data-wrap': 'b'}));
+formClick(e);
+check(e.stopped === true && textField.value.endsWith('pasted two[b][/b]'), 'Bold with no cursor adds the pair at the end, and templates.js is kept out');
+st.promptAnswer = '';
+formClick(clickEv(button({'data-link': ''})));
+check(textField.value.endsWith('[link={schedule_url}][/link]'), 'Link with an empty address links to the schedule page');
+st.promptAnswer = null;
+const len = textField.value.length;
+formClick(clickEv(button({'data-link': ''})));
+check(textField.value.length === len, 'Cancel adds no link');
+const colour = new Node_(1, 'SELECT'); colour.dataset = {colour: ''}; colour.value = 'navy';
+colour.closest = (sel) => (sel === '.tpl-toolbar' ? toolbar : null);
+e = clickEv(colour); formChange(e);
+check(e.stopped === true && textField.value.endsWith('[color=navy][/color]') && colour.value === '', 'Colour wraps, and the menu resets');
+const merge = new Node_(1, 'SELECT'); merge.dataset = {merge: ''}; merge.value = '{storm_dates_label}';
+merge.closest = (sel) => (sel === '.tpl-toolbar' ? toolbar : null);
+formChange(clickEv(merge));
+check(textField.value.endsWith('{storm_dates_label}') && tbox.childNodes.some(n => n.getAttribute && n.getAttribute('data-token') === 'storm_dates_label'),
+      'Insert field puts in a chip, stored as {storm_dates_label}');
+const otherBar = new Node_(1, 'SPAN'); otherBar.attrs['data-for'] = 'b9_label';
+const plainButton = button({'data-wrap': 'b'}); plainButton.closest = (sel) => (sel === '.tpl-toolbar' ? otherBar : plainButton);
+e = clickEv(plainButton); formClick(e);
+check(e.stopped === false, 'a toolbar for a field with no chip box is left to templates.js');
 
 console.log(failures ? failures + ' FAILED' : 'all passed');
 process.exit(failures ? 1 : 0);

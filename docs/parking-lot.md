@@ -7852,6 +7852,12 @@ everything, Python included** (2026-11-03, "on this one, you can edit everything
   in the form, hidden, and is rewritten only on an edit, so an unedited save posts what it loaded. A chip cannot be
   half-edited; paste is plain text on one line; Enter and drop are refused; an "Insert storm detail" menu puts a chip at
   the cursor. `tests/js/tplchips_check.js` round-trips every kind of stored text. Without JavaScript the plain boxes stay.
+- *Slice 9b done, 2026-11-04:* every field that takes merge fields is a chip box (text and the blue box's intro and
+  checklist multi-line, a heading one line), marked `data-chips` in `_editor_blocks.html`. In a multi-line box Enter
+  adds a line break as text and a paste keeps its lines; a final line break gets a filler `<br>` that is never read
+  back. The toolbar is handled by `tplchips.js` for a chip box and kept from `templates.js` (which would edit the hidden
+  field): B, I, Colour and Link wrap the selection in the same tags, Insert field puts in a chip. Boxes are remade
+  after a redraw of the block list. The developer checked it in the browser. Render diff empty (42 of 42).
 
 **Related:** items 201, 203, 220, 221.
 

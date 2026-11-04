@@ -257,6 +257,18 @@ class EmailTplPagesTest(unittest.TestCase):
         self.assertEqual(json.loads(raw), blockform.CHIP_LABELS)
         self.assertIn("tplchips.js", page)
 
+    def test_every_rich_field_is_marked_for_chips_and_no_other_field_is(self):
+        # item 294, slice 9b:  the fields that take merge fields, and only those, become chip boxes:
+        # multi-line for a text area or a checklist, one line for a heading.
+        import re
+        form = self.editor_form()
+        rich = [f for v in blockform.describe(blockform.starter()) for f in v["fields"] if f["rich"]]
+        for f in rich:
+            kind = "line" if f["widget"] == "text" else "multi"
+            with self.subTest(field=f["name"]):
+                self.assertRegex(form, rf'name="{f["name"]}"[^>]* data-rich="1" data-chips="{kind}"')
+        self.assertEqual(len(re.findall(r'data-chips="(?:line|multi)"', form)), len(rich) + 2)   # + subject, preview line
+
     def test_a_new_template_asks_for_a_title_not_an_internal_name(self):
         page = self.text("/templates/new")
         self.assertIn('<label for="friendly_title">Name this template</label>', page)
