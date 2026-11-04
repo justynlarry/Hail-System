@@ -4108,6 +4108,31 @@ Items 1 to 3 are the work; item 2 is the largest.
   customers in one database) would also need a customer key through settings, sends, suppression, parameter sets
   and the append-only guards: a redesign, not more settings. Which model is meant is not yet decided anywhere.
 
+**Rechecked 2026-11-04** (production-readiness audit, read only). Points 1 to 8 and A to E still hold: `IEM_STATE`
+(`hailsys/iem/common.py:36`), `DISPLAY_TZ` (`hailsys/tuning.py:89`), the brand text in both built-in templates and
+`blocks.py:759-785`, `base.html:11-19`, `oauth.py:44`, `dncimport.py:19`, `dnc_preview.html:7`, `levelreport.py:6` and
+`send_levels.html:72`. Found since:
+- **F. The permission list (item 189, built 2026-11-04) is labelled for RBI.** "RBI service clients" in
+  `hailsys/queries/permission.py:15`, the comment at `hailsys/web/admin.py:623`, and `admin.html:398,407`.
+- **G. RBI's identity is in the schema, not only in settings.** `sql/042_email_images_and_settings.sql:45-53` gives
+  `settings.contact_email`, `from_email` and `reply_to` the column default `justyn@roofbrokersinc-weather.com`,
+  `schedule_url` RBI's order page and `from_name` "Roof Brokers, Inc."; lines 37-40 seed `email_images` (logo, CRA and
+  BBB badges) from RBI's Constant Contact file host. A fresh install for another company sends as RBI until the admin
+  page is changed. A migration is never edited once applied, so the fix is a new migration (neutral defaults) or a
+  deploy step that must be done before any send.
+- **H. Fixed RBI content in the built-in template beyond point 5:** the button address
+  `roofbrokersinc.com/Account/LoginRegister`, the Birdeye reviews address and the phone (303) 750-1900 (a block setting
+  since item 203, but its default; `blocks.py:239,290`, `blockform.py:154`), in `hail_alert.html:183,280,326` and
+  `hail_alert_zone.html:176,273,328`.
+- **I. Tests pin RBI's text.** `tests/test_email_blocks.py:563-594,820`, `test_email_render.py:24,96,229`,
+  `test_emailconfig.py:156`, `test_levelreport.py:276`, `test_zone_render.py:27`. A rebrand changes them with the
+  templates (the golden test is meant to catch exactly that).
+- **J. The developer's personal addresses are in the public repo.** `rbi.justyn…@gmail.com` in 9 tracked files (the
+  `sql/dev_*seed*.sql` files, `scripts/rehearse_send.py:16-19`, `scripts/rehearse_drip.py:31`), against
+  `CHANGELOG.md`'s "nothing here names a person". A privacy point as well as a branding one; dev-only files.
+- **K. Cosmetic:** `system@rbi.invalid` (`sql/002_users.sql:40`), `scripts/cc_spike.py:42,191`,
+  `scripts/hw-acceptance-test.sh:5`, the example hostname in `cloudflared/config.example.yml:4`, `config/README.md:17`.
+
 **Related:** items 203, 216, 274; decision log 2026-09-01, 2026-09-09, 2026-10-20.
 
 
@@ -8010,3 +8035,43 @@ subsection, §5's 63 tables, §6 the condensed decisions, §7 the new traps, §8
 memory. The underlying cause (nothing updates the documents when features land) is unchanged:  a review like this one is
 still what catches it.
 
+
+## 299. Session and sign-in hardening: no Secure cookie, no session lifetime, no limit on failed sign-ins
+
+**Status:** open (found 2026-11-04, production-readiness audit)
+
+`create_app()` (`hailsys/web/__init__.py`) sets no `SESSION_COOKIE_SECURE` and no session lifetime
+(`PERMANENT_SESSION_LIFETIME`, or an idle limit checked in `auth.load_current_user`). Flask's session cookie is a
+browser-session cookie with no expiry of its own, so a staff member whose browser stays open stays signed in
+indefinitely; the server-side checks (`is_active`, `sessions_invalidated_at`, the global sign-out) only act when an
+admin acts. The login view (`hailsys/web/views.py:356`) has no limit on failed attempts per user name or per address.
+Both are reduced, not removed, by what sits in front: Cloudflare Access (one-time PIN) for staff, Tailscale for the
+developer. The Secure flag must not break `hail-dev` reached over plain `http://127.0.0.1:8000`; both Access paths are
+HTTPS. Not found filed: `grep -i cookie` and `brute|lockout|throttl` over `docs/` had no match for this.
+
+**When:** before staff accounts are created on `rbi-hail01` (`docs/deploy.md` §7).
+
+## 300. Production would install different package versions from the ones tested on `hail-dev`
+
+**Status:** open (found 2026-11-04, production-readiness audit)
+
+`requirements.txt` pins `psycopg`, `flask`, `Flask-WTF` and `cryptography` but not `gunicorn`, and nothing pins what
+they pull in (Werkzeug, Jinja2, itsdangerous, and so on): there is no lock file. The base images use moving tags
+(`python:3.12-slim` in `docker/app.Dockerfile` and `docker/ingest.Dockerfile`). `docs/deploy.md` §5 builds the images
+fresh on the new server, so `rbi-hail01` gets whatever is current on its build day, not what `hail-dev`'s images
+(built 2026-10-29 to 2026-11-02) were tested with: the two machines are meant to be built alike (CLAUDE.md). Fix in
+outline: a full pin set taken from the tested image (`pip freeze` in `web` and `ingest`), and base images by exact
+tag or digest; a change to how the system is built, so `deploy.md` changes in the same commit.
+
+**When:** before the first `docker compose build` on `rbi-hail01`.
+
+## 301. No error page for a server error: a broken page shows Flask's bare "Internal Server Error"
+
+**Status:** open (found 2026-11-04, production-readiness audit; low)
+
+`create_app()` registers handlers for `CSRFError` and 413 only. Any other exception, including the `StrictUndefined`
+error a template raises on a missing value (on purpose, so a missing value is loud), reaches the user as Flask's plain
+500 text with no navigation and no sign of what to do. The traceback is in the `web` log either way; the gap is only
+what staff see.
+
+**When:** at the pilot (Phase 6), or the first time a member of staff reports the bare page, whichever comes first.
