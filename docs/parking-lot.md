@@ -7715,7 +7715,9 @@ as the report page, and `test_send_screen.test_the_default_zone_page_lists_due_f
 
 ## 294. Template editor remodel: usable by anyone, without memorising anything
 
-**Status:** open (planned 2026-11-03; continues item 221)
+**Status:** resolved (residuals) 2026-11-04: all ten slices built (slice 10 as option A). Residuals: a possible switch of
+the formatted boxes to Quill (needs the developer's OK to install), and the defensive re-matching of tag markers if a
+lone tag ever reappears after a delete on a freshly loaded page. Planned 2026-11-03; continues item 221.
 
 Filed 2026-11-03 at the developer's request, from a brief the developer wrote with another assistant and the step-0
 read of the editor in this session. **Goal:** someone who uses the editor 10 to 20 times a year, and remembers nothing

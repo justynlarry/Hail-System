@@ -86,7 +86,10 @@ addresses.
   the production box: `sql/039` to `051`. `sql/045` to `047` are the drip-campaign settings and tables (item 204: the campaign screens at `/campaigns` and the follow-up part of the `/send` confirm page; rehearsed 2026-11-03 on test addresses (two campaigns); no campaign has been run for a real recipient). The editor's "Send a test to <your address>" button
   (`testsend.py`, `email_test_sends`) emails the draft to the clicking admin only, three Constant Contact
   calls, at most 5 an hour; it is not a send. The editor has a formatting guide, a toolbar on the rich text boxes (`templates.js`)
-  and a two-column layout with the preview beside the form.
+  and a two-column layout with the preview beside the form. **Remodelled 2026-11-03/04 (item 294, all ten slices):** plain block
+  names, folding blocks with ↑ ↓ + ×, named sizes and spacing, a start page (built-in, a copy, or blank), names made from a typed
+  title, the listings block required (`blocks.check_required`), click-in-preview, merge fields as chips and tags as markers with
+  live formatting (`tplchips.js`; stored text unchanged); `tests/test_template_render_snapshot.py` pins every rendering.
 - **Sending and monitoring.** The admin-only `/send` screens (preview, confirm, start,
   batches, resume, discard, bounce check; `cc_status_runs`). A call counter,
   `cc_api_calls`, makes the engine stop at Constant Contact's daily limit (item 191). Each send and resume job is
