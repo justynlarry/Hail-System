@@ -65,6 +65,8 @@ def _context(draft, name, is_new, situation, notice=None, test_notice=None, unsa
             "situations": samples.SITUATIONS, "situation": situation,
             "addable": blockform.ADDABLE, "kind_hints": blockform.KIND_HINTS,
             "chip_labels": blockform.CHIP_LABELS,
+            # The email's colours, so formatted text in a chip box looks as it will (slice 10).
+            "tag_palette": blocks.PALETTE,
             "notice": notice, "test_notice": test_notice,
             "test_address": _my_address(), "unsaved": unsaved,
             # A new template's friendly title, kept across every redraw of the form (slice 4).

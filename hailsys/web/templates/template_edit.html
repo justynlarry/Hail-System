@@ -160,6 +160,7 @@
 <script src="{{ url_for('static', filename='tplpicker.js') }}" defer></script>
 {# The chip labels for tplchips.js:  tojson escapes <, > and &, so nothing here can end the script. #}
 <script type="application/json" id="chip-labels">{{ chip_labels | tojson }}</script>
+<script type="application/json" id="tag-palette">{{ tag_palette | tojson }}</script>
 <script src="{{ url_for('static', filename='tplchips.js') }}" defer></script>
 </div>
 {% endblock %}

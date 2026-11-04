@@ -7858,6 +7858,17 @@ everything, Python included** (2026-11-03, "on this one, you can edit everything
   back. The toolbar is handled by `tplchips.js` for a chip box and kept from `templates.js` (which would edit the hidden
   field): B, I, Colour and Link wrap the selection in the same tags, Insert field puts in a chip. Boxes are remade
   after a redraw of the block list. The developer checked it in the browser. Render diff empty (42 of 42).
+- *Slice 10, option A, done 2026-11-04:* the developer chose, of three proposed options (A: tag markers with live
+  styling, no library; B: a hand-built formatting editor; C: Quill, needing an install), A first, with Quill a possible
+  later switch. In a box for a formatted field each tag is a marker that cannot be edited ("Bold ▸" ... "◂ Bold") and
+  keeps its own text (`data-src`), so `[b=navy]` reads back as `[b=navy]`; the text between a pair is drawn as the email
+  draws it, in the email's palette (passed as `<script id="tag-palette">`), on a white box. The toolbar adds a linked
+  pair; deleting either marker of a linked pair removes the other (the text stays, unformatted), and a marker unmatched
+  in the saved text is left for the server to flag. The browser's undo does not restore a removed pair (developer:
+  accepted). All of it sits in one section of `tplchips.js`, so Quill could replace it behind the same hidden field. A
+  first try showed "[b] is never closed" after a delete; it came from a tab still running the previous script and did
+  not recur on a fresh load, so the proposed defensive re-matching was not added (add it if a lone tag ever reappears
+  after a delete on a fresh page). Render diff empty (42 of 42).
 
 **Related:** items 201, 203, 220, 221.
 

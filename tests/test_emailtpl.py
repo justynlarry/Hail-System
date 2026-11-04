@@ -257,6 +257,14 @@ class EmailTplPagesTest(unittest.TestCase):
         self.assertEqual(json.loads(raw), blockform.CHIP_LABELS)
         self.assertIn("tplchips.js", page)
 
+    def test_the_page_carries_the_emails_palette_for_formatted_boxes(self):
+        # item 294, slice 10 (option A):  formatted text in a box is drawn in the email's colours.
+        import json, re
+        from hailsys.email import blocks as bk
+        page = self.text("/templates/new")
+        raw = re.search(r'<script type="application/json" id="tag-palette">(.*?)</script>', page).group(1)
+        self.assertEqual(json.loads(raw), bk.PALETTE)
+
     def test_every_rich_field_is_marked_for_chips_and_no_other_field_is(self):
         # item 294, slice 9b:  the fields that take merge fields, and only those, become chip boxes:
         # multi-line for a text area or a checklist, one line for a heading.

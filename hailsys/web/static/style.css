@@ -1332,6 +1332,16 @@ path.lk-context { fill: var(--lk-context); stroke: var(--lk-context); stroke-das
   white-space: nowrap; cursor: default; user-select: none;
 }
 .tpl-chipbox-multi { min-height: 5.5rem; }
+/* A box for formatted text (slice 10, option A):  white like the email, so the palette's navy and
+   red read as they will; each tag is a small marker that cannot be edited, the text between shown
+   formatted. */
+.tpl-chipbox-rich { background: #fff; color: #1e293b; }
+.tpl-mark {
+  display: inline-block; margin: 0 0.1rem; padding: 0 0.3rem; border: 1px solid #94a3b8; border-radius: 3px;
+  background: #f1f5f9; color: #475569; font-size: 0.72em; font-weight: 600; font-style: normal;
+  line-height: 1.5; vertical-align: 0.1em; white-space: nowrap; cursor: default; user-select: none;
+  text-decoration: none;
+}
 .tpl-chip-picker { margin-top: 0.25rem; font-size: 0.8125rem; }
 .chips-on .tpl-chip-plain { display: none; }
 

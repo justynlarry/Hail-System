@@ -60,11 +60,13 @@ field.appendChild(textField);
 const toolbar = new Node_(1, 'SPAN'); toolbar.attrs['data-for'] = 'b6_text';
 const chipAttr = (node, kind) => { node.attrs['data-chips'] = kind; };
 chipAttr(subject, 'line'); chipAttr(preheader, 'line'); chipAttr(textField, 'multi');
+textField.attrs['data-rich'] = '1';                     // a text block takes formatting (slice 10)
 form.querySelectorAll = (sel) => (sel === '[data-chips]' ? [subject, preheader, textField] : []);
 form.contains = (n) => true;
 form.querySelector = (sel) => (sel === '.tpl-chip-menu[data-chips-for="preheader"]' ? menuSpot : null);
 global.document = {
-  getElementById: (id) => ({editor: form, 'chip-labels': {textContent: JSON.stringify(LABELS)}}[id] || null),
+  getElementById: (id) => ({editor: form, 'chip-labels': {textContent: JSON.stringify(LABELS)},
+                            'tag-palette': {textContent: JSON.stringify({navy: '#1b4a80', red: '#c0392b', gold: '#e8a317'})}}[id] || null),
   createElement: (tag) => new Node_(1, tag.toUpperCase()),
   createTextNode: (t) => new Text_(t),
   querySelector: (sel) => (sel === 'label[for="preheader"]' ? label : null),
@@ -184,6 +186,82 @@ const otherBar = new Node_(1, 'SPAN'); otherBar.attrs['data-for'] = 'b9_label';
 const plainButton = button({'data-wrap': 'b'}); plainButton.closest = (sel) => (sel === '.tpl-toolbar' ? otherBar : plainButton);
 e = clickEv(plainButton); formClick(e);
 check(e.stopped === false, 'a toolbar for a field with no chip box is left to templates.js');
+
+// ---- slice 10, option A:  tags as markers, the text between formatted ----
+const RICH = [
+  '[b]bold[/b]', '[b=navy]since 1992[/b]', '[i]italic[/i]', '[color=red]red[/color]',
+  '[link=https://example.com]a link[/link]', '[link={schedule_url}]Schedule a new inspection[/link]',
+  '[b]bold [i]both[/i][/b]', 'Already have an account? [link={schedule_url}]Schedule[/link]',
+  '[b]80% of homes are certifiable as-is[/b] or with minor repair work',
+  '[/b] a close with no open', '[b] an open with no close', '[x]not a tag[/x] and [b nothing', '[B]not a tag either[/B]',
+  '[b]{largest_hail}[/b] hail', '[color=red]one[/color]\n[b]two[/b]\n',
+];
+RICH.forEach((text) => {
+  const box = document.createElement('div');
+  render(box, text, true, true);
+  check(serialize(box, true) === text, 'formatted round trip: ' + JSON.stringify(text));
+});
+const rb = document.createElement('div');
+render(rb, '[b=navy]Since 1992[/b] and [link={schedule_url}]this[/link]', false, true);
+const marks = rb.childNodes.filter(n => n.getAttribute && n.getAttribute('data-tag'));
+check(marks.length === 4 && marks[0].getAttribute('contenteditable') === 'false', 'each tag is a marker that cannot be edited');
+check(marks[0].textContent === 'Bold navy \u25B8' && marks[1].textContent === '\u25C2 Bold', 'markers say what they do');
+check(marks[2].getAttribute('title') === '{schedule_url}', 'a link marker shows its address on hover');
+const fmts = rb.childNodes.filter(n => n.getAttribute && n.getAttribute('data-fmt'));
+check(fmts.length === 2 && fmts[0].textContent === 'Since 1992', 'the text between a pair is wrapped for styling, the text outside is not');
+check(fmts[0].getAttribute('style').includes('font-weight:bold') && fmts[0].getAttribute('style').includes('#1b4a80'),
+      'bold in navy is drawn bold, in the email\'s navy');
+check(fmts[1].getAttribute('style').includes('text-decoration:underline'), 'a link is drawn as a link');
+render(rb, '[b]x [i]y[/i] z[/b]', false, true);
+const nested = rb.childNodes.filter(n => n.getAttribute && n.getAttribute('data-fmt'));
+check(nested.length === 3 && nested[1].getAttribute('style').includes('italic') && nested[1].getAttribute('style').includes('bold'),
+      'nested tags combine (bold and italic)');
+check(serialize(rb, false) === '[b]x [i]y[/i] z[/b]', 'and still read back exactly after styling');
+const plain = document.createElement('div');
+render(plain, '[b]not formatted here[/b] {total}', false, false);
+check(plain.childNodes.every(n => !(n.getAttribute && n.getAttribute('data-tag'))), 'a box with no formatting (subject, preview line) shows tags as text');
+
+const before10 = textField.value;
+formClick(clickEv(button({'data-wrap': 'i'})));
+check(textField.value === before10 + '[i][/i]', 'the toolbar adds the same tags');
+check(tbox.childNodes.filter(n => n.getAttribute && n.getAttribute('data-tag') === 'i').length === 2,
+      'shown as a pair of markers in a formatted box');
+
+// ---- deleting one marker of a pair removes the other (developer, 2026-11-04) ----
+const pairBox = (() => { const b = document.createElement('div'); render(b, '[b]$35 Five-Year[/b] once [i]it passes[/i]', true, true); return b; })();
+const pm = pairBox.childNodes.filter(n => n.getAttribute && n.getAttribute('data-tag'));
+check(pm.length === 4 && pm[0].getAttribute('data-pair') && pm[0].getAttribute('data-pair') === pm[1].getAttribute('data-pair')
+      && pm[2].getAttribute('data-pair') !== pm[0].getAttribute('data-pair'), 'each open marker is linked to its own close');
+const lone = document.createElement('div');
+render(lone, 'a [b]open only and [/i] close only', true, true);
+check(lone.childNodes.filter(n => n.getAttribute && n.getAttribute('data-pair')).length === 0, 'markers with no partner are not linked');
+render(lone, '[b]outer [b]inner[/b] still[/b]', true, true);
+const nest = lone.childNodes.filter(n => n.getAttribute && n.getAttribute('data-tag'));
+check(nest[0].getAttribute('data-pair') === nest[3].getAttribute('data-pair') && nest[1].getAttribute('data-pair') === nest[2].getAttribute('data-pair'),
+      'nested pairs of the same kind match as the server does');
+
+// In the real box:  delete the opening Bold marker of the checklist item, as Backspace would.
+render(tbox, '[b]$35 Five-Year Certification[/b] once it passes\n[i]Rush[/i] repairs', true, true);
+const firstOpen = tbox.childNodes.find(n => n.getAttribute && n.getAttribute('data-tag') === 'b');
+tbox.removeChild(firstOpen);
+tbox.fire('input');
+check(textField.value === '$35 Five-Year Certification once it passes\n[i]Rush[/i] repairs',
+      'deleting one Bold marker removes its partner too; the text stays, unformatted');
+const italicClose = tbox.childNodes.filter(n => n.getAttribute && n.getAttribute('data-tag') === 'i')[1];
+tbox.removeChild(italicClose);
+tbox.fire('input');
+check(textField.value === '$35 Five-Year Certification once it passes\nRush repairs', 'and the same for a closing marker');
+render(tbox, 'kept [/b] lone', true, true);
+tbox.appendChild(new Text_('!'));
+tbox.fire('input');
+check(textField.value === 'kept [/b] lone!', 'an unlinked marker from the saved text is left for the server to point out');
+render(tbox, 'x', true, true);
+formClick(clickEv(button({'data-wrap': 'b'})));
+const added = tbox.childNodes.filter(n => n.getAttribute && n.getAttribute('data-tag') === 'b');
+check(added.length === 2 && added[0].getAttribute('data-pair') === added[1].getAttribute('data-pair'), 'a pair the toolbar adds is linked too');
+added[1].parentNode.removeChild(added[1]);
+tbox.fire('input');
+check(textField.value === 'x', 'so deleting either end of it removes both');
 
 console.log(failures ? failures + ' FAILED' : 'all passed');
 process.exit(failures ? 1 : 0);

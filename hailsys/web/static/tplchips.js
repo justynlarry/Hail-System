@@ -18,6 +18,13 @@
 // redrawn fields.  The labels come from blockform.CHIP_LABELS, in <script id="chip-labels">.  A
 // {name} that is not a merge field is left as typed, for the server to point out.  Without this
 // script the plain fields are used, as before.
+//
+// Slice 10, option A (developer, 2026-11-04), in the "tags" section below:  in a box for a field
+// that takes formatting (data-rich), each tag is a marker that cannot be edited ("Bold ▸" ...
+// "◂ Bold") and keeps its own text, so [b=navy] is read back as [b=navy], and the text between a
+// pair is shown bold, in the colour, or as a link.  Nothing outside that section depends on how a
+// box draws formatting, so a library editor (Quill) could replace it later behind the same hidden
+// field.  The server still checks every tag at save.
 (function () {
   var form = document.getElementById('editor');
   var source = document.getElementById('chip-labels');
@@ -26,6 +33,8 @@
   try { LABELS = JSON.parse(source.textContent); } catch (e) { return; }
   var TOKEN = /\{([a-z_]+)\}/g;
   var has = function (name) { return Object.prototype.hasOwnProperty.call(LABELS, name); };
+  var PALETTE = {};
+  try { PALETTE = JSON.parse((document.getElementById('tag-palette') || {}).textContent || '{}'); } catch (e) { PALETTE = {}; }
   var boxes = {};          // field name -> its chip box, for the toolbar
 
   function chip(name) {
@@ -52,19 +61,25 @@
     if (/\n$/.test(text)) { box.appendChild(filler()); }
   }
 
-  // Text -> the box's contents:  text nodes, and a chip for each known {name}.
-  function render(box, text, multi) {
+  // Text -> the box's contents:  text nodes, a chip for each known {name}, and in a rich box a
+  // marker for each tag the server knows ([b], [b=colour], [i], [color=...], [link=...] and closes).
+  function render(box, text, multi, rich) {
     while (box.firstChild) { box.removeChild(box.firstChild); }
+    var pattern = rich ? ANY : TOKEN;
     var last = 0, m;
-    TOKEN.lastIndex = 0;
-    while ((m = TOKEN.exec(text)) !== null) {
-      if (!has(m[1])) { continue; }
+    pattern.lastIndex = 0;
+    while ((m = pattern.exec(text)) !== null) {
+      var node = null;
+      if (m[1] !== undefined) { if (has(m[1])) { node = chip(m[1]); } }
+      else { node = marker(m[0]); }
+      if (!node) { continue; }
       if (m.index > last) { box.appendChild(document.createTextNode(text.slice(last, m.index))); }
-      box.appendChild(chip(m[1]));
+      box.appendChild(node);
       last = m.index + m[0].length;
     }
     if (last < text.length) { box.appendChild(document.createTextNode(text.slice(last))); }
     if (multi && /\n$/.test(text)) { box.appendChild(filler()); }
+    if (rich) { linkPairs(box); restyle(box); }
   }
 
   // The box's contents -> text:  a chip back to {name}.  In a multi-line box a <br> is a line break
@@ -78,8 +93,11 @@
         out += n.nodeValue.replace(/ /g, ' ');
       } else if (n.nodeType === 1) {
         var token = n.getAttribute('data-token');
+        var tag = n.getAttribute('data-src');
         if (token) {
           out += '{' + token + '}';
+        } else if (tag) {
+          out += tag;                                // a marker:  its tag exactly as it was
         } else if (n.tagName === 'BR') {
           if (multi && !n.getAttribute('data-filler')) { out += '\n'; }
         } else {
@@ -91,12 +109,161 @@
     return multi ? out.replace(/\r\n?/g, '\n') : out.replace(/[\r\n]+/g, ' ');
   }
 
+  // ---- tags (slice 10, option A) ----------------------------------------------------------------
+  // The same tags as blocks._TAG on the server.  Any other square-bracket text stays as typed.
+  var ANY = /\{([a-z_]+)\}|\[(\/?)(b|i|color|link)(?:=([^\[\]]*))?\]/g;
+  var TAG_ONE = /^\[(\/?)(b|i|color|link)(?:=([^\[\]]*))?\]$/;
+  var WORDS = { b: 'Bold', i: 'Italic', color: 'Colour', link: 'Link' };
+
+  // A marker for one tag, keeping the tag's own text (data-src) to be read back exactly.
+  function marker(src) {
+    var m = TAG_ONE.exec(src);
+    var el = document.createElement('span');
+    el.setAttribute('contenteditable', 'false');
+    el.setAttribute('data-src', src);
+    if (!m) { el.textContent = src; return el; }
+    var closing = m[1] === '/', name = m[2], value = m[3];
+    var word = name === 'color' && value ? value.charAt(0).toUpperCase() + value.slice(1)
+             : name === 'b' && value ? 'Bold ' + value : WORDS[name];
+    el.className = 'tpl-mark ' + (closing ? 'tpl-mark-close' : 'tpl-mark-open');
+    el.setAttribute('data-tag', name);
+    el.textContent = closing ? '\u25C2 ' + WORDS[name] : word + ' \u25B8';
+    if (name === 'link' && value) { el.setAttribute('title', value); }
+    return el;
+  }
+
+  // Opening and closing markers are linked in pairs (data-pair), matched as the server matches tags:
+  // a close pairs with the latest open of its kind.  Deleting either one of a pair then removes the
+  // other (prunePairs), so a delete means "remove this formatting" and cannot leave a lone tag.  A
+  // marker with no partner in the saved text is not linked and is left alone, for the server to
+  // point out.  Links are made when a box is drawn and by the toolbar, never redone on an edit, so
+  // a pair keeps its partner.  The browser's undo does not know about the partner it removes
+  // (developer, 2026-11-04:  accepted).
+  var nextPair = 1;
+
+  function linkPairs(box) {
+    var open = {};
+    var marks = [];
+    for (var i = 0; i < box.childNodes.length; i++) {
+      var n = box.childNodes[i];
+      if (n.nodeType === 1 && n.getAttribute('data-tag')) { marks.push(n); }
+      else if (n.nodeType === 1 && n.getAttribute('data-fmt')) {
+        for (var j = 0; j < n.childNodes.length; j++) {
+          var c = n.childNodes[j];
+          if (c.nodeType === 1 && c.getAttribute('data-tag')) { marks.push(c); }
+        }
+      }
+    }
+    marks.forEach(function (m) {
+      var name = m.getAttribute('data-tag');
+      if (m.getAttribute('data-src').charAt(1) === '/') {
+        var stack = open[name] || [];
+        var partner = stack.pop();
+        if (partner) {
+          var id = String(nextPair++);
+          partner.setAttribute('data-pair', id);
+          m.setAttribute('data-pair', id);
+        }
+      } else {
+        (open[name] = open[name] || []).push(m);
+      }
+    });
+  }
+
+  function markersIn(box) {
+    var out = [];
+    (function walk(node) {
+      for (var i = 0; i < node.childNodes.length; i++) {
+        var n = node.childNodes[i];
+        if (n.nodeType !== 1) { continue; }
+        if (n.getAttribute('data-tag')) { out.push(n); } else { walk(n); }
+      }
+    })(box);
+    return out;
+  }
+
+  // After an edit:  a linked marker whose partner is gone goes too.
+  function prunePairs(box) {
+    var count = {};
+    var marks = markersIn(box);
+    marks.forEach(function (m) { var id = m.getAttribute('data-pair'); if (id) { count[id] = (count[id] || 0) + 1; } });
+    marks.forEach(function (m) {
+      var id = m.getAttribute('data-pair');
+      if (id && count[id] === 1 && m.parentNode) { m.parentNode.removeChild(m); }
+    });
+  }
+
+  // How the text inside a tag looks:  as the email draws it (blocks.py), near enough to read.
+  function look(stack) {
+    var css = [];
+    stack.forEach(function (t) {
+      if (t.name === 'b') { css.push('font-weight:bold'); if (t.value && PALETTE[t.value]) { css.push('color:' + PALETTE[t.value]); } }
+      if (t.name === 'i') { css.push('font-style:italic'); }
+      if (t.name === 'color' && PALETTE[t.value]) { css.push('color:' + PALETTE[t.value]); }
+      if (t.name === 'link') { css.push('color:#1f5c9e'); css.push('font-weight:bold'); css.push('text-decoration:underline'); }
+    });
+    return css.join(';');
+  }
+
+  // Redraw the formatting:  unwrap the old styling spans and wrap each run of text and chips that
+  // sits inside open tags in one span styled for them.  Only the top level of the box is styled
+  // (the script makes no other blocks), and the cursor is put back on the same text node.
+  function restyle(box) {
+    var sel = window.getSelection ? window.getSelection() : null;
+    var keep = null;
+    if (sel && sel.rangeCount && within(box, sel.anchorNode)) {
+      keep = { a: sel.anchorNode, ao: sel.anchorOffset, f: sel.focusNode, fo: sel.focusOffset };
+    }
+    var spans = [];
+    for (var i = 0; i < box.childNodes.length; i++) {
+      var n0 = box.childNodes[i];
+      if (n0.nodeType === 1 && n0.getAttribute('data-fmt')) { spans.push(n0); }
+    }
+    spans.forEach(function (span) {
+      while (span.firstChild) { box.insertBefore(span.firstChild, span); }
+      box.removeChild(span);
+    });
+    var stack = [], run = [];
+    function flush() {
+      if (run.length && stack.length) {
+        var span = document.createElement('span');
+        span.setAttribute('data-fmt', '1');
+        span.setAttribute('style', look(stack));
+        box.insertBefore(span, run[0]);
+        run.forEach(function (n) { span.appendChild(n); });
+      }
+      run = [];
+    }
+    var nodes = Array.prototype.slice.call(box.childNodes);
+    nodes.forEach(function (n) {
+      var tag = n.nodeType === 1 ? n.getAttribute('data-tag') : null;
+      if (tag) {
+        flush();
+        if (n.getAttribute('data-src').charAt(1) === '/') {
+          if (stack.length && stack[stack.length - 1].name === tag) { stack.pop(); }
+        } else {
+          var m = TAG_ONE.exec(n.getAttribute('data-src'));
+          stack.push({ name: tag, value: m ? m[3] : undefined });
+        }
+      } else if (n.nodeType === 1 && (n.tagName === 'BR' || n.tagName === 'DIV' || n.tagName === 'P')) {
+        flush();
+      } else {
+        run.push(n);
+      }
+    });
+    flush();
+    if (keep && sel) {
+      try { sel.setBaseAndExtent(keep.a, keep.ao, keep.f, keep.fo); } catch (e) { /* the cursor stays where the browser put it */ }
+    }
+  }
+  // ---- end of tags --------------------------------------------------------------------------------
+
   function within(box, node) { return !!node && (node === box || box.contains(node)); }
 
   // The chip a node is inside, if any (a range must never start or end inside one).
   function chipOf(box, node) {
     for (var n = node; n && n !== box; n = n.parentNode) {
-      if (n.nodeType === 1 && n.getAttribute('data-token')) { return n; }
+      if (n.nodeType === 1 && (n.getAttribute('data-token') || n.getAttribute('data-src'))) { return n; }
     }
     return null;
   }
@@ -142,11 +309,15 @@
   // Wrap the selection in open...close (the toolbar):  with nothing selected, the pair goes in with
   // the cursor between;  with no cursor in the box, at the end.
   function wrap(box, open, close, saved) {
-    var o = document.createTextNode(open), c = document.createTextNode(close);
+    var rich = box.getAttribute('data-rich-box') === '1';
+    var o = rich ? marker(open) : document.createTextNode(open);
+    var c = rich ? marker(close) : document.createTextNode(close);
+    if (rich) { var id = String(nextPair++); o.setAttribute('data-pair', id); c.setAttribute('data-pair', id); }
     var range = rangeIn(box, saved);
     if (!range) {
       place(box, o, null);
       place(box, c, null);
+      if (rich) { restyle(box); }
       return;
     }
     var chosen = range.extractContents();
@@ -156,22 +327,25 @@
     range.setStartAfter(o);
     range.setEndBefore(c);
     select(range);
+    if (rich) { restyle(box); }
   }
 
   function enhance(input) {
     if (input.getAttribute('data-chips-on')) { return null; }
     input.setAttribute('data-chips-on', '1');
     var multi = input.getAttribute('data-chips') === 'multi';
+    var rich = input.getAttribute('data-rich') === '1';
     var label = input.id ? document.querySelector('label[for="' + input.id + '"]') : null;
     var box = document.createElement('div');
-    box.className = 'tpl-chipbox' + (multi ? ' tpl-chipbox-multi' : '');
+    box.className = 'tpl-chipbox' + (multi ? ' tpl-chipbox-multi' : '') + (rich ? ' tpl-chipbox-rich' : '');
+    if (rich) { box.setAttribute('data-rich-box', '1'); }
     box.id = (input.id || input.name) + '-chips';
     box.setAttribute('contenteditable', 'true');
     box.setAttribute('role', 'textbox');
     if (multi) { box.setAttribute('aria-multiline', 'true'); }
     box.setAttribute('aria-label', input.getAttribute('aria-label') || (label ? label.textContent : '') || input.name);
     box.setAttribute('spellcheck', 'true');
-    render(box, input.value, multi);
+    render(box, input.value, multi, rich);
     input.parentNode.insertBefore(box, input.nextSibling);
     input.hidden = true;
     if (label) { label.setAttribute('for', box.id); }
@@ -182,6 +356,7 @@
       if (sel && sel.rangeCount && within(box, sel.getRangeAt(0).startContainer)) { saved = sel.getRangeAt(0).cloneRange(); }
     }
     function sync() {
+      if (rich) { prunePairs(box); restyle(box); }
       if (multi) { endFiller(box); }
       input.value = serialize(box, multi);
       // templates.js refreshes the preview on a form change:  the box itself sends none.
