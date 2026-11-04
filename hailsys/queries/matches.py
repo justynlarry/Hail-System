@@ -20,6 +20,9 @@ SELECT
     -- For the "won't be emailed" tags (item 140):  the same two fields the send list judges by.
     l.list_status,
     l.list_last_seen,
+    -- The eligibility gate (item 189):  whether this agent's address may be emailed at all.
+    EXISTS (SELECT 1 FROM send_permission sp
+            WHERE sp.email_norm = r.email_norm AND sp.removed_at IS NULL) AS has_permission,
     r.realtor_id,
     r.agent_name,
     r.agent_email,
@@ -48,7 +51,7 @@ GROUP BY
     l.listing_id, p.property_address, p.city, p.zip_code, p.property_type,
     p.year_built, l.list_price, l.list_date, l.list_mls_number, l.list_status, l.list_last_seen,
     r.realtor_id, r.agent_name, r.agent_email, r.agent_phone,
-    r.agent_office_name
+    r.agent_office_name, r.email_norm
 -- Sorted by Agent first because the view groups on realtor_id with
 -- itertools.groupby, which will only collapse ADJACENT rows (it does not
 -- sort -- Jinja's groupby filter does, but would crash comparing the NULL

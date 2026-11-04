@@ -10,6 +10,8 @@ left behind.  Skips without a database.
 import os
 import sys
 import unittest
+
+from tests.permission_fixtures import permit
 import uuid
 from pathlib import Path
 
@@ -61,6 +63,7 @@ class TemplateListTest(unittest.TestCase):
             "SELECT realtor_id FROM realtors WHERE realtor_id NOT IN "
             "(SELECT realtor_id FROM sent_emails WHERE batch_id = %s) "
             "ORDER BY realtor_id LIMIT 1", (batch,)).fetchone()["realtor_id"]
+        permit(self.conn, "list-test@example.invalid")
         self.conn.execute(
             "INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, "
             "sync_run_id, permission_asserted, created_by, subject, html_body) "

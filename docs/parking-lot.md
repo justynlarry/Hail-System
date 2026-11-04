@@ -1556,6 +1556,8 @@ come in under the insurance deductible", the $35 five-year certification, the at
 quote), and the badge and logo images, which are hosted in the dev trial's Constant Contact
 Library and need re-uploading to the production account (the URLs are settings).
 
+**Update 2026-11-04 (developer):** not a one-time sign-off: marketing supplies the copy each time an email is to go out. `docs/deploy.md` §11 now asks for this send's copy from marketing.
+
 ## 136. Open question: should `nearest_miles` always appear in the email?
 
 **Status:** accepted 2026-10-29: always shown, for now
@@ -3034,7 +3036,9 @@ Still open on this item: the eligibility gate (item 189), and the production box
 
 ## 189. No eligibility gate: nothing yet stops an email to an address outside the warm pools
 
-**Status:** open (parked 2026-10-08, by developer decision)
+**Status:** built on `hail-dev` 2026-11-04 (decision log 2026-11-04); open until the final service-client and Constant
+Contact subscriber lists are uploaded on the production box (`docs/deploy.md` §7). Was: open (parked 2026-10-08, by
+developer decision).
 
 Constant Contact's permission policy bans scraped and public-directory addresses (item 119,
 closed only for warm pools). The send list does not yet check that a realtor is a service
@@ -3064,6 +3068,15 @@ database. A gate applied later could remove the winner and leave the house with 
 newsletter account's unsubscribes are uploaded by hand). Still blocking: the in-house client list (item 83, waiting on
 RBI) and a source for the Constant Contact subscriber pool. Item 179 (Constant Contact's permission policy, the
 reason for this gate) was merged into this item the same day; read it for the background.
+
+**Built 2026-11-04 (`hail-dev` only).** `sql/066` (`send_permission`, `permission_import_batches`, `permission_import_rows`,
+the trigger `sent_emails_require_permission`, and `no_permission` as a drip stop reason); `hailsys/queries/permission.py`;
+the admin Permission list tab (upload with a basis and an as-of date, preview, add, discard, remove an address);
+`no_permission` in `sendlist`, `zonesend` and `dripfollowup`, a re-check in `deliver.py`, and a tag on the match page.
+**The allow-list was kept, optional (developer, 2026-11-04)**, not dropped as planned on 2026-10-13: empty means
+everyone the list kept, and `queue_batch`/`run_send` take `None` for that. `sql/dev_permission_seed.sql` (dev only)
+grants the 14 rehearsal realtors. Tests: `tests/test_permission.py`, plus `tests/permission_fixtures.py` for the tests
+that write `sent_emails`. Left: the final lists on production.
 
 ## 190. Address search as an office tool: jurisdiction, permit issuer and adopted codes
 
@@ -3942,6 +3955,8 @@ add a second backup target at once if reallocated or pending sectors appear.
 
 **Related:** decision log 2026-10-20.
 
+**Update 2026-11-04 (developer):** dealt with when the production VM is set up.
+
 ## 233. Backups: single-disk datastore, retention, encryption, consistency, restore test
 
 **Status:** open (filed 2026-10-20)
@@ -3962,6 +3977,8 @@ schedule is set. Backups are not yet encrypted client-side. VM 101 has only had 
 **When:** before the first production send (as item 232 already says), and before backups go offsite.
 
 **Related:** items 232, 235; decision log 2026-10-20.
+
+**Update 2026-11-04 (developer):** dealt with when the production VM is set up.
 
 ## 234. Irin alerts for PBS disk usage and backup job failures are unconfirmed
 
@@ -4005,6 +4022,8 @@ encryption key first (item 233).
 **When:** before relying on any backup or job-failure notice (item 234).
 
 **Related:** items 234, 233.
+
+**Update 2026-11-04 (developer):** looked at after item 189 is settled.
 
 ## 237. Production hosts: hardening and housekeeping
 
@@ -4886,6 +4905,8 @@ creates in Constant Contact stays under 5,000; otherwise start on Standard.
 
 **When:** when the production account is created, before the first production send. Choose the
 plan after counting contacts, and confirm the API and call-limit bullets above before paying.
+
+**Update 2026-11-04 (developer):** waits on the sending domain (item 96); the paid account is set up once the domain is decided.
 
 ## 184. A one-character typo in the API throttle hung a request; no test ran its arithmetic
 
@@ -7619,6 +7640,8 @@ tried: 769 rows exported from `hail-dev` and loaded into a throwaway database bu
 source and removal, and a re-run inserted nothing; a load that would weaken a suppression, and a file that is not an
 export, are refused. **When:** the real copy, at step 5 of `server-setup.md`, Data on a new server; resolved once its
 counts match.
+
+**Update 2026-11-04 (developer):** run as part of setting up `rbi-hail01` (production has to exist first).
 
 ## 286. Actions tested only as refusals
 

@@ -40,7 +40,7 @@ def hit(match_id, listing_id, realtor_id=1, **over):
             "address_key": f"key-{listing_id}", "utc_datetime": STORM, "magnitude": 1.5,
             "distance_miles": 2.0, "agent_name": f"Agent {realtor_id}",
             "email": f"agent{realtor_id}@example.com", "send_status": "sent",
-            "on_dnc": False, "in_cap": False}
+            "on_dnc": False, "in_cap": False, "has_permission": True}
     base.update(over)
     return base
 
@@ -77,7 +77,7 @@ class RulesTest(unittest.TestCase):
         self.assertEqual(sorted(events[0]["match_ids"]), [10, 11])
 
     def test_the_reasons_are_the_documented_ones_in_order(self):
-        self.assertEqual(dfu.REASONS, ("recipient_bounced", "on_dnc_list", "within_cap",
+        self.assertEqual(dfu.REASONS, ("recipient_bounced", "on_dnc_list", "no_permission", "within_cap",
                                        "listing_dead_earlier", "listing_inactive",
                                        "listing_not_found", "listing_unconfirmed"))
 
@@ -101,12 +101,19 @@ class RulesTest(unittest.TestCase):
     def test_recipient_rules_come_before_listing_rules_and_in_order(self):
         cases = (({"send_status": "bounced", "on_dnc": True, "in_cap": True}, "recipient_bounced"),
                  ({"on_dnc": True, "in_cap": True}, "on_dnc_list"),
+                 ({"has_permission": False, "in_cap": True}, "no_permission"),
                  ({"in_cap": True}, "within_cap"))
         for flags, reason in cases:
             with self.subTest(reason=reason):
                 result = pick([hit(10, 100, **flags)], dead={100}, verdicts={100: "inactive"})
                 self.assertEqual(result["excluded"][reason], {"matches": 1, "realtors": 1})
                 self.assertEqual(sum(v["matches"] for v in result["excluded"].values()), 1)
+
+    def test_a_recipient_whose_permission_was_removed_is_stopped(self):
+        # Item 189:  permission taken away mid-campaign stops the recipient, under its own reason.
+        result = pick([hit(10, 100, 1, has_permission=False), hit(11, 101, 2)])
+        self.assertEqual(emailed(result), {2: [11]})
+        self.assertEqual([(s["realtor_id"], s["reason"]) for s in result["to_stop"]], [(1, "no_permission")])
 
     def test_one_bounced_row_holds_back_every_row_of_that_recipient(self):
         result = pick([hit(10, 100, send_status="bounced"), hit(11, 101)])

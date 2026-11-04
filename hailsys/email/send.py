@@ -8,7 +8,8 @@ raises.  Everything after the commit (DNC re-check, Constant Contact) is Phase B
 Guards:
 * Unsubscribe sync must have succeeded just before.  Sync itself is the caller's job, a 
   failed sync stops the send before anything is written.
-* allowed_emails is required.
+* allowed_emails, when given, limits the send to those addresses; None sends to everyone on the
+  list (the eligibility gate, item 189, decides who that is).
 * contacts must hold the Constant Contact state of every recipient, previously looked up.
   None = not in Constant Contact, ad dict = already there, an address that's 'unsubscribed'
   is skipped.
@@ -81,7 +82,7 @@ def queue_batch(conn, *, user_id, storm_days=None, email_settings, now, sync_run
     else:
         raise ValueError("queue_batch needs storm_days or a send_list")
 
-    allowed = {e.strip().lower() for e in allowed_emails}
+    allowed = None if allowed_emails is None else {e.strip().lower() for e in allowed_emails}
     skipped = {"not_allowed": 0, "unsubscribed_in_cc": 0, "unrenderable": []}
     try:
         template_kind = templatestore.kind_of(conn, template_name)
@@ -93,7 +94,7 @@ def queue_batch(conn, *, user_id, storm_days=None, email_settings, now, sync_run
 
     plan = []
     for r in found["realtors"]:
-        if r["email"] not in allowed:
+        if allowed is not None and r["email"] not in allowed:
             skipped["not_allowed"] +=1
             continue
         if r["email"] not in contacts:

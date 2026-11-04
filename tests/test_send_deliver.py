@@ -13,6 +13,8 @@ and Constant Contact is never called.  Skips without a database or without the s
 import os
 import sys
 import unittest
+
+from tests.permission_fixtures import permit_all_realtors
 import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -139,6 +141,7 @@ class DeliverTest(unittest.TestCase):
         self.addCleanup(raw.rollback)
         self.conn = NoCommit(raw)
         self.user = raw.execute("SELECT emp_id FROM users WHERE role = 'system'").fetchone()["emp_id"]
+        permit_all_realtors(raw)
         found = sendlist.build_send_list(raw, [DAY], now=NOW)["realtors"]
         if len(found) < 3:
             self.skipTest("the 2026-09-22 storm data is not in this database")
@@ -233,6 +236,16 @@ class DeliverTest(unittest.TestCase):
         self.assertEqual(self.deliver(), "failed")
         self.assertEqual(self.cc.calls, [])
         self.assertIn("DNC", self.email()["error_detail"])
+        self.assertEqual(self.statuses(), {"failed"})
+
+    def test_an_address_whose_permission_was_removed_after_queueing_calls_nothing(self):
+        # Item 189:  deliver checks send_permission again before the first call, as it does dnc_list.
+        self.queue()
+        self.conn.execute("UPDATE send_permission SET removed_at = now(), removed_by = %s "
+                          "WHERE email_norm = lower(trim(%s)) AND removed_at IS NULL", (self.user, self.emails[0]))
+        self.assertEqual(self.deliver(), "failed")
+        self.assertEqual(self.cc.calls, [])
+        self.assertIn("no recorded permission", self.email()["error_detail"])
         self.assertEqual(self.statuses(), {"failed"})
 
     def test_an_address_added_just_before_scheduling_is_never_scheduled(self):

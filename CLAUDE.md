@@ -98,9 +98,18 @@ addresses.
   Constant Contact log tables and `email_test_sends`, by triggers (`sql/029`, `030`, `034` to `040`, `044`; applied to
   `hail-dev`, not checked on the production box; `sql/guard_test.sql` tests them). The
   table owner can still `TRUNCATE`, accepted (decision log 2026-09-30).
-- **Before a production send.** Items 183 (the paid account), 189 (the eligibility
-  gate) and 96 (the sending domain), and a production box that has the code. Provider
-  chosen 2026-10-06: Constant Contact (decision log, item 119).
+- **The eligibility gate (item 189, built 2026-11-04, `hail-dev` only).** Only an address on
+  the permission list (`send_permission`, `sql/066`: `service_client` or `cc_subscriber`,
+  uploaded on the admin page's Permission list tab) can be emailed: the send lists leave
+  the rest out as `no_permission`, `deliver.py` checks again before the Constant Contact
+  calls, drip follow-ups stop a recipient whose permission was removed, and the trigger
+  `sent_emails_require_permission` refuses the row. The Send page's address list is
+  optional (empty is everyone the list kept). On `hail-dev` only the rehearsal realtors
+  have permission (`sql/dev_permission_seed.sql`, dev only); the production box gets the
+  final lists by upload (`docs/deploy.md` §7).
+- **Before a production send.** Items 183 (the paid account) and 96 (the sending domain),
+  the final permission lists loaded on production (item 189), and a production box that
+  has the code. Provider chosen 2026-10-06: Constant Contact (decision log, item 119).
 
 What exists for Phase 5b so far, as of 2026-10-22, on `hail-dev` only (decision log 2026-10-20 waived "do not
 build ahead" for this phase). Radar layers for the territory page, internal and staff only: nothing radar-derived

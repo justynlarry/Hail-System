@@ -13,6 +13,8 @@ the batch.
 import os
 import sys
 import unittest
+
+from tests.permission_fixtures import permit
 import uuid
 from pathlib import Path
 
@@ -160,6 +162,7 @@ class CreateCampaignTest(unittest.TestCase):
                                  (self.user,)).fetchone()
         self.batch_id = str(uuid.uuid4())
         for i, realtor in enumerate(self.realtors):
+            permit(self.conn, f"test-dripstart-{i}@example.invalid")
             self.conn.execute(
                 "INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, "
                 "sync_run_id, permission_asserted, created_by, subject, html_body) "
@@ -206,6 +209,7 @@ class CreateCampaignTest(unittest.TestCase):
         template = self.one("SELECT template_id FROM email_templates "
                             "WHERE template_name = 'test-dripstart'")[0]["template_id"]
         sync = self.one("SELECT run_id FROM cc_sync_runs WHERE watermark = '1999-03-01'")[0]["run_id"]
+        permit(self.conn, "test-dripstart-other@example.invalid")
         self.conn.execute(
             "INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, "
             "sync_run_id, permission_asserted, created_by, subject, html_body) "

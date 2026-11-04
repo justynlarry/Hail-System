@@ -1320,6 +1320,10 @@ path.lk-context { fill: var(--lk-context); stroke: var(--lk-context); stroke-das
 .start-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; margin-bottom: 0.6rem; }
 .start-list .note { margin: 0; }
 
+/* The permission list's counts on the Admin tab (item 189). */
+.permission-counts { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0 0 1rem; }
+.permission-count { padding: 0.5rem 0.9rem; }
+
 /* A block that cannot be removed (footer, listings):  a small tag in its header (item 294, slice 5). */
 .tpl-keep { margin-left: 0.4rem; padding: 0 0.35rem; border: 1px solid var(--border); border-radius: 3px;
   font-size: 0.7rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }

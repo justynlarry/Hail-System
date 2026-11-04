@@ -11,6 +11,10 @@ the data is not there.
 import os
 import sys
 import unittest
+
+from tests.permission_fixtures import permit_all_realtors
+
+from tests.permission_fixtures import permit
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -42,6 +46,7 @@ class QueueBatchTest(unittest.TestCase):
         self.addCleanup(self.conn.rollback)
         self.user = self.conn.execute(
             "SELECT emp_id FROM users WHERE role = 'system'").fetchone()["emp_id"]
+        permit_all_realtors(self.conn)
         found = sendlist.build_send_list(self.conn, [DAY], now=NOW)["realtors"]
         if len(found) < 3:
             self.skipTest("the 2026-09-22 storm data is not in this database")
@@ -243,6 +248,7 @@ class QueueBatchTest(unittest.TestCase):
             "ORDER BY m.match_id LIMIT 1", (mine,)).fetchone()["match_id"]
         template_id = self.conn.execute(
             "SELECT max(template_id) AS t FROM email_templates WHERE match_kind = 'report'").fetchone()["t"]
+        permit(self.conn, realtor["email"])
         email_id = self.conn.execute(
             "INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, sync_run_id, "
             "permission_asserted, created_by, subject, html_body) "

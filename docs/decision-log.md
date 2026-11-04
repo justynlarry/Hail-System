@@ -8117,3 +8117,21 @@ known release. The web container mounts only `hailsys/`, so the version is a fil
 **Why:** behind the Cloudflare tunnel the developer's browser kept running an old script and stylesheet after a change,
 without asking the server, though it sends `no-cache`; staff will not have DevTools' Disable cache on. A changed file now
 has a new address; an unchanged one still caches.
+
+---
+
+## 2026-11-04 — Item 189: the eligibility gate is built; the address list stays, optional
+
+**Decision (developer):** build the gate now and load the final lists on the production PC, not on `hail-dev`.
+A table, `send_permission` (`sql/066`), records who may be emailed and why (`service_client` or `cc_subscriber`), uploaded
+on the admin page's new Permission list tab with a preview, like the DNC import. It is enforced three ways: a per-hit
+`no_permission` rule in `sendlist._reason` (after do-not-contact, before the cap, and before the one-agent-per-house
+dedup, as item 55 requires), the same look again in `deliver.py` before the Constant Contact calls, and a database
+trigger that refuses a `sent_emails` row with no active permission. Drip follow-ups re-check it and stop a recipient
+whose permission was removed (`no_permission`). The Send page's address list is **kept, but optional**: empty means
+everyone the list kept. This replaces the 2026-10-13 plan (item 189) to drop the list when the gate came.
+
+**Why:** Constant Contact's permission policy bans emailing scraped or directory addresses (items 119, 179), and the
+required address list was only a stand-in for this. With the rule in the database, an empty permission list sends
+nothing, whatever the code above it does. The optional list stays useful for a small or test send. The dev seed
+(`sql/dev_permission_seed.sql`) grants only the rehearsal realtors, so real realtors on `hail-dev` cannot be emailed.

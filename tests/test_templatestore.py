@@ -10,6 +10,8 @@ unique template name per test, so nothing is left behind.  Skips without a datab
 import os
 import sys
 import unittest
+
+from tests.permission_fixtures import permit
 import uuid
 from pathlib import Path
 
@@ -139,6 +141,7 @@ class EnsureCurrentTest(unittest.TestCase):
             "VALUES (%s, now(), 'ok') RETURNING run_id", (self.user,)).fetchone()["run_id"]
         realtor_id = self.conn.execute(
             "SELECT realtor_id FROM realtors ORDER BY realtor_id LIMIT 1").fetchone()["realtor_id"]
+        permit(self.conn, "desc-test@example.invalid")
         self.conn.execute(
             "INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, "
             "sync_run_id, permission_asserted, created_by, subject, html_body) "

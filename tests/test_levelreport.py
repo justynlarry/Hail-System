@@ -19,6 +19,8 @@ only, shows counts beside rates, and writes nothing.
 import contextlib
 import os
 import unittest
+
+from tests.permission_fixtures import permit
 import uuid
 from datetime import datetime, timedelta, timezone
 from unittest import mock
@@ -117,6 +119,7 @@ class FetchEmailsTest(unittest.TestCase):
                 "INSERT INTO realtors (agent_name, agent_email) VALUES ('Agent', %s) RETURNING realtor_id",
                 (to,)).fetchone()["realtor_id"]
         realtor = self.realtors[key]
+        permit(self.conn, to)
         email_id = self.conn.execute(
             "INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, sync_run_id, "
             "permission_asserted, created_by, subject, html_body, created_at) "

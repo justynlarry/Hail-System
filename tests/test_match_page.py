@@ -38,7 +38,8 @@ def listing(n, *, realtor=1, status="Active", seen_days_ago=1, agent="Pat Agent"
             "realtor_id": realtor, "agent_name": agent if realtor else None,
             "agent_email": "agent@example.test" if realtor else None, "agent_phone": None,
             "agent_office_name": None, "nearest_miles": Decimal("1.2"), "max_magnitude": Decimal("1.75"),
-            "mag_unit": "in", "report_count": 2}
+            "mag_unit": "in", "report_count": 2,
+            "has_permission": True}
 
 
 @unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
@@ -95,6 +96,15 @@ class MatchPageTest(unittest.TestCase):
         self.assertIn(">No longer active<", page)
         self.assertRegex(page, r"<strong>3</strong> of these 4 will not be emailed")
         self.assertIn("<strong>4</strong> listings", page)               # the count is unchanged
+
+    def test_an_agent_without_permission_is_tagged_after_the_listing_rules(self):
+        # Item 189:  a sendable listing whose agent has no permission says so;  a stale one keeps
+        # its listing reason, which the send list applies first.
+        self.rows = [dict(listing(1), has_permission=False), dict(listing(2, seen_days_ago=40), has_permission=False)]
+        page = self.page()
+        self.assertEqual(page.count(">No permission to email<"), 1)
+        self.assertIn(">Not seen recently &middot; last seen", page)
+        self.assertIn("Admin, Permission list", page)
 
     def test_a_fresh_active_listing_has_no_tag(self):
         self.rows = [listing(1)]

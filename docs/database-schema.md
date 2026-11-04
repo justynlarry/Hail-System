@@ -700,6 +700,50 @@ the `UPDATE` grant was missing in the first version of the migration, found
 once the feature was actually used, not caught by the earlier
 transaction-level testing (which ran as a privileged role, not `hail_app`).
 
+### `send_permission`
+
+Added `sql/066_send_permission.sql`, 2026-11-04 (item 189, the eligibility gate). The list of who **may**
+be emailed at all: RBI's service clients and Constant Contact subscribers. It is the other half of
+`dnc_list`, which says who may **not**; an address needs an active row here and no active row there.
+
+| Field | Purpose |
+|---|---|
+| `permission_id` | `BIGINT GENERATED ALWAYS AS IDENTITY` PK |
+| `email_raw` | As received |
+| `email_norm` | Generated, `lower(trim(email_raw))`, the same normalisation as every other email column |
+| `basis` | `service_client` or `cc_subscriber` (`CHECK`). Why the address may be emailed. One address can hold both |
+| `as_of` | The date the uploaded list is from, so the record says how current the permission was |
+| `batch_id` | FK → `permission_import_batches`, nullable (a row not from an upload has none) |
+| `detail` | Free text: the file name and note for an upload |
+| `added_at`, `added_by` | When, and who |
+| `removed_at`, `removed_by` | **Nullable**, set together or not at all (`CHECK`). Removal from the admin page sets them on every basis the address holds |
+
+A partial unique index allows one **active** row per `(email_norm, basis)`; removed rows stay, so an address
+can be removed and added again with its history kept. Nothing deletes a row: `hail_app` has `SELECT, INSERT,
+UPDATE` (`UPDATE` for removal only).
+
+**Enforced in three places, the same shape as the suppression check:**
+- the send lists (`sendlist.py`, `zonesend.py`, `dripfollowup.py`) leave the address out under `no_permission`,
+  after `on_dnc_list` and before the cap;
+- `deliver.py` looks again immediately before the Constant Contact calls, so a permission removed after
+  queueing stops the email ("no recorded permission at send time");
+- the database refuses the `sent_emails` row (`sent_emails_require_permission`, BEFORE INSERT, `check_violation`),
+  so no code path, script or bug can queue an email to an address without permission.
+
+Test sends (`email_test_sends`) go to the clicking admin and are not checked. **Empty on the production box until
+the final client and subscriber lists are uploaded there** (`docs/deploy.md`); on `hail-dev` the rehearsal realtors
+are seeded by `sql/dev_permission_seed.sql`, dev only.
+
+### `permission_import_batches` / `permission_import_rows`
+
+Staging for an uploaded permission list, the same shape as `dnc_import_batches` / `dnc_import_rows`
+(`sql/066`): one batch per upload (`token`, `filename`, `basis`, `as_of`, `note` — at most 200 characters —
+`uploaded_by`, `uploaded_at`, `row_count`, `committed_at` — `NULL` until confirmed), one row per parsed line
+(`line_no`, `email_raw`, `name`, `rejected` — `NULL` when clean, the reason otherwise). The preview reads from
+here and the commit promotes from here, so what is added is what was reviewed. A Constant Contact export gives
+permission only for its `Active` rows. Uncommitted batches older than a day are swept by the next upload.
+`hail_app` has `SELECT, INSERT, UPDATE, DELETE` on the batches and `SELECT, INSERT, DELETE` on the rows.
+
 ---
 
 ## The hinge
@@ -933,6 +977,9 @@ the normal life; writing the same value again, a retry, is allowed). `hail_app` 
 `DELETE` and `TRUNCATE` are revoked. Same status as `sql/029`: applied to `hail-dev`, not checked on the
 production box.
 
+**No row without permission (item 189).** `sent_emails_require_permission` (BEFORE INSERT, `sql/066`) refuses a
+row whose `recipient_email` has no active `send_permission` row. See `send_permission` above.
+
 ---
 
 ### Constant Contact: tokens, sync and call logs
@@ -1070,7 +1117,7 @@ An initial email, then follow-ups at set gaps. Step 1 is the ordinary send. `hai
 |---|---|---|
 | `drip_campaigns` | `campaign_id`, `name` (1 to 100), `first_batch_id` (UNIQUE; must exist in `sent_emails`), `created_by/at`, `status`, `status_changed_at/by` | Only `status`, `status_changed_at`, `status_changed_by` change. Moves: active to paused, cancelled or complete; paused to active or cancelled; cancelled and complete are final. `complete` needs every step sent. The database sets `status_changed_at` |
 | `drip_steps` | PK `(campaign_id, step_no)` (1 to 10), `gap_days` (1 to 30), `template_name`, then `batch_id` (UNIQUE), `started_by`, `started_at` | Frozen at creation except that the last three are set together, once, when the step is sent. Step n needs n-1 sent; the campaign must be active; the batch must exist in `sent_emails` and not be the first batch. No steps added once one is sent. The database sets `started_at` |
-| `drip_recipients` | PK `(campaign_id, realtor_id)`, `recipient_email`, `stopped_at`, `stop_reason`, `stopped_by` | Must have been emailed in the first batch at that address; the list is fixed once a step is sent. A recipient is stopped once. Reasons: `unsubscribed`, `bounced`, `no_active_listings` (system, no `stopped_by`), `manual`, `replied` (a person, `stopped_by` required). Stopping does **not** add to `dnc_list` |
+| `drip_recipients` | PK `(campaign_id, realtor_id)`, `recipient_email`, `stopped_at`, `stop_reason`, `stopped_by` | Must have been emailed in the first batch at that address; the list is fixed once a step is sent. A recipient is stopped once. Reasons: `unsubscribed`, `bounced`, `no_active_listings`, `no_permission` (`sql/066`, item 189) (system, no `stopped_by`), `manual`, `replied` (a person, `stopped_by` required). Stopping does **not** add to `dnc_list` |
 | `drip_listing_checks` | `check_id`, `campaign_id`, `step_no`, `listing_id`, `checked_at`, `calls_made`, `http_status`, `outcome`, `rc_status`, `last_seen`, `removed_at`, `detail` (300 at most) | Append-only. One row per RentCast lookup by id. `outcome` is `active`, `inactive`, `not_found` or `error`; `rc_status` is required for `active` and `inactive`. A listing RentCast still calls Active but has not seen inside the freshness window is `inactive` with `rc_status` `Active`. `calls_made` is attempts, a 404 included (RentCast probably does not bill a 404; unconfirmed). Counted in the quota with `api_call_log` |
 | `drip_step_pulls` | `pull_id` (PK, FK `api_pulls`), `campaign_id`, `step_no`, `created_at` | Append-only. The zip pulls a step spent calls on when that was the cheaper way; `api_pulls` and `api_call_log` hold the calls |
 | `drip_step_runs` | `run_id`, `campaign_id`, `step_no`, `started_by`, `started_at`, `status`, `finished_at`, `method` (`by_id` or `zip_pull`), `calls_made`, `emails`, `detail` (300 at most, never response text) | One row per attempt to run a step: inserted `running`, updated once to `complete`, `nothing_to_send`, `failed` or `abandoned` (a later job found it still running). Only a start can be inserted, on an active campaign and an unsent step; one `running` row per step; the database sets `started_at` and `finished_at`; a finished row cannot change; no delete. `hail_app` may update only `status`, `method`, `calls_made`, `emails`, `detail` |

@@ -11,6 +11,8 @@ numbers must add up and no rule may have been bypassed.  Nothing is written.
 import os
 import sys
 import unittest
+
+from tests.permission_fixtures import permit_all_realtors
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -35,14 +37,15 @@ SEEN = datetime(2026, 10, 7, 12, 0, tzinfo=UTC)         # seen yesterday: fresh 
 
 def hit(match_id, listing_id=1, realtor_id=10, when=AUG15, mag="1.00", dist="2.00",
         status="Active", sent=False, dnc=False, cap=False, email="a@x.invalid", address="1 St",
-        seen=SEEN, key=None, key_sent=False):
+        seen=SEEN, key=None, key_sent=False, permitted=True):
     return {"match_id": match_id, "listing_id": listing_id, "realtor_id": realtor_id,
             "list_status": status, "list_last_seen": seen, "address": address,
             "address_key": key, "key_emailed": key_sent,
             "utc_datetime": when,
             "magnitude": None if mag is None else Decimal(mag),
             "distance_miles": Decimal(dist), "agent_name": "Jane Smith", "email": email,
-            "already_sent": sent, "on_dnc": dnc, "in_cap": cap}
+            "already_sent": sent, "on_dnc": dnc, "in_cap": cap,
+            "has_permission": permitted}
 
 
 @unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
@@ -262,6 +265,20 @@ class SelectTest(unittest.TestCase):
         self.assertEqual(self.counts(out, "already_emailed"), (1, 1))
         self.assertEqual(self.counts(out, "duplicate_address"), (0, 0))
 
+    def test_an_address_with_no_permission_is_left_out_after_the_dnc_list(self):
+        # Item 189:  no_permission comes after do-not-contact (a stronger reason) and before the cap.
+        out = sl.select([hit(1, permitted=False, cap=True)], today=TODAY)
+        self.assertEqual((out["realtors"], self.counts(out, "no_permission")), ([], (1, 1)))
+        self.assertEqual(self.counts(out, "within_cap"), (0, 0))
+        out = sl.select([hit(1, permitted=False, dnc=True)], today=TODAY)
+        self.assertEqual((self.counts(out, "on_dnc_list"), self.counts(out, "no_permission")), ((1, 1), (0, 0)))
+
+    def test_a_missing_permission_flag_is_never_read_as_permitted(self):
+        row = hit(1)
+        del row["has_permission"]
+        with self.assertRaises(KeyError):
+            sl.select([row], today=TODAY)
+
     def test_an_emailed_house_is_counted_before_the_dnc_list(self):
         out = sl.select([hit(1, key="K", key_sent=True, dnc=True)], today=TODAY)
         self.assertEqual(self.counts(out, "duplicate_address"), (1, 1))
@@ -289,6 +306,7 @@ class QueryTest(unittest.TestCase):
         if row["d"] is None:
             self.skipTest("no hail matches in this database")
         now = datetime.combine(row["d"] + timedelta(days=1), datetime.min.time(), tzinfo=UTC)
+        permit_all_realtors(self.conn)
         out = sl.build_send_list(self.conn, [row["d"]], now=now)
 
         kept_matches = [mid for r in out["realtors"] for e in r["events"] for mid in e["match_ids"]]

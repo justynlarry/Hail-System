@@ -18,6 +18,8 @@ send with a campaign or a cap override before it syncs, and passes the zone to t
 
 import os
 import unittest
+
+from tests.permission_fixtures import permit
 import uuid
 from datetime import datetime, timedelta, timezone
 from unittest import mock
@@ -65,6 +67,7 @@ class ZoneQueueTest(unittest.TestCase):
         realtor = self.conn.execute(
             "INSERT INTO realtors (agent_name, agent_email) VALUES (%s, %s) RETURNING realtor_id",
             (f"Agent {tag}", f"{tag}@example.test")).fetchone()["realtor_id"]
+        permit(self.conn, f"{tag}@example.test")
         rid = f"ZSQ-{uuid.uuid4().hex[:10]}"
         self.conn.execute("INSERT INTO properties (rentcast_id, property_address) VALUES (%s, %s)",
                           (rid, address or f"{self.n} Queue St, Calhan, CO 80808"))

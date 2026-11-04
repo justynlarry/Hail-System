@@ -500,7 +500,6 @@ class ZoneConfirmStartTest(unittest.TestCase):
         for over, words in (({"day": None}, "Tick at least one storm day."),
                             ({"level": None}, "Tick at least one level."),
                             ({"level": "context"}, "Only Agree and One source can be sent."),
-                            ({"allowed": ""}, "There is no send-to-everyone option."),
                             ({"allowed": "nonsense"}, "These are not email addresses: nonsense"),
                             ({"max_emails": "0"}, "must be between 1 and"),
                             ({"max_emails": "1001"}, "must be between 1 and"),
@@ -535,7 +534,7 @@ class ZoneConfirmStartTest(unittest.TestCase):
         self.assertIn("they will be ignored: someone@else.test", text)
 
     def test_a_refusal_goes_back_to_the_zone_preview_with_the_choices(self):
-        resp = self.confirm(allowed="", follow=False)
+        resp = self.confirm(allowed="nonsense", follow=False)
         self.assertEqual(resp.status_code, 302)
         loc = resp.headers["Location"]
         for part in ("mode=zones", "levels_shown=1", "day=2026-09-29", "level=agree", "level=one_source",
@@ -569,8 +568,8 @@ class ZoneConfirmStartTest(unittest.TestCase):
                       self.refused("/send/zones/start", expected="1", set_id=str(self.current["set_id"] + 1)))
 
     def test_a_bad_form_at_start_is_refused(self):
-        self.assertIn("There is no send-to-everyone option.",
-                      self.refused("/send/zones/start", expected="1", allowed=""))
+        self.assertIn("These are not email addresses: nonsense",
+                      self.refused("/send/zones/start", expected="1", allowed="nonsense"))
         self.assertIn("Only Agree and One source",
                       self.refused("/send/zones/start", expected="1", level="context"))
 

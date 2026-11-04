@@ -18,6 +18,8 @@ by-level report reads report levels back.
 
 import os
 import unittest
+
+from tests.permission_fixtures import permit
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -78,6 +80,7 @@ class ReportLevelsTest(unittest.TestCase):
         email = email or f"rl{self.n}-{uuid.uuid4().hex[:6]}@example.test"
         realtor = self.conn.execute("INSERT INTO realtors (agent_name, agent_email) VALUES ('Pat Jones', %s) "
                                     "RETURNING realtor_id", (email,)).fetchone()["realtor_id"]
+        permit(self.conn, email)
         self.conn.execute("INSERT INTO properties (rentcast_id, property_address, list_latitude, list_longitude) "
                           "VALUES (%s, %s, %s, %s)", (rid, f"{self.n} Level St, Denver, CO 80202",
                                                       lat if located else None, lon if located else None))

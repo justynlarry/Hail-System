@@ -5,7 +5,8 @@
 {# The match page (item 201 pass, 2026-11-04):  an intro, a tag on each listing the send list would
    leave out (item 140, by sendlist.listing_reason, so the page and Send agree), column classes
    instead of positions (item 108), and the address column pinned on a narrow screen (item 109). #}
-{% set note_words = {'inactive_listing': 'No longer active', 'stale_listing': 'Not seen recently'} %}
+{% set note_words = {'inactive_listing': 'No longer active', 'stale_listing': 'Not seen recently',
+                     'no_permission': 'No permission to email'} %}
 
 {% block content %}
 <div class="page">
@@ -27,9 +28,10 @@
 
 {% if not_sent %}
 <p class="note warning">
-    <strong>{{ not_sent }}</strong> of these {{ listing_count }} will not be emailed: RentCast has not seen
-    {{ 'it' if not_sent == 1 else 'them' }} in the last {{ freshness_days }} days, or the listing is no longer active.
-    Pull this storm's zips again from <a href="{{ url_for('main.index') }}">Storm Days</a> to refresh them.
+    <strong>{{ not_sent }}</strong> of these {{ listing_count }} will not be emailed; each tag says why. A listing
+    RentCast has not seen in {{ freshness_days }} days is refreshed by pulling this storm's zips again from
+    <a href="{{ url_for('main.index') }}">Storm Days</a>; an agent with no permission to email is added under
+    Admin, Permission list (item 189).
 </p>
 {% endif %}
 
@@ -95,7 +97,7 @@
                 <tr{% if row.send_note %} class="not-sent"{% endif %}>
                     <td class="col-addr">{{ row.property_address }}
                         {% if row.send_note %}
-                        <span class="send-tag" title="{% if row.send_note == 'stale_listing' %}RentCast last saw this listing {{ row.list_last_seen.astimezone(display_tz).strftime('%Y-%m-%d') if row.list_last_seen else 'never' }}; the send list leaves out listings not seen in {{ freshness_days }} days{% else %}The listing is marked {{ row.list_status or 'unknown' }}; only active listings are emailed{% endif %}">{{ note_words[row.send_note] }}{% if row.send_note == 'stale_listing' and row.list_last_seen %} &middot; last seen {{ row.list_last_seen.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</span>
+                        <span class="send-tag" title="{% if row.send_note == 'stale_listing' %}RentCast last saw this listing {{ row.list_last_seen.astimezone(display_tz).strftime('%Y-%m-%d') if row.list_last_seen else 'never' }}; the send list leaves out listings not seen in {{ freshness_days }} days{% elif row.send_note == 'no_permission' %}This agent is not a service client or Constant Contact subscriber, so may not be emailed{% else %}The listing is marked {{ row.list_status or 'unknown' }}; only active listings are emailed{% endif %}">{{ note_words[row.send_note] }}{% if row.send_note == 'stale_listing' and row.list_last_seen %} &middot; last seen {{ row.list_last_seen.astimezone(display_tz).strftime('%Y-%m-%d') }}{% endif %}</span>
                         {% endif %}
                     </td>
                     <td class="col-zip">{{ row.zip_code }}</td>

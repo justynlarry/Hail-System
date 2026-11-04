@@ -1004,6 +1004,9 @@ def storm_matches():
     freshest_day = datetime.now(DISPLAY_TZ).date() - timedelta(days=g.settings["listing_freshness_days"])
     for r in rows:
         r["send_note"] = sendlist.listing_reason(r["list_status"], r["list_last_seen"], freshest_day)
+        # The agent's permission (item 189), after the listing's own rules, as in the send list.
+        if r["send_note"] is None and r["realtor_id"] is not None and not r["has_permission"]:
+            r["send_note"] = "no_permission"
     not_sent = sum(1 for r in rows if r["send_note"])
 
     groups = [

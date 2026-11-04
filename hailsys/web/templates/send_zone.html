@@ -11,6 +11,7 @@
     'no_agent_email': 'Nothing to do: RentCast has no email for that agent.',
     'already_emailed': 'Nothing to do: that realtor already had an email about this house.',
     'on_dnc_list': 'Nothing to do: they asked not to be contacted.',
+    'no_permission': 'Not a client or subscriber. To email them, add them under Admin, Permission list.',
     'within_cap': 'A zone send has no override: wait for the email cap (Admin → Settings) to pass.',
     'duplicate_address': 'Nothing to do: the house is covered by another listing.',
     'observer_wording_not_approved': 'Approve the observer wording on Admin → Hail zones.',
@@ -232,9 +233,11 @@
     <p class="step-help">Name the addresses this send may go to, then press <strong>Review send</strong>. The next
        page shows exactly what will go out; nothing is sent until you press its button.</p>
     <p>
-        <label for="allowed">Send only to these addresses (required; separate with spaces,
+        <label for="allowed">Send only to these addresses (optional; separate with spaces,
         commas or new lines):</label><br>
-        <textarea name="allowed" id="allowed" rows="4" cols="50" required></textarea>
+        <textarea name="allowed" id="allowed" rows="4" cols="50"></textarea><br>
+        <small>Leave it empty to send to everyone on the list above, all of whom have permission (item 189). Fill
+        it in to try a send on a few addresses first.</small>
     </p>
     <p>
         <label for="max_emails">Send at most</label>
@@ -251,7 +254,7 @@
         {% if found is none %}Nothing to send yet: press <strong>Preview</strong> first (step 4).
         {% else %}This preview has no one to email: everyone was left out (see step 5).{% endif %}
     </p>
-    <p><label>Send only to these addresses (required; separate with spaces, commas or new lines):</label><br>
+    <p><label>Send only to these addresses (optional; separate with spaces, commas or new lines):</label><br>
        <textarea rows="4" cols="50" disabled></textarea></p>
     <p><label>Send at most <input type="number" value="{{ default_max_emails }}" disabled></label>
        emails now. The rest stay queued for a later, explicit run.</p>

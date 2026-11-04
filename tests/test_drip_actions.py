@@ -11,6 +11,8 @@ recipient stays stopped, the status only moves along the allowed paths.
 import os
 import sys
 import unittest
+
+from tests.permission_fixtures import permit
 import uuid
 from pathlib import Path
 
@@ -63,6 +65,7 @@ class ActionsTest(unittest.TestCase):
         for i in range(3):
             email = f"Test-Dripactions-{i}@Example.invalid"
             self.emails[self.realtors[i]] = email
+            permit(self.conn, email)
             email_id = q("INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, "
                          "template_id, sync_run_id, permission_asserted, created_by, subject, "
                          "html_body) VALUES (%s, %s, %s, %s, %s, 'none', %s, 's', '<p>b</p>') "

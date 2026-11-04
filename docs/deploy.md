@@ -141,6 +141,11 @@ Detail: `docs/server-setup.md`, "Data on a new server" (decided 2026-11-02). In 
 - [ ] **Suppressions:** `scripts/dnc_copy.sh export` on `hail-dev`, copy the file over Tailscale, `scripts/dnc_copy.sh
       load` here, delete the file on both machines. The load's last table must show the same active and removed counts
       as `hail-dev` (item 285; close it then).
+- [ ] **Permission list (item 189):** on the admin page, Permission list, upload the final RBI service-client list
+      ("RBI service clients") and the Constant Contact subscriber export ("Constant Contact subscribers", Active rows
+      only), each dated the day it was exported; check each preview before adding. The counts on the tab must match
+      the files. Until this is done the list is empty and nothing can be emailed, by design. Never run
+      `sql/dev_permission_seed.sql` here: it is for `hail-dev`'s rehearsal realtors only.
 - [ ] The public data rebuilt by backfill: IEM from 2004, radar (about 3.6 hours), CoCoRaHS, then likelihood.
 - [ ] The timers: `sudo cp systemd/* /etc/systemd/system/`, `sudo systemctl daemon-reload`,
       `sudo systemctl enable --now` on the eight `.timer` units.
@@ -178,9 +183,9 @@ Detail: `docs/server-setup.md`, "Data on a new server" (decided 2026-11-02). In 
 Every one of these, not most:
 
 - [ ] Item 183: the production Constant Contact account, its behaviours checked.
-- [ ] Item 189: the eligibility gate.
+- [ ] Item 189: the eligibility gate, built 2026-11-04; the final permission lists loaded here (§7).
 - [ ] Item 96: the sending domain decided and set up.
-- [ ] Item 135: the email copy signed off.
+- [ ] Item 135: the copy for this send, supplied by marketing (each send, not a one-time sign-off; developer, 2026-11-04).
 - [ ] Item 285: the suppression list copied, counts matched.
 - [ ] Items 232, 233: a completed backup and a tested restore.
 - [ ] Item 236: host alerts arrive.

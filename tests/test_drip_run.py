@@ -15,6 +15,8 @@ database, no network, no Constant Contact.
 import os
 import sys
 import unittest
+
+from tests.permission_fixtures import permit
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
@@ -269,6 +271,7 @@ class QueuedBeforeQueryTest(unittest.TestCase):
         import uuid
         batch_id = uuid.uuid4()
         for i, (status, error) in enumerate(rows):
+            permit(self.conn, f"test-queued-{tag}-{i}@example.invalid")
             email_id = self.conn.execute(
                 "INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, "
                 "sync_run_id, permission_asserted, created_by, subject, html_body) "

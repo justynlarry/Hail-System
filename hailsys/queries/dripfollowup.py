@@ -9,6 +9,7 @@ Rules, in a fixed order, so each match is counted under the first one that drops
 
   recipient_bounced     a step-1 email to this address bounced
   on_dnc_list           the address is on dnc_list now
+  no_permission         the address's permission (send_permission, item 189) has been removed
   within_cap            emailed within cap_days by anything outside this campaign (the campaign's
                         own steps do not count)
   listing_dead_earlier  an earlier step found the listing inactive or not found, so it is not
@@ -35,7 +36,7 @@ from hailsys.queries import sendlist
 
 CAP_DAYS = sendlist.CAP_DAYS
 
-REASONS = ("recipient_bounced", "on_dnc_list", "within_cap", "listing_dead_earlier",
+REASONS = ("recipient_bounced", "on_dnc_list", "no_permission", "within_cap", "listing_dead_earlier",
            "listing_inactive", "listing_not_found", "listing_unconfirmed")
 _DEAD = {"listing_dead_earlier", "listing_inactive", "listing_not_found"}
 
@@ -47,6 +48,9 @@ SELECT m.match_id, m.listing_id, l.rentcast_id, e.realtor_id, l.list_last_seen,
     EXISTS (SELECT 1 FROM dnc_list d
             WHERE d.email_norm = lower(btrim(dr.recipient_email)) AND d.removed_at IS NULL)
         AS on_dnc,
+    EXISTS (SELECT 1 FROM send_permission sp
+            WHERE sp.email_norm = lower(btrim(dr.recipient_email)) AND sp.removed_at IS NULL)
+        AS has_permission,
     EXISTS (SELECT 1 FROM sent_emails e2
               JOIN send_log s2 ON s2.email_id = e2.email_id
             WHERE e2.realtor_id = e.realtor_id AND s2.send_status <> 'failed'
@@ -93,6 +97,8 @@ def _held_back(hits):
             held[rid] = "recipient_bounced"
         elif h["on_dnc"]:
             held[rid] = "on_dnc_list"
+        elif not h["has_permission"]:
+            held[rid] = "no_permission"
         elif h["in_cap"]:
             held[rid] = "within_cap"
     return held
@@ -158,6 +164,8 @@ def select_followup(hits, dead, verdicts):
             reason = "bounced"
         elif why == "on_dnc_list":
             reason = "unsubscribed"
+        elif why == "no_permission":
+            reason = "no_permission"
         elif why is None and all(r in _DEAD for r in reasons[rid]):
             reason = "no_active_listings"
         else:

@@ -157,9 +157,6 @@ def read_form(parse_allow_list, max_emails_limit):
         problem = level_problem
     elif bad:
         problem = "These are not email addresses: " + ", ".join(b[:40] for b in bad[:5])
-    elif not allowed:
-        problem = ("Enter the addresses this send may go to. "
-                   "There is no send-to-everyone option.")
     elif not 1 <= max_emails <= max_emails_limit:
         problem = f"'Send at most' must be between 1 and {max_emails_limit}."
     else:
@@ -195,7 +192,10 @@ def plan(form, now):
                               "Preview again.")
     if found is None:
         return None, [], [], "That template is not a zone template."
+    # The address list is optional (item 189):  empty means everyone on the list.
     allowed = set(form["allowed"])
+    if not allowed:
+        return found, list(found["realtors"]), [], None
     mine = [r for r in found["realtors"] if r["email"] in allowed]
     unmatched = sorted(allowed - {r["email"] for r in found["realtors"]})
     return found, mine, unmatched, None
@@ -256,7 +256,7 @@ def zone_start(parse_allow_list, max_emails_limit):
     try:
         sendjobs.start_send(
             user_id=session["emp_id"], storm_days=form["days"],
-            email_settings=email_settings, sender=sender, allowed_emails=form["allowed"],
+            email_settings=email_settings, sender=sender, allowed_emails=form["allowed"] or None,
             max_emails=form["max_emails"], template_name=form["template"],
             max_age_days=s["match_max_age_days"], cap_days=s["email_cap_days"],
             freshness_days=s["listing_freshness_days"],

@@ -92,6 +92,17 @@ def _on_dnc(conn, email):
     return hit
 
 
+def _no_permission(conn, email):
+    """True when the address has no active send_permission row (item 189), so it is not sent.
+    Checked beside the DNC look:  a permission removed after queueing stops the email."""
+    hit = conn.execute(
+        "SELECT NOT EXISTS (SELECT 1 FROM send_permission "
+        " WHERE email_norm = lower(trim(%s)) AND removed_at IS NULL) AS hit",
+        (email,)).fetchone()["hit"]
+    conn.commit()
+    return hit
+
+
 def _fail(conn, email_id, detail):
     """Nothing was sent, matches become eligible again for a later send."""
     conn.execute("UPDATE sent_emails SET error_detail = %s "
@@ -172,6 +183,9 @@ def deliver_email(conn, email_id, *, sender, cc=campaigns):
         if _on_dnc(conn, to):
             _fail(conn, email_id, "on the DNC list at send time")
             return "failed"
+        if _no_permission(conn, to):
+            _fail(conn, email_id, "no recorded permission at send time")
+            return "failed"
 
         if row["cc_campaign_id"] is None:
             list_id = row["cc_list_id"]
@@ -197,6 +211,9 @@ def deliver_email(conn, email_id, *, sender, cc=campaigns):
             if not already_scheduled:
                 if _on_dnc(conn, to):           # last look before the call, can't be undone
                     _fail(conn, email_id, "on the DNC list at send time")
+                    return "failed"
+                if _no_permission(conn, to):
+                    _fail(conn, email_id, "no recorded permission at send time")
                     return "failed"
                 try:
                     cc.schedule(activity_id)
@@ -288,14 +305,16 @@ def run_send(*, user_id, storm_days, email_settings, sender, allowed_emails,
         raise send.SendError("A send from the hail zones takes no cap override and no campaign.")
     result = sync(triggered_by=user_id)
     now = now or datetime.now(timezone.utc)
-    allowed = {e.strip().lower() for e in allowed_emails}
+    # None:  no address list was given, so everyone on the send list (item 189 decides who that is).
+    allowed = None if not allowed_emails else {e.strip().lower() for e in allowed_emails}
     tuning = dict(max_age_days=max_age_days, freshness_days=freshness_days,
                   cap_days=None if override_cap else cap_days)
 
     with get_connection() as conn:
         found = send.build_list(conn, storm_days, now=now, zone=zone, **tuning)
         conn.commit()
-    candidates = sorted({r["email"] for r in found["realtors"]} & allowed)
+    everyone = {r["email"] for r in found["realtors"]}
+    candidates = sorted(everyone if allowed is None else everyone & allowed)
     contacts = lookup_contacts(candidates, cc=cc)
 
     with get_connection() as conn:

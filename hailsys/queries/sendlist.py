@@ -11,6 +11,7 @@ the send screen can say why a count shrank:
   * no_agent_email      Listing has no realtor/email
   * already_emailed     Match already has a send_log row success
   * on_dnc_list         Realtor's address is on dnc_list
+  * no_permission       No recorded permission to email the address (send_permission, item 189)
   * within_cap          Realtor was emailed less than cap_days ago (14)
 
   Remaining records are collapsed to one event per listing per Denver Day,
@@ -37,7 +38,7 @@ CAP_DAYS = 14
 FRESH_DAYS = 7
 
 REASONS = ("too_old", "inactive_listing", "stale_listing", "no_agent_email",
-           "already_emailed", "on_dnc_list", "within_cap", "duplicate_address")
+           "already_emailed", "on_dnc_list", "no_permission", "within_cap", "duplicate_address")
 
 _HITS_SQL = """
 SELECT m.match_id, m.listing_id, l.realtor_id, l.list_status, l.list_last_seen,
@@ -51,6 +52,9 @@ SELECT m.match_id, m.listing_id, l.realtor_id, l.list_status, l.list_last_seen,
     EXISTS (SELECT 1 FROM dnc_list d
             WHERE d.email_norm = r.email_norm AND d.removed_at IS NULL)
         AS on_dnc,
+    EXISTS (SELECT 1 FROM send_permission sp
+            WHERE sp.email_norm = r.email_norm AND sp.removed_at IS NULL)
+        AS has_permission,
     EXISTS (SELECT 1 FROM sent_emails e
               JOIN send_log s ON s.email_id = e.email_id
             WHERE e.realtor_id = r.realtor_id AND s.send_status <> 'failed'
@@ -111,6 +115,10 @@ def _reason(hit, oldest_day, freshest_day):
         return "duplicate_address"
     if hit["on_dnc"]:
         return "on_dnc_list"
+    # Per hit, before the one-agent-per-house dedup (item 55):  a house goes to an agent we may
+    # email rather than to one we may not and then to nobody.
+    if not hit["has_permission"]:
+        return "no_permission"
     if hit["in_cap"]:
         return "within_cap"
     return None

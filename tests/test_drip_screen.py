@@ -12,6 +12,8 @@ definite answers it will skip); and the SQL against real rows built in a rolled-
 import os
 import sys
 import unittest
+
+from tests.permission_fixtures import permit
 from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest import mock
@@ -238,6 +240,7 @@ class ScreenQueryTest(unittest.TestCase):
         batch_id = uuid.uuid4()
         for i in range(count):
             email = f"test-dripscreen-{tag}-{i}@example.invalid"
+            permit(self.conn, email)
             email_id = self.conn.execute(
                 "INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, "
                 "sync_run_id, permission_asserted, created_by, subject, html_body) "

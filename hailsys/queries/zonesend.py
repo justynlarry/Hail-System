@@ -54,6 +54,9 @@ SELECT m.match_id, m.listing_id, l.realtor_id, l.list_status, l.list_last_seen,
     EXISTS (SELECT 1 FROM dnc_list d
             WHERE d.email_norm = r.email_norm AND d.removed_at IS NULL)
         AS on_dnc,
+    EXISTS (SELECT 1 FROM send_permission sp
+            WHERE sp.email_norm = r.email_norm AND sp.removed_at IS NULL)
+        AS has_permission,
     EXISTS (SELECT 1 FROM sent_emails e
               JOIN send_log s ON s.email_id = e.email_id
             WHERE e.realtor_id = r.realtor_id AND s.send_status <> 'failed'

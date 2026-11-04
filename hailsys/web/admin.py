@@ -2,7 +2,7 @@ import psycopg
 
 from flask import Blueprint, flash, g, redirect, render_template, request, url_for
 
-from hailsys.queries import quota, dncimport, ccstate, emailadmin, likelihoodadmin
+from hailsys.queries import quota, dncimport, ccstate, emailadmin, likelihoodadmin, permission
 from hailsys.db import get_connection
 from hailsys.web.auth import MIN_PASSWORD_LENGTH, hash_password, require_role
 from hailsys.tuning import DISPLAY_TZ, denver_day_bounds
@@ -146,6 +146,7 @@ def _render_admin(form=None, status=200, zone_form=None, trial=None, trial_day=N
         storm_states = likelihoodadmin.storm_states(conn)
         observer_wording = likelihoodadmin.observer_wording_approved(conn)
         suggested_day = likelihoodadmin.suggest_day(conn)
+        permission_counts = permission.counts(conn)
 
     # "Use these values again" is a link, not a write, it fills the form from an older set and the 
     # admin reviews it, names it, and saves.
@@ -174,6 +175,9 @@ def _render_admin(form=None, status=200, zone_form=None, trial=None, trial_day=N
         unbuilt=unbuilt,
         storm_states=storm_states,
         dnc_sources=dncimport.SOURCES,
+        permission_bases=permission.BASES,
+        permission_counts=permission_counts,
+        permission_today=datetime.now(DISPLAY_TZ).date(),
         observer_wording=observer_wording,
         zone_layers=likelihoodadmin.LAYERS,
         zone_bands=likelihoodadmin.BANDS,
@@ -613,3 +617,99 @@ def dnc_discard(token):
             dncimport.discard_batch(conn, batch["batch_id"])
         flash("Upload discarded. Nothing was imported")
         return redirect(url_for("admin.index"))
+
+
+# ------ The send-permission list (item 189) ------------------------------------------------------
+# Who may be emailed at all:  RBI's service clients and Constant Contact subscribers.  The same
+# upload, preview, commit and discard as the DNC list above.  An address with no active permission
+# row is never emailed (sendlist.py, deliver.py, and the database trigger in sql/066).
+
+def _to_permission():
+    return redirect(url_for("admin.index") + "#permission")
+
+
+@admin_bp.route("/permission/upload", methods=["POST"])
+def permission_upload():
+    basis = request.form.get("basis")
+    if basis not in permission.BASES:
+        flash("Say what kind of list this is.")
+        return _to_permission()
+    try:
+        as_of = date.fromisoformat(request.form.get("as_of") or "")
+    except ValueError:
+        flash("Give the date the list is from.")
+        return _to_permission()
+    note = (request.form.get("note") or "").strip()
+    if len(note) > permission.MAX_NOTE:
+        flash(f"The note is longer than {permission.MAX_NOTE} characters.")
+        return _to_permission()
+    upload = request.files.get("file")
+    if upload is None or not upload.filename:
+        flash("Choose a .csv file first.")
+        return _to_permission()
+
+    rows, error = permission.parse_upload(upload.read())
+    if error:
+        flash(error)
+        return _to_permission()
+    if not rows:
+        flash("That file has a header but no rows.")
+        return _to_permission()
+
+    with get_connection() as conn:
+        token = permission.stage(conn, rows=rows, filename=upload.filename,
+                                 uploaded_by=g.user["emp_id"], basis=basis, as_of=as_of, note=note)
+    return redirect(url_for("admin.permission_preview", token=token))
+
+
+@admin_bp.route("/permission/preview/<token>")
+def permission_preview(token):
+    with get_connection() as conn:
+        batch = permission.fetch_batch(conn, token)
+        if batch is None:
+            flash("That preview has expired or was already used.")
+            return _to_permission()
+        summary, sample, rejects = permission.fetch_preview(conn, batch["batch_id"])
+    return render_template("permission_preview.html", batch=batch, summary=summary, sample=sample,
+                           rejects=rejects, bases=permission.BASES, display_tz=DISPLAY_TZ)
+
+
+@admin_bp.route("/permission/commit/<token>", methods=["POST"])
+def permission_commit(token):
+    with get_connection() as conn:
+        batch = permission.fetch_batch(conn, token)
+        if batch is None:
+            flash("That preview has expired or was already used.")
+            return _to_permission()
+        if batch["committed_at"] is not None:
+            flash("That file was already imported.")
+            return _to_permission()
+        added = permission.commit_batch(conn, batch_id=batch["batch_id"], added_by=g.user["emp_id"])
+    flash(f"Added {added} address{'' if added == 1 else 'es'} to the permission list "
+          f"from {batch['filename']}.")
+    return _to_permission()
+
+
+@admin_bp.route("/permission/discard/<token>", methods=["POST"])
+def permission_discard(token):
+    with get_connection() as conn:
+        batch = permission.fetch_batch(conn, token)
+        if batch is not None and batch["committed_at"] is None:
+            permission.discard_batch(conn, batch["batch_id"])
+    flash("Upload discarded.  Nothing was added.")
+    return _to_permission()
+
+
+@admin_bp.route("/permission/remove", methods=["POST"])
+def permission_remove():
+    email = (request.form.get("email") or "").strip()
+    if not email:
+        flash("Type the address to remove.")
+        return _to_permission()
+    with get_connection() as conn:
+        removed = permission.remove_address(conn, email=email, removed_by=g.user["emp_id"])
+    if removed:
+        flash(f"{email} no longer has permission to be emailed.")
+    else:
+        flash(f"{email} was not on the permission list.")
+    return _to_permission()

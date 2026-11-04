@@ -391,6 +391,59 @@
   </div>
 </section>
 
+<section id="permission" class="tab-panel" data-tab-title="Permission list">
+  <h2>Permission list</h2>
+  {# Item 189:  who may be emailed at all.  An address not on this list is never emailed, whatever
+     storm it matches:  the send list leaves it out and the database refuses to queue it. #}
+  <p class="tab-intro">Only people with permission can be emailed: RBI's service clients and Constant Contact
+    subscribers. A listing agent RentCast finds is not on this list just by being found. Anyone not here is left
+    out of every send, and the do-not-contact list still comes first.</p>
+  <p class="permission-counts">
+    {% for key, label in permission_bases.items() %}
+    <span class="card permission-count"><strong>{{ '{:,}'.format(permission_counts[key]) }}</strong> {{ label }}</span>
+    {% endfor %}
+  </p>
+  {% if not permission_counts.values() | sum %}
+  <p class="note warning"><strong>The list is empty, so no one can be emailed.</strong> Upload RBI's client list and
+    a Constant Contact export of subscribers.</p>
+  {% endif %}
+  <div class="tab-grid">
+  <div class="card">
+  <h3>Upload a list</h3>
+  <form method="post" action="{{ url_for('admin.permission_upload') }}" enctype="multipart/form-data" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>CSV file
+      <input type="file" name="file" accept=".csv,text/csv" required></label>
+    <small>Needs a column headed <code>Email</code> or <code>Email address</code>. A Constant Contact export
+      adds only its <strong>Active</strong> rows.</small>
+    <fieldset class="choices">
+      <legend>These are</legend>
+      {% for key, label in permission_bases.items() %}
+      <label class="choice"><input type="radio" name="basis" value="{{ key }}" {% if loop.first %}checked{% endif %} required> {{ label }}</label>
+      {% endfor %}
+    </fieldset>
+    <label>The list is from
+      <input type="date" name="as_of" value="{{ permission_today.isoformat() }}" required></label>
+    <label>Note (optional)
+      <input type="text" name="note" maxlength="200" placeholder="For example: client export from the office"></label>
+    <button type="submit">Upload and preview</button>
+  </form>
+  </div>
+  <div class="card">
+  <h3>Take an address off</h3>
+  <p class="note">For someone who should no longer be emailed as a client or subscriber. To stop all email to an
+    address, add it to the do-not-contact list instead.</p>
+  <form method="post" action="{{ url_for('admin.permission_remove') }}" class="admin-form"
+        data-confirm="Take this address off the permission list? It will not be emailed again unless it is uploaded again.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Email address
+      <input type="email" name="email" required autocomplete="off"></label>
+    <button type="submit">Take it off</button>
+  </form>
+  </div>
+  </div>
+</section>
+
 <section id="history" class="tab-panel" data-tab-title="History">
   <h2>Settings history</h2>
   <p class="tab-intro">Every change to the settings, newest first. Each row is the full set of values after

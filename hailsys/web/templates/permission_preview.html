@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Preview permission list{% endblock %}
+{% block heading %}Preview: {{ batch.filename }}{% endblock %}
+
+{# Item 189:  what an upload to the permission list would add, before anything is written. #}
+{% block content %}
+<div class="page">
+<p class="note">
+    Uploaded by {{ batch.user_name }} at
+    {{ batch.uploaded_at.astimezone(display_tz).strftime('%Y-%m-%d %H:%M') }}.
+    Nothing has been written yet.
+</p>
+<p>These are: <strong>{{ bases[batch.basis] }}</strong>, as of <strong>{{ batch.as_of.isoformat() }}</strong>{% if batch.note %}.
+   Note: <strong>{{ batch.note }}</strong>{% endif %}.</p>
+
+<ul>
+    <li><strong>{{ summary.to_add }}</strong> would be added</li>
+    <li>{{ summary.already_listed }} already on the list as {{ bases[batch.basis] | lower }}, skipped</li>
+    <li>{{ summary.rejected }} rejected</li>
+    {% if summary.on_dnc %}
+    <li>{{ summary.on_dnc }} on the do-not-contact list: added, but still never emailed, because that list comes first</li>
+    {% endif %}
+</ul>
+
+{% if rejects %}
+<h3>Rejected rows</h3>
+<div class="table-scroll">
+<table>
+    <thead><tr><th class="num">Line</th><th>Email</th><th>Reason</th></tr></thead>
+    <tbody>
+    {% for r in rejects %}
+    <tr><td class="num">{{ r.line_no }}</td><td>{{ r.email_raw or '' }}</td><td>{{ r.rejected }}</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+
+{% if sample %}
+<h3>First {{ sample | length }} to be added</h3>
+<div class="table-scroll">
+<table>
+    <thead><tr><th class="num">Line</th><th>Email</th><th>Name</th></tr></thead>
+    <tbody>
+    {% for r in sample %}
+    <tr><td class="num">{{ r.line_no }}</td><td>{{ r.email_raw }}</td><td>{{ r.name or '' }}</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+
+<div class="send-actions">
+<form method="post" action="{{ url_for('admin.permission_commit', token=batch.token) }}" class="inline-action">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit">Add {{ summary.to_add }}</button>
+</form>
+<form method="post" action="{{ url_for('admin.permission_discard', token=batch.token) }}" class="inline-action">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit">Discard</button>
+</form>
+</div>
+</div>
+{% endblock %}

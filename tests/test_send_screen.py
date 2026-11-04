@@ -194,10 +194,13 @@ class SendScreenTest(unittest.TestCase):
                     self.assertEqual(self.post(path, role, **self.FORM).status_code, 403)
         start.assert_not_called()
 
-    def test_confirm_refuses_an_empty_allow_list(self):
+    def test_an_empty_allow_list_is_accepted_and_never_starts(self):
+        # Item 189:  the address list is optional, because the permission list now decides who may be
+        # emailed.  Empty means everyone the send list kept; the confirm page still starts nothing.
         start = self.stubs()
         text = self.post("/send/confirm", **{**self.FORM, "allowed": ""}).get_data(as_text=True)
-        self.assertIn("no send-to-everyone option", text)
+        self.assertNotIn("no send-to-everyone option", text)
+        self.assertIn("Send 2 emails now", text)
         start.assert_not_called()
 
     def test_confirm_refuses_a_malformed_address(self):
@@ -946,7 +949,7 @@ class SendScreenTest(unittest.TestCase):
         self.template_stubs([self.trow("beta", 2)])
         self.app.config["WTF_CSRF_ENABLED"] = False
         resp = self.client_as("admin").post(
-            "/send/confirm", data={**self.FORM, "allowed": "", "template": "beta"})
+            "/send/confirm", data={**self.FORM, "allowed": "not-an-address", "template": "beta"})
         self.assertEqual(resp.status_code, 302)
         self.assertIn("template=beta", resp.headers["Location"])
 

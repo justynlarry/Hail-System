@@ -17,6 +17,8 @@ offered;  report matches never appear;  and the call writes nothing.
 
 import os
 import unittest
+
+from tests.permission_fixtures import permit
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -53,7 +55,7 @@ class ZoneSendListTest(unittest.TestCase):
     # -- fixtures ---------------------------------------------------------------------------------
 
     def house(self, tag=None, *, address=None, basis="radar", level="agree", day=None, status="Active",
-              seen=None, email="default", set_id=None, realtor_id=None, no_realtor=False):
+              seen=None, email="default", set_id=None, realtor_id=None, no_realtor=False, permitted=True):
         self.n += 1
         tag = tag or f"h{self.n}"
         if no_realtor:
@@ -65,6 +67,8 @@ class ZoneSendListTest(unittest.TestCase):
             realtor = self.conn.execute(
                 "INSERT INTO realtors (agent_name, agent_email) VALUES (%s, %s) RETURNING realtor_id",
                 (f"Agent {tag}", address_email)).fetchone()["realtor_id"]
+            if address_email and permitted:
+                permit(self.conn, address_email)
         rid = f"ZSL-{uuid.uuid4().hex[:10]}"
         self.conn.execute("INSERT INTO properties (rentcast_id, property_address) VALUES (%s, %s)",
                           (rid, address or f"{self.n} Test St, Calhan, CO 80808"))
@@ -80,6 +84,7 @@ class ZoneSendListTest(unittest.TestCase):
 
     def record_send(self, house, *, status="sent", created=None, kind="zone"):
         """A send record for this house's match, as the engine would leave it."""
+        permit(self.conn, house["email"])
         email_id = self.conn.execute(
             "INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, sync_run_id, permission_asserted, "
             "created_by, subject, html_body, created_at) VALUES (%s, %s, %s, %s, %s, 'none', %s, 's', 'b', %s) "
@@ -217,6 +222,7 @@ class ZoneSendListTest(unittest.TestCase):
         report_match = self.report_match(report_side["listing"])
         report_house = dict(report_side, match=report_match)
         # The report send, as the report path leaves it.
+        permit(self.conn, "x@example.test")
         email_id = self.conn.execute(
             "INSERT INTO sent_emails (batch_id, realtor_id, recipient_email, template_id, sync_run_id, permission_asserted, "
             "created_by, subject, html_body) VALUES (%s, %s, %s, %s, %s, 'none', %s, 's', 'b') RETURNING email_id",
@@ -434,7 +440,8 @@ class SelectUnchangedTest(unittest.TestCase):
         hit = {"match_id": 1, "listing_id": 1, "realtor_id": 1, "list_status": "Active", "list_last_seen": NOW,
                "address": "1 A St", "address_key": "1astcalhan", "utc_datetime": NOW - timedelta(days=1),
                "magnitude": 1, "distance_miles": 2, "agent_name": "A B", "email": "a@example.test", "already_sent": False,
-               "on_dnc": False, "in_cap": False, "key_emailed": False}
+               "on_dnc": False, "in_cap": False, "key_emailed": False,
+               "has_permission": True}
         out = sendlist.select([hit], today=NOW.astimezone(DISPLAY_TZ).date())
         (event,) = out["realtors"][0]["events"]
         self.assertEqual((event["magnitude"], event["distance_miles"]), (1, 2))
@@ -444,7 +451,8 @@ class SelectUnchangedTest(unittest.TestCase):
         hit = {"match_id": 1, "listing_id": 1, "realtor_id": 1, "list_status": "Active", "list_last_seen": NOW,
                "address": "1 A St", "address_key": None, "utc_datetime": NOW - timedelta(days=1),
                "magnitude": 1, "distance_miles": 2, "agent_name": "A B", "email": "a@example.test", "already_sent": False,
-               "on_dnc": False, "in_cap": False, "key_emailed": False}
+               "on_dnc": False, "in_cap": False, "key_emailed": False,
+               "has_permission": True}
         out = sendlist.select([hit], today=NOW.astimezone(DISPLAY_TZ).date(), collapse_fn=lambda rows: ["mine", len(rows)])
         self.assertEqual(out["realtors"][0]["events"], ["mine", 1])
 

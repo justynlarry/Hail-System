@@ -46,6 +46,7 @@ REASON_LABELS = {
     "no_agent_email": "No agent email on the listing",
     "already_emailed": "Already emailed for this match",
     "on_dnc_list": "Address is on the do-not-contact list",
+    "no_permission": "No recorded permission to email (Admin, Permission list)",
     "within_cap": "Emailed within the cap window",
     "duplicate_address": "Same address already covered by another listing",
 }
@@ -267,9 +268,6 @@ def _read_form():
         problem = "Tick at least one storm day."
     elif bad:
         problem = "These are not email addresses: " + ", ".join(b[:40] for b in bad[:5])
-    elif not allowed:
-        problem = ("Enter the addresses this send may go to. "
-                   "There is no send-to-everyone option.")
     elif not 1 <= max_emails <= MAX_EMAILS_LIMIT:
         problem = f"'Send at most' must be between 1 and {MAX_EMAILS_LIMIT}."
     elif not _template_available(form["template"]):
@@ -291,7 +289,10 @@ def _plan(form, now):
             cap_days=None if form["override_cap"] else s["email_cap_days"],
             max_age_days=s["match_max_age_days"], freshness_days=s["listing_freshness_days"])
         conn.rollback()
+    # The address list is optional (item 189):  empty means everyone on the list.
     allowed = set(form["allowed"])
+    if not allowed:
+        return found, list(found["realtors"]), []
     mine = [r for r in found["realtors"] if r["email"] in allowed]
     unmatched = sorted(allowed - {r["email"] for r in found["realtors"]})
     return found, mine, unmatched
@@ -353,7 +354,7 @@ def start():
     try:
         sendjobs.start_send(
             user_id=session["emp_id"], storm_days=form["days"], email_settings=email_settings,
-            sender=sender, allowed_emails=form["allowed"], override_cap=form["override_cap"],
+            sender=sender, allowed_emails=form["allowed"] or None, override_cap=form["override_cap"],
             max_emails=form["max_emails"], template_name=form["template"],
             max_age_days=s["match_max_age_days"], campaign=form["campaign"],
             cap_days=s["email_cap_days"], freshness_days=s["listing_freshness_days"])
