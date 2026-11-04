@@ -19,7 +19,17 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-10-14**, the working tree after commit `081dc39`. The
+Last synced against the repo: **2026-11-04**, after commit `3951d61` (item 298). In the three weeks since the 2026-10-14
+sync: the template builder and drip campaigns (Phase 5, items 203 and 204), the radar layers (Phase 5b), the
+hail-likelihood map with pulls, matches and sends by level (Phase 5c), the production hardware, the page-by-page UI pass
+(item 201), the template editor remodel (item 294) and release versions (item 289). What this sync adds: the header and
+§2's opening say where things stand now; §2 gains "Radar, the likelihood map, drip campaigns, the UI pass and releases,
+2026-10-14 to 2026-11-04"; §5 counts 63 tables and lists those added by `sql/042` to `065`; §6 the decisions since
+2026-10-14, condensed; §7 the traps found since (radar, NWS warnings, CoCoRaHS, SQL); §8 the new sources; §10 the files
+added. **§3, §4, §9 and §11 to §13 were not re-checked.** Where an older paragraph is now wrong it
+is marked **Superseded** inline, as before.
+
+Previous sync: **2026-10-14**, the working tree after commit `081dc39`. The
 sync before it was **2026-10-05** (`191a7e0`). In the nine days between, the Constant Contact send path
 was built and rehearsed, and the documents behind this one drifted again (parking-lot item 212). What
 this sync adds: §2 gains "The send path, the radar study and the documents, 2026-10-05 to 2026-10-14";
@@ -123,7 +133,16 @@ across 15 zips, 11 of them in El Paso County.
 
 ## 2. Where the project actually stands
 
-**Phases 0 through 4 are closed. Phase 2 — the storm-browser web app — closed
+**Where things stand, 2026-11-04 (this sync).** Phases 0 to 4 are closed; **Phase 5 (Email) is the current phase**, with
+5b (radar layers, internal) and 5c (the hail-likelihood map, built through sends by level) built alongside it, all on
+`hail-dev` only. The production VM `rbi-hail01` is created and **not started**; nothing is deployed to it, and its first
+deploy will be release `v0.9.0` (item 289). A Constant Contact send path, drip campaigns and sends by hail-zone level are
+built and **rehearsed on test addresses only**: no real recipient until items 183 (the paid account), 189 (the
+eligibility gate) and 96 (the sending domain) are settled. `dnc_list` holds 768 active suppressions. The web app has had
+a page-by-page pass for first-time users (item 201) and a remodelled template editor (item 294). `CLAUDE.md`'s "Current
+phase" is the fuller and more current account.
+
+**Superseded 2026-11-04 (the paragraph below is the 2026-10-05 state):** **Phases 0 through 4 are closed. Phase 2 — the storm-browser web app — closed
 2026-09-17; Phase 3 — RentCast listings — closed 2026-09-21; Phase 4 —
 Accounts — closed 2026-09-24. Phase 5 — Email — is the current phase**, begun
 2026-09-23. **As of 2026-10-05 only groundwork exists and nothing sends:**
@@ -923,6 +942,37 @@ by radar) and 206 (a radar-shaped area); both wait for inspection data (items 20
 **The documents.** `CLAUDE.md`, `database-schema.md`, `README.md`, `phases.md`, `data-sources.md`, the diagram,
 `schema-review.md` and this file were brought up to date 2026-10-14 (item 212).
 
+### Radar, the likelihood map, drip campaigns, the UI pass and releases — 2026-10-14 to 2026-11-04
+
+- **Template builder (item 203, 2026-10-14 to 10-16):** email images and the sender identity moved from the environment to
+  the database (`sql/042`, the admin page); templates built from blocks (`hailsys/email/blocks.py`, `sql/043`), an
+  admin-only editor at `/templates` with a preview and "send a test to yourself" (`testsend.py`, `sql/044`).
+- **Drip campaigns (item 204, `sql/045` to `047`):** follow-ups to the same realtors, each a person's click, each listing
+  re-checked with RentCast first; rehearsed 2026-11-03 on test addresses.
+- **Production hardware (2026-10-20):** `pve-prod01` (HP ProDesk, Proxmox VE) and `pbs-prod01` (Dell OptiPlex, Proxmox Backup
+  Server), acceptance-tested; VM 101 `rbi-hail01` (Rocky 10.2) created, not started. Detail in §9.
+- **Phase 5b, radar layers (2026-10-20 to 10-26, internal):** NOAA MRMS `MESH_Max_1440min` decoded nightly
+  (`hailsys/radar/`, `sql/048` to `052`), four layers per day (core, margin, radar-indicated, NWS warnings), the Territory map
+  layers and legend, a findings panel, and the admin page's Hail zones section; backfilled 2020-10-14 onward (2,197 days).
+- **Phase 5c, the hail-likelihood map (2026-10-23 to 10-28):** the CoCoRaHS ingest (`hailsys/cocorahs/`, `sql/053`),
+  likelihood zones per storm day (Agree, One source, Context; `hailsys/likelihood/`, `sql/054` to `056`), a staff-only map
+  layer, a backtest (passed on zip overlap), then the estimate against the zones (`/pull/zones`), the pull from the zones
+  (`sql/059`), zone matches (`sql/057`, `058`) and sends by level (`sql/060`, `/send/?mode=zones`, `/send/levels`), rehearsed on
+  test addresses. Nothing CoCoRaHS- or likelihood-derived reaches an export or the report matcher.
+- **Operations (2026-10-28 to 11-03):** migrations through `scripts/migrate.sh` and `schema_migrations` (`sql/062`, item
+  277); `send_runs` (`sql/065`); the PostGIS image to `16-3.6`; the deploy checklist `docs/deploy.md`; the tunnel config per
+  machine (item 287).
+- **The UI pass (item 201, 2026-11-03/04):** Storm Days status tiles and a RentCast usage bar; Admin in tabs; Territory
+  coloured by storm; Activity & Exports under one nav entry; Send in six always-visible steps, opening on hail zones; the
+  match page tagging listings that will not be emailed (item 140); contrast to WCAG AA (item 156); templates reload from disk
+  (item 290); static files versioned (item 296).
+- **The template editor remodel (item 294, 2026-11-03/04, all ten slices):** plain block names, folding blocks, named sizes and
+  spacing, a start page (built-in, a copy, or blank), names made from a typed title, the listings block required,
+  click-in-preview, merge fields as chips and tags as markers with live formatting; the stored text and the rendered email
+  unchanged, pinned by `tests/test_template_render_snapshot.py`.
+- **Releases (item 289, 2026-11-04):** `vMAJOR.MINOR.PATCH` tags, production runs a tag, `scripts/release.sh` and
+  `scripts/write_version.sh`, `CHANGELOG.md`, the release in the page footer. `v0.9.0` is tagged at the first deploy.
+
 ### Permits and jurisdiction research — parked, 2026-09-23 / 2026-09-24
 
 Groundwork for building-permit data as a future source, allowed as a
@@ -1042,6 +1092,15 @@ privilege list can be read against this diagram.
 ---
 
 ## 5. The data model
+
+**63 tables on 2026-11-04** (counted against `hail-dev`), up from 36 on 2026-10-14. Added by `sql/042` to `065`:
+`email_images` (042), `email_test_sends` (044), `drip_campaigns`, `drip_steps`, `drip_recipients`, `drip_listing_checks`,
+`drip_step_pulls` (046), `drip_step_runs` (047), `radar_parameter_sets`, `radar_runs`, `radar_days`, `radar_cells` (048),
+`radar_zone_builds`, `radar_zones` (049), `warning_loads`, `warning_polygons` (050), `cocorahs_runs`, `cocorahs_loads`,
+`cocorahs_hail_reports` (053), `likelihood_parameter_sets`, `likelihood_level_rules`, `likelihood_builds`, `likelihood_zones`
+(054), `likelihood_runs` (055), `pull_zips` (059), `schema_migrations` (062) and `send_runs` (065). Columns added to existing
+tables include `email_templates.blocks` (043) and `match_kind` (060), and `storm_listing_matches`' `storm_date`, `basis`,
+`level`, `layer`, `set_id` (057, 058). `docs/database-schema.md` has every table and column.
 
 **Twenty-three tables** as of 2026-09-24, counted against `hail-dev` (**36 on 2026-10-14**, of which three, `us_gaz`, `us_lex` and `us_rules`, come from the `address_standardizer` extension, so 33 are the project's; **27 on 2026-10-05**, counted from `sql/`: the four added since are in the tables below, marked 2026-10-05). That's
 seventeen from `sql/001`–`009`, plus `county_boundaries` (`sql/012`,
@@ -1514,6 +1573,26 @@ reasoning):
 
 ---
 
+### Decisions 2026-10-14 to 2026-11-04, condensed
+
+The full entries are in `docs/decision-log.md` under these dates.
+- **2026-10-14:** radar layers are internal display only; email images and the sender move from the environment to the
+  database.
+- **2026-10-15/16:** templates are built from blocks; typed text is escaped and never becomes template syntax; a test send
+  goes to the clicking admin only.
+- **2026-10-20:** the production hardware and backup layout (PBS on separate bare metal, a separate tailnet for RBI,
+  OpenSSH with keys); Phase 5b starts, and anything specific to RBI or Denver becomes a setting.
+- **2026-10-22/23:** how the radar job runs; the Territory map opens on HAIL; the design of one hail-likelihood map per storm
+  day and one pull from it; Phase 5c starts internal.
+- **2026-10-26/27:** the estimate against the zones, then matches with a basis and level and the pull from the zones (every
+  pull a person's click); sends by level, rehearsed only.
+- **2026-10-28:** one `/send` page with a mode; the radar layers anchor on HAIL only (item 254); newsletter unsubscribes reach
+  `dnc_list` by hand (item 129).
+- **2026-10-30 to 11-02:** PostGIS `16-3.6`; the tunnel config is per machine.
+- **2026-11-03/04:** the UI pass (item 201) and, for it, Claude writing the front-end code (and some Python) at the
+  developer's request; the template editor remodel (item 294); releases are tags and production runs a tag (item 289);
+  static files carry their modification time (item 296).
+
 ## 7. Known traps
 
 These have already bitten. Do not re-discover them.
@@ -1814,6 +1893,8 @@ These are newer and cost real time on 2026-09-08.
   message linking to the production site arrived (decision log 2026-10-07).
 
 ### MRMS MESH (2026-10-13; research only, nothing reads it)
+**Superseded 2026-11-04:** MESH is read nightly since 2026-10-22 (Phase 5b, `hailsys/radar/`); the day file is the one
+stamped at the local midnight that ends the day, and a value above 10 in is NOAA's processing, recorded `suspect` (item 247).
 - **The files are PNG-packed GRIB2** (template 5.41); value in millimetres is (X - 30) / 10, and **`-1` means
   no hail**. pygrib labels the parameter "unknown".
 - **The archives start at different dates:** Iowa State from 2019-08-20, NOAA AWS from 2020-10-14 (the day MRMS
@@ -1822,6 +1903,19 @@ These are newer and cost real time on 2026-09-08.
   test; MESH is not calibrated.
 
 ---
+
+### Radar, NWS warnings, CoCoRaHS and SQL (2026-10-20 to 2026-10-28)
+The same list as `CLAUDE.md`'s known traps:
+- **IEM's warning export** (`watchwarn.py`) with `limitps=1` and no explicit `phenomena=` returns **tornado warnings only**;
+  pass `phenomena=SV,TO&significance=W,W`. Its shapefile truncates field names to 10 characters (`PROD_ID`).
+- **IEM's JSON `sbw_interval.geojson` ignores** `states=`, `state=` and `phenomena=` and returns every warning in the country;
+  only repeated `wfo=` filters it. Radar uses the shapefile export, which honours `states=`.
+- **NCEI Storm Events times** are local standard time all year (`MST-7`), an hour off Denver summer time.
+- **HRRR u/v winds are grid-relative** (rotate about -4 degrees near 104 W), and eccodes names the 10 m wind `10u`/`10v`.
+- **The CoCoRaHS hail export repeats `MoreRainThanHail`**: read by position and refuse any other header; `NA` means
+  missing; storm day D is in the D+1 report.
+- **SQL:** a `GROUP BY` name that is both a column and a `SELECT` alias binds to the column (item 258); a `CHECK` passes on
+  NULL, so say `IS NOT NULL` where a value is required (item 259).
 
 ## 8. External sources
 
@@ -1832,7 +1926,9 @@ These are newer and cost real time on 2026-09-08.
 | **RentCast** | **Paid**, monthly lookup allowance | `GET /listings/sale`, paginated to 500, sorted by `lastSeenDate` desc. Docs: `https://developers.rentcast.io/reference/property-listings-schema` (append `.md` for markdown). |
 | **Census Geocoder** | Free, no key | One-line address lookup behind `/search`, US street addresses only, cannot match by city and state alone. Results cached in `geocode_cache`. Client: `hailsys/geocode.py`. |
 | **Email provider** | Constant Contact, chosen 2026-10-06; paid plan not yet priced | A campaign per email through contacts, lists and campaigns; OAuth with rotating tokens; 4 requests a second and 10,000 a day. Trial account only so far. Detail in `docs/data-sources.md` §4 and §7 here. |
-| **NOAA MRMS MESH** | Free | Radar hail size, whole-CONUS GRIB2 from Iowa State (from 2019-08-20) and NOAA AWS (from 2020-10-14). Research only; nothing in the system reads it. `docs/data-sources.md` §7. |
+| **NOAA MRMS MESH** | Free | Radar hail size, whole-CONUS GRIB2 from Iowa State (from 2019-08-20) and NOAA AWS (from 2020-10-14). **Read nightly since 2026-10-22** (Phase 5b, superseding "research only"). `docs/data-sources.md` §7. |
+| **IEM NWS warning polygons** | Free, no key | `cgi-bin/request/gis/watchwarn.py`, shapefile, states from `settings.storm_states`; severe thunderstorm and tornado warnings, the outer radar layer (Phase 5b). Traps in §7. |
+| **CoCoRaHS hail reports** | Free; terms in item 253 | Volunteer observers' hail reports, Colorado, nightly and weekly (`hailsys/cocorahs/`, Phase 5c); used for the likelihood zones, never for an export or the report matcher; zone emails may rest on them only once the observer wording is approved. |
 
 **Prior history worth knowing:** a contractor-built predecessor used Mailchimp
 and led to blacklisting. Whether RBI's main domain took reputation damage is an
@@ -2353,6 +2449,39 @@ verified, 2026-09-14**, same-day follow-on to the package move above.
 `export_storm_zips.py` now imports both and contains no SQL of its own;
 `app.Dockerfile` needed no change since it already copies the whole
 `hailsys/` tree. Resolves parking-lot item 6 (PL-06).
+
+### Added 2026-10-14 to 2026-11-04
+
+The tree above is as of the 2026-10-14 sync. Since then (each with its own tests under `tests/`):
+
+    sql/042 … 065                 email images, blocks, test sends, drip campaigns, radar, warnings, CoCoRaHS,
+                                  likelihood, match basis and level, pull zips, zone sends, DNC sources,
+                                  schema_migrations, send_runs
+    hailsys/version.py            reads hailsys/VERSION (the release stamp, item 289)
+    hailsys/radar/                MRMS MESH fetch, decode, load, zones, NWS warnings, the job
+    hailsys/cocorahs/             CoCoRaHS fetch, parse (by position), load, the job
+    hailsys/likelihood/           likelihood zones per storm day, the job
+    hailsys/matching/zonematch.py zone matches (basis, level, set)
+    hailsys/email/                blocks.py, blockform.py, preview.py, samples.py, testsend.py (the template builder);
+                                  dripstart.py, dripstep.py, dripactions.py (drip campaigns); zonecontext.py,
+                                  zonewording.py, templates/hail_alert_zone* (zone emails); emailconfig.py
+    hailsys/rentcast/drip*.py     the drip follow-up's listing re-check
+    hailsys/queries/              radar.py, radar_map.py, findings.py, likelihood_map.py, likelihoodadmin.py,
+                                  zonepull.py, zonesend.py, levelreport.py, emailadmin.py, dripscreen.py,
+                                  dripfollowup.py
+    hailsys/web/                  emailtpl.py (/templates), drip.py (/campaigns), sendzone.py (/send?mode=zones)
+    hailsys/web/static/           admin.js (Admin tabs), templates.js, blockfold.js, tplpresets.js, tplname.js,
+                                  tplpreview.js, tplpicker.js, tplchips.js (the template editor)
+    hailsys/web/templates/        template_*.html, _editor_*.html, _block_pictures.html, campaign*.html,
+                                  send_zone*.html, send_levels.html, _send_mode.html, pull_zones.html,
+                                  _hail_zones.html, _map_panel.html, _findings.html, _usage_bar.html,
+                                  _activity_exports_tabs.html
+    scripts/                      radar_ingest.py, radar_day.py, cocorahs_ingest.py, likelihood_ingest.py, migrate.sh,
+                                  release.sh, write_version.sh, dnc_copy.sh, hw-acceptance-test.sh,
+                                  rehearse_drip.py (dev only), rentcast_by_id_probe.py
+    systemd/                      radar_*, cocorahs_*, likelihood_* services and timers
+    CHANGELOG.md                  one section per release (item 289)
+    tests/snapshots/              the template render snapshot (item 294)
 
 ### Running it
 

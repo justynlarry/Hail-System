@@ -8057,3 +8057,63 @@ list, the queue and the Constant Contact sends were real.
 **Setting:** `match_max_age_days` 30 to 45 for the rehearsal (the latest HAIL day in reach was 2026-09-20) and back to 30,
 both in `settings_history`.
 
+---
+
+## 2026-11-03/04 — Item 201: the page-by-page pass, and Claude writes the front-end code for it
+
+**Decision (developer, page by page):** Storm Days gets three status tiles (Constant Contact, Ingest, Radar) and a RentCast
+usage bar coloured by share of the monthly quota (green to 75%, yellow to 90%, red above; the cut-offs fixed in code, not
+settings, because they change how the bar looks, not what the system allows). Admin becomes six tabs. Territory colours
+report circles by storm (one local date and type, ten colours, older storms grey) with a legend. Activity and Exports
+share one nav entry and a tab bar but stay two routes. Send opens on hail zones (`/send/?mode=reports` for the report
+page) and is six numbered steps that are always on the page, a step that cannot be used yet greyed with its reason. The
+match page tags, never hides, listings the send list would leave out (item 140), by one shared rule
+(`sendlist.listing_reason`). Contrast brought to WCAG AA in light mode (item 156). Address Search was left as it was;
+Campaigns, Exports and Send get more once used for real, so item 201 stays open.
+
+**Process exception (developer, 2026-11-03):** for this pass Claude writes HTML, CSS, JavaScript and test files after each
+yes; for the template remodel (item 294), the release work (item 289) and the match page Claude wrote the Python too, at
+the developer's request ("on this one, you can edit everything", "you write it"). CLAUDE.md's rule that code is keyed in by
+the developer was left unchanged ("just this pass").
+
+**Why:** the developer wanted a technically unconfident person to be able to sit down and use the system, and found the
+pages confusing even having helped build them.
+
+---
+
+## 2026-11-03/04 — Item 294: the template editor remodel
+
+**Decision:** adopt the developer's brief (written with another assistant), with Claude's changes accepted: the stored tag
+syntax and the rendered email never change (a snapshot of every saved template's rendering, 42 at the start, pins it);
+the listings block is required in a report template, as the footer is; a template's friendly title is stored as its
+`description` (no migration) and the internal name is made from it; the no-JavaScript path stays. Order 1, 2, 3, 5, 6, 4,
+7, 8, then 9 and 10 once used. For slice 10, of three options (A tag markers with live styling, B a hand-built WYSIWYG, C
+Quill, an install), A, with Quill a possible later switch behind the same hidden field. Deleting one marker of a pair
+removes the other; the browser's undo does not bring it back (accepted).
+
+**Why:** someone who uses the editor a few times a year should not have to memorise tag syntax, field names or pixel
+rules; and the risk of changing an email by accident is held off by building every slice behind an unedited-save-is-
+byte-identical rule and the snapshot.
+
+---
+
+## 2026-11-04 — Item 289: releases are tags; production runs a tag
+
+**Decision (developer):** `vMAJOR.MINOR.PATCH`; PATCH for fixes, MINOR for anything people will notice, MAJOR for a
+milestone. The first production deploy is `v0.9.0`; `v1.0.0` is the pilot (Phase 6). Production checks out an annotated
+tag pushed to GitHub, never `main`; no release branch. `scripts/release.sh` tags only from a clean `main` level with
+GitHub and with a `CHANGELOG.md` section; `scripts/write_version.sh` stamps `hailsys/VERSION` (git-ignored) and the
+footer shows it, or "development".
+
+**Why:** the first deploy to `rbi-hail01` is close, and nothing recorded which commit a machine runs or let it go back to a
+known release. The web container mounts only `hailsys/`, so the version is a file written at deploy, not a git call.
+
+---
+
+## 2026-11-04 — Item 296: static files carry their modification time
+
+**Decision:** every `url_for('static', ...)` gets `?v=<modification time>` (a `url_defaults` hook in `create_app()`).
+
+**Why:** behind the Cloudflare tunnel the developer's browser kept running an old script and stylesheet after a change,
+without asking the server, though it sends `no-cache`; staff will not have DevTools' Disable cache on. A changed file now
+has a new address; an unchanged one still caches.

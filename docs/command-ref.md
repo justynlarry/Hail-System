@@ -11,9 +11,10 @@ docker exec -it <database_name> psql -U <postgres_user_name>
 ## Which services see your edits
 
 `web` and `app` bind-mount `./hailsys` read-only (`app` also `./scripts`), so
-editing a file there IS deploying it. `web` is live at the next
-`docker compose restart web`; `app` is a fresh container on every `run`, so it
-sees the change at once. `app` also keeps a read-write mount of
+editing a file there IS deploying it. In `web`, a template or a static file is live at once (templates reload because
+`create_app()` sets `TEMPLATES_AUTO_RELOAD`, item 290; static links carry `?v=<modification time>`, item 296, so browsers
+fetch a changed file); Python is live at the next `docker compose restart web`. `app` is a fresh container on every
+`run`, so it sees the change at once. `app` also keeps a read-write mount of
 `hailsys/web/static`, because the GeoJSON builders write there.
 
 `loader` bind-mounts the whole repo read-only at `/repo`, so it always reads
@@ -144,8 +145,23 @@ One file, in `web` (each test file's docstring gives its own command):
 
     docker compose run --rm --no-deps -v ./tests:/app/tests:ro web python -m unittest tests.test_cc_tokens
 
-On 2026-10-29: 2,623 tests, 380 skipped, OK. The tests that need `hail_admin` skip under `hail_app` and say so;
+On 2026-11-04: 2,762 tests, 389 skipped, OK (2026-10-29: 2,623 and 380). The tests that need `hail_admin` skip under `hail_app` and say so;
 run them with the `hail_admin` command in `tests/test_log_guards.py`'s docstring. **Any error is a real failure.**
+
+## Releases (item 289)
+
+On `hail-dev`, after adding the version's section to `CHANGELOG.md`, committing and pushing:
+
+    scripts/release.sh --check v0.9.0   # what it would tag; changes nothing
+    scripts/release.sh v0.9.0           # tag main and push the tag
+
+It refuses unless the tree is clean, `main` is level with `origin/main`, the tag is new here and on GitHub and
+`CHANGELOG.md` has a `## v0.9.0` section. On a server, after `git checkout <tag>`:
+
+    scripts/write_version.sh            # writes hailsys/VERSION (git-ignored)
+    docker compose restart web          # the footer then shows the release
+
+The footer says "development" on a working copy that was never stamped. The full deploy is `docs/deploy.md`.
 
 ## Reading logs
 

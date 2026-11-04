@@ -180,7 +180,10 @@ empty, and there was no sending code and no sending identity. Provider chosen
 2026-10-06: Constant Contact (decision log; item 119 closed by decision, not yet
 confirmed in writing). **State on 2026-10-14:** `dnc_list` holds 760 suppressions;
 a send path is built and rehearsed on `hail-dev` but has never sent to a real
-recipient (see the 2026-10-06 to 2026-10-13 progress below).
+recipient (see the 2026-10-06 to 2026-10-13 progress below). **2026-11-04:** `dnc_list` holds 768 active suppressions;
+drip campaigns rehearsed on test addresses (item 204); the page-by-page UI pass (item 201: Storm Days, Admin, Territory,
+Activity & Exports, Send, the match page), the template editor remodel (item 294, all ten slices) and release versions
+(item 289: `v0.9.0` is the first production deploy) are built on `hail-dev`. Still no real recipient: items 183, 189, 96.
 
 **Progress, as of 2026-10-05 — groundwork only, nothing sends** (bullets are in the order they landed; later ones follow the 09-28 items):
 - **CSV exports built** (parking-lot item 92): the matched listings for one

@@ -14,7 +14,7 @@ problem this file now exists to remove.
 `open`; `open (watch)` (no work attached, a trigger to notice); `open (parked)` (gated on something named);
 `accepted` (a decision to live with it, with a **When**); `deferred`; `resolved`; `resolved (residuals)` (shipped,
 with named leftover work); `closed` (overtaken by the design, or by decision, with the reference); `merged into <n>`;
-`dropped`. One item (202) still reads `built`, pending a browser check.
+`dropped`. (The note that item 202 still read `built` is out of date: it was resolved 2026-10-29.)
 
 Where items sit: items up to 153 are grouped as they stood on 2026-09-30 (Open, Watch list, the parked permits
 workstream, the two unnumbered notes, Closed), though some have been resolved in place since. Items filed later are
@@ -7963,4 +7963,27 @@ has a space before the plural, so a storm touching 14 zips reads "14 zip s". **F
 match page pass (item 201).
 
 **Resolved 2026-11-04.** The space is gone; `tests/test_match_page.py` checks "zips".
+
+## 298. The consolidated brief and other documents drifted behind the 2026-10-14 to 2026-11-04 work
+
+**Status:** resolved 2026-11-04 (same session)
+
+Found 2026-11-04 when the developer asked for a review of every document in `docs/`. `hail-consolidated.md` says it was
+last synced 2026-10-14 and still describes Phase 5 as groundwork, with no Phase 5b or 5c, the item 201 pass, the item 294
+remodel or releases (item 289), and a file map ending at `sql/041`. The decision log had no entries for 2026-11-03/04;
+`command-ref.md` (restart rule, releases, test count) and `phases.md` (Phase 5 progress) were behind. The parking-lot
+header still said item 202 read `built`. Same problem as item 212 (resolved 2026-10-14), recurring: nothing updates the
+documents when features land.
+
+**Fixed in the same review (2026-11-04):** the parking-lot header, the decision log (four entries), `command-ref.md`,
+`phases.md` and a note on `email_templates.description` in `database-schema.md`. **Left open for:** the re-sync of
+`hail-consolidated.md`, done next in the same session.
+
+**When:** the consolidated re-sync before the first deploy to `rbi-hail01` (it is the handoff document).
+
+**Resolved 2026-11-04.** `hail-consolidated.md` re-synced (header, §2's opening and a new 2026-10-14 to 2026-11-04
+subsection, §5's 63 tables, §6 the condensed decisions, §7 the new traps, §8 the new sources, §10 the files added; §3, §4,
+§9 and §11 to §13 not re-checked, and said so). Facts taken from the repo, the database and the decision log, not from
+memory. The underlying cause (nothing updates the documents when features land) is unchanged:  a review like this one is
+still what catches it.
 
