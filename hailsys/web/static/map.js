@@ -4,6 +4,36 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const map = L.map('map').setView([39.74, -104.99], 9);
 
+  // On a touch screen one finger scrolls the page, not the map, until "Move map" is switched on (item
+  // 112):  stacked on a phone in landscape the map can fill the screen, and a drag on it panned the map,
+  // so the page could not be scrolled past it.  Pinch-to-zoom still works.  Mouse and trackpad users
+  // see no button and no change.
+  const touch = ('ontouchstart' in window) ||
+    (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0);
+  if (touch && map.dragging && L.Control) {
+    map.dragging.disable();
+    const MoveControl = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd: function () {
+        const box = L.DomUtil.create('div', 'leaflet-bar map-move');
+        const button = L.DomUtil.create('button', '', box);
+        button.type = 'button';
+        button.textContent = 'Move map';
+        button.setAttribute('aria-pressed', 'false');
+        button.title = 'One finger moves the map while this is on; off, it scrolls the page';
+        L.DomEvent.disableClickPropagation(box);
+        L.DomEvent.on(button, 'click', function () {
+          const on = !map.dragging.enabled();
+          if (on) { map.dragging.enable(); } else { map.dragging.disable(); }
+          button.setAttribute('aria-pressed', on ? 'true' : 'false');
+          button.textContent = on ? 'Moving map (tap to stop)' : 'Move map';
+        });
+        return box;
+      },
+    });
+    new MoveControl().addTo(map);
+  }
+
   // Colorado county context, behind the coverage layer, a static fixture
   // (scripts/build_colorado_counties_geojson.py), not per-request data.
   const COUNTY_COLORS = [

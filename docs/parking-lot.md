@@ -1959,7 +1959,7 @@ columns as they scroll sideways (the smaller option above; cards stay declined).
 
 ## 112. The territory layout on tablets and landscape phones
 
-**Status:** open (watch)
+**Status:** resolved 2026-11-04 (item 201 pass)
 
 - **Landscape phone:** under 48rem the territory map stacks below the table at
   `height: 50vh; min-height: 14rem`. On a phone in landscape that is nearly
@@ -1973,6 +1973,13 @@ columns as they scroll sideways (the smaller option above; cards stay declined).
 **When:** if anyone uses the territory page on a tablet or phone.
 
 **2026-10-28 (sweep):** waits on the planned site redesign, item 201 (developer's decision). **When:** with item 201, or if these columns change first.
+
+**Resolved 2026-11-04 (developer's yes; checked by the developer).** Landscape phone:  on a touch screen `map.js`
+turns Leaflet's one-finger dragging off, so a drag scrolls the page, and adds a "Move map" control that switches it on and
+off (pinch-to-zoom always works; with a mouse there is no button and no change); on a short screen
+(`max-height: 34rem`) the stacked map is capped at 22rem. Tablet landscape:  the table and map stack below 64rem
+(1024px) instead of 48rem, so the table has the full width; a desktop window that narrow stacks too. `tests/js/map_check.js`
+covers the control.
 
 ## 113. Small CSS leftovers
 

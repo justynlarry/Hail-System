@@ -311,13 +311,29 @@ button.expand:hover { border-color: var(--accent); color: var(--accent); }
    column the 45%/55% bases would become heights; stretch because the row
    layout's flex-start would otherwise shrink each child to its content.
    The map loses its stickiness (nothing beside it to stay level with) and
-   gets a floor so a landscape phone's short viewport doesn't collapse it. */
-@media (max-width: 48rem) {
+   gets a floor so a landscape phone's short viewport doesn't collapse it.
+   64rem, not 48rem (item 112):  a tablet in landscape (about 1024px) gave the
+   nine-column table 45% of the width; stacked, it has the full width.  A
+   desktop window that narrow stacks too, where the table was cramped anyway. */
+@media (max-width: 64rem) {
   .split { flex-direction: column; align-items: stretch; }
   .split-table, .split-map { flex: none; }
   .split-map { position: static; }
   #map { height: 50vh; min-height: 14rem; }
 }
+/* A short screen (a phone in landscape):  the stacked map is capped, so there is
+   always page above or below it to scroll by (item 112). */
+@media (max-height: 34rem) {
+  #map { height: 50vh; max-height: 22rem; min-height: 12rem; }
+}
+
+/* "Move map" (map.js, touch screens only, item 112):  one finger scrolls the page
+   until it is switched on.  Leaflet's own control look. */
+.map-move button {
+  display: block; padding: 0.3rem 0.6rem; border: none; border-radius: 4px; cursor: pointer;
+  background: #fff; color: #1e293b; font: 600 0.8rem/1.3 inherit;
+}
+.map-move button[aria-pressed="true"] { background: var(--accent-fill); color: #fff; }
 
 /* Top and bottom only: a "margin: 0.75rem 0" shorthand also zeroed the
    sides, and outranked the "h1 ~ p" gutter below, so a note sitting

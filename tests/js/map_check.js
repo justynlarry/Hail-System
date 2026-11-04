@@ -17,6 +17,7 @@ function makeEnv(o) {
   const st = {panes: {}, circles: [], markers: [], fetches: [], controls: [], geo: [], errors: [], groups: []};
   const L = {
     map() { const m = {setView() { return m; }, createPane(n) { st.panes[n] = {style: {}}; },
+                       dragging: {on: true, enabled() { return this.on; }, enable() { this.on = true; }, disable() { this.on = false; }},
                        getPane(n) { return st.panes[n]; }, fitBounds() {}}; st.map = m; return m; },
     geoJSON(_, opts) {
       const g = {opts, features: [], cleared: 0, map: null,
@@ -28,6 +29,12 @@ function makeEnv(o) {
     circle(latlng, opts) { const c = {latlng, opts}; st.circles.push(c); return c; },
     circleMarker(latlng, opts) { const c = {latlng, opts, bindTooltip(t) { c.tooltip = t; return c; }}; st.markers.push(c); return c; },
     control: {layers(base, overlays, opts) { const c = {base, overlays, opts, addTo(m) { c.map = m; st.controls.push(c); return c; }}; return c; }},
+    // "Move map" (item 112):  a control class, and the DOM helpers its onAdd uses.
+    Control: {extend(proto) { return function () { this.addTo = (m) => { st.moveControl = proto.onAdd.call(this, m); return this; }; }; }},
+    DomUtil: {create(tag, cls, parent) { const el = {tag, className: cls, attrs: {}, children: [], textContent: '',
+      setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k]; }};
+      if (parent) parent.children.push(el); return el; }},
+    DomEvent: {disableClickPropagation() {}, on(el, t, f) { el.handlers = el.handlers || {}; el.handlers[t] = f; }},
   };
   const status = {textContent: ''};
   const picker = o.noPicker ? null : {value: o.pickerValue || 'all', handlers: {},
@@ -65,6 +72,7 @@ function makeEnv(o) {
   };
   const console_ = {error() { st.errors.push([...arguments].join(' ')); }, log: console.log};
   const window = {location: {search: o.search === undefined ? '' : o.search}};
+  if (o.touch) window.ontouchstart = null;              // a touch screen ("ontouchstart" in window)
   const run = async () => {
     new Function('L', 'document', 'window', 'fetch', 'console', 'URLSearchParams', src)(L, document, window, fetchImpl, console_, URLSearchParams);
     ready(); await tick();
@@ -84,6 +92,21 @@ const DS = {matchRadiusM: '8046.7', radarUrl: '/map/radar.geojson', findingsUrl:
 
 (async () => {
   check(!/8046|1609\.344|5 miles/.test(src), 'no hard-coded radius left in map.js');
+
+  // ---- "Move map" on a touch screen (item 112)
+  let t = makeEnv({dataset: DS, pickerValue: 'all', touch: true, bodies: {radar: RADAR([])}});
+  await t.run();
+  check(t.st.map.dragging.enabled() === false, 'on a touch screen one finger does not move the map at first');
+  const moveButton = t.st.moveControl && t.st.moveControl.children[0];
+  check(moveButton && moveButton.textContent === 'Move map' && moveButton.attrs['aria-pressed'] === 'false',
+        'a "Move map" button is added, off');
+  moveButton.handlers.click();
+  check(t.st.map.dragging.enabled() === true && moveButton.attrs['aria-pressed'] === 'true', 'tapping it lets one finger move the map');
+  moveButton.handlers.click();
+  check(t.st.map.dragging.enabled() === false && moveButton.textContent === 'Move map', 'tapping again gives the page back');
+  let noTouch = makeEnv({dataset: DS, pickerValue: 'all', bodies: {radar: RADAR([])}});
+  await noTouch.run();
+  check(noTouch.st.map.dragging.enabled() === true && !noTouch.st.moveControl, 'with a mouse nothing changes and there is no button');
 
   // ---- a normal page
   let e = makeEnv({dataset: DS, pickerValue: '2026-06-08', search: '?days=90&type=HAIL&day=stale',
