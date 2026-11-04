@@ -67,6 +67,15 @@ MERGE_MEANINGS = {
     "nearest_miles": "How far the nearest report was",
 }
 
+# What a merge field reads as on a chip in the editor (item 294, slice 9).  Short, in plain words;
+# the text is still stored as {name}.  A test keeps it in step with blocks.TEXT_TOKENS.
+CHIP_LABELS = {
+    "total": "Number of houses",
+    "storm_dates_label": "Storm date(s)",
+    "largest_hail": "Largest hail size",
+    "nearest_miles": "Distance to nearest report",
+}
+
 _LEGEND_SETTINGS = render.EmailSettings(
     "https://example.test/logo.png", "https://example.test/cra.png",
     "https://example.test/bbb.png", "legend@example.test", "https://example.test/schedule")

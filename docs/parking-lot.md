@@ -7846,6 +7846,12 @@ everything, Python included** (2026-11-03, "on this one, you can edit everything
   when a redraw drops it (a later choice raised). The developer's screenshot of the picker in one line under the preview
   turned out to be a stale script and stylesheet in the browser (DevTools' Disable cache had switched itself off).
 - *Slices 9 (merge-field chips) and 10 (toolbar text editor):* deferred until the developer has used slices 1 to 8.
+- *Slice 9a done, 2026-11-04 (the developer asked for slice 9 after using 1 to 8):* the subject ("Your own text") and the
+  preview line are editable boxes in which merge fields are labelled chips (`blockform.CHIP_LABELS`: Number of houses,
+  Storm date(s), Largest hail size, Distance to nearest report), from `hailsys/web/static/tplchips.js`. The input stays
+  in the form, hidden, and is rewritten only on an edit, so an unedited save posts what it loaded. A chip cannot be
+  half-edited; paste is plain text on one line; Enter and drop are refused; an "Insert storm detail" menu puts a chip at
+  the cursor. `tests/js/tplchips_check.js` round-trips every kind of stored text. Without JavaScript the plain boxes stay.
 
 **Related:** items 201, 203, 220, 221.
 

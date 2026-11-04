@@ -64,6 +64,7 @@ def _context(draft, name, is_new, situation, notice=None, test_notice=None, unsa
             "block_views": blockform.describe(draft, shown["problems"]), "preview": shown,
             "situations": samples.SITUATIONS, "situation": situation,
             "addable": blockform.ADDABLE, "kind_hints": blockform.KIND_HINTS,
+            "chip_labels": blockform.CHIP_LABELS,
             "notice": notice, "test_notice": test_notice,
             "test_address": _my_address(), "unsaved": unsaved,
             # A new template's friendly title, kept across every redraw of the form (slice 4).

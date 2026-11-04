@@ -91,8 +91,13 @@
             </p>
             <p class="tpl-field">
                 <label><input type="radio" name="subject_mode" value="text"{% if subject.mode == 'text' %} checked{% endif %}> Your own text</label>
-                <input type="text" name="subject_text" value="{{ subject.text }}" aria-label="Subject text">
-                <small>Merge fields: {total}, {storm_dates_label}, {largest_hail}, {nearest_miles}</small>
+                {# data-chips (item 294, slice 9a):  tplchips.js shows this as a box where merge fields are
+                   labelled chips; the input stays the field that is posted.  Without the script it is the
+                   plain box, as before. #}
+                <input type="text" id="subject_text" name="subject_text" value="{{ subject.text }}" aria-label="Subject text"
+                       data-chips="line">
+                <span class="tpl-chip-menu" data-chips-for="subject_text"></span>
+                <small class="tpl-chip-plain">Merge fields: {total}, {storm_dates_label}, {largest_hail}, {nearest_miles}</small>
             </p>
             <p class="tpl-field">
                 <label for="title">Page title</label>
@@ -101,7 +106,8 @@
             </p>
             <p class="tpl-field">
                 <label for="preheader">Preview line</label>
-                <input type="text" id="preheader" name="preheader" value="{{ preheader }}">
+                <input type="text" id="preheader" name="preheader" value="{{ preheader }}" data-chips="line">
+                <span class="tpl-chip-menu" data-chips-for="preheader"></span>
                 <small>The grey text beside the subject in the inbox. Merge fields work here too.</small>
             </p>
 
@@ -152,5 +158,8 @@
 <script src="{{ url_for('static', filename='tplname.js') }}" defer></script>
 <script src="{{ url_for('static', filename='tplpreview.js') }}" defer></script>
 <script src="{{ url_for('static', filename='tplpicker.js') }}" defer></script>
+{# The chip labels for tplchips.js:  tojson escapes <, > and &, so nothing here can end the script. #}
+<script type="application/json" id="chip-labels">{{ chip_labels | tojson }}</script>
+<script src="{{ url_for('static', filename='tplchips.js') }}" defer></script>
 </div>
 {% endblock %}

@@ -316,6 +316,11 @@ class DraftOperationsTest(unittest.TestCase):
                 self.assertEqual(self.kinds(f.add_block(self.base(), "heading", at)),
                                  ["text", "divider", "text", "heading", "footer"])
 
+    def test_every_merge_field_has_a_chip_label_and_nothing_else_does(self):
+        # item 294, slice 9:  a chip for each field the compiler accepts in text, no more.
+        self.assertEqual(set(f.CHIP_LABELS), set(b.TEXT_TOKENS))
+        self.assertTrue(all(label.strip() for label in f.CHIP_LABELS.values()))
+
     def test_every_addable_kind_has_a_picker_line(self):
         for kind, _ in f.ADDABLE:
             self.assertTrue(f.KIND_HINTS.get(kind), kind)

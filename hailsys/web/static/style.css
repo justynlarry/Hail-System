@@ -1317,6 +1317,23 @@ path.lk-context { fill: var(--lk-context); stroke: var(--lk-context); stroke-das
 .tpl-pic .tpl-pic-tint { fill: var(--accent); opacity: 0.15; }
 .tpl-pic .tpl-pic-gold { fill: #e8a317; }
 
+/* Merge fields as chips (tplchips.js, item 294 slice 9a).  The box looks like the text box it
+   replaces; a chip is a rounded label that cannot be edited.  With chips on, the old line listing
+   the {field} names is not needed. */
+.tpl-chipbox {
+  display: block; width: 100%; box-sizing: border-box; min-height: 2rem; padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border); border-radius: 3px; background: var(--surface); color: var(--text);
+  font: inherit; font-size: 0.875rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text;
+}
+.tpl-chipbox:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+.tpl-chip {
+  display: inline-block; margin: 0 0.1rem; padding: 0 0.45rem; border-radius: 999px;
+  background: var(--accent-fill); color: #fff; font-size: 0.8em; font-weight: 600; line-height: 1.6;
+  white-space: nowrap; cursor: default; user-select: none;
+}
+.tpl-chip-picker { margin-top: 0.25rem; font-size: 0.8125rem; }
+.chips-on .tpl-chip-plain { display: none; }
+
 /* A one-line block a preview click points at (tplpreview.js, item 294 slice 7). */
 .tpl-row.tpl-flash { outline: 2px solid var(--accent); outline-offset: 2px; transition: outline-color 0.3s; }
 .tpl-icon { min-width: 1.9rem; padding: 0.1rem 0.4rem; font-size: 0.95rem; line-height: 1.2; cursor: pointer; }

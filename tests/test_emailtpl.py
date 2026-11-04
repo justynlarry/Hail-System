@@ -246,6 +246,17 @@ class EmailTplPagesTest(unittest.TestCase):
         self.assertIn("tplpreview.js", page)
         self.assertIn("Click any part of the preview to open that block", page)
 
+    def test_the_subject_and_preview_line_are_marked_for_chips_with_their_labels(self):
+        # item 294, slice 9a:  the inputs stay (they are what is posted); the script reads the labels.
+        import json, re
+        page = self.text("/templates/new")
+        self.assertRegex(page, r'<input type="text" id="subject_text" name="subject_text"[^>]*data-chips="line">')
+        self.assertRegex(page, r'<input type="text" id="preheader" name="preheader"[^>]*data-chips="line">')
+        self.assertIn('<span class="tpl-chip-menu" data-chips-for="preheader"></span>', page)
+        raw = re.search(r'<script type="application/json" id="chip-labels">(.*?)</script>', page).group(1)
+        self.assertEqual(json.loads(raw), blockform.CHIP_LABELS)
+        self.assertIn("tplchips.js", page)
+
     def test_a_new_template_asks_for_a_title_not_an_internal_name(self):
         page = self.text("/templates/new")
         self.assertIn('<label for="friendly_title">Name this template</label>', page)
