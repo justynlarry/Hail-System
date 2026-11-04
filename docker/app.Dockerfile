@@ -3,7 +3,7 @@
 # of hail_ingest's write path.  Same shape as ingest.Dockerfile, same type
 # of container, but a different role.
 
-FROM python:3.12-slim AS app
+FROM python:3.12.16-slim-trixie AS app
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app

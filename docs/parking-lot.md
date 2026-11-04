@@ -8053,7 +8053,7 @@ HTTPS. Not found filed: `grep -i cookie` and `brute|lockout|throttl` over `docs/
 
 ## 300. Production would install different package versions from the ones tested on `hail-dev`
 
-**Status:** open (found 2026-11-04, production-readiness audit)
+**Status:** resolved 2026-11-04 (found the same day, production-readiness audit)
 
 `requirements.txt` pins `psycopg`, `flask`, `Flask-WTF` and `cryptography` but not `gunicorn`, and nothing pins what
 they pull in (Werkzeug, Jinja2, itsdangerous, and so on): there is no lock file. The base images use moving tags
@@ -8065,6 +8065,27 @@ tag or digest; a change to how the system is built, so `deploy.md` changes in th
 
 **When:** before the first `docker compose build` on `rbi-hail01`.
 
+**Confirmed before the fix (2026-11-04).** The four Python images on `hail-dev` held three package sets, from
+Dockerfiles that had not changed between their builds:
+
+| | Running `web` (built 2026-10-30) | `web`/`app` tagged (2026-11-02) | `test`, `ingest` (2026-10-29) |
+|---|---|---|---|
+| Python | 3.12.15 | 3.12.16 | 3.12.16 |
+| WTForms | 3.2.2 | 3.3.2 | 3.3.1 |
+| pycparser | 3.0 | 3.12 | 3.12 |
+
+The other 13 packages and Debian 13.7 matched. The running `web` was older than its tag because a restart keeps the
+container's image (item 302).
+
+**Resolved 2026-11-04.** `requirements.txt` pins all 16 packages, the transitive ones included, to the `test` image's set
+(the one the suite last ran on): WTForms 3.3.1, pycparser 3.12, gunicorn 26.2.0. `docker/app.Dockerfile` and
+`docker/ingest.Dockerfile` build `FROM python:3.12.16-slim-trixie` (an exact Python and Debian release; a tag, not a
+digest, so Docker Hub's OS-patch rebuilds of that tag still come through, by choice). All four images rebuilt:
+`pip freeze` and `python -V` identical in `web`, `app`, `test` and `ingest`, and equal to `requirements.txt`. Suite in
+the `test` service: 2,793 tests, OK (skipped=390). Keyed in by the developer. A version changes only by editing
+`requirements.txt` or the `FROM` line, rebuilding, and running the suite. `loader` (`postgis/postgis:16-3.6`, no pip)
+and the `postgis` and `cloudflared` service images were not changed: tags, not digests.
+
 ## 301. No error page for a server error: a broken page shows Flask's bare "Internal Server Error"
 
 **Status:** open (found 2026-11-04, production-readiness audit; low)
@@ -8075,3 +8096,31 @@ error a template raises on a missing value (on purpose, so a missing value is lo
 what staff see.
 
 **When:** at the pilot (Phase 6), or the first time a member of staff reports the bare page, whichever comes first.
+
+## 302. A restarted `web` keeps its old image, and `status.sh images` reports OK
+
+**Status:** open (found 2026-11-04, item 300 work; docs fixed the same day, `status.sh` not)
+
+Found 2026-11-04. The running `web` container had been created 2026-10-30 from image `91f564…` (Python 3.12.15,
+WTForms 3.2.2), while `hail-system-web:latest` was a 2026-11-02 build (3.12.16, WTForms 3.3.2): every
+`docker compose restart web` since had restarted the same container, and a container keeps the image it was created
+from. Only `docker compose up -d web` recreates it. (A second case the same day was not this: `web` was recreated at
+23:01:03Z and the final item 300 rebuild was tagged at 23:04:06Z, so it was one build behind because nothing had run
+since, not because a restart kept it. Docker's events log showed the order.)
+
+Two things let it go unseen:
+1. **`scripts/status.sh images`** (`cmd_images`) compares the tagged image's build time with the repo files it depends
+   on, and never asks which image the running container uses. It read "web built 2026-11-02 OK" while users were on
+   the 2026-10-30 image.
+2. **`docs/deploy.md` §12** said to rebuild `web` when needed and then `docker compose restart web`, which on
+   `rbi-hail01` would leave the rebuilt image unused in the same way. `docs/command-ref.md`'s "restart vs up -d" note
+   named only compose-file changes.
+
+**Fixed 2026-11-04 (docs):** `deploy.md` §12 now says `up -d web` after a rebuild, with the check (the container's
+`.Image` against the tag's `.Id`), and `command-ref.md` says the same. **Open:** `cmd_images` should also compare
+`docker inspect` of each running service container with its tagged image and say STALE when they differ (code, keyed in
+by the developer).
+
+**When:** the `status.sh` change before the first update to `rbi-hail01` (`deploy.md` §12).
+
+**Related:** items 289, 290, 300.

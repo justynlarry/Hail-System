@@ -204,7 +204,12 @@ Every one of these, not most:
 - [ ] Rebuild `ingest` after a change to anything it imports (`scripts/status.sh images` names the files), and `web` or
       `app` after a change to `requirements.txt` or `docker/app.Dockerfile`.
 - [ ] `scripts/status.sh images`: all OK.
-- [ ] `docker compose restart web`, every time: it reads the version once, at startup (item 289), and Python only
+- [ ] **If `web` was rebuilt, `docker compose up -d web`, not `restart`** (item 302): `restart` keeps the existing
+      container, and with it the image it was created from, so a rebuilt `web` never goes live. `up -d` recreates it on
+      the new image. Check with `docker inspect $(docker compose ps -q web) --format '{{.Image}}'` against
+      `docker image inspect hail-system-web --format '{{.Id}}'`: the two must match. `status.sh images` does not check
+      this yet.
+- [ ] Otherwise `docker compose restart web`, every time: it reads the version once, at startup (item 289), and Python only
       reloads on a restart (templates reload on their own, because `create_app()` sets `TEMPLATES_AUTO_RELOAD`, item
       290). Check the footer shows the new release with no `-dirty` and no `-N-g...` part, and update "Release
       running" at the top of this file.

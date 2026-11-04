@@ -3,7 +3,7 @@
 # -- does not derive from postgis/postgis
 
 
-FROM python:3.12-slim
+FROM python:3.12.16-slim-trixie
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app

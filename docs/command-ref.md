@@ -179,7 +179,14 @@ the container's existing configuration. A change to `docker-compose.yml`
 itself -- logging options, environment, ports, volumes -- only takes effect
 when the container is recreated:
 
-    docker compose up -d web    # recreates web if its compose config changed
+    docker compose up -d web    # recreates web if its compose config or its image changed
+
+**A rebuilt image needs `up -d` too** (item 302). The container keeps the image it was created from, so after
+`docker compose build web`, `restart` runs the old image: on 2026-11-04 `web` had been serving a 2026-10-30 image
+through a 2026-11-02 rebuild. To see which image the running container uses, compare
+`docker inspect $(docker compose ps -q web) --format '{{.Image}}'` with
+`docker image inspect hail-system-web --format '{{.Id}}'`. `scripts/status.sh images` checks the tagged image, not the
+running container, so it reads OK either way.
 
 ## Posgres (in Docker)
 1. Create Database:
