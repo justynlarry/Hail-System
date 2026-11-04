@@ -48,6 +48,10 @@ Have these in hand, or know where they come from:
       topology", item 110): `app.roofbrokersinc-weather.com` for production.
 - [ ] **Alerts:** an SMTP account for host notifications (item 236; a dedicated Gmail account with an app password
       was proposed).
+- [ ] **Documents reviewed:** every file in `docs/` checked against the repo and the database, and brought up to date,
+      before the release is tagged (developer, 2026-11-04; items 212 and 298). Nothing updates them when features land,
+      so this review is what keeps them current. `docs/hail-consolidated.md` is the handoff document: re-sync it and
+      its "Last synced" line. Ask Claude Code to "review all the .md files in docs".
 
 ## 1. The hosts (when the server is a Proxmox VM)
 
@@ -183,6 +187,8 @@ Every one of these, not most:
 
 ## 12. Updating the server later
 
+- [ ] On `hail-dev`, before anything else: review every file in `docs/` and bring it up to date, as in §0 (items 212,
+      298); commit the changes, so the release carries them.
 - [ ] On `hail-dev`: add the release's section to `CHANGELOG.md`, commit and push, then `scripts/release.sh vX.Y.Z`
       (`--check` first to see what it would tag). PATCH for fixes only, MINOR for anything people will notice, MAJOR
       for a milestone (item 289).
