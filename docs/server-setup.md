@@ -170,12 +170,17 @@ list. In order:
    defaults, radar parameter set 1, and likelihood set 1 with its 20 rules.
 2. **The first admin**, with the bootstrap script, as `hail_admin`:
    ```
-   PW=$(grep '^POSTGIS_ROOT_PASSWORD=' .env | cut -d= -f2-)
-   docker compose run --rm -T --no-deps -e PGUSER=hail_admin -e PGPASSWORD="$PW" web \
+   PW=$(docker compose run --rm --no-deps -T --entrypoint sh loader -c 'printf %s "$PGPASSWORD"')
+   docker compose run --rm --no-deps -e PGUSER=hail_admin -e PGPASSWORD="$PW" web \
        python3 scripts/create_user.py --user-name <name> --first-name <first> --last-name <last> --email <email> --role admin
+   unset PW
    ```
-   Every other user is added on the admin page.
-3. **Reference data.** Copy `data/` across first (below, "to move files untracked in git"), then:
+   The first line takes the password as Compose resolves it (the `loader` service's `PGPASSWORD` is
+   `POSTGIS_ROOT_PASSWORD`), not with `grep | cut`, which passes a `$$` in `.env` as written and fails to sign in (item
+   304). The single quotes make `$PGPASSWORD` expand inside the container. That line keeps `-T` because it captures
+   output; the second has **no `-T`**, because `create_user.py` asks for the new password with `getpass`, which cannot
+   hide what is typed without a terminal. Every other user is added on the admin page.
+3. **Reference data.** Copy the two TIGER folders across first (below, "to move files untracked in git"), then:
    ```
    docker compose run --rm -T loader bash scripts/load_reference.sh    # report types, sources, ZCTAs, counties
    docker compose run --rm -T loader bash scripts/load_coverage.sh     # config/coverage_zips.txt, 183 zips
@@ -189,7 +194,7 @@ list. In order:
    reported:
    ```
    bash scripts/dnc_copy.sh export data/dnc_list.csv        # on hail-dev
-   scp data/dnc_list.csv rbi-hail01:hail-system/data/       # over Tailscale
+   scp data/dnc_list.csv hail-user@100.74.188.103:hail-system/data/   # over Tailscale, from hail-dev
    bash scripts/dnc_copy.sh load data/dnc_list.csv          # on rbi-hail01
    rm data/dnc_list.csv                                     # on both machines
    ```
@@ -266,23 +271,36 @@ Tailscale-issued certificate — see "Firewall" above.
 **Run these from the SOURCE machine, not the box you are building.** If the
 destination is a tailnet name, it has to come after `tailscale up` on both ends.
 
+Only the two extracted TIGER folders go across (item 304): they are all
+`scripts/load_reference.sh` reads from outside the clone (lines 35-36).
+
 ```
-# dry run first — shows what would transfer, moves nothing
-rsync -avn --exclude='__pycache__/' --exclude='*.pyc' \
-  ~/<repo-dir>/data ~/<repo-dir>/reference \
-  <user>@<target-host>:~/<repo-dir>/
+# dry run first: lists what would transfer, moves nothing (14 files, 7 per folder)
+rsync -avn --relative ~/<repo-dir>/./data/raw/tiger/tl_2025_us_zcta520 \
+                      ~/<repo-dir>/./data/raw/tiger/tl_2025_us_county \
+      <user>@<target-host>:~/<repo-dir>/
 
 # then for real
-rsync -avP --exclude='__pycache__/' --exclude='*.pyc' \
-  ~/<repo-dir>/data ~/<repo-dir>/reference \
-  <user>@<target-host>:~/<repo-dir>/
+rsync -avP --relative ~/<repo-dir>/./data/raw/tiger/tl_2025_us_zcta520 \
+                      ~/<repo-dir>/./data/raw/tiger/tl_2025_us_county \
+      <user>@<target-host>:~/<repo-dir>/
 ```
 
-Trailing slashes matter. Bare `~/<repo-dir>/data` copies the directory itself;
-`data/` with a slash copies its *contents* loose into the destination.
+`--relative` with the `/./` keeps the path after it, so the files land at
+`~/<repo-dir>/data/raw/tiger/...` on the target. Run the dry run again afterwards:
+an empty file list means the two sides match (959,120,337 bytes on 2026-11-05).
+For `rbi-hail01`, `<target-host>` is its Tailscale IP, `100.74.188.103`: it is
+on a different Tailscale login and its short name does not resolve from `hail-dev`.
 
-`data/` and `reference/` are the only gitignored paths that carry anything —
-`scripts/__pycache__/` is bytecode and is excluded on purpose.
+**What stays behind, and why:**
+- `reference/`: three real suppression exports (Airtable and Constant Contact)
+  that nothing on a server reads, plus files `build_reference_tables.py`
+  regenerates. The suppression list moves only by `dnc_copy.sh` (above).
+- The rest of `data/`: the IEM archive CSVs (the backfill downloads from IEM),
+  the TIGER zips (re-downloadable from the Census Bureau), and the parked
+  permits research, some of it possibly homeowner records.
+- `.env` and `cloudflared/`: every server has its own secrets and tunnel.
+- `output/`, `scratchpad/`, `claude-resume.txt`: working files.
 
 Note that `planning/report_types.csv` arrives via the clone, not the rsync. It
 is tracked, so if it has not been committed and pushed the loader will have no

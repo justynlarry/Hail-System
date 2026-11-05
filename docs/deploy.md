@@ -102,8 +102,11 @@ Detail: `docs/server-setup.md`, "Git/Github Setup" and "to move files untracked 
       refuses only a push to the checked-out branch). It is the same tag object, so it does not conflict when GitHub
       later takes the push; push it there too once it does.
 - [ ] `scripts/write_version.sh`: writes `hailsys/VERSION`, which the footer shows after `web` starts (§5).
-- [ ] From `hail-dev`, rsync `data/` and `reference/` into `~/hail-system/` (dry run first; trailing slashes matter).
-      These hold the TIGER shapefiles the reference load needs.
+- [ ] From `hail-dev`, rsync the two TIGER folders only, `data/raw/tiger/tl_2025_us_zcta520` and
+      `tl_2025_us_county` (about 915 MB; dry run first): the command is in `docs/server-setup.md`, "to move files
+      untracked in git". They are all the reference load reads from outside the clone. **Not `reference/`:** it holds
+      real suppression exports, and the suppression list moves only by `dnc_copy.sh` (§7). Not the rest of `data/`
+      either (item 304).
 
 ## 4. Secrets
 
@@ -119,6 +122,12 @@ Detail: `docs/server-setup.md`, "Git/Github Setup" and "to move files untracked 
 - [ ] `RENTCAST_KEY`; `CC_API_KEY`, `CC_API_SECRET` from the **production** Constant Contact account;
       `CC_REDIRECT_URI` on the production hostname.
 - [ ] Use valid shell names only (item 242): `. ./.env` must not fail.
+- [ ] **A `$` in a value is written `$$`** (item 304). Compose reads `$$` as one `$`; a single `$` starts a variable
+      name. The generator lines above never make one. Because of this, read a value back through Compose, never with
+      `grep | cut` or by sourcing the file (both pass `$$` as written, and the shell turns it into its process id):
+      ```
+      PW=$(docker compose run --rm --no-deps -T --entrypoint sh loader -c 'printf %s "$PGPASSWORD"')   # POSTGIS_ROOT_PASSWORD
+      ```
 
 ## 5. Build and start
 

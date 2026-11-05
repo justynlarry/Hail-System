@@ -8214,9 +8214,9 @@ leading space is refused by name and nothing is applied; a capital letter is ref
 
 **Related:** items 277, 299.
 
-## 304. The deploy docs copy all of `data/` and `reference/` to a new server, do-not-contact files included
+## 304. The new-server docs: they copy all of `data/` and `reference/`, and read `.env` and prompt for passwords wrongly
 
-**Status:** open (found 2026-11-05, during the `rbi-hail01` build)
+**Status:** resolved 2026-11-05 (found the same day, during the `rbi-hail01` build)
 
 `docs/deploy.md:95` and `docs/server-setup.md:264-289` say to rsync `data/` and `reference/` from `hail-dev`, and
 `server-setup.md:178` says to copy `data/` before the reference load. The load needs only the two extracted TIGER
@@ -8232,7 +8232,31 @@ For `rbi-hail01` (2026-11-05) only the two TIGER folders were copied, by `rsync 
 dry run sent nothing (959,120,337 bytes, matching). **Fix:** both documents name `data/raw/tiger/tl_2025_us_zcta520`
 and `tl_2025_us_county` only, with the `--relative` command, and say why `reference/` stays behind.
 
+**Also found 2026-11-05, creating the first admin on `rbi-hail01`:**
+- **`.env` read literally.** `server-setup.md:173` takes the admin password with
+  `grep '^POSTGIS_ROOT_PASSWORD=' .env | cut -d= -f2-`, and `parking-lot.md` (the `PERMIT-STACK-API` item) gives the same
+  advice for reading single values. Compose reads `$$` in a `.env` value as one `$`; `grep | cut` passes it as written.
+  `rbi-hail01`'s value has `$` in it: 17 characters as written, 16 as Compose resolves it, so `migrate.sh` (through
+  Compose) signed in and `create_user.py` got `password authentication failed for user "hail_admin"`. Sourcing the
+  file (`. ./.env`) is wrong too: the shell turns `$$` into its own process id. No script reads `.env` this way (checked
+  `scripts/` and `systemd/`), only the docs. Worked around by taking the value through Compose:
+  `PW=$(docker compose run --rm --no-deps -T --entrypoint sh loader -c 'printf %s "$PGPASSWORD"')`. **Fix:** the docs
+  read values that way, and `deploy.md` §4 says a value containing `$` must be written `$$` (the generator lines it
+  gives make none).
+- **`-T` on a password prompt.** `server-setup.md:174` runs `create_user.py` with `docker compose run -T`. The script
+  asks for the new password with `getpass`, which cannot hide input without a terminal, so the password shows as it is
+  typed. Run without `-T` on 2026-11-05. **Fix:** drop `-T` from that line, and say why.
+
 **When:** before the next server is built, or at the next document review (`deploy.md` §0), whichever comes first.
+
+**Resolved 2026-11-05 (docs only).** `deploy.md` §3 copies the two TIGER folders only and says why `reference/` stays
+behind; §4 says a `$` in a value is written `$$` and gives the Compose line for reading a value back.
+`server-setup.md`, "Data on a new server": the first admin takes the password through Compose and runs `create_user.py`
+without `-T`, with the reasons; step 3 copies the TIGER folders; step 5's `scp` names `rbi-hail01` by its Tailscale IP
+(its short name does not resolve from `hail-dev`, as the rsync showed). "To move files untracked in git" is the
+`--relative` rsync of the two folders, with the dry-run check and what stays behind. The old advice in the
+`PERMIT-STACK-API` item is left as written (it is that item's history); this entry supersedes it. Nothing else in
+`docs/` copies `reference/` or reads `.env` with `grep | cut` (checked).
 
 ## 305. `migrate.sh` refuses a brand-new database: PostGIS's own table counted as "tables but nothing recorded"
 
