@@ -7,10 +7,17 @@ setting, a migration), MAJOR for a milestone (`v1.0.0` is the pilot, Phase 6).  
 `docs/parking-lot.md` and `docs/decision-log.md`; this names the items.  The repository is public:  nothing here
 names a person, an address or a secret.
 
+## v0.9.1
+
+### Fixed
+- `scripts/migrate.sh` no longer refuses a brand-new database:  the table PostGIS installs (`spatial_ref_sys`) was
+  counted as a hand-built table, so the first `--apply` on `rbi-hail01` stopped before running anything.
+  `tests/migrate_check.sh` now starts from a database like a real new one (item 305).
+
 ## v0.9.0
 
-Not yet tagged:  this is the first release, tagged when `rbi-hail01` is first deployed.  It is everything built on
-`hail-dev` through Phase 5c.
+Tagged 2026-11-05, the first release, for the first deploy to `rbi-hail01`.  It is everything built on `hail-dev`
+through Phase 5c.
 
 ### In it
 - **Storm data:** the nightly IEM storm-report ingest and archive (Phase 1), zip codes derived on read; NOAA MRMS

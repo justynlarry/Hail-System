@@ -8213,3 +8213,45 @@ leading space is refused by name and nothing is applied; a capital letter is ref
 `068_X.sql` and `68_x.sql` added: all four named. Entered by Claude at the developer's request.
 
 **Related:** items 277, 299.
+
+## 304. The deploy docs copy all of `data/` and `reference/` to a new server, do-not-contact files included
+
+**Status:** open (found 2026-11-05, during the `rbi-hail01` build)
+
+`docs/deploy.md:95` and `docs/server-setup.md:264-289` say to rsync `data/` and `reference/` from `hail-dev`, and
+`server-setup.md:178` says to copy `data/` before the reference load. The load needs only the two extracted TIGER
+folders: `scripts/load_reference.sh:35-36` reads `data/raw/tiger/tl_2025_us_zcta520/` and `tl_2025_us_county/`, and
+everything else it and `load_coverage.sh` load comes from `planning/` and `config/` in the clone. `reference/` holds
+three real suppression exports (the Airtable list and two Constant Contact unsubscribe CSVs) that nothing on a server
+reads; copying it breaks `deploy.md`'s own rule that only the suppression list moves from `hail-dev`, and only by
+`scripts/dnc_copy.sh` (step 7). `data/` also carries the IEM archive CSVs (the backfill downloads from IEM instead), the
+TIGER zips (re-downloadable) and the parked permits research, some of it possibly homeowner records. About 2 GB moves
+where 915 MB is needed.
+
+For `rbi-hail01` (2026-11-05) only the two TIGER folders were copied, by `rsync --relative` from `hail-dev`, and a second
+dry run sent nothing (959,120,337 bytes, matching). **Fix:** both documents name `data/raw/tiger/tl_2025_us_zcta520`
+and `tl_2025_us_county` only, with the `--relative` command, and say why `reference/` stays behind.
+
+**When:** before the next server is built, or at the next document review (`deploy.md` §0), whichever comes first.
+
+## 305. `migrate.sh` refuses a brand-new database: PostGIS's own table counted as "tables but nothing recorded"
+
+**Status:** resolved 2026-11-05 (found the same day, first `--apply` on `rbi-hail01`)
+
+The first `migrate.sh --apply` on `rbi-hail01` stopped with "this database has tables but nothing recorded", having
+applied nothing. The `postgis/postgis` image installs PostGIS, `postgis_topology`, `fuzzystrmatch` and
+`postgis_tiger_geocoder` into the database it creates, so a brand-new `weather-property` already has
+`public.spatial_ref_sys` (and the `tiger` and `topology` schemas). The guard at `scripts/migrate.sh:107` counted every
+table in `public` but `schema_migrations`, so it read the new database as `hail-dev` before its baseline. It had never
+met a new database: `hail-dev` was baselined (item 277), and `tests/migrate_check.sh:50` built its "fresh" database
+with a plain `createdb`, from `template1`, which has no PostGIS. The image's `template_postgis` matches a real new
+database (the same five extensions, one table in `public`; checked on `hail-dev`).
+
+**Resolved 2026-11-05.** The guard counts only tables no extension owns (`pg_depend`, `deptype = 'e'`): 0 on
+`rbi-hail01`, 63 on `hail-dev`, so the hand-built case is still refused. `tests/migrate_check.sh` builds `mc_fresh`
+from `template_postgis`. In a throwaway `postgis/postgis:16-3.6` container: all 20 checks pass with the new script, and
+the old script fails "a fresh database is built from every file" (15 failed), so the test now catches this. (A first
+run failed by starting before the image's set-up restart; rerun clean.) Entered by Claude at the developer's request.
+Released as v0.9.1.
+
+**Related:** items 277, 303.

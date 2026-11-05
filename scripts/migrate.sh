@@ -104,7 +104,9 @@ fi
 
 # A database with tables but nothing recorded would have 001 run again:  that is hail-dev before its
 # baseline, with or without sql/062 applied.
-if [ "${#recorded[@]}" -eq 0 ] && [ "$(value "SELECT count(*) FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'schema_migrations'")" != "0" ]; then
+# Tables an extension owns do not count:  the postgis image installs PostGIS into the database it
+# creates, so a brand-new database already holds public.spatial_ref_sys (item 305).
+if [ "${#recorded[@]}" -eq 0 ] && [ "$(value "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r','p') AND c.relname <> 'schema_migrations' AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid AND d.deptype = 'e')")" != "0" ]; then
     fail "this database has tables but nothing recorded: apply sql/062 by hand if it is missing, then --baseline NNN"
 fi
 

@@ -47,7 +47,9 @@ cleanup() { dropdb --if-exists mc_fresh; dropdb --if-exists mc_base; rm -rf "$WO
 trap cleanup EXIT
 cleanup; WORK=$(mktemp -d)
 
-createdb mc_fresh
+# From template_postgis, not template1:  a real new database comes with PostGIS already installed by
+# the image (spatial_ref_sys, tiger, topology), and a test that started bare missed item 305.
+createdb -T template_postgis mc_fresh
 check "a fresh database is built from every file" 0 "applied and recorded" -- \
     env PGDATABASE=mc_fresh SQL_DIR=sql bash "$MIGRATE" --apply
 total=$(ls sql | grep -cE '^[0-9]{3}_[a-z0-9_]+\.sql$')
