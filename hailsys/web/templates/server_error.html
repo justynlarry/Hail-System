@@ -1,0 +1,25 @@
+{# The page for an unhandled error (item 301).  Standalone on purpose, not base.html:  the fault
+   being reported may be in the layout or in something it reads, and this page must not fail the
+   same way.  It takes one value, `when`, and shows nothing of the error itself:  the traceback is
+   in the web log (docker compose logs web). #}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Something went wrong</title>
+        <script src="{{ url_for('static', filename='theme.js') }}"></script>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    </head>
+    <body>
+        <h1>Something went wrong</h1>
+        <div class="page">
+            <p>The server hit an error and couldn't show this page. The error has been recorded.</p>
+            <p>If you had just pressed a button that does something (a pull, a match, a send, a save),
+               check that page before pressing it again: the action may have gone through.</p>
+            <p>If it keeps happening, tell the developer what you were doing and when:
+               <strong>{{ when }}</strong>.</p>
+            <p><a href="{{ url_for('main.index') }}">Back to storm days</a></p>
+        </div>
+    </body>
+</html>

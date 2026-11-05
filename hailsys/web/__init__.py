@@ -3,6 +3,9 @@ import os
 from flask import Flask, g, render_template
 from flask_wtf.csrf import CSRFError, CSRFProtect
 from jinja2 import StrictUndefined
+from hailsys.tuning import DISPLAY_TZ
+from datetime import datetime
+
 
 def create_app():
     from hailsys.logconfig import configure_logging
@@ -63,6 +66,16 @@ def create_app():
     def handle_too_large(e):
         return render_template("csrf_error.html",
                                reason="That upload is too large (limit 10 MB)."), 413
+
+    # Any unhandled exception (item 301).  Flask has already logged the traceback by the time this
+    # runs, so the web log is unchanged;  this only replaces the bare "Internal Server Error" staff
+    # saw.  The page is standalone, not base.html, so a fault in the layout cannot also break the
+    # page that reports it.  If this fails anyway, gunicorn's own bare page shows, as before.
+    @app.errorhandler(500)
+    def handle_server_error(e):
+        when = datetime.now(DISPLAY_TZ).strftime("%Y-%m-%d %H:%M %Z")
+        return render_template("server_error.html", when=when), 500
+    
 
     # Injected into every template render
     @app.context_processor

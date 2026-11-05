@@ -28,4 +28,4 @@ Not yet tagged:  this is the first release, tagged when `rbi-hail01` is first de
 - **Operations:** migrations by `scripts/migrate.sh` (item 277), `scripts/status.sh`, versioned static files
   (item 296), the release stamp in the footer (item 289), every package pinned (item 300), and `status.sh images`
   flagging a running container on an old image (item 302), and `migrate.sh` refusing a misnamed migration file by
-  name (item 303).
+  name (item 303), and an error page in place of the bare "Internal Server Error" (item 301).

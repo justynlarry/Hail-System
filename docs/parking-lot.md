@@ -8116,7 +8116,7 @@ and the `postgis` and `cloudflared` service images were not changed: tags, not d
 
 ## 301. No error page for a server error: a broken page shows Flask's bare "Internal Server Error"
 
-**Status:** open (found 2026-11-04, production-readiness audit; low)
+**Status:** resolved 2026-11-05 (found 2026-11-04, production-readiness audit; low)
 
 `create_app()` registers handlers for `CSRFError` and 413 only. Any other exception, including the `StrictUndefined`
 error a template raises on a missing value (on purpose, so a missing value is loud), reaches the user as Flask's plain
@@ -8124,6 +8124,19 @@ error a template raises on a missing value (on purpose, so a missing value is lo
 what staff see.
 
 **When:** at the pilot (Phase 6), or the first time a member of staff reports the bare page, whichever comes first.
+
+**Resolved 2026-11-05.** `create_app()` (`hailsys/web/__init__.py`) registers `@app.errorhandler(500)`, which renders
+`hailsys/web/templates/server_error.html` with a 500. Flask logs the traceback before the handler runs, so the `web`
+log is unchanged. The page is standalone, not `base.html`: the fault being reported may be in the layout or in what it
+reads, and the page that reports it must not fail the same way (if it does, gunicorn's bare page shows, as before). It
+takes one value, the time in `DISPLAY_TZ`, so staff can say when it happened and the log line can be found; it shows
+nothing of the error itself; it warns that an action button (a pull, a match, a send, a save) may have gone through
+before it is pressed again, since a repeated pull spends RentCast requests; and it links back to Storm Days.
+`tests/test_server_error_page.py` (3 tests, no database: the startup sweep is patched out and `/login`'s render made
+to raise; the app is not in testing mode, which would re-raise instead) pins the 500 and the page, that the error text
+is not shown, and that the traceback still reaches the log. Full suite OK, 2,812 tests. Keyed in by the developer; the
+time-format fix (`%H: %M` to `%H:%M`) and the comment above the handler applied by Claude at the developer's request.
+**Not covered:** 403 and 404 still show Werkzeug's plain pages (outside this item).
 
 ## 302. A restarted `web` keeps its old image, and `status.sh images` reports OK
 
