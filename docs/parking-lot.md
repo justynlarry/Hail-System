@@ -8174,7 +8174,7 @@ not installed here, so it was not run. Written by Claude at the developer's requ
 
 ## 303. `migrate.sh` silently skips a `.sql` file whose name does not match its pattern
 
-**Status:** open (found 2026-11-05, item 299 work)
+**Status:** resolved 2026-11-05 (found the same day, item 299 work)
 
 `scripts/migrate.sh:40` lists migrations with `ls "$SQL_DIR" | grep -E '^[0-9]{3}_[a-z0-9_]+\.sql$'`. A file that
 misses the pattern is dropped without a word. Found when `sql/067_sign_in_limits.sql` was saved as
@@ -8188,5 +8188,15 @@ non-migrations (`guard_test.sql`, `dev_*.sql`), and stop with an error naming th
 pass silently (CLAUDE.md: failures should be loud). Code, keyed in by the developer.
 
 **When:** before the first migration on `rbi-hail01` (`docs/deploy.md` §6).
+
+**Resolved 2026-11-05.** `scripts/migrate.sh`, right after it lists the migrations, lists every other `*.sql` in the
+folder, leaves out `guard_test.sql` and `dev_*.sql`, and stops with
+`not a migration name (NNN_name.sql, lower case), so not applied: '<name>' ...`, each name quoted so a leading or
+trailing space shows. In report mode as well as `--apply`, and before the duplicate-number check, so it is the first
+thing said. `tests/migrate_check.sh` gains four checks: the guard and dev seeds are not refused; a name with a
+leading space is refused by name and nothing is applied; a capital letter is refused the same way. In a throwaway
+`postgis/postgis:16-3.6` container: 20 checks, all passed. On `hail-dev` the report still reads `recorded 67, pending 0`
+(its nine dev and guard files pass). The filter was also checked on a copy of `sql/` with `' 068_x.sql'`, `068-x.sql`,
+`068_X.sql` and `68_x.sql` added: all four named. Entered by Claude at the developer's request.
 
 **Related:** items 277, 299.

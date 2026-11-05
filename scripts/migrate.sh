@@ -11,7 +11,8 @@
 #   docker compose run --rm -T loader bash scripts/migrate.sh [--apply | --baseline NNN]
 # 
 # A person runs this, nothing calls it.  Only files named NNN_name.sql count, so guard_test.sql and the
-# dev seeds don't get applied.  Each file has its own BEGIN/COMMIT, so its record is written just after it.  If a 
+# dev seeds don't get applied;  any other .sql file stops it, named (item 303).  Each file has its own
+# BEGIN/COMMIT, so its record is written just after it.  If a
 # run dies between the two, the next run tries the file again and, since most migrations cannot run
 # twice, fails loudly.  Add that row by hand in that instance.  SQL_DIR overrides the folder, for the tests.
 
@@ -38,6 +39,14 @@ esac
 
 # The migrations in number order.  The pattern is the same as schema_migrations_filename_shape.
 mapfile -t files < <(ls "$SQL_DIR" | grep -E '^[0-9]{3}_[a-z0-9_]+\.sql$' | LC_ALL=C sort)
+
+# A .sql file that pattern did not take is refused by name (item 303).  Otherwise a misnamed
+# migration (" 067_x.sql" with a leading space, "067-x.sql", "67_x.sql") sits unapplied while the
+# report says nothing is pending.  guard_test.sql and the dev_ seeds are the only .sql files here
+# that are not migrations.  Quoted in the message so a leading or trailing space shows.
+mapfile -t stray < <(ls "$SQL_DIR" | grep -E '\.sql$' | grep -vE '^[0-9]{3}_[a-z0-9_]+\.sql$' \
+                         | grep -vE '^(guard_test|dev_[a-z0-9_]+)\.sql$' || true)
+[ "${#stray[@]}" -eq 0 ] || fail "not a migration name (NNN_name.sql, lower case), so not applied: $(printf "'%s' " "${stray[@]}")"
 [ "${#files[@]}" -gt 0 ] || fail "no migration files in $SQL_DIR"
 dupes=$(printf '%s\n' "${files[@]}" | cut -c1-3 | uniq -d)
 [ -z "$dupes" ] || fail "two files share a number: $dupes"

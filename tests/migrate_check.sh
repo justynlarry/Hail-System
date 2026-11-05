@@ -16,7 +16,8 @@
 # baseline); a baseline records without running and only once; a recorded row cannot be changed or
 # deleted (item 282); an edited file and a deleted one are caught and nothing is applied; a new file
 # is applied and recorded; a failing file stops the run and is not recorded; two files with one
-# number and an unknown option are refused.
+# number and an unknown option are refused;  a .sql file with a name that is not a migration's is
+# refused by name, and guard_test.sql and the dev_ seeds are not (item 303).
 
 set -uo pipefail
 
@@ -96,6 +97,21 @@ rm "$WORK/${after}_mc_again.sql"
 cp "$WORK/${next}_mc_probe.sql" "$WORK/${next}_mc_twin.sql"
 check "two files with one number are refused" 1 "two files share a number: $next" -- \
     env PGDATABASE=mc_base SQL_DIR="$WORK" bash "$MIGRATE"
+rm "$WORK/${next}_mc_twin.sql"
+
+cp sql/guard_test.sql sql/dev_*.sql "$WORK"/
+check "guard_test.sql and the dev_ seeds are not refused" 0 "pending 0" -- \
+    env PGDATABASE=mc_base SQL_DIR="$WORK" bash "$MIGRATE"
+printf 'SELECT 1;\n' > "$WORK/ ${after}_mc_spaced.sql"
+check "a name with a leading space is refused by name" 1 "not a migration name.*' ${after}_mc_spaced.sql'" -- \
+    env PGDATABASE=mc_base SQL_DIR="$WORK" bash "$MIGRATE"
+check "and nothing is applied" 0 "^$((total + 1))$" -- \
+    rows mc_base "SELECT count(*) FROM schema_migrations"
+mv "$WORK/ ${after}_mc_spaced.sql" "$WORK/${after}_MC_Caps.sql"
+check "a capital letter is refused the same way" 1 "not a migration name.*'${after}_MC_Caps.sql'" -- \
+    env PGDATABASE=mc_base SQL_DIR="$WORK" bash "$MIGRATE" --apply
+rm "$WORK/${after}_MC_Caps.sql"
+
 check "an unknown option is refused" 1 "unknown option" -- \
     env PGDATABASE=mc_base SQL_DIR=sql bash "$MIGRATE" --aply
 
