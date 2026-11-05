@@ -22,5 +22,9 @@ Not yet tagged:  this is the first release, tagged when `rbi-hail01` is first de
 - **Email:** the Constant Contact send path (preview, review, send, batches, bounce check), the do-not-contact list
   checked at send time, sends by report or by hail-zone level, drip follow-ups, and the template editor (items 202 to
   204, 294).  Rehearsed on test addresses only; no real recipient until items 183, 189 and 96 are settled.
+- **Sign-in:** the session cookie is Secure and SameSite=Lax; a sign-in lasts "Sign out after" hours (admin page,
+  default 12); five wrong passwords for a name in 15 minutes refuse it for up to 15 minutes; every attempt is
+  logged in `login_attempts` (item 299).
 - **Operations:** migrations by `scripts/migrate.sh` (item 277), `scripts/status.sh`, versioned static files
-  (item 296), the release stamp in the footer (item 289).
+  (item 296), the release stamp in the footer (item 289), every package pinned (item 300), and `status.sh images`
+  flagging a running container on an old image (item 302).

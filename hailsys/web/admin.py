@@ -43,6 +43,8 @@ CHECK_MESSAGES = {
         "Most follow-ups must be between 0 and 10.",
     "settings_drip_max_gap_days_check":
         "Longest gap must be between 1 and 30 days.",
+    "settings_session_max_hours_check":
+        "Sign out after must be between 1 and 72 hours.",
 }
 
 SELF_ACTION_MESSAGE = (
@@ -108,7 +110,7 @@ def _render_admin(form=None, status=200, zone_form=None, trial=None, trial_day=N
                    hail_pair_ceiling_m() AS ceiling_m,
                    listing_freshness_days,
                    match_max_age_days, email_cap_days,
-                   drip_max_followups, drip_max_gap_days,
+                   drip_max_followups, drip_max_gap_days, session_max_hours,
                    contact_email, schedule_url, from_name, from_email, reply_to
             FROM settings
             """
@@ -128,7 +130,7 @@ def _render_admin(form=None, status=200, zone_form=None, trial=None, trial_day=N
                    h.default_zip_radius_miles, h.default_match_radius_miles,
                    h.rentcast_billing_day, h.rentcast_monthly_quota, h.listing_freshness_days,
                    h.match_max_age_days, h.email_cap_days,
-                   h.drip_max_followups, h.drip_max_gap_days,
+                   h.drip_max_followups, h.drip_max_gap_days, h.session_max_hours,
                    h.contact_email, h.schedule_url, h.from_name, h.from_email, h.reply_to
             FROM settings_history h
             JOIN users u ON u.emp_id = h.changed_by
@@ -335,6 +337,7 @@ def update_settings():
         email_cap = int(request.form.get("email_cap_days") or "")
         drip_followups = int(request.form.get("drip_max_followups") or "")
         drip_gap = int(request.form.get("drip_max_gap_days") or "")
+        session_hours = int(request.form.get("session_max_hours") or "")
     except (InvalidOperation, ValueError):
         flash("Radii, billing day, and quota must all be numbers.")
         return redirect(url_for("admin.index"))
@@ -353,11 +356,12 @@ def update_settings():
                 "          listing_freshness_days = %s, "
                 "           match_max_age_days = %s, "
                 "            email_cap_days = %s, "
-                "             drip_max_followups = %s, "
-                "              drip_max_gap_days = %s "
+                "             session_max_hours = %s, "
+                "              drip_max_followups = %s, "
+                "               drip_max_gap_days = %s "
                 " WHERE id = 1",
                 (zip_radius, match_radius, billing_day, monthly_quota, freshness_days, match_max_age,
-                 email_cap, drip_followups, drip_gap),
+                 email_cap, session_hours, drip_followups, drip_gap),
             )
             conn.commit()
     except psycopg.errors.CheckViolation as e:
@@ -373,7 +377,8 @@ def update_settings():
         flash(f"Settings updated.  Zip {zip_radius} mi, match {match_radius} mi. "
               f"Billing day {billing_day}, quota {monthly_quota}, "
               f"listings fresh for {freshness_days} days. "
-              f"Campaigns: up to {drip_followups} follow-ups, gaps up to {drip_gap} days.")
+              f"Campaigns: up to {drip_followups} follow-ups, gaps up to {drip_gap} days. "
+              f"Sign out after {session_hours} hours.")
     return redirect(url_for("admin.index"))
 
 

@@ -29,7 +29,7 @@ except ImportError as exc:
 
 FORM = dict(zip_radius="5", match_radius="3", billing_day="9", monthly_quota="1000",
             freshness_days="7", match_max_age_days="30", email_cap_days="14",
-            drip_max_followups="4", drip_max_gap_days="14")
+            drip_max_followups="4", drip_max_gap_days="14", session_max_hours="12")
 
 
 class Recorder:

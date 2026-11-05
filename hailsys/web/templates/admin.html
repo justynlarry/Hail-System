@@ -226,6 +226,20 @@
         </tbody>
       </table>
     </fieldset>
+
+    <fieldset class="card">
+      <legend>Sign-in</legend>
+      <table class="settings-table">
+        <tbody>
+          <tr><th><label for="session_max_hours">Sign out after (hours)</label></th>
+              <td><input id="session_max_hours" name="session_max_hours" type="number"
+                         step="1" min="1" max="72"
+                         value="{{ settings.session_max_hours }}" required>
+                  <br><small>Everyone is signed out this long after signing in, however busy. Applies
+                  to people already signed in. A send already running carries on.</small></td></tr>
+        </tbody>
+      </table>
+    </fieldset>
     </div>
     <button type="submit">Save settings</button>
   </form>
@@ -451,7 +465,7 @@
   <div class="table-scroll">
   <table>
     <thead><tr><th>When</th><th>By</th><th>Zip radius</th><th>Match radius</th>
-               <th>Billing day</th><th>Monthly quota</th><th>Freshness (days)</th><th>Storm age</th><th>Email cap</th><th>Follow-ups</th><th>Longest gap</th><th>Email values</th></tr></thead>
+               <th>Billing day</th><th>Monthly quota</th><th>Freshness (days)</th><th>Storm age</th><th>Email cap</th><th>Follow-ups</th><th>Longest gap</th><th>Sign out after</th><th>Email values</th></tr></thead>
     <tbody>
     {% for h in history %}
       <tr>
@@ -469,13 +483,15 @@
         {# NULL on rows written before sql/045, which added these columns #}
         <td>{{ h.drip_max_followups if h.drip_max_followups is not none else "—" }}</td>
         <td>{{ h.drip_max_gap_days if h.drip_max_gap_days is not none else "—" }}</td>
+        {# NULL on rows written before sql/067, which added this column #}
+        <td>{{ "%s h"|format(h.session_max_hours) if h.session_max_hours is not none else "—" }}</td>
         {# NULL on rows written before sql/042, which added these columns #}
         <td>{% if h.contact_email %}<small>contact {{ h.contact_email }}; schedule
             {{ h.schedule_url }}; from {{ h.from_name }} &lt;{{ h.from_email }}&gt;;
             reply-to {{ h.reply_to }}</small>{% else %}—{% endif %}</td>
       </tr>
     {% else %}
-      <tr><td colspan="12">No changes yet.</td></tr>
+      <tr><td colspan="13">No changes yet.</td></tr>
     {% endfor %}
     </tbody>
   </table>

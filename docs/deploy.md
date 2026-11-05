@@ -137,7 +137,7 @@ Detail: `docs/server-setup.md`, "Data on a new server" (decided 2026-11-02). In 
 - [ ] The first admin with `scripts/create_user.py`, as `hail_admin`. Every other user on the admin page.
 - [ ] `scripts/load_reference.sh`, then `scripts/load_coverage.sh` (the loader service).
 - [ ] Settings on the admin page, so each lands in `settings_history`: radii, billing day, quota, freshness, match age,
-      email cap, the email images, sender and contact settings, `storm_states`.
+      email cap, sign out after (hours; item 299), the email images, sender and contact settings, `storm_states`.
 - [ ] **Suppressions:** `scripts/dnc_copy.sh export` on `hail-dev`, copy the file over Tailscale, `scripts/dnc_copy.sh
       load` here, delete the file on both machines. The load's last table must show the same active and removed counts
       as `hail-dev` (item 285; close it then).
@@ -161,6 +161,9 @@ Detail: `docs/server-setup.md`, "Data on a new server" (decided 2026-11-02). In 
       credential beside it (mode 600, owned by `hail-user`). Both files stay out of git (item 287). Add the hostname to
       a Cloudflare Access policy (allowed emails, one-time PIN), then `docker compose up -d cloudflared` and look for
       `Registered tunnel connection` in its log.
+- [ ] Check the Access application's **session duration** in the Cloudflare dashboard and write it down here. It
+      decides how often staff re-enter a PIN; the app's own limit is "Sign out after" on the admin page (item 299). The
+      dashboard setting is outside the repo, so nothing else records it.
 - [ ] `web` stays bound to `127.0.0.1:8000`; nothing is published on the LAN.
 
 ## 9. Constant Contact

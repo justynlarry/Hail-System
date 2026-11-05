@@ -7,8 +7,8 @@ Signs in by writing the session, as the other screen tests do; a role comes from
 user can be presented as viewer, sender or admin.  Nothing is written and nothing outside is called:  every page is
 a GET (/search/ without an address, so no geocoding), and every action is a POST that is refused, by a missing CSRF
 token or by a role that may not use it.  No test makes an allowed POST:  that would create users, start a RentCast
-pull (which costs money) or run the matcher.  Login and logout run whole, since a failed login and a logout write
-nothing.  Each test checks that the tables these routes write are unchanged.
+pull (which costs money) or run the matcher.  Login and logout run whole;  a failed login's row in login_attempts
+(item 299) is caught, so nothing is written.  Each test checks that the tables these routes write are unchanged.
 
 What they pin:  signed out, each page redirects to /login;  signed in, each answers 200 with the right content type,
 and refuses the roles it should;  each action refuses a missing token, a signed-out request and each role that may
@@ -35,7 +35,7 @@ except ImportError as exc:
 
 # The tables these routes could write, counted before and after each test.
 WRITTEN = ("users", "api_pulls", "storm_listing_matches", "match_runs", "dnc_import_batches", "oauth_tokens",
-           "address_searches", "geocode_cache")
+           "address_searches", "geocode_cache", "login_attempts")
 
 ROLES = ("viewer", "sender", "admin")
 
@@ -163,8 +163,12 @@ class WebSmokeTest(unittest.TestCase):
     def test_a_wrong_password_is_a_401_and_signs_nobody_in(self):
         self.app.config["WTF_CSRF_ENABLED"] = False
         client = self.client()
-        resp = client.post("/login", data={"user_name": "no-such-user", "password": "not-the-password"})
+        # The attempt is recorded in login_attempts (item 299);  tests/test_sign_in_limits.py pins that.
+        # Here the write is caught, so the database stays as it was.
+        with mock.patch("hailsys.web.views.record_login_attempt") as record:
+            resp = client.post("/login", data={"user_name": "no-such-user", "password": "not-the-password"})
         self.assertEqual(resp.status_code, 401)
+        self.assertEqual(record.call_args.args[1:], ("no-such-user", "failed"))
         with client.session_transaction() as s:
             self.assertNotIn("emp_id", s)
 

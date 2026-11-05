@@ -8038,7 +8038,7 @@ still what catches it.
 
 ## 299. Session and sign-in hardening: no Secure cookie, no session lifetime, no limit on failed sign-ins
 
-**Status:** open (found 2026-11-04, production-readiness audit)
+**Status:** resolved 2026-11-05 (found 2026-11-04, production-readiness audit)
 
 `create_app()` (`hailsys/web/__init__.py`) sets no `SESSION_COOKIE_SECURE` and no session lifetime
 (`PERMANENT_SESSION_LIFETIME`, or an idle limit checked in `auth.load_current_user`). Flask's session cookie is a
@@ -8050,6 +8050,34 @@ developer. The Secure flag must not break `hail-dev` reached over plain `http://
 HTTPS. Not found filed: `grep -i cookie` and `brute|lockout|throttl` over `docs/` had no match for this.
 
 **When:** before staff accounts are created on `rbi-hail01` (`docs/deploy.md` §7).
+
+**Resolved 2026-11-05.** Three decisions, the developer's (2026-11-04):
+1. **Cookie:** `SESSION_COOKIE_SECURE = True` and `SESSION_COOKIE_SAMESITE = "Lax"` in `create_app()`, everywhere. Both
+   browser paths are HTTPS (the Cloudflare tunnel, Tailscale serve); browsers accept a Secure cookie on
+   `http://localhost`; Werkzeug's test client matches cookies by domain and path only, so the tests are unaffected
+   (checked in its source). Fixed safety settings, in code. HttpOnly was already Flask's default.
+2. **Session length:** `settings.session_max_hours` (`sql/067`, default 12, 1 to 72), on the admin page as "Sign out
+   after (hours)" and logged to `settings_history`. Counted from sign-in (`issued_at`), checked in
+   `auth.load_current_user` on every request, so a change applies to open sessions; a session with no `issued_at` is
+   too old; the person is told why. No idle timeout: the template editor and send confirm pages can sit without a
+   request while someone works, and an idle limit would lose what they typed. A send already running is not stopped
+   (its thread holds the `emp_id` it started with).
+3. **Failed sign-ins:** `login_attempts` (`sql/067`; `ok`, `failed`, `locked`). Five `failed` for one name inside 15
+   minutes and since its last `ok` refuse the name, with the wrong-password message and without checking the
+   password, until the oldest leaves the window (`auth.login_locked`; `LOGIN_FAILURE_LIMIT`, `LOGIN_FAILURE_WINDOW`
+   in code, as safety limits). Counted by the name as typed, so a name that is not an account locks the same way. A
+   `locked` attempt is not counted, so retrying does not extend it. Per name, not per address: every request reaches
+   `web` from `cloudflared` or Docker's gateway. A delay instead of a refusal was rejected: it holds one of two workers.
+   Accepted: anyone past Cloudflare Access can lock a known name for up to 15 minutes.
+
+Tests: `tests/test_sign_in_limits.py` (16, on the real database, rolled back);  `test_admin_drip.py` posts the new
+field;  `test_web_smoke.py` catches its failed login's write and counts `login_attempts`. Suite in the `test` service:
+2,809 tests, OK (skipped=390). The migration was dry-run as `hail_admin` with `ROLLBACK` in place of `COMMIT` before
+it was applied (2026-11-05 00:00:25Z); `login_attempts` empty after the suite. Steps 1 to 5a keyed in by the developer;
+5b to 9 and the fixes found in the read-back (a migration file name with a leading space, a misspelled table, the
+function's missing `BEGIN` and `emp_id` assignment, the `SELECT` and a key in `auth.py`) entered by Claude at the
+developer's request. The file name is item 303. `database-schema.md`, `deploy.md` §7 and §8 (the Access session
+duration, set in the Cloudflare dashboard, is to be checked and written down) and `CHANGELOG.md` updated.
 
 ## 300. Production would install different package versions from the ones tested on `hail-dev`
 
@@ -8143,3 +8171,22 @@ not installed here, so it was not run. Written by Claude at the developer's requ
 2026-11-04). `deploy.md` §12 and `command-ref.md` now point at the check.
 
 **Related:** items 289, 290, 300.
+
+## 303. `migrate.sh` silently skips a `.sql` file whose name does not match its pattern
+
+**Status:** open (found 2026-11-05, item 299 work)
+
+`scripts/migrate.sh:40` lists migrations with `ls "$SQL_DIR" | grep -E '^[0-9]{3}_[a-z0-9_]+\.sql$'`. A file that
+misses the pattern is dropped without a word. Found when `sql/067_sign_in_limits.sql` was saved as
+`sql/ 067_sign_in_limits.sql` (a leading space): the report showed nothing pending, `--apply` applied nothing, and
+nothing said a file had been passed over. The code that needed the migration would then have failed on every
+signed-in request after the restart. Caught only by reading the database (`schema_migrations`, the column) before
+the restart. A capital letter, a hyphen or a two-digit number would be skipped the same way.
+
+**Fix in outline:** list every `*.sql` in `sql/` that the pattern did not take, apart from the known
+non-migrations (`guard_test.sql`, `dev_*.sql`), and stop with an error naming them, so a misnamed migration cannot
+pass silently (CLAUDE.md: failures should be loud). Code, keyed in by the developer.
+
+**When:** before the first migration on `rbi-hail01` (`docs/deploy.md` §6).
+
+**Related:** items 277, 299.

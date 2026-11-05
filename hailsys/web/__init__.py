@@ -36,6 +36,13 @@ def create_app():
     # Caps every request body.  Set app-wide, not in the view.
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 *1024
 
+    # The session cookie goes only over HTTPS, and not with requests started from other sites.
+    # Every way in is HTTPS:  the Cloudflare tunnel and Tailscale serve.  Browsers also
+    # accept a Secure cookie on http://localhost, and Flask's test client ignores the flag.  HttpOnly
+    # is Flask's default and stays on.  Fixed safety settings, so they live here, not on the admin page.
+    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
     # A missing template variable renders blank by default, which has
     # created incorrect pages.  StrictUndefined now raises instead, optional
     # values must be tested with 'is defined'.

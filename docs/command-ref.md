@@ -145,7 +145,7 @@ One file, in `web` (each test file's docstring gives its own command):
 
     docker compose run --rm --no-deps -v ./tests:/app/tests:ro web python -m unittest tests.test_cc_tokens
 
-On 2026-11-04: 2,762 tests, 389 skipped, OK (2026-10-29: 2,623 and 380). The tests that need `hail_admin` skip under `hail_app` and say so;
+On 2026-11-05: 2,809 tests, 390 skipped, OK (2026-11-04: 2,762 and 389; 2026-10-29: 2,623 and 380). The tests that need `hail_admin` skip under `hail_app` and say so;
 run them with the `hail_admin` command in `tests/test_log_guards.py`'s docstring. **Any error is a real failure.**
 
 ## Releases (item 289)

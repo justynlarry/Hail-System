@@ -8,7 +8,9 @@ from urllib.parse import urlsplit, urlencode
 
 from flask import flash, g, redirect, Blueprint, render_template, abort, request, session, url_for, Response
 
-from hailsys.web.auth import hash_password, login_required, verify_password, DUMMY_PASSWORD_HASH, MIN_PASSWORD_LENGTH, role_required
+from hailsys.web.auth import (hash_password, login_required, verify_password, DUMMY_PASSWORD_HASH, 
+                              MIN_PASSWORD_LENGTH, role_required, login_locked, record_login_attempt,
+                              MAX_ATTEMPT_NAME_LENGTH)
 
 from hailsys.matching import zonematch
 from hailsys.matching.matcher import match_storm
@@ -352,6 +354,13 @@ def storm_zips():
 
     return render_template("_zips.html", rows=rows)
 
+def _record_attempt(user_name, outcome):
+    """A refused sign-in's row in login_attempts, on a connection of its own (item 299)."""
+    with get_connection() as conn, conn.cursor() as cur:
+        record_login_attempt(cur, user_name, outcome)
+        conn.commit()
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
@@ -359,8 +368,11 @@ def login():
 
     user_name = (request.form.get("user_name") or "" ).strip().lower()
     password = request.form.get("password") or ""
+    # The key for the failure count:  the name as typed, cut to what login_attempts holds.
+    attempt_name = user_name[:MAX_ATTEMPT_NAME_LENGTH]
 
     with get_connection() as conn, conn.cursor() as cur:
+        locked = login_locked(cur, attempt_name)
         cur.execute(
             "SELECT emp_id, password_hash, role, is_active, last_login_at"
             "  FROM users WHERE user_name = %s",
@@ -368,7 +380,15 @@ def login():
         )
         row = cur.fetchone()
 
-    # One message for each failure: no user, incorrect password, deactivated account.
+    # One message for each failure: no user, incorrect password, deactivated account,
+    # and a name refused for too many failures (item 299).
+
+    if locked:
+        # Refused without checking the password, so a right guess during the lock is not
+        # confirmed.  Recorded 'locked', not 'failed', so trying again does not extend it.
+        _record_attempt(attempt_name, "locked")
+        flash("Invalid User Name or Password")
+        return render_template("login.html"), 401
 
     stored = row["password_hash"] if row is not None else None
     if not stored or stored == "!":
@@ -376,6 +396,7 @@ def login():
     password_ok = verify_password(password, stored)
 
     if row is None or not row["is_active"] or not password_ok:
+        _record_attempt(attempt_name, "failed")
         flash("Invalid User Name or Password")
         return render_template("login.html"), 401
 
@@ -398,6 +419,7 @@ def login():
             "UPDATE users SET last_login_at = now() WHERE emp_id = %s",
             (row["emp_id"],),
         )
+        record_login_attempt(cur, attempt_name, "ok")
         conn.commit()
 
     return redirect(url_for("main.index"))

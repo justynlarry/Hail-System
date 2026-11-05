@@ -1321,6 +1321,30 @@ here. Deleting someone who left breaks the audit trail on everything they did.
 
 ---
 
+### `login_attempts`
+
+Added `sql/067_sign_in_limits.sql`, 2026-11-05 (item 299). One row per sign-in attempt, and the source of the
+failed sign-in limit.
+
+| Field | Purpose |
+|---|---|
+| `attempt_id` | `BIGINT GENERATED ALWAYS AS IDENTITY` PK. Also the order the limit counts "since the last good sign-in" by: attempts in one transaction share `now()` |
+| `user_name` | `TEXT NOT NULL`, `CHECK` `length <= 200`. **The name as typed** (trimmed, lower-cased, cut to 200 in `views.login`), whether or not it is an account, so the limit says nothing about which names exist. Deliberately not a FK to `users` |
+| `outcome` | `TEXT NOT NULL`, `CHECK` `ok`, `failed` or `locked`. `failed`: password checked and wrong, or no such active account. `locked`: refused by the limit **without checking the password**, and not counted toward it, so retrying during a lock does not extend it |
+| `attempted_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` |
+
+Index `login_attempts_by_name (user_name, attempt_id)`.
+
+**The rule** (`auth.login_locked`): a name with `LOGIN_FAILURE_LIMIT` (5) `failed` rows inside `LOGIN_FAILURE_WINDOW`
+(15 minutes) and after its last `ok` row is refused, with the same message as a wrong password, until the oldest of
+them leaves the window. The numbers are safety limits and live in `hailsys/web/auth.py`, not in `settings` (decision
+log 2026-10-13). Kept in the database, not in memory, because `web` runs two worker processes.
+
+**Grants:** `hail_app` gets `SELECT, INSERT` only: the app can add to the log, never change or remove it. Not guarded
+by an append-only trigger; the table owner can still change it. No retention rule: a few rows per person per day.
+
+---
+
 ### `settings`
 
 Added `sql/018_admin_failsafe.sql`, 2026-09-22; radius columns added
@@ -1345,6 +1369,7 @@ invalidation to get wrong across Gunicorn workers.
 | `from_name`, `from_email`, `reply_to` | `TEXT NOT NULL` — added `042`. The sender identity passed to Constant Contact (`emailconfig.load_sender`). Were `CC_FROM_NAME`, `CC_FROM_EMAIL`, `CC_REPLY_TO`. **`from_email` must be a verified sender in the Constant Contact account**, or its campaigns are refused; the admin page says so beside the field. One sender for everyone; a per-user choice is item 194 |
 | `storm_states` | `TEXT NOT NULL DEFAULT 'CO'`, `CHECK` two-letter upper case codes separated by commas, no spaces — added `sql/050_radar_warnings.sql` (Phase 5b). The states whose NWS warnings the radar layers fetch (`CO,WY` for two). Not yet used by the IEM report ingest (item 238). **No admin-page field yet**, an admin `UPDATE` changes it and the trigger logs it (item 243). `hail_ingest` may read this column and no other |
 | `zone_observer_wording_approved` | `BOOLEAN NOT NULL DEFAULT false` — added `sql/060_zone_sends.sql`. **False until the developer has read the CoCoRaHS usage policy in full and recorded it in the decision log.** While false, `send_log` refuses a zone send whose match rests on a volunteer observer report (basis `observer` or `both`). Set from the admin page's Hail zones section (Phase 5c step 4 piece 4b-2); logged to `settings_history` |
+| `session_max_hours` | `SMALLINT NOT NULL DEFAULT 12`, `CHECK` `settings_session_max_hours_check` `BETWEEN 1 AND 72` — added `sql/067_sign_in_limits.sql` (item 299). How long a sign-in lasts, counted from signing in (the session's `issued_at`). `auth.load_current_user` checks it on every request, so a change applies to sessions already open; a session with no `issued_at` counts as too old. A send already running is not stopped. Admin page, Settings, "Sign out after (hours)"; logged to `settings_history` |
 | `rentcast_monthly_quota` | `INTEGER NOT NULL DEFAULT 1000`, `CHECK` `> 0` — added `023`. Requests included per billing period. **Warn and allow**: the pull estimate warns when a pull would exceed it, and nothing blocks (decision-log 2026-09-23, "RentCast quota…") |
 
 Plus a table-level `CHECK` `match_within_zip_radius`:
@@ -1390,6 +1415,7 @@ freshness settings, snapshotting all seven values that resulted (five before `03
 | `drip_max_followups`, `drip_max_gap_days` | `SMALLINT`, nullable — added `045`. **NULL on rows written before `045`**, not backfilled |
 | `storm_states` | `TEXT`, nullable — added `sql/050`. **NULL on rows written before `050`**, not backfilled |
 | `zone_observer_wording_approved` | `BOOLEAN`, nullable — added `sql/060`. **NULL on rows written before `060`**, not backfilled |
+| `session_max_hours` | `SMALLINT`, nullable — added `sql/067`. **NULL on rows written before `067`**, not backfilled |
 | `match_max_age_days`, `email_cap_days` | `SMALLINT`, nullable — added `sql/038`. **NULL on rows written before `038`**, not backfilled, for the same reason |
 | `contact_email`, `schedule_url`, `from_name`, `from_email`, `reply_to` | `TEXT`, nullable — added `sql/042`. **NULL on rows written before `042`**, not backfilled, for the same reason |
 
@@ -1401,7 +1427,7 @@ AFTER UPDATE OF default_zip_radius_miles, default_match_radius_miles,
                 listing_freshness_days, match_max_age_days, email_cap_days,
                 contact_email, schedule_url, from_name, from_email, reply_to,
                 drip_max_followups, drip_max_gap_days, storm_states,
-                zone_observer_wording_approved
+                zone_observer_wording_approved, session_max_hours
 ON settings
 FOR EACH ROW
 WHEN (OLD.default_zip_radius_miles    IS DISTINCT FROM NEW.default_zip_radius_miles
@@ -1420,13 +1446,14 @@ WHEN (OLD.default_zip_radius_miles    IS DISTINCT FROM NEW.default_zip_radius_mi
    OR OLD.drip_max_gap_days           IS DISTINCT FROM NEW.drip_max_gap_days
    OR OLD.storm_states                IS DISTINCT FROM NEW.storm_states
    OR OLD.zone_observer_wording_approved
-                                      IS DISTINCT FROM NEW.zone_observer_wording_approved)
+                                      IS DISTINCT FROM NEW.zone_observer_wording_approved
+   OR OLD.session_max_hours           IS DISTINCT FROM NEW.session_max_hours)
 ```
 
-That is the definition as of `060`. `023` replaced `020`'s two-column version
+That is the definition as of `067`. `023` replaced `020`'s two-column version
 with `CREATE OR REPLACE FUNCTION` plus a drop and recreate of the trigger, and
 `028` did the same to add the fifth column, `038` the sixth and seventh, `042` the five email values, `045` the two
-drip settings, `050` `storm_states` and `060` `zone_observer_wording_approved`.
+drip settings, `050` `storm_states`, `060` `zone_observer_wording_approved` and `067` `session_max_hours`.
 Scoped to the settings columns, and still **not** `global_sessions_invalidated_at`,
 because the boot-everyone route updates that column on the same row; unscoped, that update fired
 the trigger and demanded attribution it has no reason to set. The `WHEN`
