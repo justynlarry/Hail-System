@@ -8255,3 +8255,28 @@ run failed by starting before the image's set-up restart; rerun clean.) Entered 
 Released as v0.9.1.
 
 **Related:** items 277, 303.
+
+## 306. GitHub refuses the `v0.9.1` tag with `fatal error in commit_refs`
+
+**Status:** open (found 2026-11-05, releasing v0.9.1)
+
+`scripts/release.sh v0.9.1` on `hail-dev` made the tag (annotated, `eb68f44`, on `aba8015`) and the push was refused:
+`remote: fatal error in commit_refs` / `! [remote rejected] v0.9.1 -> v0.9.1 (failure)`. The same three times
+(`release.sh`, then `git push origin v0.9.1` by hand, then `git push -v`), with no more detail. Ruled out: the tag
+(same form as `v0.9.0`, same tagger, message `vX.Y.Z: see CHANGELOG.md`, which GitHub took the same morning); the
+commit (`main` with `aba8015` had pushed minutes before); GitHub's status page (all systems operational). A
+repository rule would name itself (`GH013`), and this does not; the repository's rulesets were not checked (`gh` is not
+installed on `hail-dev`). Cause unknown.
+
+**Worked around 2026-11-05.** `rbi-hail01` could not fetch the tag from `hail-dev`: it is on a different Tailscale login
+(`rbi.justyn@`), shared into `hail-dev`'s, and a shared machine cannot start connections, so the fetch timed out. The tag
+was pushed from `hail-dev` into `rbi-hail01`'s repo instead (`git push ssh://hail-user@100.74.188.103/home/hail-user/hail-system
+refs/tags/v0.9.1:refs/tags/v0.9.1`), checked out there, stamped, and the migrations applied: footer `v0.9.1 · aba8015`,
+`recorded 67, pending 0`. `docs/deploy.md` §3 and §12 now give this as the fallback. GitHub still has only `v0.9.0`.
+
+**To do:** check the repository's Settings → Rules → Rulesets for a rule on tags; retry `git push origin v0.9.1`; if it
+still fails, report it to GitHub Support (repository, tag, the exact error).
+
+**When:** before the next release, or when GitHub Support answers.
+
+**Related:** items 289, 305.

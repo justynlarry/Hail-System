@@ -17,7 +17,7 @@ Two rules for every server:
 
 ## rbi-hail01: where it stands
 
-**Release running:** none yet; the first deploy will be `v0.9.0` (item 289). Production runs a tag, never `main`, and
+**Release running:** `v0.9.1` (`aba8015`), checked out 2026-11-05; the footer reads `v0.9.1 · aba8015` (item 289). Production runs a tag, never `main`, and
 its footer shows the release (for example `v0.9.0 · abc1234`); update this line at each deploy.
 
 Update this table as the build moves. Item numbers are in `docs/parking-lot.md`.
@@ -91,6 +91,16 @@ Detail: `docs/server-setup.md`, "Git/Github Setup" and "to move files untracked 
 - [ ] Check out the release, not `main` (item 289): on `hail-dev`, `scripts/release.sh v0.9.0` tags and pushes it (it
       refuses unless `CHANGELOG.md` has its section and `main` is clean and pushed); here, `git fetch --tags` and
       `git checkout v0.9.0`.
+      **If GitHub will not take the tag** (item 306: `v0.9.1` was refused with `fatal error in commit_refs`), push it
+      from `hail-dev` straight into this server's repo instead, then check it out here as usual:
+      ```
+      git push ssh://hail-user@<server-tailscale-ip>/home/hail-user/hail-system refs/tags/vX.Y.Z:refs/tags/vX.Y.Z
+      ```
+      It must go from `hail-dev` to the server, not be fetched from here: `rbi-hail01` is on a different Tailscale
+      login (`rbi.justyn@`) and is shared into `hail-dev`'s, and a shared machine can answer connections but not start
+      them, so a fetch from `rbi-hail01` to `hail-dev` times out. Git accepts a pushed tag into a checked-out repo (it
+      refuses only a push to the checked-out branch). It is the same tag object, so it does not conflict when GitHub
+      later takes the push; push it there too once it does.
 - [ ] `scripts/write_version.sh`: writes `hailsys/VERSION`, which the footer shows after `web` starts (§5).
 - [ ] From `hail-dev`, rsync `data/` and `reference/` into `~/hail-system/` (dry run first; trailing slashes matter).
       These hold the TIGER shapefiles the reference load needs.
@@ -200,7 +210,8 @@ Every one of these, not most:
 - [ ] On `hail-dev`: add the release's section to `CHANGELOG.md`, commit and push, then `scripts/release.sh vX.Y.Z`
       (`--check` first to see what it would tag). PATCH for fixes only, MINOR for anything people will notice, MAJOR
       for a milestone (item 289).
-- [ ] Here: `git fetch --tags`, `git checkout vX.Y.Z`, `scripts/write_version.sh`. To roll back, check out the previous
+- [ ] Here: `git fetch --tags`, `git checkout vX.Y.Z`, `scripts/write_version.sh` (if GitHub refuses the tag, push it
+      from `hail-dev` as in §3, item 306). To roll back, check out the previous
       tag the same way (a migration that has run is not undone by a checkout: read `sql/` first).
 - [ ] `docker compose run --rm -T loader bash scripts/migrate.sh`, read what is pending, then `--apply`. A migration is
       never edited once applied.
