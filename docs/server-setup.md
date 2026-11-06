@@ -2,7 +2,7 @@
 
 ## Production hosts (2026-10-20)
 - `pve-prod01.rbi.internal`, 192.168.16.20: HP ProDesk 400 G6, Proxmox VE. Runs the production VM
-  `rbi-hail01.rbi.internal` (VM 101, Rocky Linux 10.2, 8 cores, 28 GB, 400 GB), created but not started.
+  `rbi-hail01.rbi.internal` (VM 101, Rocky Linux 10.2, 8 cores, 28 GB, 400 GB), running since 2026-11-05.
 - `pbs-prod01.rbi.internal`, 192.168.16.21: Dell OptiPlex 3020, Proxmox Backup Server.
 - Both passed `scripts/hw-acceptance-test.sh` on 2026-10-19. Details: `docs/hail-consolidated.md` §9.
 - The steps below build the Rocky VM (`rbi-hail01`), not the Proxmox hosts.
@@ -121,7 +121,7 @@ rather than a wildcard address.
 - In docker-compose.yml:
 ```
 volumes:
-  - ./sql:/sql:ro,Z
+  - .:/repo:ro,Z        # the loader service's mount
 ```
 
 - If any problems arise, remember: `ausearch -m avc -ts recent`
@@ -186,7 +186,8 @@ list. In order:
    docker compose run --rm -T loader bash scripts/load_coverage.sh     # config/coverage_zips.txt, 183 zips
    ```
    `scripts/load_municipal.sh` is for the parked permits work and can wait.
-4. **Settings, on the admin page,** so each one lands in `settings_history`. `hail-dev`'s values on 2026-11-02: zip and
+4. **Settings, on the admin page:** check each against what this install should use and change what differs; only a
+   change is logged to `settings_history` (item 308). `hail-dev`'s values on 2026-11-02: zip and
    match radius 5.0, RentCast billing day 9, quota 1,000, listing freshness 7 days, match age 30 days, email cap 14
    days. Also the email images, sender and contact settings, and `storm_states`.
 5. **Suppressions: copy `dnc_list` from `hail-dev`,** 768 active and 1 removed (item 285). Do this before any send.
@@ -215,11 +216,13 @@ list. In order:
    about ten runs of up to 2½ minutes each. `scripts/status.sh` shows each job's state.
 7. **Timers:** `sudo cp systemd/* /etc/systemd/system/`, `sudo systemctl daemon-reload`, then
    `sudo systemctl enable --now` on the eight `.timer` units. The units name the user `hail-user` and
-   `/home/hail-user/hail-system`, the same as on `hail-dev`.
+   `/home/hail-user/hail-system`, the same as on `hail-dev`. Copy the units with `cp`, not `mv`: SELinux is
+   enforcing, and a moved file keeps its home-directory label, which systemd cannot read.
 8. **RentCast starts empty.** The first pull is a person's click, as always. `hail-dev`'s listings are mostly past the
    7-day freshness window, and its matches point at IEM ids the rebuild changes. **Quota:** both machines use one
    RentCast account, so calls made on `hail-dev` in the current period don't appear in production's usage count for
-   its first period. Accepted 2026-11-02, with the developer as the only user and tracking in beta.
+   its first period. Accepted 2026-11-02, with the developer as the only user and tracking in beta; `hail-dev` makes no
+   real pulls once production is live (developer, 2026-11-06).
 
 **Never copied from `hail-dev`:**
 - Constant Contact grants (`oauth_tokens`) and the `cc_*` tables: production has its own account (item 183) and token

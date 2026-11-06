@@ -25,11 +25,9 @@ client tools; rebuild it only when `docker/loader.Dockerfile` changes.
 it without rebuilding executes whatever code was current at the last build,
 against the live database, with no warning.
 
-    docker compose build ingest   # after a change to anything it imports
-                                  # (hailsys/iem/, hailsys/radar/, hailsys/db.py,
-                                  # hailsys/tuning.py, hailsys/logconfig.py,
-                                  # scripts/iem_*.py, scripts/radar_*.py) or to
-                                  # requirements.txt
+    docker compose build ingest   # after a change to anything it imports: the
+                                  # files scripts/status.sh images lists for
+                                  # ingest (image_paths in that script)
 
 `scripts/status.sh images` says which images are behind the files they depend
 on, and names the files. It goes by each file's modified time against when the image was
@@ -38,8 +36,9 @@ shows (item 172). `web` and `app` need a rebuild only when
 `requirements.txt` or `docker/app.Dockerfile` changes.
 
 The scheduled ingest jobs -- nightly `iem_ingest.timer` and weekly
-`iem_weekly_replay.timer`, and the radar jobs `radar_ingest.timer` and
-`radar_weekly_rebuild.timer` -- deliberately do NOT build first: an unattended
+`iem_weekly_replay.timer`, the radar jobs `radar_ingest.timer` and
+`radar_weekly_rebuild.timer`, and the CoCoRaHS and likelihood timers (`cocorahs_ingest`,
+`cocorahs_weekly`, `likelihood_ingest`, `likelihood_weekly`), eight in all -- deliberately do NOT build first: an unattended
 job should run a known artifact, not whatever is half-finished in the
 working tree. The cost is that ingest code changes require a manual rebuild
 to take effect. This is a choice, not an oversight.
@@ -48,7 +47,8 @@ to take effect. This is a choice, not an oversight.
 jobs (2026-10-22), `hailsys/db.py`, `hailsys/tuning.py` and the whole `hailsys/radar/` package (checked
 2026-10-22 by importing `iem_ingest`, `iem_backfill` and `radar_ingest` and listing `sys.modules`; before
 the radar jobs it imported only the IEM files and `logconfig.py`, checked 2026-10-02). A change elsewhere in
-the package therefore does not make the ingest image stale. `scripts/status.sh images` holds that list;
+the package therefore does not make the ingest image stale. Since Phase 5c it also imports
+`hailsys/cocorahs/` and `hailsys/likelihood/`. `scripts/status.sh images` holds that list;
 re-derive it if ingest gains an import. The image before the radar jobs is still tagged
 `hail-system-ingest:before-radar` (rollback: `docker tag hail-system-ingest:before-radar
 hail-system-ingest:latest`).
@@ -145,7 +145,7 @@ One file, in `web` (each test file's docstring gives its own command):
 
     docker compose run --rm --no-deps -v ./tests:/app/tests:ro web python -m unittest tests.test_cc_tokens
 
-On 2026-11-05: 2,809 tests, 390 skipped, OK (2026-11-04: 2,762 and 389; 2026-10-29: 2,623 and 380). The tests that need `hail_admin` skip under `hail_app` and say so;
+On 2026-11-06: 2,812 tests, 390 skipped, OK (2026-11-05: 2,809; 2026-11-04: 2,762 and 389; 2026-10-29: 2,623 and 380). The tests that need `hail_admin` skip under `hail_app` and say so;
 run them with the `hail_admin` command in `tests/test_log_guards.py`'s docstring. **Any error is a real failure.**
 
 ## Releases (item 289)
@@ -154,6 +154,8 @@ On `hail-dev`, after adding the version's section to `CHANGELOG.md`, committing 
 
     scripts/release.sh --check v0.9.0   # what it would tag; changes nothing
     scripts/release.sh v0.9.0           # tag main and push the tag
+
+If GitHub refuses the tag, `docs/deploy.md` §3 has the direct push (item 306).
 
 It refuses unless the tree is clean, `main` is level with `origin/main`, the tag is new here and on GitHub and
 `CHANGELOG.md` has a `## v0.9.0` section. On a server, after `git checkout <tag>`:

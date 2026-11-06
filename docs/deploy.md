@@ -35,7 +35,7 @@ Update this table as the build moves. Item numbers are in `docs/parking-lot.md`.
 | 8. Access | `tailscale serve` for the developer, signed in 2026-11-05. The staff Cloudflare tunnel not set up (waits on the domain, 96) |
 | 9. Constant Contact | Not started (item 183) |
 | 10. Checks | `status.sh`: every nightly job OK 2026-11-06; `status.sh images` OK. Backup and restore test passed 2026-11-06, backups scheduled. Role sign-ins checked 2026-11-06 (item 309). **Done** |
-| 11. Before the first real send | Items 183, 189, 96, 135, 285, 232/233, 236 open |
+| 11. Before the first real send | Items 183, 189, 96, 135, 236 open |
 
 ---
 
@@ -43,10 +43,10 @@ Update this table as the build moves. Item numbers are in `docs/parking-lot.md`.
 
 Have these in hand, or know where they come from:
 
-- [ ] **Name and address:** hostname, static IP, gateway, DNS. For `rbi-hail01`: `docs/server-setup.md`, Production
+- [x] **Name and address:** hostname, static IP, gateway, DNS. For `rbi-hail01`: `docs/server-setup.md`, Production
       hosts, and `docs/hail-consolidated.md` §9.
-- [ ] **Access:** a Tailscale account to join the server to, and your SSH key.
-- [ ] **RentCast key:** the same RentCast account as `hail-dev` (decided 2026-11-02). `hail-dev` makes no real pulls
+- [x] **Access:** a Tailscale account to join the server to, and your SSH key.
+- [x] **RentCast key:** the same RentCast account as `hail-dev` (decided 2026-11-02). `hail-dev` makes no real pulls
       once production is live (developer, 2026-11-06), so only the first billing period's count on production misses
       `hail-dev`'s calls, accepted.
 - [ ] **Constant Contact:** the production account's API key and secret (item 183), and the redirect URI on the
@@ -70,32 +70,32 @@ Done on the Proxmox and backup hosts, before the VM is started or joins Tailscal
       `KbdInteractiveAuthentication no` in a drop-in under `/etc/ssh/sshd_config.d/`). Prove key login works first,
       keep a session open, `sshd -t` before reloading.
 - [ ] A notification target that delivers, and a test notice that arrives (item 236).
-- [ ] The backup job for the VM, with retention, prune and garbage collection (item 233).
-- [ ] The VM: CPU type `x86-64-v3` (Rocky 10 needs it), disk with `discard=on` and `ssd=1`, `agent=1`.
+- [x] The backup job for the VM, with retention, prune and garbage collection (item 233).
+- [x] The VM: CPU type `x86-64-v3` (Rocky 10 needs it), disk with `discard=on` and `ssd=1`, `agent=1`.
 
 ## 2. The operating system
 
 Detail: `docs/server-setup.md`, from "Hostname" to "SELinux Configuration".
 
-- [ ] Install Rocky Linux; set the hostname.
-- [ ] Static IP with `nmcli` (the connection NAME, `ipv4.method manual`, `ignore-auto-dns`).
-- [ ] `sudo dnf update -y`, reboot if the kernel changed.
-- [ ] `qemu-guest-agent` installed and running; `fstrim.timer` enabled (item 233).
-- [ ] Timezone UTC; journald persistent with `SystemMaxUse=500M`.
-- [ ] firewalld left on with nothing opened.
-- [ ] Podman removed, Docker CE installed from Docker's repository, `hello-world` runs.
-- [ ] **The account is `hail-user`, UID 1000, and the repo will be `~/hail-system`.** The systemd units name the
+- [x] Install Rocky Linux; set the hostname.
+- [x] Static IP with `nmcli` (the connection NAME, `ipv4.method manual`, `ignore-auto-dns`).
+- [x] `sudo dnf update -y`, reboot if the kernel changed.
+- [x] `qemu-guest-agent` installed and running; `fstrim.timer` enabled (item 233).
+- [x] Timezone UTC; journald persistent with `SystemMaxUse=500M`.
+- [x] firewalld left on with nothing opened.
+- [x] Podman removed, Docker CE installed from Docker's repository, `hello-world` runs.
+- [x] **The account is `hail-user`, UID 1000, and the repo will be `~/hail-system`.** The systemd units name the
       user and the path (`systemd/*.service`), and the `cloudflared` service runs as `1000:1000` to read its credential.
       The first account made in the Rocky installer gets UID 1000; check with `id hail-user`.
-- [ ] Tailscale installed and joined (`sudo tailscale up`).
+- [x] Tailscale installed and joined (`sudo tailscale up`).
 
 ## 3. Code and files
 
 Detail: `docs/server-setup.md`, "Git/Github Setup" and "to move files untracked in git".
 
-- [ ] git installed, an SSH key for this server added to GitHub, `ssh -T git@github.com` answers.
-- [ ] `git clone git@github.com:justynlarry/Hail-System.git ~/hail-system`.
-- [ ] Check out the release, not `main` (item 289): on `hail-dev`, `scripts/release.sh v0.9.0` tags and pushes it (it
+- [x] git installed, an SSH key for this server added to GitHub, `ssh -T git@github.com` answers.
+- [x] `git clone git@github.com:justynlarry/Hail-System.git ~/hail-system`.
+- [x] Check out the release, not `main` (item 289): on `hail-dev`, `scripts/release.sh v0.9.0` tags and pushes it (it
       refuses unless `CHANGELOG.md` has its section and `main` is clean and pushed); here, `git fetch --tags` and
       `git checkout v0.9.0`.
       **If GitHub will not take the tag** (item 306: `v0.9.1` was refused with `fatal error in commit_refs`), push it
@@ -108,8 +108,8 @@ Detail: `docs/server-setup.md`, "Git/Github Setup" and "to move files untracked 
       them, so a fetch from `rbi-hail01` to `hail-dev` times out. Git accepts a pushed tag into a checked-out repo (it
       refuses only a push to the checked-out branch). It is the same tag object, so it does not conflict when GitHub
       later takes the push; push it there too once it does.
-- [ ] `scripts/write_version.sh`: writes `hailsys/VERSION`, which the footer shows after `web` starts (§5).
-- [ ] From `hail-dev`, rsync the two TIGER folders only, `data/raw/tiger/tl_2025_us_zcta520` and
+- [x] `scripts/write_version.sh`: writes `hailsys/VERSION`, which the footer shows after `web` starts (§5).
+- [x] From `hail-dev`, rsync the two TIGER folders only, `data/raw/tiger/tl_2025_us_zcta520` and
       `tl_2025_us_county` (about 915 MB; dry run first): the command is in `docs/server-setup.md`, "to move files
       untracked in git". They are all the reference load reads from outside the clone. **Not `reference/`:** it holds
       real suppression exports, and the suppression list moves only by `dnc_copy.sh` (§7). Not the rest of `data/`
@@ -117,7 +117,7 @@ Detail: `docs/server-setup.md`, "Git/Github Setup" and "to move files untracked 
 
 ## 4. Secrets
 
-- [ ] `cp .env.example .env`, `chmod 600 .env`, and fill in **new** values. Generate them on the server:
+- [x] `cp .env.example .env`, `chmod 600 .env`, and fill in **new** values. Generate them on the server:
       ```
       python3 -c "import secrets; print(secrets.token_urlsafe(24))"     # each of the three database passwords
       python3 -c "import secrets; print(secrets.token_hex(32))"          # FLASK_SECRET_KEY
@@ -128,8 +128,8 @@ Detail: `docs/server-setup.md`, "Git/Github Setup" and "to move files untracked 
       Compose refuses to start with any required value empty, so fill every one before step 5.
 - [ ] `RENTCAST_KEY`; `CC_API_KEY`, `CC_API_SECRET` from the **production** Constant Contact account;
       `CC_REDIRECT_URI` on the production hostname.
-- [ ] Use valid shell names only (item 242): `. ./.env` must not fail.
-- [ ] **A `$` in a value is written `$$`** (item 304). Compose reads `$$` as one `$`; a single `$` starts a variable
+- [x] Use valid shell names only (item 242): `. ./.env` must not fail.
+- [x] **A `$` in a value is written `$$`** (item 304). Compose reads `$$` as one `$`; a single `$` starts a variable
       name. The generator lines above never make one. Because of this, read a value back through Compose, never with
       `grep | cut` or by sourcing the file (both pass `$$` as written, and the shell turns it into its process id):
       ```
@@ -138,10 +138,10 @@ Detail: `docs/server-setup.md`, "Git/Github Setup" and "to move files untracked 
 
 ## 5. Build and start
 
-- [ ] `docker compose build web app ingest loader`
-- [ ] `docker compose up -d postgis web` and wait for `postgis` to report `healthy` (`docker compose ps`).
-- [ ] `scripts/status.sh images` reads OK for all four.
-- [ ] The footer of the login page shows the release (for example `v0.9.0 · abc1234`), not "development": if it says
+- [x] `docker compose build web app ingest loader`
+- [x] `docker compose up -d postgis web` and wait for `postgis` to report `healthy` (`docker compose ps`).
+- [x] `scripts/status.sh images` reads OK for all four.
+- [x] The footer of the login page shows the release (for example `v0.9.0 · abc1234`), not "development": if it says
       "development", `scripts/write_version.sh` was not run (§3); run it and `docker compose restart web`.
 
 The `cloudflared` service waits for step 8.
@@ -150,11 +150,12 @@ The `cloudflared` service waits for step 8.
 
 Detail: `docs/server-setup.md`, "Database Migrations".
 
-- [ ] `docker compose run --rm -T loader bash scripts/migrate.sh` (report: every file pending), then `--apply`, then the
+- [x] `docker compose run --rm -T loader bash scripts/migrate.sh` (report: every file pending), then `--apply`, then the
       report again: `recorded N, pending 0`.
-- [ ] Build the same files in a throwaway `postgis/postgis` container of the same tag, and diff its schema with this
+- [x] Build the same files in a throwaway `postgis/postgis` container of the same tag, and diff its schema with this
       one: they should be identical (`docs/schema-review.md` §1). Not `guard_test.sql` here: it needs rows that must
-      not go on production.
+      not go on production. Done 2026-11-06 for `rbi-hail01`: its `pg_dump --schema-only` is identical to `hail-dev`'s,
+      which was diffed identical to a fresh build on 2026-11-02.
 
 ## 7. Data
 
@@ -227,7 +228,7 @@ Every one of these, not most:
 - [ ] Item 96: the sending domain decided and set up.
 - [ ] Item 135: the copy for this send, supplied by marketing (each send, not a one-time sign-off; developer, 2026-11-04).
 - [x] Item 285: the suppression list copied, counts matched.
-- [ ] Items 232, 233: a completed backup and a tested restore.
+- [x] Items 232, 233: a completed backup and a tested restore (2026-11-06, §10).
 - [ ] Item 236: host alerts arrive.
 
 ## 12. Updating the server later
