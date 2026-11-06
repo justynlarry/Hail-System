@@ -8374,3 +8374,26 @@ change is logged and an unchanged hail-zone set is refused, and records that on 
 Claude at the developer's request.
 
 **Related:** items 299, 307.
+
+
+## 309. Sending is admin-only, against the 2026-09-22 roles decision
+
+**Status:** accepted 2026-11-06 (found 2026-11-06, step 10 role sign-ins on `rbi-hail01`)
+
+Signed in as `test-sender` (role `sender`) on `rbi-hail01`, the Send and Campaigns pages do not appear. As built:
+`hailsys/web/send.py` and `hailsys/web/drip.py` each have a `before_request` that calls `require_role("admin")`;
+`base.html:35` shows Send, Campaigns and Templates only for an admin; `tests/test_send_screen.py` (lines 99, 191, 276),
+`test_send_zone_screen.py` and `test_drip_web.py` pin a sender as refused. It started as "Admin only for now" in the
+first send-screen commit (`e2d9fab`, 2026-10-09; `send.py` still reads "Admin Only 10/8/2026"). The decision log's
+2026-09-22 entry "Three roles, enforced server-side first" said send would go to `sender`, and nothing later changed
+that, so the code and the recorded decision disagreed with no record of why.
+
+**Decision (developer, 2026-11-06):** keep sending admin-only for the pilot; whoever sends has an admin account
+(decision log 2026-11-06, "Item 309: sending stays admin-only for the pilot", which supersedes the 09-22 sentence).
+
+**When:** before someone without an admin account is meant to send, and at the pilot review (Phase 6). The change then:
+the role check in `send.py` and `drip.py` to `require_role("sender", "admin")`, the menu condition in `base.html`, the
+tests that expect a sender refused, and a look at whether the template-description edit (`/send/templates/<id>/description`)
+and the bounce check (`/send/check`) should stay admin-only. Templates, Constant Contact and the admin page stay admin.
+
+**Related:** decision log 2026-09-22 ("Admin is a full superset of sender", "Three roles, enforced server-side first").

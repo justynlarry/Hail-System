@@ -8135,3 +8135,21 @@ everyone the list kept. This replaces the 2026-10-13 plan (item 189) to drop the
 required address list was only a stand-in for this. With the rule in the database, an empty permission list sends
 nothing, whatever the code above it does. The optional list stays useful for a small or test send. The dev seed
 (`sql/dev_permission_seed.sql`) grants only the rehearsal realtors, so real realtors on `hail-dev` cannot be emailed.
+
+---
+
+## 2026-11-06 — Item 309: sending stays admin-only for the pilot
+
+**Supersedes** one sentence of the 2026-09-22 entry "Three roles, enforced server-side first": "As send, re-pull and
+quota warnings are built, they go to `sender` too." Send (`/send`), Campaigns (`/campaigns`) and Templates
+(`/templates`) are admin-only, as built since 2026-10-09 (`e2d9fab`, "Admin only for now"); the `sender` role keeps the
+pull estimate, the pulls, matching and the realtor export.
+
+**Decision (developer):** keep it that way for the pilot. Whoever sends has an admin account; for now that is the
+developer.
+
+**Why:** a send spends the sending domain's reputation, which is harder to win back than RentCast calls, and the pilot
+is small, with one person sending. Opening it to senders is a short code change (the role check in `send.py` and
+`drip.py`, the menu in `base.html`, and the tests that expect a sender refused) and can be made when someone other
+than an admin is meant to send. Until then the role name `sender` means "can spend RentCast calls", not "can send
+email".
