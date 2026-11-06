@@ -55,10 +55,13 @@ Have these in hand, or know where they come from:
       topology", item 110): `app.roofbrokersinc-weather.com` for production.
 - [ ] **Alerts:** an SMTP account for host notifications (item 236; a dedicated Gmail account with an app password
       was proposed).
-- [ ] **Documents reviewed:** every file in `docs/` checked against the repo and the database, and brought up to date,
+- [x] **Documents reviewed:** every file in `docs/` checked against the repo and the database, and brought up to date,
       before the release is tagged (developer, 2026-11-04; items 212 and 298). Nothing updates them when features land,
       so this review is what keeps them current. `docs/hail-consolidated.md` is the handoff document: re-sync it and
       its "Last synced" line. Ask Claude Code to "review all the .md files in docs".
+      Done 2026-11-04 (before `v0.9.0`) and again 2026-11-06, after the first deploy: `CLAUDE.md`, `README.md` and every
+      file in `docs/` except the dated analysis reports, checked against both machines; `hail-consolidated.md` re-synced
+      to 2026-11-06 (`18c563d`; item 310 came out of it). Repeat it before each release (§12).
 
 ## 1. The hosts (when the server is a Proxmox VM)
 
