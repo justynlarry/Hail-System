@@ -28,12 +28,16 @@ list carried, and the physical production build (racking it at RBI's office,
 static IP, UPS, Irin enrollment) is one of those items. **Update 2026-10-20:**
 the hardware has arrived and passed acceptance (`pve-prod01`, an HP ProDesk 400 G6
 running Proxmox VE; `pbs-prod01`, a separate Dell OptiPlex 3020 running Proxmox
-Backup Server; `docs/hail-consolidated.md` §9), and the production VM
-`rbi-hail01` (VM 101, Rocky Linux 10.2) is **created but not started**. Nothing is
-deployed to it: no Docker, no database, no code. Racking and UPS are not confirmed
-here; Irin is enrolled and alerting (confirmed 2026-10-29, item 234). Everything verified so far has run on the `hail-dev` VM.
-Do not assume the production box is reachable or has anything deployed to it
-without checking.
+Backup Server; `docs/hail-consolidated.md` §9). **Update 2026-11-06:** `rbi-hail01` (VM 101,
+Rocky Linux 10.2, on `pve-prod01`) is deployed. It runs release `v0.9.1` (production runs a tag,
+never `main`), all 67 migrations are applied by `migrate.sh`, and the public data is backfilled to
+the same counts as `hail-dev`. The suppression list is copied (768 active), the eight timers run,
+backups are scheduled and a restore was tested. It has no Constant Contact connection, no
+permission list, no staff tunnel and no staff accounts, so it cannot send and only the developer
+reaches it, over Tailscale. `hail-dev` can SSH to it (`hail-user@100.74.188.103`); it cannot
+connect back (item 306). Racking and UPS are not confirmed here; Irin is enrolled and alerting
+(item 234). `docs/deploy.md`'s status table is the current state: check it, or the box, before
+assuming anything is there.
 
 What Phase 3 delivered: `hailsys/rentcast/` (`client.py`, `estimate.py`,
 `pull.py`, `upsert.py`); `sql/013`–`017` (linking a pull back to the storm it
@@ -59,10 +63,10 @@ POST (a failure returns a 400 page). `sql/021` (`municipal_boundaries`) is
 from the parked permits research, not Phase 4. `scripts/create_user.py`
 stays as a bootstrap-only path (`docs/parking-lot.md` item 65, closed 2026-10-01).
 
-What exists for Phase 5 so far, as of 2026-10-15, on `hail-dev` only (the production
-box has none of it): a Constant Contact send path, **built and rehearsed but never used
-to send to a real recipient**. The seven `sent_emails` rows are rehearsal sends to test
-addresses.
+What exists for Phase 5: a Constant Contact send path, built and rehearsed on `hail-dev`
+but **never used to send to a real recipient**. `hail-dev`'s 17 `sent_emails` rows (2026-10-09
+to 11-03) are all rehearsal sends to the developer's test addresses; production has none. The
+code is on `rbi-hail01` too, since `v0.9.0`.
 - **Provider access and suppression.** OAuth grants in `oauth_tokens`, and the
   unsubscribe sync into `dnc_list` (`cc_sync_runs`, `cc_sync_conflicts`, admin `/cc`).
   `dnc_list` holds 768 active suppressions (the 759 imported 2026-09-29 through the admin upload,
@@ -82,8 +86,8 @@ addresses.
   `templatestore.save_blocks` saves it as a new version with `email_templates.blocks` (`sql/043`). The
   admin-only `/templates` editor (`hailsys/web/emailtpl.py`) builds, previews, saves and retires block
   templates; its JavaScript is checked in a Node container (item 222). A golden test pins the block-built
-  `hail_alert` to the shipped file. The built-in template still renders from its files (item 220). Not on
-  the production box: `sql/039` to `051`. `sql/045` to `047` are the drip-campaign settings and tables (item 204: the campaign screens at `/campaigns` and the follow-up part of the `/send` confirm page; rehearsed 2026-11-03 on test addresses (two campaigns); no campaign has been run for a real recipient). The editor's "Send a test to <your address>" button
+  `hail_alert` to the shipped file. The built-in template still renders from its files (item 220).
+  `sql/045` to `047` are the drip-campaign settings and tables (item 204: the campaign screens at `/campaigns` and the follow-up part of the `/send` confirm page; rehearsed 2026-11-03 on test addresses (two campaigns); no campaign has been run for a real recipient). The editor's "Send a test to <your address>" button
   (`testsend.py`, `email_test_sends`) emails the draft to the clicking admin only, three Constant Contact
   calls, at most 5 an hour; it is not a send. The editor has a formatting guide, a toolbar on the rich text boxes (`templates.js`)
   and a two-column layout with the preview beside the form. **Remodelled 2026-11-03/04 (item 294, all ten slices):** plain block
@@ -95,23 +99,23 @@ addresses.
   `cc_api_calls`, makes the engine stop at Constant Contact's daily limit (item 191). Each send and resume job is
   recorded in `send_runs` (`sql/065`, item 196) and shown on `/send/batches`.
 - **Append-only in the database.** `send_log`, `email_templates`, `sent_emails` and the
-  Constant Contact log tables and `email_test_sends`, by triggers (`sql/029`, `030`, `034` to `040`, `044`; applied to
-  `hail-dev`, not checked on the production box; `sql/guard_test.sql` tests them). The
+  Constant Contact log tables and `email_test_sends`, by triggers (`sql/029`, `030`, `034` to `040`, `044`; applied on
+  both machines by `migrate.sh`; `sql/guard_test.sql` tests them on `hail-dev`). The
   table owner can still `TRUNCATE`, accepted (decision log 2026-09-30).
-- **The eligibility gate (item 189, built 2026-11-04, `hail-dev` only).** Only an address on
+- **The eligibility gate (item 189, built 2026-11-04).** Only an address on
   the permission list (`send_permission`, `sql/066`: `service_client` or `cc_subscriber`,
   uploaded on the admin page's Permission list tab) can be emailed: the send lists leave
   the rest out as `no_permission`, `deliver.py` checks again before the Constant Contact
   calls, drip follow-ups stop a recipient whose permission was removed, and the trigger
   `sent_emails_require_permission` refuses the row. The Send page's address list is
   optional (empty is everyone the list kept). On `hail-dev` only the rehearsal realtors
-  have permission (`sql/dev_permission_seed.sql`, dev only); the production box gets the
-  final lists by upload (`docs/deploy.md` §7).
+  have permission (`sql/dev_permission_seed.sql`, dev only); production's list is empty
+  until the final lists are uploaded (`docs/deploy.md` §7), so it can email no one.
 - **Before a production send.** Items 183 (the paid account) and 96 (the sending domain),
-  the final permission lists loaded on production (item 189), and a production box that
-  has the code. Provider chosen 2026-10-06: Constant Contact (decision log, item 119).
+  and the final permission lists loaded on production (item 189). Sending is admin-only
+  for the pilot (item 309). Provider chosen 2026-10-06: Constant Contact (decision log, item 119).
 
-What exists for Phase 5b so far, as of 2026-10-22, on `hail-dev` only (decision log 2026-10-20 waived "do not
+What exists for Phase 5b so far, built on `hail-dev`, on `rbi-hail01` since `v0.9.0` (decision log 2026-10-20 waived "do not
 build ahead" for this phase). Radar layers for the territory page, internal and staff only: nothing radar-derived
 reaches an email, an export, a pull or the matcher.
 - **Data and zones.** `sql/048` to `051`; `hailsys/radar/` decodes NOAA's public MRMS `MESH_Max_1440min` file (the one
@@ -120,10 +124,10 @@ reaches an email, an export, a pull or the matcher.
   (NWS warning polygons). Thresholds live in the
   append-only `radar_parameter_sets` (newest row in use); `settings.storm_states` names the warning states.
 - **Jobs.** `scripts/radar_ingest.py` (`nightly`, `rebuild`, `backfill`, `warnings`), `scripts/radar_day.py` for one
-  day; `systemd/radar_*` timers at 10:30 UTC nightly and Sundays 11:30 (installed and enabled on `hail-dev`, 2026-10-22); `scripts/status.sh
+  day; `systemd/radar_*` timers at 10:30 UTC nightly and Sundays 11:30 (installed and enabled on `hail-dev`, 2026-10-22, and on `rbi-hail01`, 2026-11-06); `scripts/status.sh
   radar` and a line on the Storm Days page. The `ingest` image now imports `hailsys/db.py`, `tuning.py` and
   `hailsys/radar/`, so rebuild it after changes to them.
-  The backfill ran 2026-10-22: 2,197 days held, 2020-10-14 to 2026-10-21 (2 absent at NOAA).
+  The backfill ran 2026-10-22: 2,197 days held, 2020-10-14 to 2026-10-21 (2 absent at NOAA); on `rbi-hail01` 2026-11-06, the same 2,214 days as `hail-dev`.
 - **The map (slice 5).** The Territory page has a Radar day picker, a layer toggle box and a legend; the layers come
   from `/map/radar.geojson` (staff only, read only, `hailsys/queries/radar_map.py`). The circle radius is the match
   radius setting (item 216, resolved). Storm Days, Territory and the map open on HAIL (`DEFAULT_REPORT_TEXT`, item 238).
@@ -141,7 +145,7 @@ reaches an email, an export, a pull or the matcher.
 
 **Phase 5c — the hail-likelihood map and unified pull.** Design accepted 2026-10-23 (decision log "Design: one hail-likelihood map per
 storm day, one pull from it", with the developer's answers); **step 1 only** (the CoCoRaHS ingest, likelihood zones, a staff-only map
-layer, a versioned parameter set, the backtest) was waived in the same day ("Phase 5c starts"), internal. **Built so far (2026-10-23, `hail-dev` only): the CoCoRaHS ingest (step 1a)** — `sql/053`,
+layer, a versioned parameter set, the backtest) was waived in the same day ("Phase 5c starts"), internal. **Built so far (2026-10-23, on `hail-dev`): the CoCoRaHS ingest (step 1a)** — `sql/053`,
 `hailsys/cocorahs/`, `scripts/cocorahs_ingest.py` (`nightly` by report timestamp, `weekly` by report date, `backfill`), timers at 11:00 UTC
 nightly and Sunday 12:00 UTC, `scripts/status.sh cocorahs`; Colorado backfilled from 2020-10-15 (2,729 reports).
 **Step 1b (2026-10-24): the likelihood zones** — `sql/054` (`likelihood_parameter_sets`, `likelihood_level_rules`, `likelihood_builds`, `likelihood_zones`),
@@ -154,7 +158,7 @@ Pulls and matching are unchanged: **steps 2b (the pull from the zones) and 3 (ma
 
 Phases in order: 0 groundwork → 1 IEM ingest + zip mapping → 2 storm browser
 with CSV export → 3 RentCast listings → 4 accounts → 5 email → 5b radar layers
-on the territory page (internal) → 5c likelihood map (built through sends by level, on `hail-dev`; real
+on the territory page (internal) → 5c likelihood map (built through sends by level; real
 recipients wait on items 183, 189, 96) → 6 pilot → 7 rollout.
 
 Do not build ahead of the current phase.
@@ -267,6 +271,8 @@ These have already bitten us. Do not re-discover them.
   known artifact -- rebuild it before testing ingest changes, and run
   `scripts/status.sh images` to see whether it is behind. See
   `docs/command-ref.md`.
+- Production runs a release tag, never `main` (`scripts/release.sh`, `CHANGELOG.md`, `docs/deploy.md` §12; item 289).
+  A change reaches `rbi-hail01` only in a tagged release.
 - Migrations are applied with `scripts/migrate.sh` (item 277), not `psql -f` by hand, and a file is never edited once
   applied: `schema_migrations` records each file's hash, and the script stops on a changed one.
 
