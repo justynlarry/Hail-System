@@ -2510,6 +2510,11 @@ belongs to PostGIS's topology extension). The first trigger above has fired eigh
 `dnc_import_batches`. The "leave as applied" decision held each time. **When:** the next time the FK naming
 convention is enforced across the schema.
 
+**Re-checked 2026-11-06 (document review).** `sql/066` declared five more inline (`permission_import_batches_uploaded_by_fkey`,
+`permission_import_rows_batch_id_fkey`, `send_permission_batch_id_fkey`, `send_permission_added_by_fkey`,
+`send_permission_removed_by_fkey`): eleven of ours now. "Leave as applied" still holds. A new table's keys should be named
+(`CONSTRAINT fk_{table}_{target}`) when written, since this is the third migration to add some.
+
 ## 168. Constant Contact tokens: encryption at rest, and tokens never in logs
 
 **Status:** resolved 2026-10-06 (`5e4983b`)

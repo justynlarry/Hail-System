@@ -11,7 +11,7 @@ Read `CLAUDE.md` and `docs/database-schema.md` first. Do not skim them; the
 non-obvious reasoning behind several tables is documented there and the DDL is
 supposed to match it.
 
-Review every migration in `sql/` (001 through 065) plus `scripts/load_reference.sh`
+Review every migration in `sql/` (001 through 067) plus `scripts/load_reference.sh`
 and `scripts/load_municipal.sh`.
 This is a **review, not a rewrite** — report findings and wait for my go-ahead
 before changing anything. Do not refactor working code, and do not add anything
@@ -64,14 +64,17 @@ index, `slm_fill_storm_date`, and a `send_log` guard that 060 replaces; 058 a co
 `dnc_list.source` gains `newsletter`, `dnc_import_batches.source` and `note`, and a data fix for the 2026-10-28
 upload that is a no-op on any other database; 062 `schema_migrations`, the record `scripts/migrate.sh` keeps (item 277); 063 `send_log_report_level_with_set` and
 the `pull_zips_with_pull` trigger (item 278); 064 the `dnc_list_link_realtor` and `realtors_link_dnc` triggers and a
-backfill of 12 links (item 130); 065 `send_runs`, a record of each send and resume job (item 196).
+backfill of 12 links (item 130); 065 `send_runs`, a record of each send and resume job (item 196); 066 `send_permission`, `permission_import_batches` and
+`permission_import_rows`, the `sent_emails_require_permission` trigger, and `no_permission` as a drip stop reason (item
+189); 067 `settings.session_max_hours` (on `settings_history` too, an eighth replacement of the history function and
+trigger) and `login_attempts` (item 299).
 `sql/guard_test.sql` is **not a migration**:
 it tests the guards from 029 on (029, 030, 033 to 037, 041's description rule and 042; the
 guards in 039 and 040 are not covered, item 214) inside a transaction it rolls back, so build with `sql/[0-9]*.sql` and run it
 separately (§1).
 `010_roles.sql` holds the roles and the grants for tables that existed when it
 was written; every later file that creates a table (012, 017, 018, 020, 021,
-022, 026, 031, 034 to 037, 039, 040, 044, 046 to 050, 053 to 055, 059; 062 deliberately grants nothing) carries its own grants.
+022, 026, 031, 034 to 037, 039, 040, 044, 046 to 050, 053 to 055, 059, 065 to 067; 062 deliberately grants nothing) carries its own grants.
 
 **A reconciliation pass has already run.** Documentation and DDL now agree on
 table count, `api_pulls` naming, `send_log` naming, the `system` role, email
@@ -231,6 +234,10 @@ paths, no foreign key from `send_log` to `dnc_list`; the loader scripts unchange
 (`db-schema-diagram.md` stopped at `061`, drawn), 282 (the `schema_migrations` guard had no test), 283
 (`iem_data_utc_datetime_idx` is a prefix of `uq_iem_natural_key`, kept; the 2026-10-29 run's "no redundant index"
 missed it) and 284 (the `CHAR(n)` FIPS columns, accepted); item 167 unchanged (six foreign keys).
+
+**Not yet run against `065` to `067`.** Their tests cover them meanwhile: `tests/test_send_jobs.py` (`send_runs`),
+`tests/test_permission.py` and `tests/test_send_deliver.py` (the permission trigger), `tests/test_sign_in_limits.py`
+(`login_attempts`, as `hail_app`).
 
 **Things to check in 024–033, from reading them 2026-10-05.** Settled 2026-10-29: `geocode_cache_geom_gix` follows
 the `_gix` naming every GiST index here uses, so it is consistent, not a finding; and a full build has exactly one

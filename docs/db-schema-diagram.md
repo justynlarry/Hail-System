@@ -426,3 +426,27 @@
      suppression gets the realtor with its address (dnc_list_link_realtor),
      and a new realtor links the suppressions with its address
      (realtors_link_dnc).
+
+
+
+ ADDED SINCE  (sql/066 to sql/067, drawn 2026-11-06)
+ ═══════════════════════════════════════════════════
+
+  Permission list (066)       Permission_Import_Batches ◄ Permission_Import_Rows
+                              (a staged upload, previewed, like the DNC import;
+                              FK UPLOADED_BY ► Users). Send_Permission:
+                              EMAIL_NORM, BASIS (service_client|cc_subscriber),
+                              AS_OF, FK BATCH_ID ► Permission_Import_Batches
+                              (nullable), FK ADDED_BY, REMOVED_BY ► Users. One
+                              active row per address and basis; removed, never
+                              deleted.
+  Login_Attempts (067)        free-standing: USER_NAME as typed (no FK to Users,
+                              on purpose), OUTCOME (ok|failed|locked),
+                              ATTEMPTED_AT. The source of the sign-in limit.
+
+ Rules and columns on tables drawn above, not drawn as boxes:
+   Sent_Emails: refused without an active Send_Permission row for its
+     address (trigger sent_emails_require_permission, 066); joined by
+     address, no FK.
+   Drip_Recipients.STOP_REASON gains no_permission (066).
+   Settings.SESSION_MAX_HOURS (067), also on Settings_History.

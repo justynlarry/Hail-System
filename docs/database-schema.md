@@ -1,7 +1,7 @@
 # Database Schema
 
 Storm outreach system — reference document for the data model.
-Written during planning, before any tables exist. Update as decisions change.
+Started during planning; now the reference for the live schema, through `sql/067`. Update it in the same commit as a migration.
 
 ---
 
