@@ -4071,6 +4071,12 @@ at their office.
 
 The "When" (before the VM started) has passed. **When:** now, and before staff reach the system (`docs/deploy.md` §8).
 
+**Update 2026-11-06 (later).** Key expiry disabled on all three machines by the developer (`tailscale status --json` from
+`hail-dev` shows no `KeyExpiry` for any); Tailscale SSH confirmed off on `pve-prod01` (`"RunSSH": false`). **Left:** the
+sshd hardening on both hosts, deferred by the developer until they are at the office, with the hosts' own keyboard and
+screen as the fallback against a lockout (not over a weekend, remotely); internal DNS; the notice to RBI.
+**When:** the next office visit.
+
 ## 238. Multi-market readiness: what is hard-coded for RBI, Colorado and Denver
 
 **Status:** open (filed 2026-10-20, by developer direction; not urgent)

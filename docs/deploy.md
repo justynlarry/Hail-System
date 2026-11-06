@@ -67,8 +67,10 @@ Have these in hand, or know where they come from:
 
 Done on the Proxmox and backup hosts, before the VM is started or joins Tailscale (item 237).
 
-- [ ] Tailscale key expiry off on both hosts; Tailscale SSH off on both.
-- [ ] Remove any stale node with the VM's name from the tailnet it will join (a MagicDNS name collision otherwise).
+- [x] Tailscale key expiry off on both hosts; Tailscale SSH off on both. Done 2026-11-06 for `pve-prod01`, `pbs-prod01`
+      and `rbi-hail01` (key expiry off on all three; `"RunSSH": false` on `pve-prod01` and `rbi-hail01`, `pbs-prod01`
+      off since 2026-10-20).
+- [x] Remove any stale node with the VM's name from the tailnet it will join (a MagicDNS name collision otherwise).
 - [ ] sshd: keys only, no root password (`PermitRootLogin prohibit-password`, `PasswordAuthentication no`,
       `KbdInteractiveAuthentication no` in a drop-in under `/etc/ssh/sshd_config.d/`). Prove key login works first,
       keep a session open, `sshd -t` before reloading.
