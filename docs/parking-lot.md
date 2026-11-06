@@ -8397,3 +8397,30 @@ tests that expect a sender refused, and a look at whether the template-descripti
 and the bounce check (`/send/check`) should stay admin-only. Templates, Constant Contact and the admin page stay admin.
 
 **Related:** decision log 2026-09-22 ("Admin is a full superset of sender", "Three roles, enforced server-side first").
+
+
+## 310. The host test run fails: `test_version.FooterTest` has no skip guard
+
+**Status:** resolved 2026-11-06 (found 2026-11-06, the `README.md` check of the document review)
+
+On `hail-dev`'s host, `python3 -m unittest discover -s tests` ends `Ran 2812 tests ... FAILED (errors=2,
+skipped=2301)`. Both errors are `tests/test_version.py`'s `FooterTest` (`test_the_footer_shows_the_release_and_commit`,
+`test_an_unstamped_working_copy_says_development`): `AttributeError: module 'hailsys' has no attribute 'web'`, from
+`mock.patch("hailsys.web.jobs.sweep_stale_pulls")`. The host has no Flask, so `hailsys.web` does not import, and the
+class has no guard, so it errors instead of skipping with a reason. Every other web test file guards the import, for
+example `tests/test_server_error_page.py:19-26` (`try: from hailsys.web import create_app ... except ImportError`, then
+`@unittest.skipIf(MISSING, ...)`). Added with item 289 (`24e01a8`, 2026-11-04); it passes in the `test` service
+(`Ran 2812 tests ... OK (skipped=390)`, 2026-11-06), so the full run never showed it.
+
+**Fix:** give `FooterTest` the same import guard and `@unittest.skipIf`. Code, keyed in by the developer.
+`README.md`'s host-run line is written for after the fix.
+
+**When:** now. The host run is meant to end OK, so that any error stands out (items 171, 273).
+
+**Resolved 2026-11-06.** `tests/test_version.py` imports `hailsys.web` in a `try` and `FooterTest` has
+`@unittest.skipIf(MISSING, ...)`, keyed in by the developer. On the host the two tests skip with
+`missing dependency: No module named 'flask'`, and the full host run ends `Ran 2812 tests ... OK (skipped=2303)`; in the
+`web` container `tests.test_version` runs 5 tests, OK (1 skipped, the `.gitignore` check, which needs the host).
+`README.md`'s host line now says 2,303 skipped.
+
+**Related:** items 171, 273, 289.

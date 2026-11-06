@@ -14,6 +14,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from hailsys import version  # noqa: E402
+# FooterTest builds the app, which needs Flask, the web image has it, the host doesn't
+try:
+    import hailsys.web  #noqa: F410,E402
+    MISSING = None
+except ImportError as exc:
+    MISSING = str(exc)
 
 
 class ReadVersionTest(unittest.TestCase):
@@ -38,7 +44,7 @@ class ReadVersionTest(unittest.TestCase):
     def test_the_stamp_file_is_never_committed(self):
         self.assertIn("hailsys/VERSION", (ROOT / ".gitignore").read_text())
 
-
+@unittest.skipIf(MISSING, f"missing dependency: {MISSING}")
 class FooterTest(unittest.TestCase):
     def page(self, stamp):
         with mock.patch("hailsys.web.jobs.sweep_stale_pulls"), \

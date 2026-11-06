@@ -25,13 +25,16 @@ Phases 0–4 are closed:
 
 **Phase 5, email sending, is current.** A Constant Contact send path (admin-only `/send`
 screens, an unsubscribe sync, a send queue and a bounce check) is built and rehearsed on the
-`hail-dev` VM, but it has never sent to a real recipient, and the production box has none of it.
+`hail-dev` VM, but it has never sent to a real recipient. Phases 5b (radar layers on the Territory map) and 5c (the
+hail-likelihood map, with pulls and sends from it) are built alongside it, for staff only. The production server runs
+release `v0.9.1` (deployed 2026-11-06) with its data loaded. It cannot send until the Constant Contact account, the
+sending domain and the permission list are in place.
 `CLAUDE.md` lists what is built and what is still needed before a production send, and
 `docs/phases.md` has each phase's "done when" condition.
 
 ## Stack
 
-PostgreSQL 16 + PostGIS 3.4 and a Python 3.12 backend: Flask with
+PostgreSQL 16 + PostGIS 3.6 and a Python 3.12 backend: Flask with
 server-rendered Jinja under gunicorn, and `psycopg`. It all runs in Docker
 Compose on Rocky Linux, with nightly jobs scheduled by systemd timers. The web
 UI is reached over Tailscale.
@@ -42,6 +45,7 @@ UI is reached over Tailscale.
 |---|---|
 | Rules for anyone (or any AI assistant) changing this code | `CLAUDE.md` |
 | The whole picture in one document | `docs/hail-consolidated.md` |
+| What each release contains | `CHANGELOG.md` |
 | Why each choice was made | `docs/decision-log.md` (the authority when documents disagree) |
 | The data model, field by field | `docs/database-schema.md` |
 | External APIs and their traps | `docs/data-sources.md` |
@@ -57,8 +61,10 @@ the full sequence and what each step is for.
 
 ```bash
 cp .env.example .env     # fill in the passwords, FLASK_SECRET_KEY and RENTCAST_KEY
-docker compose up -d     # starts postgis and web
+docker compose up -d postgis web   # cloudflared waits for its tunnel config (docs/deploy.md §8)
 ```
+
+For a server, follow `docs/deploy.md` instead; production runs a tagged release, never `main`.
 
 After that:
 - **Apply the migrations** with `docker compose run --rm -T loader bash scripts/migrate.sh --apply`. On an
@@ -77,9 +83,9 @@ the repo, so an edit is a deploy (`web` at its next restart; `docs/command-ref.m
 python3 -m unittest discover -s tests
 ```
 
-The suite is stdlib `unittest`, about 2,380 tests on the host (2026-10-29). Most need packages only the `web` and
+The suite is stdlib `unittest`, about 2,810 tests on the host (2026-11-06). Most need packages only the `web` and
 `app` images have (`psycopg`, `jinja2`, `cryptography`) or the database, so the host run is a partial check: on
-2026-10-29 it ran 2,382 tests and ended **OK** with 2,133 skipped, each skip naming what is missing (items 171,
+2026-11-06 it ran 2,812 tests and ended **OK** with 2,303 skipped, each skip naming what is missing (items 171,
 273). Run a file in the `web` container, where it is the real check
 (the container sets `PGHOST` and connects as `hail_app`; each file's docstring gives its command):
 
@@ -97,7 +103,7 @@ docker compose --profile test build test
 docker compose --profile test run --rm -T test
 ```
 
-On 2026-10-29: 2,623 tests, 380 skipped, OK. The tests that need `hail_admin` skip under `hail_app` and say so;
+On 2026-11-06: 2,812 tests, 390 skipped, OK. The tests that need `hail_admin` skip under `hail_app` and say so;
 run them with the `hail_admin` command in `tests/test_log_guards.py`'s docstring. **Any error is a real failure.**
 
 The web
