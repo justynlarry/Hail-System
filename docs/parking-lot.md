@@ -8304,3 +8304,23 @@ still fails, report it to GitHub Support (repository, tag, the exact error).
 **When:** before the next release, or when GitHub Support answers.
 
 **Related:** items 289, 305.
+
+
+## 307. The new-server steps leave out the pre-radar warnings load
+
+**Status:** resolved 2026-11-06 (found 2026-11-06, checking the `rbi-hail01` backfills against `hail-dev`)
+
+`docs/server-setup.md` step 6 listed the IEM, radar, CoCoRaHS and likelihood backfills but not
+`radar_ingest.py warnings`. The radar backfill loads NWS warnings only for the radar years, so after following the
+steps `rbi-hail01` had 26 warning loads and 5,979 polygons from 2020-10-13, against 141 loads and 18,061 polygons from
+2004-01-24 on `hail-dev` (which ran `warnings` by hand on 2026-10-22). The command was documented only in
+`docs/command-ref.md`. Without it the Territory map and the findings panel show no warnings for a day before
+2020-10-14. Radar, radar zones and CoCoRaHS otherwise matched `hail-dev` exactly.
+
+**When:** this deploy.
+
+**Resolved 2026-11-06.** Step 6 now runs `radar_ingest.py warnings` after the radar backfill, says why, and notes it
+needs the IEM archive first. The radar backfill's time is given as rbi-hail01's (about 2½ hours). Entered by Claude
+at the developer's request.
+
+**Related:** items 304, 306.

@@ -204,12 +204,15 @@ list. In order:
 6. **Public data, rebuilt from source.** Build the `ingest` image first (`docker compose build ingest`):
    ```
    docker compose run --rm ingest python3 scripts/iem_backfill.py --start 2004-01-01 --end <today>
-   docker compose run -d --rm ingest python3 scripts/radar_ingest.py backfill        # about 3.6 hours on hail-dev
+   docker compose run -d --rm ingest python3 scripts/radar_ingest.py backfill        # about 2½ hours on rbi-hail01
+   docker compose run --rm ingest python3 scripts/radar_ingest.py warnings          # NWS warnings before the radar
    docker compose run --rm ingest python3 scripts/cocorahs_ingest.py backfill
    docker compose run --rm ingest python3 scripts/likelihood_ingest.py backfill     # after radar and CoCoRaHS
    ```
-   On `hail-dev` the IEM archive took about ten runs of up to 2½ minutes each. `scripts/status.sh` shows each job's
-   state.
+   The radar backfill loads NWS warnings only for the radar years (2020-10-14 on); `warnings` loads them back to
+   the first storm report, so the Territory map and findings panel show warnings on the older days (item 307). It
+   needs the IEM archive first, since it starts from the first stored report. On `hail-dev` the IEM archive took
+   about ten runs of up to 2½ minutes each. `scripts/status.sh` shows each job's state.
 7. **Timers:** `sudo cp systemd/* /etc/systemd/system/`, `sudo systemctl daemon-reload`, then
    `sudo systemctl enable --now` on the eight `.timer` units. The units name the user `hail-user` and
    `/home/hail-user/hail-system`, the same as on `hail-dev`.
