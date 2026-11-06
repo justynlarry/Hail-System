@@ -8291,7 +8291,7 @@ Released as v0.9.1.
 
 ## 306. GitHub refuses the `v0.9.1` tag with `fatal error in commit_refs`
 
-**Status:** open (found 2026-11-05, releasing v0.9.1)
+**Status:** resolved 2026-11-06 (found 2026-11-05, releasing v0.9.1)
 
 `scripts/release.sh v0.9.1` on `hail-dev` made the tag (annotated, `eb68f44`, on `aba8015`) and the push was refused:
 `remote: fatal error in commit_refs` / `! [remote rejected] v0.9.1 -> v0.9.1 (failure)`. The same three times
@@ -8311,6 +8311,13 @@ refs/tags/v0.9.1:refs/tags/v0.9.1`), checked out there, stamped, and the migrati
 still fails, report it to GitHub Support (repository, tag, the exact error).
 
 **When:** before the next release, or when GitHub Support answers.
+
+**Resolved 2026-11-06.** `git push origin v0.9.1` from `hail-dev` was accepted on the first retry, a day later, with no
+change to the tag, the repository or the command. GitHub, `hail-dev` and `rbi-hail01` hold the same tag object
+(`eb68f44`), and `rbi-hail01` fetches from GitHub cleanly. The repository's rulesets were not checked (a rule names
+itself, and the same push now succeeds). Cause unknown, most likely a passing fault at GitHub. The direct push in
+`docs/deploy.md` §3 and §12 stays as the fallback. If it happens again: retry after some hours first; if it persists,
+report it to GitHub Support (repository, tag, the exact error).
 
 **Related:** items 289, 305.
 
