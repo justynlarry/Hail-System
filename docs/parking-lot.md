@@ -4060,6 +4060,17 @@ at their office.
 
 **Related:** decision log 2026-10-20.
 
+**Checked 2026-11-06 from `hail-dev`.**
+- The stale personal-tailnet `rbi-hail01` node is gone.
+- Tailscale SSH is off on `rbi-hail01` (`"RunSSH": false`).
+- Key expiry is still on for all three machines (`pve-prod01` and `pbs-prod01` expire 2027-04-18, `rbi-hail01`
+  2027-05-04; `tailscale status --json` from `hail-dev`).
+- Both hosts still offer password sign-in (`publickey,password`, from an SSH probe with no credentials);
+  `rbi-hail01` offers keys only.
+- Tailscale SSH on `pve-prod01` was not visible from here.
+
+The "When" (before the VM started) has passed. **When:** now, and before staff reach the system (`docs/deploy.md` §8).
+
 ## 238. Multi-market readiness: what is hard-coded for RBI, Colorado and Denver
 
 **Status:** open (filed 2026-10-20, by developer direction; not urgent)
