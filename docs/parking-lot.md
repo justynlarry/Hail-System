@@ -4133,6 +4133,12 @@ Items 1 to 3 are the work; item 2 is the largest.
 - **K. Cosmetic:** `system@rbi.invalid` (`sql/002_users.sql:40`), `scripts/cc_spike.py:42,191`,
   `scripts/hw-acceptance-test.sh:5`, the example hostname in `cloudflared/config.example.yml:4`, `config/README.md:17`.
 
+**Point J accepted 2026-11-06 (developer).** The developer's test addresses (`rbi.justyn+tN@gmail.com`) and Tailscale
+login stay in the tracked files and history; they are already public and the developer is fine with that. No history
+rewrite. **When:** revisit if this repo is set up for another company (their rehearsals need their own addresses, and
+the guards in `rehearse_send.py:16` and `rehearse_drip.py:31` only allow these), or if the test inbox changes. Point G
+(RBI's sender defaults in `sql/042`) stays open.
+
 **Related:** items 203, 216, 274; decision log 2026-09-01, 2026-09-09, 2026-10-20.
 
 
