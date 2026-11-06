@@ -46,8 +46,9 @@ Have these in hand, or know where they come from:
 - [ ] **Name and address:** hostname, static IP, gateway, DNS. For `rbi-hail01`: `docs/server-setup.md`, Production
       hosts, and `docs/hail-consolidated.md` §9.
 - [ ] **Access:** a Tailscale account to join the server to, and your SSH key.
-- [ ] **RentCast key:** the same RentCast account as `hail-dev` (decided 2026-11-02; the first billing period's usage
-      count on production misses `hail-dev`'s calls, accepted).
+- [ ] **RentCast key:** the same RentCast account as `hail-dev` (decided 2026-11-02). `hail-dev` makes no real pulls
+      once production is live (developer, 2026-11-06), so only the first billing period's count on production misses
+      `hail-dev`'s calls, accepted.
 - [ ] **Constant Contact:** the production account's API key and secret (item 183), and the redirect URI on the
       production hostname, registered in that account's app settings.
 - [ ] **Cloudflare:** a tunnel and hostname for this server, separate from `hail-dev`'s (decision log, "Tunnel
