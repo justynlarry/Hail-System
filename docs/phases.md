@@ -20,8 +20,8 @@ by the time Phase 5 needs it.
 - Production host (HP ProDesk 400 G6, `pve-prod01`): BIOS (VT-x, AC power recovery, admin password)
 - Proxmox VE install, Rocky VM (`rbi-hail01`, VM 101); a separate Dell OptiPlex 3020 runs Proxmox
   Backup Server (`pbs-prod01`) instead of a PBS VM
-- *Status 2026-10-20:* both hosts built and through `scripts/hw-acceptance-test.sh`; the VM is created
-  but not started
+- *Status 2026-10-20:* both hosts built and through `scripts/hw-acceptance-test.sh`; the VM was created
+  then; it was deployed 2026-11-05/06 and runs `v0.9.1` (`docs/deploy.md`)
 - Static IP, UPS, add to Irin monitoring as a client
 - PostgreSQL + PostGIS
 - Schema created from `database-schema.md`
@@ -184,6 +184,8 @@ recipient (see the 2026-10-06 to 2026-10-13 progress below). **2026-11-04:** `dn
 drip campaigns rehearsed on test addresses (item 204); the page-by-page UI pass (item 201: Storm Days, Admin, Territory,
 Activity & Exports, Send, the match page), the template editor remodel (item 294, all ten slices) and release versions
 (item 289: `v0.9.0` is the first production deploy) are built on `hail-dev`. Still no real recipient: items 183, 189, 96.
+**2026-11-06:** `v0.9.1` is deployed to `rbi-hail01`, its data loaded and matching `hail-dev`. It cannot send: no
+Constant Contact account, sending domain or permission list.
 
 **Progress, as of 2026-10-05 — groundwork only, nothing sends** (bullets are in the order they landed; later ones follow the 09-28 items):
 - **CSV exports built** (parking-lot item 92): the matched listings for one
@@ -238,7 +240,7 @@ Activity & Exports, Send, the match page), the template editor remodel (item 294
 - **Append-only enforced in the database, 2026-09-30** (`sql/029`, `030`,
   `sql/guard_test.sql`): triggers on `send_log` and `email_templates`, with
   `DELETE` and `TRUNCATE` revoked from `hail_app`. Applied to `hail-dev`, 18 of
-  18 checks passed; **not checked on the production box**. The table owner can
+  18 checks passed; applied on both machines by `migrate.sh`. The table owner can
   still `TRUNCATE`, accepted (decision log 2026-09-30).
 - **Address search, 2026-10-01** (`sql/031`, `/search`): informational only,
   geocoded through the Census Geocoder. It does not touch the send path.
@@ -257,7 +259,7 @@ Activity & Exports, Send, the match page), the template editor remodel (item 294
 
 **Progress, 2026-10-06 to 2026-10-13 — the Constant Contact send path, built and rehearsed on
 `hail-dev`. Nothing has sent to a real recipient:** every `sent_emails` row (7) is a rehearsal to a test
-address, and the production box has none of this.
+address (the production box had none of this until `v0.9.0`).
 - **Provider access** (items 168 to 170, 181, 182): the OAuth flow and encrypted token table (`sql/034`,
   admin `/cc`), and a spike on the free trial that established how contacts are added and that the API will
   silently re-subscribe an unsubscribed contact, so the code reads before it writes.
@@ -280,14 +282,14 @@ address, and the production box has none of this.
   that can be edited until the template has been used.
 - **Rehearsals** on `hail-dev` with a mandatory allow-list of test addresses (items 180, 198, 199).
 - **Not built, and still the work of this phase:** the production account and sending identity (items 96,
-  183), the eligibility gate (item 189), the template builder (item 203), drip campaigns (item 204), a warm-up
-  schedule and the first real batch. Before the first send: settle whether the Constant Contact export is
-  missing about nine months of unsubscribes (item 129) and final email copy (item 135).
+  183), the permission lists loaded on production (item 189; the gate is built), a warm-up schedule and the first
+  real batch, with final email copy (item 135). The template builder (item 203) and drip campaigns (item 204) are
+  built; item 129 was accepted 2026-10-28.
 
 - Sending identity: subdomain, SPF/DKIM/DMARC — **trial account only, self-authenticated; production identity open** (items 96, 183)
 - Provider selected (Constant Contact, 2026-10-06) and verified as permitting this kind of outreach (still unconfirmed in writing; item 119)
-- Template CRUD, versioning, merge-field validation on save — **partly**: versioning and merge-field validation exist; the UI has a list, a choice and a description editor, not a builder (items 202, 203)
-- DNC import (legacy lists) — **done 2026-09-29, 759 suppressions**; completeness is item 129, **settle it before any send**
+- Template CRUD, versioning, merge-field validation on save — **built**: versioning, merge-field validation and the block template builder (items 202, 203, 294)
+- DNC import (legacy lists) — **done 2026-09-29, 759 suppressions** (768 active on 2026-11-06, the same on production); item 129 accepted 2026-10-28, newsletter unsubscribes uploaded by hand
 - Suppression check in the send transaction — **built** (re-checked before each call; the provider call cannot share a transaction, decision log 2026-10-06)
 - Frequency cap with a hard floor in the database — **partly**: `email_cap_days` (1 to 90, a `CHECK`) is applied when the send list is built, with a sender override; no database constraint stops a send inside the window
 - Send queue with throttling — **built** (queue, resume, discard; the daily Constant Contact limit); the warm-up ramp is not
@@ -374,14 +376,14 @@ change the level table and distances and the change is logged; nothing from 5c r
 consistent with what actually happened.
 
 Test against **historical IEM dates** rather than waiting for live hail — the
-archive goes back to 2003, and wind events are abundant year-round.
+archive goes back to 2003 (ours starts 2004-01-26), and wind events are abundant year-round.
 
 ---
 
 ## Phase 7 — Rollout
 **~5–10 hrs · 1 week**
 
-- Staff accounts
+- Staff accounts (sending is admin-only until item 309 is revisited)
 - Short walkthrough session
 - User manual
 - Handoff notes and escalation expectations (business hours, not on call)

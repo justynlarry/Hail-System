@@ -116,8 +116,9 @@ code is on `rbi-hail01` too, since `v0.9.0`.
   for the pilot (item 309). Provider chosen 2026-10-06: Constant Contact (decision log, item 119).
 
 What exists for Phase 5b so far, built on `hail-dev`, on `rbi-hail01` since `v0.9.0` (decision log 2026-10-20 waived "do not
-build ahead" for this phase). Radar layers for the territory page, internal and staff only: nothing radar-derived
-reaches an email, an export, a pull or the matcher.
+build ahead" for this phase). Radar layers for the territory page, staff only. Radar reaches pulls and emails
+only through the Phase 5c likelihood zones (zone pulls, zone matches, sends by level); nothing radar-derived
+reaches an export or the report matcher.
 - **Data and zones.** `sql/048` to `051`; `hailsys/radar/` decodes NOAA's public MRMS `MESH_Max_1440min` file (the one
   stamped at the local midnight that ends the day, 2020-10-14 on), stores the cells, and builds four layers per
   day in PostGIS: core (radar hail with a HAIL report within the radius; item 254), margin, radar-indicated, and outer

@@ -580,12 +580,15 @@ dev account is a trial, and the paid plan has not been priced (parking-lot item 
 
 ---
 
-## 7. NOAA MRMS MESH: radar hail size (research only; nothing in the system reads it)
+## 7. NOAA MRMS MESH: radar hail size (Phase 5b)
 
-A gridded radar estimate of the maximum size of hail, free. **It is not used by the ingest, the matcher or the
-UI.** It is here because the 2026-10-13 study compared it with the report-based circles (decision log
-2026-10-13; `docs/analysis/storm-shape-mesh-2026-10/`). The claim question is in `docs/phases.md`, "Not on the
-roadmap".
+A gridded radar estimate of the maximum size of hail, free. **Phase 5b reads it** (since 2026-10-22). `hailsys/radar/`
+downloads one `MESH_Max_1440min_00.50` file a day from NOAA's AWS bucket (`noaa-mrms-pds`): the file stamped at the
+local midnight that ends the day (decision log 2026-10-21). It decodes it with a stdlib decoder (`hailsys/radar/mesh.py`)
+and stores the cells inside Colorado's crop box (`radar_days`, `radar_cells`). The cells draw the radar layers on the
+Territory map, and through the likelihood zones (Phase 5c) they feed zone pulls and sends by level. They never reach the
+report matcher or an export. MESH is not calibrated as a hail size (below). The 2026-10-13 study that compared it with the
+report circles is `docs/analysis/storm-shape-mesh-2026-10/`.
 
 **Two free archives, both whole-CONUS GRIB2, gzip, 7000 x 3500 cells at 0.01 degrees (about 1 km):**
 
@@ -614,6 +617,63 @@ upgrade.
   `MESH_Max_60min` on 27 of 276 cells at or above 0.75 in. The decoder is not the cause (item 211).
   Whether the file stamped H covers exactly the hour before H was not checked.
 
+- **Some files are packed at 8 bits,** not 16 (one `MESH_Max_60min`, 2023-05-10 16:00 UTC). The decoder reads the bit
+  depth from the file (item 239).
+- **S3 resets connections,** about 3 times in 100 requests. Downloads retry and write to a `.part` file that is renamed
+  when complete (item 239).
+- **A value above 10 in (254 mm) is NOAA's processing, not hail.** Such a day is recorded `suspect` and not drawn (item
+  247).
+- **NOAA lacks 2 days** from 2020-10-14 on; they are recorded `missing`.
+
 **Reading it in Python:** `pygrib` 2.1.8 installs from binary wheels with eccodes bundled (no system packages)
 and reads these files. A short stdlib decoder in the analysis folder (`storm_shape/mesh/mesh_lib.py`) agrees
 with it on every cell tested (0 of 402,290 differ).
+
+---
+
+## 8. NWS warning polygons: IEM's warning export (Phase 5b)
+
+Severe thunderstorm and tornado warning polygons, free and with no key, from IEM's `cgi-bin/request/gis/watchwarn.py`
+(`hailsys/radar/warnings.py`). They are the radar map's outer layer, and the likelihood build reads them
+(`hailsys/likelihood/build.py`). The states come from `settings.storm_states` (`CO`), so another territory needs no code
+change.
+
+The request is `accept=shapefile`, `sts`/`ets` in UTC, `location_group=states`, `states=CO`, `limitps=1` (storm-based
+polygons only), `phenomena=SV,TO`, `significance=W,W` and `limit1=1`. Polygons are stored in `warning_loads` and
+`warning_polygons`. The radar jobs load the radar years; `radar_ingest.py warnings` loads the years before (item 307).
+
+**Traps:**
+- **`limitps=1` with no `phenomena=` list returns tornado warnings only,** silently.
+- **The shapefile cuts field names to 10 characters:** `PRODUCT_ID` arrives as `PROD_ID`.
+- **IEM's JSON API, `sbw_interval.geojson`, ignores `states=`, `state=` and `phenomena=`** and returns every warning in
+  the country (620 for two days). Only repeated `wfo=` filters it, so it is not used.
+- **The shapefile is the only format with both the polygon and its times.** The CSV has no geometry, and the KML hides
+  the details in HTML.
+- **IEM filters by the warning's time, not the polygon's.** So a fetch asks for the day plus a margin on each side, and
+  the database decides which polygons overlap the day.
+
+---
+
+## 9. CoCoRaHS: volunteer hail reports (Phase 5c)
+
+Hail-pad reports from the CoCoRaHS volunteer network, free and with no key, from
+`https://data.cocorahs.org/cocorahs/export/exportreports.aspx` (`hailsys/cocorahs/`). They are asked for as CSV, for
+Colorado, with `TimesInGMT=True` so every time is UTC. The nightly job selects by `ReportDateType=timestamp` (when a
+report was entered or edited, which finds late entries and edits); the weekly job selects by `reportdate` (the day the
+hail was observed). The request's User-Agent names `settings.contact_email`, and the job refuses to send it without one.
+
+Reports are stored in `cocorahs_hail_reports`, one per station and observation time, and never deleted; Colorado is
+backfilled from 2020-10-15. They feed the likelihood zones only: nothing CoCoRaHS-derived reaches an export or the report
+matcher. A zone email's observer wording waits on `settings.zone_observer_wording_approved`, which stays false until
+CoCoRaHS's usage policy is read.
+
+**Traps** (checked 2026-10-23, `hailsys/cocorahs/parse.py`):
+- **The header has 24 columns and `MoreRainThanHail` appears twice.** A dict reader keeps one and drops the other, so
+  fields are read by position, and any header that isn't exactly the expected one is refused.
+- **`NA` means missing,** never 0. This is the same trap as IEM's `None`.
+- **Times are 12-hour** ("3:00 AM"), whatever date format is asked for.
+- **An HTML error page can come back with HTTP 200.** It is treated as a failure, not an empty day.
+- **An unquoted comma inside a field** gives the wrong field count. The line is rejected whole and kept verbatim.
+- **`Decimal('NaN')` is accepted,** so a size is tested with `is_finite()` before any range check.
+- A station's daily report covers the 24 hours ending about 7 AM on its date, so storm day D is read from the D+1 report
+  (CLAUDE.md, Known data traps).
