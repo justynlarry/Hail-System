@@ -34,7 +34,7 @@ Update this table as the build moves. Item numbers are in `docs/parking-lot.md`.
 | 7. Data | First admin, reference and coverage loaded; suppressions copied 2026-11-05, 768 active and 1 removed, the same as `hail-dev` (item 285); backfills done 2026-11-06, every count the same as `hail-dev` (IEM, radar, radar zones, warnings, CoCoRaHS, likelihood); the eight timers enabled, the four nightly ones ran 2026-11-06. settings checked 2026-11-06, all as wanted (item 308). **Open:** the other users, the permission list (item 189) |
 | 8. Access | `tailscale serve` for the developer, signed in 2026-11-05. The staff Cloudflare tunnel not set up (waits on the domain, 96) |
 | 9. Constant Contact | Not started (item 183) |
-| 10. Checks | `status.sh`: every nightly job OK 2026-11-06; `status.sh images` OK. Role sign-ins and the backup and restore test not done |
+| 10. Checks | `status.sh`: every nightly job OK 2026-11-06; `status.sh images` OK. Backup and restore test passed 2026-11-06, backups scheduled. Role sign-ins not done |
 | 11. Before the first real send | Items 183, 189, 96, 135, 285, 232/233, 236 open |
 
 ---
@@ -207,8 +207,13 @@ Detail: `docs/server-setup.md`, "Data on a new server" (decided 2026-11-02). In 
 - [x] `scripts/status.sh images`: all OK.
 - [ ] Sign in as an admin, a sender and a viewer: each opens what its role may (Storm Days, Territory with the map,
       the match page, `/admin` for the admin only) and is refused the rest.
-- [ ] A backup of the VM has completed, and a test restore of it has been booted with the network disconnected
-      (item 233; the restore target must support `x86-64-v3`).
+- [x] A backup of the VM has completed, and a test restore of it has been booted with the network disconnected
+      (item 233; the restore target must support `x86-64-v3`). Done 2026-11-06: snapshot mode with the guest agent,
+      restored as VMID 9100, `migrate.sh` reported `recorded 67, pending 0`, and the IEM, radar, likelihood and
+      suppression counts matched production; 9100 deleted. Scheduled: VM 101 backed up daily at 04:00 and 22:30
+      (`pve-prod01` is on Denver time); prune daily at midnight, keep last 14 (7 days at two a day); garbage collection
+      Saturdays 18:15. The 04:00 backup falls inside the nightly timers' window (10:00 to 12:30 UTC), which is safe
+      (Postgres keeps each transaction whole) but may leave that morning's data out.
 
 ## 11. Before the first real send
 

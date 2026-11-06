@@ -3957,6 +3957,10 @@ add a second backup target at once if reallocated or pending sectors appear.
 
 **Update 2026-11-04 (developer):** dealt with when the production VM is set up.
 
+**Update 2026-11-06.** The check this item asks for before the first send is done: a backup of VM 101 completed and a
+test restore of it was booted and checked (item 233). The six-monthly `smartctl -a` on `pbs-prod01` stays, so the item
+stays open as a watch.
+
 ## 233. Backups: single-disk datastore, retention, encryption, consistency, restore test
 
 **Status:** open (filed 2026-10-20)
@@ -3979,6 +3983,14 @@ schedule is set. Backups are not yet encrypted client-side. VM 101 has only had 
 **Related:** items 232, 235; decision log 2026-10-20.
 
 **Update 2026-11-04 (developer):** dealt with when the production VM is set up.
+
+**Update 2026-11-06.** Done: `qemu-guest-agent` installed and enabled in VM 101's options, `fstrim.timer` enabled; VM
+101 backed up daily at 04:00 and 22:30 Denver time, prune daily at midnight keeping the last 14 (a week at two a day,
+developer: a week is enough), garbage collection Saturdays 18:15; a snapshot-mode backup restored as VMID 9100 with the
+network disconnected, booted, both containers up, `migrate.sh` `recorded 67, pending 0`, and the IEM, radar,
+likelihood and suppression counts matched production; 9100 deleted. Still open: the second disk and ZFS mirror (the
+reinstall erases the datastore, so repeat the restore test after it), the client-side encryption key (item 235), and
+whether to add a `pg_dump` hook as a second, logical copy.
 
 ## 234. Irin alerts for PBS disk usage and backup job failures are unconfirmed
 
