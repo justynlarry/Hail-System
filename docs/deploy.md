@@ -22,13 +22,19 @@ its footer shows the release (for example `v0.9.0 · abc1234`); update this line
 
 Update this table as the build moves. Item numbers are in `docs/parking-lot.md`.
 
-| Step | State (2026-11-02) |
+| Step | State (2026-11-06) |
 |---|---|
 | 0. Before you start | Production Constant Contact account (183), sending domain (96) and alert SMTP account (236) not yet set up |
 | 1. Hosts | `pve-prod01`, `pbs-prod01` built and acceptance-tested 2026-10-19; hardening (237), notifications (236) and retention (233) open |
-| 2. OS | VM 101 created, Rocky 10.2 ISO attached, **not started** |
-| 3 to 9 | Not started |
-| 10. Checks | Not started |
+| 2. OS | Rocky 10.2, running |
+| 3. Code and files | `v0.9.1` checked out 2026-11-05 (the tag pushed from `hail-dev`, item 306); the TIGER folders copied |
+| 4. Secrets | `.env` filled in, except the Constant Contact values (placeholders until item 183) and the domain (96) |
+| 5. Build and start | Built and started 2026-11-05; `status.sh images` all OK |
+| 6. The database | `migrate.sh --apply` from empty, 2026-11-05: `recorded 67, pending 0` (item 305) |
+| 7. Data | First admin, reference and coverage loaded; suppressions copied 2026-11-05, 768 active and 1 removed, the same as `hail-dev` (item 285); backfills done 2026-11-06, every count the same as `hail-dev` (IEM, radar, radar zones, warnings, CoCoRaHS, likelihood); the eight timers enabled, the four nightly ones ran 2026-11-06. **Open:** the settings on the admin page, the other users, the permission list (item 189) |
+| 8. Access | `tailscale serve` for the developer, signed in 2026-11-05. The staff Cloudflare tunnel not set up (waits on the domain, 96) |
+| 9. Constant Contact | Not started (item 183) |
+| 10. Checks | `status.sh`: every nightly job OK 2026-11-06; `status.sh images` OK. Role sign-ins and the backup and restore test not done |
 | 11. Before the first real send | Items 183, 189, 96, 135, 285, 232/233, 236 open |
 
 ---
@@ -153,11 +159,11 @@ Detail: `docs/server-setup.md`, "Database Migrations".
 
 Detail: `docs/server-setup.md`, "Data on a new server" (decided 2026-11-02). In order:
 
-- [ ] The first admin with `scripts/create_user.py`, as `hail_admin`. Every other user on the admin page.
-- [ ] `scripts/load_reference.sh`, then `scripts/load_coverage.sh` (the loader service).
+- [x] The first admin with `scripts/create_user.py`, as `hail_admin`. Every other user on the admin page.
+- [x] `scripts/load_reference.sh`, then `scripts/load_coverage.sh` (the loader service).
 - [ ] Settings on the admin page, so each lands in `settings_history`: radii, billing day, quota, freshness, match age,
       email cap, sign out after (hours; item 299), the email images, sender and contact settings, `storm_states`.
-- [ ] **Suppressions:** `scripts/dnc_copy.sh export` on `hail-dev`, copy the file over Tailscale, `scripts/dnc_copy.sh
+- [x] **Suppressions:** `scripts/dnc_copy.sh export` on `hail-dev`, copy the file over Tailscale, `scripts/dnc_copy.sh
       load` here, delete the file on both machines. The load's last table must show the same active and removed counts
       as `hail-dev` (item 285; close it then).
 - [ ] **Permission list (item 189):** on the admin page, Permission list, upload the final RBI service-client list
@@ -165,14 +171,14 @@ Detail: `docs/server-setup.md`, "Data on a new server" (decided 2026-11-02). In 
       only), each dated the day it was exported; check each preview before adding. The counts on the tab must match
       the files. Until this is done the list is empty and nothing can be emailed, by design. Never run
       `sql/dev_permission_seed.sql` here: it is for `hail-dev`'s rehearsal realtors only.
-- [ ] The public data rebuilt by backfill: IEM from 2004, radar (about 3.6 hours), CoCoRaHS, then likelihood.
-- [ ] The timers: `sudo cp systemd/* /etc/systemd/system/`, `sudo systemctl daemon-reload`,
+- [x] The public data rebuilt by backfill: IEM from 2004, radar (about 2½ hours), the warnings before the radar (item 307), CoCoRaHS, then likelihood.
+- [x] The timers: `sudo cp systemd/* /etc/systemd/system/`, `sudo systemctl daemon-reload`,
       `sudo systemctl enable --now` on the eight `.timer` units.
 - [ ] RentCast data starts empty: the first pull is a person's click.
 
 ## 8. Access
 
-- [ ] **For the developer:** `tailscale serve --bg 8000`; the app answers at `https://<hostname>.<tailnet>.ts.net`.
+- [x] **For the developer:** `tailscale serve --bg 8000`; the app answers at `https://<hostname>.<tailnet>.ts.net`.
 - [ ] **For staff:** this server's own Cloudflare tunnel, never `hail-dev`'s (two connectors on one tunnel are
       load-balanced replicas). On a machine logged in to the Cloudflare account, `cloudflared tunnel create <name>`
       writes the credential `<tunnel-id>.json`; route the production hostname to that tunnel. Here:
@@ -193,8 +199,8 @@ Detail: `docs/server-setup.md`, "Data on a new server" (decided 2026-11-02). In 
 
 ## 10. Checks
 
-- [ ] `scripts/status.sh`: each nightly job has run, after the first night.
-- [ ] `scripts/status.sh images`: all OK.
+- [x] `scripts/status.sh`: each nightly job has run, after the first night.
+- [x] `scripts/status.sh images`: all OK.
 - [ ] Sign in as an admin, a sender and a viewer: each opens what its role may (Storm Days, Territory with the map,
       the match page, `/admin` for the admin only) and is refused the rest.
 - [ ] A backup of the VM has completed, and a test restore of it has been booted with the network disconnected
@@ -208,7 +214,7 @@ Every one of these, not most:
 - [ ] Item 189: the eligibility gate, built 2026-11-04; the final permission lists loaded here (§7).
 - [ ] Item 96: the sending domain decided and set up.
 - [ ] Item 135: the copy for this send, supplied by marketing (each send, not a one-time sign-off; developer, 2026-11-04).
-- [ ] Item 285: the suppression list copied, counts matched.
+- [x] Item 285: the suppression list copied, counts matched.
 - [ ] Items 232, 233: a completed backup and a tested restore.
 - [ ] Item 236: host alerts arrive.
 

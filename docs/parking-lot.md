@@ -7647,7 +7647,7 @@ in behaviour. Accepted as they are.
 
 ## 285. The `dnc_list` copy to production is not written
 
-**Status:** open, script written 2026-11-02; run it when `rbi-hail01` is built
+**Status:** resolved 2026-11-05 (script written 2026-11-02)
 
 Production starts from code and public sources, but `dnc_list` must come across: 769 rows on `hail-dev` (768 active,
 1 removed), and a production send without them would reach people who asked not to be contacted. `added_by` and
@@ -7667,6 +7667,9 @@ export, are refused. **When:** the real copy, at step 5 of `server-setup.md`, Da
 counts match.
 
 **Update 2026-11-04 (developer):** run as part of setting up `rbi-hail01` (production has to exist first).
+
+**Resolved 2026-11-05.** `dnc_copy.sh export` on `hail-dev`, the file copied over Tailscale, `dnc_copy.sh load` on
+`rbi-hail01`: 768 active and 1 removed, the same as `hail-dev`. The file was then deleted on both machines (2026-11-06).
 
 ## 286. Actions tested only as refusals
 
