@@ -31,7 +31,7 @@ Update this table as the build moves. Item numbers are in `docs/parking-lot.md`.
 | 4. Secrets | `.env` filled in, except the Constant Contact values (placeholders until item 183) and the domain (96) |
 | 5. Build and start | Built and started 2026-11-05; `status.sh images` all OK |
 | 6. The database | `migrate.sh --apply` from empty, 2026-11-05: `recorded 67, pending 0` (item 305) |
-| 7. Data | First admin, reference and coverage loaded; suppressions copied 2026-11-05, 768 active and 1 removed, the same as `hail-dev` (item 285); backfills done 2026-11-06, every count the same as `hail-dev` (IEM, radar, radar zones, warnings, CoCoRaHS, likelihood); the eight timers enabled, the four nightly ones ran 2026-11-06. **Open:** the settings on the admin page, the other users, the permission list (item 189) |
+| 7. Data | First admin, reference and coverage loaded; suppressions copied 2026-11-05, 768 active and 1 removed, the same as `hail-dev` (item 285); backfills done 2026-11-06, every count the same as `hail-dev` (IEM, radar, radar zones, warnings, CoCoRaHS, likelihood); the eight timers enabled, the four nightly ones ran 2026-11-06. settings checked 2026-11-06, all as wanted (item 308). **Open:** the other users, the permission list (item 189) |
 | 8. Access | `tailscale serve` for the developer, signed in 2026-11-05. The staff Cloudflare tunnel not set up (waits on the domain, 96) |
 | 9. Constant Contact | Not started (item 183) |
 | 10. Checks | `status.sh`: every nightly job OK 2026-11-06; `status.sh images` OK. Role sign-ins and the backup and restore test not done |
@@ -162,8 +162,11 @@ Detail: `docs/server-setup.md`, "Data on a new server" (decided 2026-11-02). In 
 
 - [x] The first admin with `scripts/create_user.py`, as `hail_admin`. Every other user on the admin page.
 - [x] `scripts/load_reference.sh`, then `scripts/load_coverage.sh` (the loader service).
-- [ ] Settings on the admin page, so each lands in `settings_history`: radii, billing day, quota, freshness, match age,
-      email cap, sign out after (hours; item 299), the email images, sender and contact settings, `storm_states`.
+- [x] Settings on the admin page: check each against what this install should use, and change what differs (radii,
+      billing day, quota, freshness, match age, email cap, sign out after (hours; item 299), the email images, sender
+      and contact settings, `storm_states`). Only a change is logged to `settings_history`, and an unchanged hail-zone
+      set is refused; the starting values are the migrations' defaults. On `rbi-hail01` all matched, checked
+      2026-11-06, so the history is empty (item 308).
 - [x] **Suppressions:** `scripts/dnc_copy.sh export` on `hail-dev`, copy the file over Tailscale, `scripts/dnc_copy.sh
       load` here, delete the file on both machines. The load's last table must show the same active and removed counts
       as `hail-dev` (item 285; close it then).

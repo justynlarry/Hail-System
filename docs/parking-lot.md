@@ -8340,3 +8340,25 @@ needs the IEM archive first. The radar backfill's time is given as rbi-hail01's 
 at the developer's request.
 
 **Related:** items 304, 306.
+
+
+## 308. `deploy.md` step 7 expects saved settings to land in `settings_history`
+
+**Status:** resolved 2026-11-06 (found 2026-11-06, step 7 of the `rbi-hail01` deploy)
+
+Step 7 said to enter the settings on the admin page "so each lands in `settings_history`". On `rbi-hail01` the values
+were already what was wanted (the migrations' defaults; `hail-dev`'s one difference, a 14-day drip gap, was rehearsal),
+and saving them changed nothing: `POST /admin/settings`, `/admin/hail-zones/states` and `/admin/email-settings`
+returned 302, and `settings_history` has 0 rows. `trg_log_settings_change` fires only
+`WHEN (old.x IS DISTINCT FROM new.x ...)`, by design, so an unchanged save is not logged. `POST /admin/hail-zones`
+returned 400: an unchanged hail-zone set is refused (`likelihoodadmin.save`, "Nothing changed, so nothing was saved"),
+and the seed radar and likelihood sets stay in use. The step was wrong, not the code: the starting values are recorded
+in the migrations, and the history records changes from them.
+
+**When:** this deploy.
+
+**Resolved 2026-11-06.** Step 7's settings line now says to check each value and change what differs, that only a
+change is logged and an unchanged hail-zone set is refused, and records that on `rbi-hail01` all matched. Entered by
+Claude at the developer's request.
+
+**Related:** items 299, 307.
