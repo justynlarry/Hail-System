@@ -19,7 +19,14 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-11-04**, after commit `3951d61` (item 298). In the three weeks since the 2026-10-14
+Last synced against the repo: **2026-11-06**, after commit `4afa129` (the document review before the next release,
+`docs/deploy.md` §0). In the two days since the 2026-11-04 sync: the eligibility gate (item 189), the production-readiness
+fixes (items 299 to 303), the first two releases (`v0.9.0`, `v0.9.1`), the first deploy to `rbi-hail01`, and the review of
+every other document. What this sync adds: the header and §2's opening; §2 gains "The eligibility gate, the readiness
+fixes and the first deploy, 2026-11-04 to 2026-11-06"; §5 counts 67 tables; §7 the deploy's traps; §9 the production VM as
+deployed; §10 the files added, and "Running it" marked superseded. **§3, §4 and §11 to §13 were not re-checked.**
+
+Previous sync: **2026-11-04**, after commit `3951d61` (item 298). In the three weeks since the 2026-10-14
 sync: the template builder and drip campaigns (Phase 5, items 203 and 204), the radar layers (Phase 5b), the
 hail-likelihood map with pulls, matches and sends by level (Phase 5c), the production hardware, the page-by-page UI pass
 (item 201), the template editor remodel (item 294) and release versions (item 289). What this sync adds: the header and
@@ -133,7 +140,20 @@ across 15 zips, 11 of them in El Paso County.
 
 ## 2. Where the project actually stands
 
-**Where things stand, 2026-11-04 (this sync).** Phases 0 to 4 are closed; **Phase 5 (Email) is the current phase**, with
+**Where things stand, 2026-11-06 (this sync).** Phases 0 to 4 are closed; **Phase 5 (Email) is the current phase**, with
+5b (radar layers) and 5c (the hail-likelihood map, built through sends by level) built alongside it.
+
+**The production VM `rbi-hail01` is deployed** (2026-11-05/06). It runs release `v0.9.1`, with all 67 migrations applied by
+`migrate.sh` and its schema identical to `hail-dev`'s. The public data is backfilled to the same counts as `hail-dev`:
+180,046 storm reports, 2,214 radar days, 2,208 likelihood days and 2,741 CoCoRaHS reports. The suppression list is copied
+(768 active), the eight timers run, backups are scheduled and a restore was tested.
+
+It cannot send: there is no Constant Contact account (item 183), no sending domain (item 96) and no permission list (item
+189; the gate was built 2026-11-04). Only the developer reaches it, over Tailscale. Sending is admin-only for the pilot
+(item 309), and nothing has gone to a real recipient. `CLAUDE.md`'s "Current phase" and `docs/deploy.md`'s status table
+are the fuller and more current accounts.
+
+**Superseded 2026-11-06 (the 2026-11-04 state):** **Where things stand, 2026-11-04.** Phases 0 to 4 are closed; **Phase 5 (Email) is the current phase**, with
 5b (radar layers, internal) and 5c (the hail-likelihood map, built through sends by level) built alongside it, all on
 `hail-dev` only. The production VM `rbi-hail01` is created and **not started**; nothing is deployed to it, and its first
 deploy will be release `v0.9.0` (item 289). A Constant Contact send path, drip campaigns and sends by hail-zone level are
@@ -973,6 +993,35 @@ by radar) and 206 (a radar-shaped area); both wait for inspection data (items 20
 - **Releases (item 289, 2026-11-04):** `vMAJOR.MINOR.PATCH` tags, production runs a tag, `scripts/release.sh` and
   `scripts/write_version.sh`, `CHANGELOG.md`, the release in the page footer. `v0.9.0` is tagged at the first deploy.
 
+### The eligibility gate, the readiness fixes and the first deploy — 2026-11-04 to 2026-11-06
+
+- **The eligibility gate (item 189, 2026-11-04, `sql/066`):** only an address on the permission list can be emailed. The
+  list is `send_permission`: RBI's service clients or Constant Contact subscribers, uploaded on the admin page with a
+  preview. The send lists leave everyone else out, `deliver.py` checks again, drip follow-ups stop, and a trigger refuses
+  the `sent_emails` row. Production's list is empty, so it can email no one.
+- **A production-readiness audit (2026-11-04, items 299 to 303; item 238 rechecked):**
+  - item 299: the session cookie is Secure and SameSite=Lax, there is a "Sign out after" setting, and a failed sign-in
+    limit is logged in `login_attempts` (`sql/067`);
+  - item 300: every package and the Python base image are pinned;
+  - item 301: an error page replaces the bare "Internal Server Error";
+  - item 302: `status.sh images` flags a container still on an old image;
+  - item 303: `migrate.sh` refuses a misnamed `.sql` file by name.
+- **Releases (item 289):** `v0.9.0` was tagged 2026-11-05. `v0.9.1` followed the same day, fixing `migrate.sh`'s refusal
+  of a brand-new PostGIS database (item 305). GitHub refused the `v0.9.1` tag for a day (item 306). It was pushed from
+  `hail-dev` into `rbi-hail01`'s repo instead, and GitHub took it on retry 2026-11-06.
+- **The first deploy (2026-11-05/06), by `docs/deploy.md`.** What it found was fixed in the docs as it went:
+  - the new-server steps copied all of `data/` and `reference/` and read `.env` wrongly (item 304);
+  - they left out the pre-radar warnings load (item 307);
+  - saving unchanged settings logs nothing (item 308);
+  - sending was admin-only, against the 2026-09-22 roles decision; that is now accepted for the pilot (item 309).
+
+  Also settled: the developer's test addresses stay in the public repo (item 238 point J, accepted), and `hail-dev` makes
+  no real RentCast pulls once production is live (one key, one plan).
+- **The document review (2026-11-06, `deploy.md` §0):** `CLAUDE.md`, `README.md`, the schema files, `command-ref.md`,
+  `deploy.md`, `server-setup.md`, `phases.md` and `data-sources.md`, which now documents the radar, NWS warnings and
+  CoCoRaHS as sources; then this file. The host test run failed on a missing skip guard (item 310, fixed). The test
+  service ran 2,812 tests, 390 skipped, OK.
+
 ### Permits and jurisdiction research — parked, 2026-09-23 / 2026-09-24
 
 Groundwork for building-permit data as a future source, allowed as a
@@ -1092,6 +1141,11 @@ privilege list can be read against this diagram.
 ---
 
 ## 5. The data model
+
+**67 tables on 2026-11-06**, counted against `hail-dev` and `rbi-hail01`, whose schemas are identical. 64 are the
+project's and three come from `address_standardizer`; PostGIS's `spatial_ref_sys` is not counted. `sql/066` added
+`send_permission`, `permission_import_batches` and `permission_import_rows`; `sql/067` added `login_attempts` and
+`settings.session_max_hours`.
 
 **63 tables on 2026-11-04** (counted against `hail-dev`), up from 36 on 2026-10-14. Added by `sql/042` to `065`:
 `email_images` (042), `email_test_sends` (044), `drip_campaigns`, `drip_steps`, `drip_recipients`, `drip_listing_checks`,
@@ -1917,6 +1971,19 @@ The same list as `CLAUDE.md`'s known traps:
 - **SQL:** a `GROUP BY` name that is both a column and a `SELECT` alias binds to the column (item 258); a `CHECK` passes on
   NULL, so say `IS NOT NULL` where a value is required (item 259).
 
+### The first deploy (2026-11-05/06)
+- **Compose reads `$$` in `.env` as one `$`;** a single `$` starts a variable name. Read a value back through Compose,
+  never with `grep | cut` or by sourcing the file (item 304).
+- **The `postgis/postgis` image installs PostGIS into the database it creates,** so a brand-new database already has
+  `public.spatial_ref_sys`. A "no tables yet" check must leave out extension-owned tables (item 305).
+- **A Tailscale machine shared into another tailnet can answer connections but not start them.** From `hail-dev`, push to
+  `rbi-hail01`; a fetch run on `rbi-hail01` times out (item 306).
+- **`docker compose restart` keeps the container's image,** and plain `up -d` may not recreate it after a rebuild. Use
+  `up -d --force-recreate` (item 302).
+- **On SELinux, copy systemd units with `cp`, not `mv`.** A moved file keeps its home-directory label, which systemd
+  cannot read.
+- **A history trigger that fires on a changed value** logs nothing for a save that changes nothing (item 308).
+
 ## 8. External sources
 
 | Source | Cost | Notes |
@@ -1927,8 +1994,8 @@ The same list as `CLAUDE.md`'s known traps:
 | **Census Geocoder** | Free, no key | One-line address lookup behind `/search`, US street addresses only, cannot match by city and state alone. Results cached in `geocode_cache`. Client: `hailsys/geocode.py`. |
 | **Email provider** | Constant Contact, chosen 2026-10-06; paid plan not yet priced | A campaign per email through contacts, lists and campaigns; OAuth with rotating tokens; 4 requests a second and 10,000 a day. Trial account only so far. Detail in `docs/data-sources.md` §4 and §7 here. |
 | **NOAA MRMS MESH** | Free | Radar hail size, whole-CONUS GRIB2 from Iowa State (from 2019-08-20) and NOAA AWS (from 2020-10-14). **Read nightly since 2026-10-22** (Phase 5b, superseding "research only"). `docs/data-sources.md` §7. |
-| **IEM NWS warning polygons** | Free, no key | `cgi-bin/request/gis/watchwarn.py`, shapefile, states from `settings.storm_states`; severe thunderstorm and tornado warnings, the outer radar layer (Phase 5b). Traps in §7. |
-| **CoCoRaHS hail reports** | Free; terms in item 253 | Volunteer observers' hail reports, Colorado, nightly and weekly (`hailsys/cocorahs/`, Phase 5c); used for the likelihood zones, never for an export or the report matcher; zone emails may rest on them only once the observer wording is approved. |
+| **IEM NWS warning polygons** | Free, no key | `cgi-bin/request/gis/watchwarn.py`, shapefile, states from `settings.storm_states`; severe thunderstorm and tornado warnings, the outer radar layer (Phase 5b). Traps in §7. `docs/data-sources.md` §8. |
+| **CoCoRaHS hail reports** | Free; terms in item 253 | Volunteer observers' hail reports, Colorado, nightly and weekly (`hailsys/cocorahs/`, Phase 5c); used for the likelihood zones, never for an export or the report matcher; zone emails may rest on them only once the observer wording is approved. `docs/data-sources.md` §9. |
 
 **Prior history worth knowing:** a contractor-built predecessor used Mailchimp
 and led to blacklisting. Whether RBI's main domain took reputation damage is an
@@ -1964,6 +2031,7 @@ open question; if so, remediation is its own line item.
 
 **Production VM:** ID 101, `rbi-hail01.rbi.internal`, Rocky Linux 10.2, 8 cores (1 socket), 28 GB RAM,
 400 GB disk. **Created, not started; nothing deployed to it.**
+**Superseded 2026-11-06:** deployed 2026-11-05/06, running `v0.9.1`; see `docs/deploy.md`'s status table.
 
 The acceptance test is `scripts/hw-acceptance-test.sh`. The backup host's one warning is its disk's age:
 66,811 power-on hours (about 7.6 years), against the script's `HDD_HOURS_WARN` of 35,000. That is the
@@ -1985,6 +2053,10 @@ Decisions are in the decision log, 2026-10-20; the open items are parking-lot it
   `ssd=1`, `agent=1`, `onboot=1`. Rocky 10.2 ISO attached; OS not installed.
 - **Verified:** a test backup of the empty, stopped VM succeeded 2026-10-20 18:14 UTC (zero bytes
   uploaded). **Not verified:** a restore, retention, offsite sync, notification email.
+  **Updated 2026-11-06:** Rocky 10.2 is installed, with `qemu-guest-agent` and `fstrim.timer`. VM 101 is backed up daily
+  at 04:00 and 22:30 Denver time, pruned daily keeping the last 14, and garbage-collected on Saturdays. A snapshot backup
+  was restored as VM 9100 with no network, booted and checked (items 232, 233). Still not verified: offsite sync and
+  notification email (items 235, 236).
 - **Remote access:** both hosts are on a separate RBI Tailscale tailnet, shared into the developer's personal
   tailnet by machine sharing. Host SSH is OpenSSH with keys; Tailscale SSH is off on `pbs-prod01`
   (`pve-prod01` not confirmed). `hail-dev` is on the personal tailnet, not this one.
@@ -2007,7 +2079,7 @@ earlier Cloudflare-tunnel reasoning, which no longer applies in Phase 2 (§6).
 
 ### The rest of the stack
 
-- **PostgreSQL 16 + PostGIS 3.4**, in Docker, database `weather-property`
+- **PostgreSQL 16 + PostGIS 3.6** (the `postgis/postgis:16-3.6` image since 2026-10-30), in Docker, database `weather-property`
 - **Python 3.12** backend, stdlib and boring dependencies preferred;
   `requirements.txt` is `psycopg[binary]==3.2.3`, `flask==3.1.3`, `gunicorn`
   and `Flask-WTF==1.3.0` (added for CSRF, 2026-09-22)
@@ -2483,7 +2555,20 @@ The tree above is as of the 2026-10-14 sync. Since then (each with its own tests
     CHANGELOG.md                  one section per release (item 289)
     tests/snapshots/              the template render snapshot (item 294)
 
+### Added 2026-11-04 to 2026-11-06
+
+    sql/066, 067                  the permission list and its trigger; sign-in limits (login_attempts, session_max_hours)
+    sql/dev_permission_seed.sql   hail-dev only: permission for the rehearsal realtors
+    hailsys/queries/permission.py the permission list upload and checks
+    hailsys/web/templates/        permission_preview.html, server_error.html
+    tests/                        test_permission.py, permission_fixtures.py, test_sign_in_limits.py,
+                                  test_server_error_page.py
+
 ### Running it
+
+**Superseded 2026-11-06:** the schema is applied with `scripts/migrate.sh --apply` (item 277), not the `psql` loop below,
+and only `postgis web` are started (`cloudflared` waits for its tunnel config). A new server follows `docs/deploy.md`;
+`README.md` has the short version. The block below is the 2026-09 sequence.
 
 ```bash
 cp .env.example .env          # then fill in three passwords, plus FLASK_SECRET_KEY
