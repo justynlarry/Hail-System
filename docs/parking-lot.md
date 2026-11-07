@@ -133,6 +133,13 @@ nothing pushes it. Someone has to open the page, and a dead box shows no banner
 at all. **When:** revisit once there is a notifier (Irin was the intended
 destination). The note above about the inverted skip condition still stands.
 
+**Update 2026-11-06.** `rbi-hail01` now runs the nightly jobs, and still nothing pushes a failed or missing run: the
+Storm Days banner and `scripts/status.sh` (which exits non-zero) need someone to look. Irin was the intended
+destination, but its future is uncertain. The developer may set up a small VM to monitor the RBI machines internally.
+Whatever monitors them should run `scripts/status.sh` on `rbi-hail01` (or an equivalent check) and alert on a non-zero
+exit, so a dead VM or a job that never fired is noticed. **When:** with the monitoring decision, and before the pilot
+(Phase 6), whose done-when is a month without intervention.
+
 ## 11. Hail size names for email templates
 
 **Status:** dropped 2026-10-28 (developer decision, parking-lot sweep)
@@ -4014,6 +4021,9 @@ see, so nothing here confirms them. Resolved once a test alert is seen to arrive
 **Resolved 2026-10-29.** The developer confirms Irin is running and a test alert arrived. Checked on the hosts by
 the developer; `hail-dev` cannot see them. `CLAUDE.md` updated to match.
 
+**Note 2026-11-06:** Irin's future is uncertain (item 9). If it goes, the PBS disk and backup-failure alerts it provides
+need a new home.
+
 ## 235. Offsite sync is not built
 
 **Status:** open (filed 2026-10-20)
@@ -4041,6 +4051,14 @@ encryption key first (item 233).
 **Related:** items 234, 233.
 
 **Update 2026-11-04 (developer):** looked at after item 189 is settled.
+
+**Update 2026-11-06.** Waiting on the developer's choice of mailbox for host alerts (the dedicated Gmail account in
+`deploy.md` §0 is one option). The setup, once chosen:
+- `pve-prod01`: Datacenter → Notifications → an SMTP target (`smtp.gmail.com`:587, STARTTLS, app password),
+  `default-matcher` pointed at it, Test.
+- `pbs-prod01`: the same under Configuration → Notifications.
+
+**When:** once the mailbox is chosen, and before relying on any backup or job-failure notice.
 
 ## 237. Production hosts: hardening and housekeeping
 
