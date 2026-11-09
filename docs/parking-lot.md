@@ -7813,7 +7813,7 @@ hand checklist the slow part.
 
 ## 289. No release versions: nothing says which commit a machine runs
 
-**Status:** open
+**Status:** resolved 2026-11-05 (built 2026-11-04, `24e01a8`)
 
 Filed 2026-11-03 (developer request). The repo is in git with a GitHub remote (`justynlarry/Hail-System`; 527 commits on
 `main`, no tags, no other branches). `rbi-hail01` is about to get its first deploy (`docs/deploy.md`), and nothing would
@@ -7840,6 +7840,11 @@ GitHub, and `CHANGELOG.md` has its section. `scripts/write_version.sh` writes `h
 `CHANGELOG.md` has the `v0.9.0` section, untagged until the first deploy. `docs/deploy.md` §3, §5 and §12 and its
 "Release running" line carry the steps; `tests/test_version.py`. Status stays open until `v0.9.0` is tagged and
 deployed to `rbi-hail01`.
+
+**Resolved 2026-11-05.** `v0.9.0` was tagged 2026-11-05 and deployed to `rbi-hail01`; `v0.9.1` (`aba8015`, the
+`migrate.sh` fix, item 305) followed the same day and is what production runs. Decision log 2026-11-04 ("Item 289:
+releases are tags; production runs a tag"). Found still open on 2026-11-09 in a parking-lot review: the item 154
+pattern.
 
 ## 290. Templates did not reload from disk; the docs said they did
 
