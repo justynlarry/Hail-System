@@ -7,6 +7,19 @@ setting, a migration), MAJOR for a milestone (`v1.0.0` is the pilot, Phase 6).  
 `docs/parking-lot.md` and `docs/decision-log.md`; this names the items.  The repository is public:  nothing here
 names a person, an address or a secret.
 
+## v0.10.0
+
+### Changed
+- One active suppression per address, not one row per address:  `sql/068` replaces the UNIQUE constraint on
+  `dnc_list.email_norm` with a unique index over active rows.  An address removed from the do-not-contact list can
+  now be suppressed again by an upload, a typed entry or a hard bounce, where before the removed row silently blocked
+  it; the upload preview counts it as to add, not already listed.  The unsubscribe sync still leaves an address an
+  admin removed alone and reports it as a conflict.  `scripts/dnc_copy.sh` follows the new index and stays safe to
+  re-run (item 311).
+
+### Fixed
+- The host test run no longer fails on `test_version`'s footer tests, which now skip without Flask (item 310).
+
 ## v0.9.1
 
 ### Fixed
