@@ -1535,7 +1535,7 @@ and no error. Caught in review, not by a test.
 
 ## 134. No way to un-suppress through the UI
 
-**Status:** open
+**Status:** accepted 2026-11-09 for the pilot (developer): removal stays by hand at the database
 
 `dnc_list.removed_at`/`removed_by` exist specifically for this and are
 already documented as the reversal path (`database-schema.md`), but
@@ -1548,6 +1548,13 @@ today means doing it by hand at the database.
 (`alexfchisolm`, `dnc_id` 4663) was marked removed by the developer, and the right one added
 (4664). That was a typo, not a person, so the trigger is not met. Item 269 built typed entry
 and left this screen out by the developer's choice; this item is the record for it.
+
+**Accepted 2026-11-09 for the pilot (developer).** Removals should be rare and nearly all typos, so they stay a hand
+edit at the database (set `removed_at` and `removed_by`), as on 2026-10-28. Item 311 (a removed row blocks
+re-suppressing the address) is to be fixed before any address other than a typo is removed. When a screen is built, it
+should offer removal only for `manual`, `newsletter`, `legacy_import` and perhaps `hard_bounce` rows: an `unsubscribe` or
+`complaint` is the person's own request, and Constant Contact would not send to them anyway. **When:** a real person is
+suppressed by mistake and needs to be un-suppressed, or removals by hand become frequent; item 311 first.
 
 ## 135. The email copy is a first draft, not final
 
@@ -8529,3 +8536,23 @@ example `tests/test_server_error_page.py:19-26` (`try: from hailsys.web import c
 `README.md`'s host line now says 2,303 skipped.
 
 **Related:** items 171, 273, 289.
+
+## 311. A removed suppression blocks re-suppressing the address
+
+**Status:** open (found 2026-11-09, looking at item 134)
+
+`dnc_list.email_norm` is UNIQUE over every row, removed or not, and the three insert paths use
+`ON CONFLICT (email_norm) DO NOTHING` (`hailsys/queries/dncimport.py:223`, `hailsys/constantcontact/statuses.py:71`,
+`hailsys/constantcontact/unsubs.py:57`). Once a row is marked removed, an upload or typed entry of the same address is
+previewed as "already listed" (`dncimport.py:168-170` joins without `removed_at`) and inserts nothing, and a hard bounce
+inserts nothing silently; the send checks (`sendlist.py:52`, `deliver.py:88`) treat the address as sendable. The
+unsubscribe sync records it as a conflict (decision log 2026-10-07), and Constant Contact's own unsubscribe still blocks
+that case. Today one removed row exists (`dnc_id` 4663, a mistyped address, on both machines).
+
+**Fix:** a partial unique index on `email_norm WHERE removed_at IS NULL` in place of the constraint, the matching
+`ON CONFLICT ... WHERE removed_at IS NULL` in the three inserts, and the preview join limited to active rows; tests for
+re-suppressing a removed address by upload, typed entry and bounce.
+
+**When:** before any address other than a typo is un-suppressed, and before item 134 is built.
+
+**Related:** items 134, 182, 269; decision log 2026-10-07.
