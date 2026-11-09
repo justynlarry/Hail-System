@@ -25,7 +25,7 @@ Update this table as the build moves. Item numbers are in `docs/parking-lot.md`.
 | Step | State (2026-11-06) |
 |---|---|
 | 0. Before you start | Production Constant Contact account (183) and sending domain (96) not yet set up; host alerts set up 2026-11-09 (236) |
-| 1. Hosts | `pve-prod01`, `pbs-prod01` built and acceptance-tested 2026-10-19; notifications working 2026-11-09 (236), retention set 2026-11-06; sshd hardening done 2026-11-09 (237); internal DNS and the RBI notice (237) and the second backup disk (233) open |
+| 1. Hosts | `pve-prod01`, `pbs-prod01` built and acceptance-tested 2026-10-19; notifications working 2026-11-09 (236), retention set 2026-11-06; sshd hardened 2026-11-09, internal DNS accepted (237); the second backup disk (233) open |
 | 2. OS | Rocky 10.2, running |
 | 3. Code and files | `v0.9.1` checked out 2026-11-05 (the tag pushed from `hail-dev`, item 306); the TIGER folders copied |
 | 4. Secrets | `.env` filled in, except the Constant Contact values (placeholders until item 183) and the domain (96) |

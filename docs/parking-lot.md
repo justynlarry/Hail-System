@@ -4068,7 +4068,7 @@ messages arrived, and a backup run by hand sent a notice that arrived. Checked b
 
 ## 237. Production hosts: hardening and housekeeping
 
-**Status:** open (filed 2026-10-20)
+**Status:** resolved 2026-11-09 (filed 2026-10-20); internal DNS accepted, not built
 
 **To do:**
 - Disable Tailscale key expiry on `pbs-prod01` and `pve-prod01`.
@@ -4108,6 +4108,16 @@ workstation and proven with `PreferredAuthentications=publickey`. A probe from `
 **Left:** internal DNS for `rbi.internal` (then PVE's PBS storage by name, not IP), and the notice to RBI about Tailscale
 on their LAN. **When:** the DNS once it is known who runs RBI's office DNS; the notice now, since the machines are at the
 office.
+
+**Update 2026-11-09 (later).** The notice to RBI about Tailscale on their LAN is marked done by the developer. **Left:**
+internal DNS only.
+
+**Internal DNS accepted 2026-11-09.** The `rbi.internal` names stay labels in the docs; nothing resolves them, and PVE
+reaches its PBS storage by IP (192.168.16.21). The three machines have static IPs, and the storage checks PBS by its
+pinned certificate fingerprint, not its name, so the IP is no weaker. The cost is a hand edit of the PVE storage entry if
+PBS's IP changes. Over Tailscale the MagicDNS names already resolve. **When:** revisit if a machine's IP changes, a fourth
+machine joins, or something needs to reach these hosts by name on the LAN; then `/etc/hosts` entries, or entries on RBI's
+router if someone there runs it.
 
 ## 238. Multi-market readiness: what is hard-coded for RBI, Colorado and Denver
 
