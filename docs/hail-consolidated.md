@@ -143,7 +143,7 @@ across 15 zips, 11 of them in El Paso County.
 **Where things stand, 2026-11-06 (this sync).** Phases 0 to 4 are closed; **Phase 5 (Email) is the current phase**, with
 5b (radar layers) and 5c (the hail-likelihood map, built through sends by level) built alongside it.
 
-**The production VM `rbi-hail01` is deployed** (2026-11-05/06). It runs release `v0.9.1`, with all 67 migrations applied by
+**The production VM `rbi-hail01` is deployed** (2026-11-05/06). It runs release `v0.10.0` (2026-11-09), with all 68 migrations applied by
 `migrate.sh` and its schema identical to `hail-dev`'s. The public data is backfilled to the same counts as `hail-dev`:
 180,046 storm reports, 2,214 radar days, 2,208 likelihood days and 2,741 CoCoRaHS reports. The suppression list is copied
 (768 active), the eight timers run, backups are scheduled and a restore was tested.
@@ -1008,7 +1008,8 @@ by radar) and 206 (a radar-shaped area); both wait for inspection data (items 20
   - item 303: `migrate.sh` refuses a misnamed `.sql` file by name.
 - **Releases (item 289):** `v0.9.0` was tagged 2026-11-05. `v0.9.1` followed the same day, fixing `migrate.sh`'s refusal
   of a brand-new PostGIS database (item 305). GitHub refused the `v0.9.1` tag for a day (item 306). It was pushed from
-  `hail-dev` into `rbi-hail01`'s repo instead, and GitHub took it on retry 2026-11-06.
+  `hail-dev` into `rbi-hail01`'s repo instead, and GitHub took it on retry 2026-11-06. `v0.10.0` followed 2026-11-09: one
+  active suppression per address, so a removed address can be suppressed again (`sql/068`, item 311).
 - **The first deploy (2026-11-05/06), by `docs/deploy.md`.** What it found was fixed in the docs as it went:
   - the new-server steps copied all of `data/` and `reference/` and read `.env` wrongly (item 304);
   - they left out the pre-radar warnings load (item 307);

@@ -8539,7 +8539,7 @@ example `tests/test_server_error_page.py:19-26` (`try: from hailsys.web import c
 
 ## 311. A removed suppression blocks re-suppressing the address
 
-**Status:** fixed on `hail-dev` 2026-11-09 (found the same day, looking at item 134); reaches `rbi-hail01` with the next release
+**Status:** resolved 2026-11-09, released in `v0.10.0` (`681bfd8`) (found the same day, looking at item 134)
 
 `dnc_list.email_norm` is UNIQUE over every row, removed or not, and the three insert paths use
 `ON CONFLICT (email_norm) DO NOTHING` (`hailsys/queries/dncimport.py:223`, `hailsys/constantcontact/statuses.py:71`,
@@ -8575,3 +8575,6 @@ the three modules ran 124 tests OK, the other twelve modules that read `dnc_list
 the oldest row, 1 fails. `dnc_copy.sh`'s own load SQL was run on `hail-dev` and rolled back: a re-run of all 769 rows
 inserted nothing, and the two edge cases behaved as above. Production gets `068` through `migrate.sh` with the release
 (`v0.10.0` under `CHANGELOG.md`'s rule, a migration being MINOR).
+
+**Deployed on `rbi-hail01` 2026-11-09:** 68 migrations recorded, `dnc_list_email_norm_active` in place and the old
+constraint gone, 768 active and 1 removed unchanged, the footer `v0.10.0 · 681bfd8`.

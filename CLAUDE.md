@@ -29,8 +29,8 @@ static IP, UPS, Irin enrollment) is one of those items. **Update 2026-10-20:**
 the hardware has arrived and passed acceptance (`pve-prod01`, an HP ProDesk 400 G6
 running Proxmox VE; `pbs-prod01`, a separate Dell OptiPlex 3020 running Proxmox
 Backup Server; `docs/hail-consolidated.md` §9). **Update 2026-11-06:** `rbi-hail01` (VM 101,
-Rocky Linux 10.2, on `pve-prod01`) is deployed. It runs release `v0.9.1` (production runs a tag,
-never `main`), all 67 migrations are applied by `migrate.sh`, and the public data is backfilled to
+Rocky Linux 10.2, on `pve-prod01`) is deployed. It runs release `v0.10.0` (2026-11-09; production runs a tag,
+never `main`), all 68 migrations are applied by `migrate.sh`, and the public data is backfilled to
 the same counts as `hail-dev`. The suppression list is copied (768 active), the eight timers run,
 backups are scheduled and a restore was tested. It has no Constant Contact connection, no
 permission list, no staff tunnel and no staff accounts, so it cannot send and only the developer

@@ -27,7 +27,7 @@ Phases 0–4 are closed:
 screens, an unsubscribe sync, a send queue and a bounce check) is built and rehearsed on the
 `hail-dev` VM, but it has never sent to a real recipient. Phases 5b (radar layers on the Territory map) and 5c (the
 hail-likelihood map, with pulls and sends from it) are built alongside it, for staff only. The production server runs
-release `v0.9.1` (deployed 2026-11-06) with its data loaded. It cannot send until the Constant Contact account, the
+release `v0.10.0` (first deployed 2026-11-06, `v0.10.0` on 2026-11-09) with its data loaded. It cannot send until the Constant Contact account, the
 sending domain and the permission list are in place.
 `CLAUDE.md` lists what is built and what is still needed before a production send, and
 `docs/phases.md` has each phase's "done when" condition.

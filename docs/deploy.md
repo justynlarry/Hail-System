@@ -17,7 +17,7 @@ Two rules for every server:
 
 ## rbi-hail01: where it stands
 
-**Release running:** `v0.9.1` (`aba8015`), checked out 2026-11-05; the footer reads `v0.9.1 · aba8015` (item 289). Production runs a tag, never `main`, and
+**Release running:** `v0.10.0` (`681bfd8`), checked out 2026-11-09; the footer reads `v0.10.0 · 681bfd8` (items 289, 311). Production runs a tag, never `main`, and
 its footer shows the release (for example `v0.9.0 · abc1234`); update this line at each deploy.
 
 Update this table as the build moves. Item numbers are in `docs/parking-lot.md`.
