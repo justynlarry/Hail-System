@@ -3452,7 +3452,7 @@ leaves only a log line), and its **When** was already "with item 196".
 
 ## 201. Web UI cosmetic pass: make each page more user-friendly and better looking
 
-**Status:** open (filed 2026-10-13, by developer request)
+**Status:** resolved 2026-11-09 (developer): the page-by-page pass is done (filed 2026-10-13, by developer request)
 
 The developer will go through the pages one at a time and list what to change. No page has been
 reviewed yet, so there is no list. Related small items already filed: 108 (match-page column
@@ -3508,6 +3508,11 @@ Each page's agreed changes are listed here as they are agreed.
   template list is four columns. The on-screen previews drop Constant Contact's `[[trackingImage]]` tag (the email
   keeps it). Both Review pages: an explanation, the details in one box, the send button as the main button, and "Back
   to the preview". The zone page now carries the follow-up reminder and the call count (item 293).
+
+**Resolved 2026-11-09 (developer).** The 2026-11-03/04 pass covered Storm Days, Admin, Territory, Activity and Exports,
+Send and the match page; Address Search was judged fine as it is. The items that waited on it (108, 112, 113, 140, 156)
+were all resolved 2026-11-04. The note that Campaigns, Exports and Send get more work once they are in real use is not
+carried forward as an open item: a change found then is filed as its own item.
 
 ## 202. Template list, and a template choice on the send page
 
