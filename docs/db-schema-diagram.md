@@ -429,8 +429,8 @@
 
 
 
- ADDED SINCE  (sql/066 to sql/067, drawn 2026-11-06)
- ═══════════════════════════════════════════════════
+ ADDED SINCE  (sql/066 to sql/068, drawn 2026-11-06; 068 added 2026-11-09)
+ ═══════════════════════════════════════════════════════════════════════════
 
   Permission list (066)       Permission_Import_Batches ◄ Permission_Import_Rows
                               (a staged upload, previewed, like the DNC import;
@@ -445,6 +445,8 @@
                               ATTEMPTED_AT. The source of the sign-in limit.
 
  Rules and columns on tables drawn above, not drawn as boxes:
+   DNC_List: one active row per EMAIL_NORM (partial unique index, 068);
+     removed rows stay beside it.
    Sent_Emails: refused without an active Send_Permission row for its
      address (trigger sent_emails_require_permission, 066); joined by
      address, no FK.

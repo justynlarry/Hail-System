@@ -1,7 +1,7 @@
 # Database Schema
 
 Storm outreach system — reference document for the data model.
-Started during planning; now the reference for the live schema, through `sql/067`. Update it in the same commit as a migration.
+Started during planning; now the reference for the live schema, through `sql/068`. Update it in the same commit as a migration.
 
 ---
 
@@ -643,13 +643,13 @@ The suppression list. Answers one question: *may we send to this address?*
 |---|---|
 | `dnc_id` | Surrogate PK |
 | `email_raw` | As received |
-| `email_norm` | Lowercased/trimmed. **UNIQUE. This is the enforcement key** |
+| `email_norm` | Lowercased/trimmed. **Unique among active rows** (`dnc_list_email_norm_active`, `WHERE removed_at IS NULL`, `sql/068`, item 311; UNIQUE over every row before that). **This is the enforcement key** |
 | `added_at`, `added_by` | When, and the `emp_id` of who suppressed it — the system account's `emp_id` for machine-initiated rows (bounces, complaints, the legacy import) |
 | `source` | `reply` / `unsubscribe` / `hard_bounce` / `complaint` / `manual` / `legacy_import` / `newsletter` (`sql/061`). `unsubscribe` is the hail system's own Constant Contact account, written by the sync, and the by-level report credits it to our emails; `newsletter` is RBI's separate newsletter account, brought in by hand (item 129); `legacy_import` is the 2026-09-29 lists. **Bounces mean bad data; complaints mean bad targeting or copy.** Count them separately when watching deliverability |
 | `reason` | Free text |
 | `realtor_id` | FK, nullable. Convenience only, never a requirement: suppression is enforced on `email_norm`. Kept by the database (`sql/064`, item 130): a new suppression is linked to the realtor with its address (`dnc_list_link_realtor`, BEFORE INSERT on `dnc_list`), and a new realtor links the suppressions with its address (`realtors_link_dnc`, AFTER INSERT on `realtors`). The insert trigger repeats `lower(trim(email_raw))`, because a generated column is not computed yet in a BEFORE trigger, so it must change with `email_norm` if that ever changes |
 | `name_at_add`, `phone_at_add` | For the best-effort second-address pass — **feeds human review, never automatic enforcement** |
-| `removed_at`, `removed_by` | **Nullable.** Populated only if a suppression is reversed |
+| `removed_at`, `removed_by` | **Nullable.** Populated only if a suppression is reversed. The removed row stays as history, and the address can be suppressed again by a new active row beside it (`sql/068`). Every insert names the index (`ON CONFLICT (email_norm) WHERE removed_at IS NULL`). The unsubscribe sync inserts only when the address has no row at all, so an admin's removal is reported as a conflict, not undone (decision log 2026-10-07) |
 
 **Why this is a table and not a flag on `realtors`:** if Jen exists five times
 under five emails, marking one row leaves four sendable. She asked not to be

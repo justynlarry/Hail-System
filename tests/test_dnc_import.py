@@ -195,6 +195,30 @@ class StageAndCommitTest(unittest.TestCase):
         self.assertEqual(self.listed("old", "new")[self.addr("old")][0], "legacy_import")     # not relabelled
         self.assertEqual(self.listed("new")[self.addr("new")][0], "newsletter")
 
+    def test_a_removed_address_is_suppressed_again_by_upload_and_typed_entry(self):
+        # Item 311:  the removed row used to block the insert, and the preview called it "already listed".
+        for how in ("typed", "file"):
+            with self.subTest(how=how):
+                name = f"again-{how}"
+                rows, _ = dncimport.parse_typed(self.addr(name))
+                self.commit(self.stage(rows, source="manual"))
+                self.conn.execute("UPDATE dnc_list SET removed_at = now(), removed_by = %s WHERE email_norm = %s",
+                                  (self.emp, self.addr(name)))
+                if how == "typed":
+                    rows, _ = dncimport.parse_typed(self.addr(name))
+                    batch = self.stage(rows, filename=dncimport.TYPED_FILENAME, source="newsletter")
+                else:
+                    rows, _ = dncimport.parse_upload(csv_bytes(f"{self.addr(name)},Unsubscribed,10/28/2026"))
+                    batch = self.stage(rows, filename="unsubs.csv", source="newsletter")
+                summary, sample, _ = dncimport.fetch_preview(self.conn, batch["batch_id"])
+                self.assertEqual((summary["to_add"], summary["already_listed"]), (1, 0))
+                self.assertEqual([r["email_raw"] for r in sample], [self.addr(name)])
+                self.assertEqual(self.commit(batch), 1)
+                rows = self.conn.execute("SELECT source, removed_at IS NULL AS active FROM dnc_list "
+                                         "WHERE email_norm = %s ORDER BY dnc_id", (self.addr(name),)).fetchall()
+                self.assertEqual([(r["source"], r["active"]) for r in rows],
+                                 [("manual", False), ("newsletter", True)])
+
     def test_the_commit_marks_the_batch_committed(self):
         rows, _ = dncimport.parse_typed(self.addr("a"))
         batch = self.stage(rows)

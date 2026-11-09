@@ -199,9 +199,9 @@ list. In order:
    bash scripts/dnc_copy.sh load data/dnc_list.csv          # on rbi-hail01
    rm data/dnc_list.csv                                     # on both machines
    ```
-   The load is one transaction. It refuses, with nothing committed, if an address is missing afterwards, or if an
-   address active in the file is removed on the target. Its last table must show the same active and removed counts
-   as `hail-dev`.
+   The load is one transaction. An address active in the file but only removed on the target gets a new active row
+   (item 311). It refuses, with nothing committed, if an address is missing afterwards, or if an address active in the
+   file has no active row on the target. Its last table must show the same active and removed counts as `hail-dev`.
 6. **Public data, rebuilt from source.** Build the `ingest` image first (`docker compose build ingest`):
    ```
    docker compose run --rm ingest python3 scripts/iem_backfill.py --start 2004-01-01 --end <today>

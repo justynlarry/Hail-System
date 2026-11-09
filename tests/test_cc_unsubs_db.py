@@ -77,6 +77,51 @@ class RecordTest(unittest.TestCase):
                          "conflict")
         self.assertIsNotNone(self.row()["removed_at"])
 
+    # ---- one active row per address, history kept (sql/068, item 311) ----
+
+    def count(self, active=None):
+        sql = "SELECT count(*) AS n FROM dnc_list WHERE email_norm = lower(trim(%s))"
+        if active is not None:
+            sql += " AND removed_at IS NULL" if active else " AND removed_at IS NOT NULL"
+        return self.conn.execute(sql, (self.address,)).fetchone()["n"]
+
+    def remove(self):
+        self.conn.execute(
+            "UPDATE dnc_list SET removed_at = now(), removed_by = %s "
+            "WHERE email_norm = lower(%s) AND removed_at IS NULL", (self.system, self.address))
+
+    def test_a_removed_address_is_not_re_suppressed_by_the_sync(self):
+        # Decision log 2026-10-07:  the partial index would let the insert through,
+        # so the sync's own NOT EXISTS is what keeps the removal.
+        unsubs._record(self.conn, self.contact(), self.system)
+        self.remove()
+        self.assertEqual(unsubs._record(self.conn, self.contact(), self.system),
+                         "conflict")
+        self.assertEqual((self.count(active=True), self.count()), (0, 1))
+
+    def test_a_removed_row_with_a_newer_active_row_is_already_present(self):
+        unsubs._record(self.conn, self.contact(), self.system)
+        self.remove()
+        self.conn.execute("INSERT INTO dnc_list (email_raw, added_by, source, reason) "
+                          "VALUES (%s, %s, 'hard_bounce', 'test')", (self.address, self.system))
+        self.assertEqual(unsubs._record(self.conn, self.contact(), self.system),
+                         "already_present")
+        self.assertEqual((self.count(active=True), self.count()), (1, 2))
+
+    def test_one_active_row_per_address_and_removed_rows_beside_it(self):
+        insert = ("INSERT INTO dnc_list (email_raw, added_by, source, reason) "
+                  "VALUES (%s, %s, 'manual', 'test')")
+        self.conn.execute(insert, (self.address, self.system))
+        self.conn.execute("SAVEPOINT s")
+        with self.assertRaises(psycopg.errors.UniqueViolation):
+            self.conn.execute(insert, (self.address.upper(), self.system))
+        self.conn.execute("ROLLBACK TO SAVEPOINT s")
+        self.remove()
+        self.conn.execute(insert, (self.address, self.system))
+        self.remove()
+        self.conn.execute(insert, (self.address, self.system))
+        self.assertEqual((self.count(active=True), self.count(active=False)), (1, 2))
+
     def test_the_realtor_is_linked_by_address(self):
         realtor = self.conn.execute(
             "INSERT INTO realtors (agent_email) VALUES (%s) RETURNING realtor_id",

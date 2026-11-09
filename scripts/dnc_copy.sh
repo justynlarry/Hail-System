@@ -14,9 +14,11 @@
 # "[copied from hail-dev <date>; added by <user_name>]".  realtor_id is not copied:  the sql/064 trigger links it
 # on the target, now or when the realtor arrives.
 #
-# The load is safe to re-run (ON CONFLICT DO NOTHING) and refuses, with nothing committed, if any address in the
-# file is then missing from dnc_list, or if an address active in the file is removed on the target:  a suppression
-# never comes out weaker than it went in.
+# The load is safe to re-run:  an active row is skipped if the target has an active row for the address (the
+# sql/068 partial index), a removed row if the target has a removed row for the address with the same added_at.
+# An address active in the file but only removed on the target gets a new active row (item 311).  It refuses, with
+# nothing committed, if any address in the file is then missing from dnc_list, or if an address active in the file
+# has no active row on the target:  a suppression never comes out weaker than it went in.
 #
 # Environment overrides:  DB_SERVICE, DB_USER, DB_NAME;  DB_CONTAINER runs psql in that container instead of the
 # compose service (for a throwaway test).
@@ -82,8 +84,13 @@ WITH inserted AS (
                                  THEN ', removed by ' || coalesce(removed_by_name, '?') ELSE '' END)),
            name_at_add, phone_at_add, removed_at,
            CASE WHEN removed_at IS NOT NULL THEN :system_id END
-    FROM dnc_stage
-    ON CONFLICT (email_norm) DO NOTHING
+    FROM dnc_stage s
+    -- A removed row never conflicts with the partial index, so a re-run would copy it again without this.
+    WHERE s.removed_at IS NULL
+       OR NOT EXISTS (SELECT 1 FROM dnc_list d
+                      WHERE d.email_norm = lower(trim(s.email_raw))
+                        AND d.removed_at IS NOT NULL AND d.added_at = s.added_at)
+    ON CONFLICT (email_norm) WHERE removed_at IS NULL DO NOTHING
     RETURNING 1)
 SELECT count(*) AS inserted FROM inserted;
 
@@ -96,9 +103,10 @@ BEGIN
         RAISE EXCEPTION 'an address in the file is not in dnc_list after the load';
     END IF;
     IF EXISTS (SELECT 1 FROM dnc_stage s
-               JOIN dnc_list d ON d.email_norm = lower(trim(s.email_raw))
-               WHERE s.removed_at IS NULL AND d.removed_at IS NOT NULL) THEN
-        RAISE EXCEPTION 'an address active in the file is removed here:  it would stop being suppressed';
+               WHERE s.removed_at IS NULL
+                 AND NOT EXISTS (SELECT 1 FROM dnc_list d
+                                 WHERE d.email_norm = lower(trim(s.email_raw)) AND d.removed_at IS NULL)) THEN
+        RAISE EXCEPTION 'an address active in the file has no active row here:  it would not be suppressed';
     END IF;
 END $$;
 

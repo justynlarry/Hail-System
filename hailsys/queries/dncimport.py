@@ -168,13 +168,14 @@ SELECT
 FROM dnc_import_rows r
 LEFT JOIN dnc_list d
     ON d.email_norm = lower(trim(r.email_raw))
+    AND d.removed_at IS NULL
 WHERE r.batch_id = %(batch_id)s
 """
 
 _SAMPLE_SQL = """
 SELECT r.line_no, r.email_raw, r.name_at_add, r.added_at
 FROM dnc_import_rows r
-LEFT JOIN dnc_list d ON d.email_norm = lower(trim(r.email_raw))
+LEFT JOIN dnc_list d ON d.email_norm = lower(trim(r.email_raw)) AND d.removed_at IS NULL
 WHERE r.batch_id = %(batch_id)s AND r.rejected IS NULL AND d.dnc_id IS NULL
 ORDER BY r.line_no LIMIT 20
 """
@@ -220,7 +221,8 @@ FROM dnc_import_rows r
 JOIN dnc_import_batches b ON b.batch_id = r.batch_id
 WHERE r.batch_id = %(batch_id)s
     AND r.rejected IS NULL
-ON CONFLICT (email_norm) DO NOTHING
+-- The partial index (sql/068):  only an active row blocks the insert, so a removed address is suppressed again.
+ON CONFLICT (email_norm) WHERE removed_at IS NULL DO NOTHING
 RETURNING dnc_id
 """
 

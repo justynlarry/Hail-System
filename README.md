@@ -103,7 +103,7 @@ docker compose --profile test build test
 docker compose --profile test run --rm -T test
 ```
 
-On 2026-11-06: 2,812 tests, 390 skipped, OK. The tests that need `hail_admin` skip under `hail_app` and say so;
+On 2026-11-09: 2,817 tests, 390 skipped, OK. The tests that need `hail_admin` skip under `hail_app` and say so;
 run them with the `hail_admin` command in `tests/test_log_guards.py`'s docstring. **Any error is a real failure.**
 
 The web

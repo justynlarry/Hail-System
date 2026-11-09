@@ -49,12 +49,18 @@ FINISH_SQL = ("UPDATE cc_sync_runs SET status = %s, finished_at = now(), "
 
 # Sources date in added_at, ON CONFLICT DO NOTHING.  Realtor is linked by address
 # at insert time.
+#
+# NOT EXISTS over every row, removed or not:  since sql/068 only an active row conflicts,
+# so without it the sync would re-suppress an address an admin removed.  It must not
+# (decision log 2026-10-07);  _record reports that as a conflict instead.  The ON CONFLICT
+# stays for a bounce check inserting the same address at the same moment.
 _INSERT_SQL = """
 INSERT INTO dnc_list (email_raw, added_at, added_by, source, reason, realtor_id)
 SELECT %(email)s, %(opted_at)s::timestamptz, %(added_by)s, 'unsubscribe',
         %(reason)s,
         (SELECT realtor_id FROM realtors WHERE email_norm = lower(trim(%(email)s)))
-ON CONFLICT (email_norm) DO NOTHING
+WHERE NOT EXISTS (SELECT 1 FROM dnc_list WHERE email_norm = lower(trim(%(email)s)))
+ON CONFLICT (email_norm) WHERE removed_at IS NULL DO NOTHING
 RETURNING dnc_id
 """
 
@@ -111,9 +117,12 @@ def _record(conn, contact, added_by, run_id=None):
                                      "reason": reason}).fetchone()
     if row:
         return "inserted"
+    # An address can have removed rows and one active row (sql/068):  the active one
+    # decides, and only an address with no active row is a conflict.
     existing = conn.execute(
         "SELECT dnc_id, removed_at FROM dnc_list "
-        "WHERE email_norm = lower(trim(%s))", (address,)).fetchone()
+        "WHERE email_norm = lower(trim(%s)) "
+        "ORDER BY (removed_at IS NULL) DESC, dnc_id DESC LIMIT 1", (address,)).fetchone()
     if existing and existing["removed_at"] is not None:
         if run_id is not None:
             conn.execute(

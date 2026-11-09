@@ -536,6 +536,21 @@ class DeliverTest(unittest.TestCase):
         self.assertEqual((result["bounced"], result["suppressed"]), (1, 0))
         self.assertEqual([r["source"] for r in self.dnc_rows()], ["manual"])
 
+    def test_a_removed_suppression_is_suppressed_again_by_a_hard_bounce(self):
+        # Item 311:  the removed row used to block the insert, so the address stayed sendable.
+        self.queue()
+        self.deliver()
+        self.conn.execute("INSERT INTO dnc_list (email_raw, added_by, source, reason, removed_at, removed_by) "
+                          "VALUES (%s, %s, 'manual', 'test', now(), %s)",
+                          (self.email()["recipient_email"], self.user, self.user))
+        result = self.run_check(self.bounce("B"))
+        self.assertEqual((result["bounced"], result["suppressed"]), (1, 1))
+        rows = self.conn.execute("SELECT source, removed_at IS NULL AS active FROM dnc_list "
+                                 "WHERE email_norm = lower(%s) ORDER BY dnc_id",
+                                 (self.email()["recipient_email"],)).fetchall()
+        self.assertEqual([(r["source"], r["active"]) for r in rows],
+                         [("manual", False), ("hard_bounce", True)])
+
     def test_an_unknown_code_is_recorded_as_other(self):
         self.queue()
         self.deliver()

@@ -8539,7 +8539,7 @@ example `tests/test_server_error_page.py:19-26` (`try: from hailsys.web import c
 
 ## 311. A removed suppression blocks re-suppressing the address
 
-**Status:** open (found 2026-11-09, looking at item 134)
+**Status:** fixed on `hail-dev` 2026-11-09 (found the same day, looking at item 134); reaches `rbi-hail01` with the next release
 
 `dnc_list.email_norm` is UNIQUE over every row, removed or not, and the three insert paths use
 `ON CONFLICT (email_norm) DO NOTHING` (`hailsys/queries/dncimport.py:223`, `hailsys/constantcontact/statuses.py:71`,
@@ -8556,3 +8556,22 @@ re-suppressing a removed address by upload, typed entry and bounce.
 **When:** before any address other than a typo is un-suppressed, and before item 134 is built.
 
 **Related:** items 134, 182, 269; decision log 2026-10-07.
+
+**Fixed on `hail-dev` 2026-11-09.** `sql/068_dnc_list_active_unique.sql` replaces `dnc_list_email_norm_key` with the
+partial unique index `dnc_list_email_norm_active` (`email_norm WHERE removed_at IS NULL`). `dncimport.py`'s commit and
+`statuses.py`'s bounce insert name it (`ON CONFLICT (email_norm) WHERE removed_at IS NULL`), and the upload preview's
+count and sample join only active rows. `unsubs.py` keeps the 2026-10-07 rule (developer's choice, 1a): its insert runs
+only when the address has no row at all, and its lookup takes the active row first, so a removed address is still a
+conflict and a removed row with a newer active one is "already present". `scripts/dnc_copy.sh`: active rows use the
+partial index; a removed row is skipped when the target has a removed row for the address with the same `added_at`; an
+address active in the file but only removed on the target gets a new active row; the second check refuses an address
+active in the file with no active row on the target. The new `ON CONFLICT` clause also matches the old constraint, so
+the code works before and after the migration.
+**Tests:** five new (`test_dnc_import`: re-suppress by typed entry and by file; `test_send_deliver`: by hard bounce;
+`test_cc_unsubs_db`: the sync does not re-suppress, a removed row beside a newer active one is already present, one
+active row per address). Before `068`, four of them failed or errored as they should, and the sync one passed; after,
+the three modules ran 124 tests OK, the other twelve modules that read `dnc_list` 317 OK, and the full `test` service
+2,817 tests, 390 skipped, OK. Mutation checks: without the sync's `NOT EXISTS`, 3 tests fail; with the lookup taking
+the oldest row, 1 fails. `dnc_copy.sh`'s own load SQL was run on `hail-dev` and rolled back: a re-run of all 769 rows
+inserted nothing, and the two edge cases behaved as above. Production gets `068` through `migrate.sh` with the release
+(`v0.10.0` under `CHANGELOG.md`'s rule, a migration being MINOR).

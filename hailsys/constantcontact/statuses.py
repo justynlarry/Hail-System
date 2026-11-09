@@ -13,7 +13,8 @@ Rules:
     B/S         address doesn't exist
     V           Vacation autoreply
     D/F/X/Z     Bounced, unknown codes are treated as X
-* Address already in dnc_list is never touched.
+* An active dnc_list row is never touched.  An address whose only rows are removed gets a new
+  active row beside them (item 311):  a bounce suppresses it again.
 * error_detail text comes from table below, not Constant Contact.
 """
 
@@ -68,7 +69,8 @@ _SUPPRESS_SQL = """
 INSERT INTO dnc_list (email_raw, added_by, source, reason, realtor_id)
 SELECT %(email)s, %(added_by)s, 'hard_bounce', %(reason)s,
         (SELECT realtor_id FROM realtors WHERE email_norm = lower(trim(%(email)s)))
-ON CONFLICT (email_norm) DO NOTHING
+-- The partial index (sql/068):  only an active row blocks the insert.
+ON CONFLICT (email_norm) WHERE removed_at IS NULL DO NOTHING
 RETURNING dnc_id
 """
 
