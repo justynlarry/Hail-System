@@ -870,7 +870,7 @@ and `pull_estimate.html` converts with `.astimezone(display_tz)`. Checked on
 
 ## 87. Confirm RentCast's billing-period timezone
 
-**Status:** open: the counts disagree (2026-10-29)
+**Status:** accepted 2026-11-09: no unlogged calls since 2026-10-12; the reset timezone left unknown
 
 `quota.fetch_usage` rolls the period over at midnight Denver time. Whether
 RentCast rolls over on UTC or Denver time is unconfirmed. Near a boundary,
@@ -918,6 +918,17 @@ midnight is still unknown (every call this period was mid-day). **Decision 2026-
 **2026-11-03:** RentCast shows 41 used, against 17 we can account for (15 logged pull calls, 2 probe calls on 2026-10-16).
 Still the same 24 unexplained; none since the item was filed. The dashboard's two "errors" are our two 404 lookups by id
 (the 2026-10-16 probe, the 2026-11-03 drip rehearsal), which are not billed.
+
+**Update 2026-11-09 (after the rollover).** The dashboard shows 0 of 1,000 on 11-09, so the period starts on the 9th.
+Last period's days since filing match our logs: 10-27: 1 (pull 1228), 11-03: 3 (pull 3153's 2 calls and the drip
+rehearsal's lookup by id, `drip_listing_checks` 784, a 404), 11-06: 26 (`rbi-hail01` pulls 1 and 2, the first
+production calls). No calls on days without our rows, so the key is not rotated. **Correction to 2026-11-03:** a 404
+lookup by id is billed. The 11-03 figure counts the drip 404, and our side records it as one call; `quota.py` counts
+`drip_listing_checks` with `api_call_log`, so `/admin`'s figure is right. Both machines' calls count against the one key
+(`deploy.md`). Still unknown: the 24 calls of 10-09 to 10-12, and whether the period resets at UTC or Denver midnight
+(every call so far was midday). **When:** rotate the key if the dashboard shows calls on a day with no `api_call_log` or
+`drip_listing_checks` row; settle the timezone if a month's usage comes near the quota by the 8th, with one call made
+between 17:00 and 18:00 Denver.
 
 ## 95. No test for the `R` = RAIN / HEAVY RAIN composite key
 
