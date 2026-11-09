@@ -4101,6 +4101,14 @@ sshd hardening on both hosts, deferred by the developer until they are at the of
 screen as the fallback against a lockout (not over a weekend, remotely); internal DNS; the notice to RBI.
 **When:** the next office visit.
 
+**Update 2026-11-09.** sshd hardened on `pve-prod01` and `pbs-prod01`: root sign-in by key only, passwords and
+keyboard-interactive off (`/etc/ssh/sshd_config.d/10-hardening.conf`), after a key was added from the developer's
+workstation and proven with `PreferredAuthentications=publickey`. A probe from `hail-dev` with no credentials shows
+`publickey` only on both. The web interfaces (ports 8006 and 8007) still take the root password; that is PAM, not sshd.
+**Left:** internal DNS for `rbi.internal` (then PVE's PBS storage by name, not IP), and the notice to RBI about Tailscale
+on their LAN. **When:** the DNS once it is known who runs RBI's office DNS; the notice now, since the machines are at the
+office.
+
 ## 238. Multi-market readiness: what is hard-coded for RBI, Colorado and Denver
 
 **Status:** open (filed 2026-10-20, by developer direction; not urgent)

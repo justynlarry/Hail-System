@@ -25,7 +25,7 @@ Update this table as the build moves. Item numbers are in `docs/parking-lot.md`.
 | Step | State (2026-11-06) |
 |---|---|
 | 0. Before you start | Production Constant Contact account (183) and sending domain (96) not yet set up; host alerts set up 2026-11-09 (236) |
-| 1. Hosts | `pve-prod01`, `pbs-prod01` built and acceptance-tested 2026-10-19; notifications working 2026-11-09 (236), retention set 2026-11-06; sshd hardening (237) and the second backup disk (233) open |
+| 1. Hosts | `pve-prod01`, `pbs-prod01` built and acceptance-tested 2026-10-19; notifications working 2026-11-09 (236), retention set 2026-11-06; sshd hardening done 2026-11-09 (237); internal DNS and the RBI notice (237) and the second backup disk (233) open |
 | 2. OS | Rocky 10.2, running |
 | 3. Code and files | `v0.9.1` checked out 2026-11-05 (the tag pushed from `hail-dev`, item 306); the TIGER folders copied |
 | 4. Secrets | `.env` filled in, except the Constant Contact values (placeholders until item 183) and the domain (96) |
@@ -71,9 +71,10 @@ Done on the Proxmox and backup hosts, before the VM is started or joins Tailscal
       and `rbi-hail01` (key expiry off on all three; `"RunSSH": false` on `pve-prod01` and `rbi-hail01`, `pbs-prod01`
       off since 2026-10-20).
 - [x] Remove any stale node with the VM's name from the tailnet it will join (a MagicDNS name collision otherwise).
-- [ ] sshd: keys only, no root password (`PermitRootLogin prohibit-password`, `PasswordAuthentication no`,
+- [x] sshd: keys only, no root password (`PermitRootLogin prohibit-password`, `PasswordAuthentication no`,
       `KbdInteractiveAuthentication no` in a drop-in under `/etc/ssh/sshd_config.d/`). Prove key login works first,
-      keep a session open, `sshd -t` before reloading.
+      keep a session open, `sshd -t` before reloading. Done 2026-11-09 on both hosts: the drop-in `10-hardening.conf`,
+      after the developer's key sign-in was proven; a probe from `hail-dev` shows `publickey` only.
 - [x] A notification target that delivers, and a test notice that arrives (item 236). Done 2026-11-09 on both hosts:
       an SMTP target through the developer's Gmail (an app password per host), the default matcher pointed at it.
 - [x] The backup job for the VM, with retention, prune and garbage collection (item 233).
