@@ -4040,7 +4040,7 @@ encryption key first (item 233).
 
 ## 236. PVE email notifications do not arrive
 
-**Status:** open (filed 2026-10-20)
+**Status:** resolved 2026-11-09 (filed 2026-10-20)
 
 **Evidence:** the backup notification sent through the `mail-to-root` target on 2026-10-20 never arrived.
 
@@ -4059,6 +4059,12 @@ encryption key first (item 233).
 - `pbs-prod01`: the same under Configuration → Notifications.
 
 **When:** once the mailbox is chosen, and before relying on any backup or job-failure notice.
+
+**Resolved 2026-11-09.** The developer's Gmail for now (developer: easy to change later, by editing the target or
+adding a new one and repointing the matcher). On each host, an SMTP target (`smtp.gmail.com`:587, STARTTLS) with its
+own app password, so one host's can be revoked alone; the default matcher points at it. Both targets' Test
+messages arrived, and a backup run by hand sent a notice that arrived. Checked by the developer on the hosts;
+`hail-dev` cannot see them. Item 9 (nothing pushes a failed nightly job on `rbi-hail01`) is separate and still open.
 
 ## 237. Production hosts: hardening and housekeeping
 
