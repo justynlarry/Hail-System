@@ -2270,6 +2270,22 @@ only), in eight batches with the developer's yes before each set of edits. **120
 
 **When:** at each phase close, and before Phase 6.
 
+**Sweep 2026-11-09 (since the 2026-10-28 sweep; the production deploy, 173 non-doc files changed).** A delta sweep, not a
+full one: items 9, 183, 96, 189, 233 and 235 left out by the developer. **17 items checked in three batches:** (A) the 12
+open items that name a file changed since `3f13fc0`, found with `git diff --name-only 3f13fc0 HEAD` against each item's
+named files; (B) the open items whose **When:** names the deploy, a release, a backup, a restore or a rehearsal (6, two
+overlapping A); (C) the open items filed since 10-28 (279; 274 and 280 already covered).
+- **Found done but still open:** 289 (release versions, done 2026-11-05, closed 2026-11-09 in `b55bbe3` just before the
+  sweep), and in 201 the Storm Days line read "not built" though `f262f18` built it.
+- **Triggers updated:** 280 (a pull cannot reach the memory problem, since `upsert_listings` writes one statement per
+  listing; production's 4,147-listing pull was fine; the `pg_dump` restore half stands), 230 (the drip rehearsal ran on
+  made-up listings, so its trigger passed untested).
+- **Unchanged:** 41, 102, 136, 194, 198, 217, 220, 226, 232, 238, 240, 274, 279, 309.
+- Also this session, outside the sweep: 87 accepted (the RentCast counts since filing match our logs).
+
+**For the next sweep:** start from batch A's method, `git diff --name-only <the last sweep's commit> HEAD` against the
+files each open item names, which catches "the next edit to X" triggers. The base for the next sweep is this sweep's
+commit.
 
 ## 155. The pull estimate offers "Pull 0 zips"
 
@@ -3449,7 +3465,7 @@ Admin, Territory, Address Search (fine for now), Activity and Exports (to be mer
 Exports and Send get more work once they are in real use. This pass is a new round of the item and will not close it.
 Each page's agreed changes are listed here as they are agreed.
 
-- **Storm Days (agreed 2026-11-03, not built):** Constant Contact, Ingest and Radar as three equal solid tiles in one row
+- **Storm Days (agreed and built 2026-11-03, `f262f18`):** Constant Contact, Ingest and Radar as three equal solid tiles in one row
   (green OK, red stale or disconnected, grey for radar not yet run). Directly under them, a RentCast usage bar in the same
   style: green up to 75% of the monthly quota, yellow above 75% up to 90%, red above 90% (and "N over" past 100%). The cut-offs
   are fixed in code, not admin settings, because they change how the bar looks, not what the system allows. The same bar
@@ -3939,6 +3955,10 @@ common case; nothing compares list dates, and the probe did not test a relisted 
 include a property known to have been relisted.
 
 **Related:** items 204, 227.
+
+**Re-checked 2026-11-09 (sweep).** Piece 7's rehearsal ran 2026-11-03 on made-up listings (`TEST-REHEARSAL-DRIP-10`,
+`-12`, `-13`; `drip_listing_checks` 784 to 788), so no relisted property was looked up; that trigger passed untested.
+**When:** if a follow-up ever names a house whose listing changed.
 
 ## 231. Drip follow-up counts queued emails as emailed
 
@@ -7689,6 +7709,11 @@ killed at a 1.2 GB limit; it loaded in 800-row batches, with identical values. N
 **Update 2026-11-02.** No data moves from `hail-dev` (`server-setup.md`, Data on a new server): production's RentCast
 data starts empty, so this no longer bears on the build. **When:** before restoring `properties` from a `pg_dump`, and
 before a pull large enough to matter.
+
+**Re-checked 2026-11-09 (sweep).** A pull is not the risk: `upsert_listings` writes one statement per listing
+(`hailsys/rentcast/upsert.py:119-121`), so the memory is released row by row. `rbi-hail01`'s pull 2 (2026-11-06, 24 zips,
+4,147 listings, PostGIS 3.6) completed in 42 s; `properties` holds 4,194 rows. **When:** before restoring `properties`
+from a `pg_dump` (in batches, as on 2026-10-30), which bears on item 233's `pg_dump` decision.
 
 ## 281. `docs/db-schema-diagram.md` stopped at `sql/061`
 
