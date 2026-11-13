@@ -240,7 +240,8 @@ class SignInLimitsTest(unittest.TestCase):
                     freshness_days=str(s["listing_freshness_days"]),
                     match_max_age_days=str(s["match_max_age_days"]), email_cap_days=str(s["email_cap_days"]),
                     drip_max_followups=str(s["drip_max_followups"]),
-                    drip_max_gap_days=str(s["drip_max_gap_days"]), session_max_hours=str(new))
+                    drip_max_gap_days=str(s["drip_max_gap_days"]), session_max_hours=str(new),
+                    jurisdiction_near_boundary_m=str(s["jurisdiction_near_boundary_m"]))
         client = self.signed_in_client(self.ago(minutes=1), emp_id=self.admin, role="admin")
         resp = client.post("/admin/settings", data=form)
         self.assertEqual(resp.status_code, 302)

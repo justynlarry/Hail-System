@@ -43,7 +43,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*Counted 2026-11-13 across the whole file, by status line (309 items): 19 `open`, 26 `open (watch)`, 24 `open (parked)`, 16 `accepted`, 1 `deferred`; 186 `resolved`, 21 `resolved (residuals)`, 5 `closed`, 2 `merged`, 9 `dropped`. This block holds only items up to 153; later items are in the two "Filed" blocks.*
+*Counted 2026-11-13 across the whole file, by status line (310 items): 19 `open`, 26 `open (watch)`, 24 `open (parked)`, 16 `accepted`, 1 `deferred`; 187 `resolved`, 21 `resolved (residuals)`, 5 `closed`, 2 `merged`, 9 `dropped`. This block holds only items up to 153; later items are in the two "Filed" blocks.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -8589,3 +8589,19 @@ inserted nothing, and the two edge cases behaved as above. Production gets `068`
 
 **Deployed on `rbi-hail01` 2026-11-09:** 68 migrations recorded, `dnc_list_email_norm_active` in place and the old
 constraint gone, 768 active and 1 removed unchanged, the footer `v0.10.0 · 681bfd8`.
+
+## 312. The Settings tab's box headings sat on the box's top edge
+
+**Status:** resolved 2026-11-13 (the commit that files this item)
+
+The admin Settings tab builds its boxes as `<fieldset class="card">` with a `<legend>`, the only page that does. A legend
+is drawn as the fieldset's caption, so the box's top border and background start halfway down the heading's text.
+`style.css`'s `.card > legend` set only the weight and padding. It is the same effect fixed for the template editor's
+blocks on 2026-11-03 (`.tpl-block legend.tpl-head`); item 201's cosmetic pass did not catch it here. Noticed when item 190
+step 2 added a fifth box (Address Search).
+
+**Fix:** `fieldset.card > legend` is floated full width, and the element after it clears the float, so each heading sits
+inside its box. CSS only; it touches the five Settings boxes and nothing else, since no other page uses `fieldset.card`.
+Checked by the developer on the page, 2026-11-13.
+
+**Related:** items 190, 201, 294.

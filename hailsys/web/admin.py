@@ -45,6 +45,8 @@ CHECK_MESSAGES = {
         "Longest gap must be between 1 and 30 days.",
     "settings_session_max_hours_check":
         "Sign out after must be between 1 and 72 hours.",
+    "settings_jurisdiction_near_boundary_m_check":
+        "Near-boundary distance must be between 10 and 1000 metres.",
 }
 
 SELF_ACTION_MESSAGE = (
@@ -111,6 +113,7 @@ def _render_admin(form=None, status=200, zone_form=None, trial=None, trial_day=N
                    listing_freshness_days,
                    match_max_age_days, email_cap_days,
                    drip_max_followups, drip_max_gap_days, session_max_hours,
+                   jurisdiction_near_boundary_m,
                    contact_email, schedule_url, from_name, from_email, reply_to
             FROM settings
             """
@@ -131,6 +134,7 @@ def _render_admin(form=None, status=200, zone_form=None, trial=None, trial_day=N
                    h.rentcast_billing_day, h.rentcast_monthly_quota, h.listing_freshness_days,
                    h.match_max_age_days, h.email_cap_days,
                    h.drip_max_followups, h.drip_max_gap_days, h.session_max_hours,
+                   h.jurisdiction_near_boundary_m,
                    h.contact_email, h.schedule_url, h.from_name, h.from_email, h.reply_to
             FROM settings_history h
             JOIN users u ON u.emp_id = h.changed_by
@@ -338,6 +342,7 @@ def update_settings():
         drip_followups = int(request.form.get("drip_max_followups") or "")
         drip_gap = int(request.form.get("drip_max_gap_days") or "")
         session_hours = int(request.form.get("session_max_hours") or "")
+        near_boundary_m = int(request.form.get("jurisdiction_near_boundary_m") or "")
     except (InvalidOperation, ValueError):
         flash("Radii, billing day, and quota must all be numbers.")
         return redirect(url_for("admin.index"))
@@ -357,11 +362,12 @@ def update_settings():
                 "           match_max_age_days = %s, "
                 "            email_cap_days = %s, "
                 "             session_max_hours = %s, "
+                "             jurisdiction_near_boundary_m = %s, "
                 "              drip_max_followups = %s, "
                 "               drip_max_gap_days = %s "
                 " WHERE id = 1",
                 (zip_radius, match_radius, billing_day, monthly_quota, freshness_days, match_max_age,
-                 email_cap, session_hours, drip_followups, drip_gap),
+                 email_cap, session_hours, near_boundary_m, drip_followups, drip_gap),
             )
             conn.commit()
     except psycopg.errors.CheckViolation as e:
@@ -378,7 +384,8 @@ def update_settings():
               f"Billing day {billing_day}, quota {monthly_quota}, "
               f"listings fresh for {freshness_days} days. "
               f"Campaigns: up to {drip_followups} follow-ups, gaps up to {drip_gap} days. "
-              f"Sign out after {session_hours} hours.")
+              f"Sign out after {session_hours} hours. "
+              f"Near a boundary within {near_boundary_m} m.")
     return redirect(url_for("admin.index"))
 
 

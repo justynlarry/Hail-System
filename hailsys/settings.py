@@ -5,7 +5,8 @@ SETTINGS_SQL = """
     SELECT default_zip_radius_miles, default_match_radius_miles,
            rentcast_billing_day, rentcast_monthly_quota,
            match_max_age_days, email_cap_days, listing_freshness_days,
-           drip_max_followups, drip_max_gap_days
+           drip_max_followups, drip_max_gap_days,
+           jurisdiction_near_boundary_m
         FROM settings
     WHERE id = 1
 """
@@ -32,4 +33,5 @@ def fetch_settings(conn):
         "listing_freshness_days": row["listing_freshness_days"],
         "drip_max_followups": row["drip_max_followups"],
         "drip_max_gap_days": row["drip_max_gap_days"],
+        "jurisdiction_near_boundary_m": row["jurisdiction_near_boundary_m"],
     }

@@ -240,6 +240,21 @@
         </tbody>
       </table>
     </fieldset>
+
+    <fieldset class="card">
+      <legend>Address Search</legend>
+      <table class="settings-table">
+        <tbody>
+          <tr><th><label for="jurisdiction_near_boundary_m">Near a boundary within (metres)</label></th>
+              <td><input id="jurisdiction_near_boundary_m" name="jurisdiction_near_boundary_m" type="number"
+                         step="1" min="10" max="1000"
+                         value="{{ settings.jurisdiction_near_boundary_m }}" required>
+                  <br><small>A searched address this close to a city or county line is shown as near the
+                  boundary: check the book. The address lookup is accurate to about a block, so 150 is a
+                  sensible start.</small></td></tr>
+        </tbody>
+      </table>
+    </fieldset>
     </div>
     <button type="submit">Save settings</button>
   </form>
@@ -465,7 +480,7 @@
   <div class="table-scroll">
   <table>
     <thead><tr><th>When</th><th>By</th><th>Zip radius</th><th>Match radius</th>
-               <th>Billing day</th><th>Monthly quota</th><th>Freshness (days)</th><th>Storm age</th><th>Email cap</th><th>Follow-ups</th><th>Longest gap</th><th>Sign out after</th><th>Email values</th></tr></thead>
+               <th>Billing day</th><th>Monthly quota</th><th>Freshness (days)</th><th>Storm age</th><th>Email cap</th><th>Follow-ups</th><th>Longest gap</th><th>Sign out after</th><th>Near boundary</th><th>Email values</th></tr></thead>
     <tbody>
     {% for h in history %}
       <tr>
@@ -485,13 +500,15 @@
         <td>{{ h.drip_max_gap_days if h.drip_max_gap_days is not none else "—" }}</td>
         {# NULL on rows written before sql/067, which added this column #}
         <td>{{ "%s h"|format(h.session_max_hours) if h.session_max_hours is not none else "—" }}</td>
+        {# NULL on rows written before sql/069, which added this column #}
+        <td>{{ "%s m"|format(h.jurisdiction_near_boundary_m) if h.jurisdiction_near_boundary_m is not none else "—" }}</td>
         {# NULL on rows written before sql/042, which added these columns #}
         <td>{% if h.contact_email %}<small>contact {{ h.contact_email }}; schedule
             {{ h.schedule_url }}; from {{ h.from_name }} &lt;{{ h.from_email }}&gt;;
             reply-to {{ h.reply_to }}</small>{% else %}—{% endif %}</td>
       </tr>
     {% else %}
-      <tr><td colspan="13">No changes yet.</td></tr>
+      <tr><td colspan="14">No changes yet.</td></tr>
     {% endfor %}
     </tbody>
   </table>

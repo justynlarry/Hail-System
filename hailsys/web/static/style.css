@@ -886,7 +886,14 @@ h1 ~ table { width: calc(100% - 3rem); }
     min-width: 0;
 }
 fieldset.card { margin: 0; }
-.card > legend { font-weight: 600; padding: 0 0.25rem; }
+/* A fieldset's legend is drawn as its caption: the box's top border and background start halfway
+   down the text.  Floated full width, it sits inside the box instead, as .tpl-block's legend does
+   (2026-11-03).  What follows it clears the float.  Only the Settings tab's cards are fieldsets. */
+fieldset.card > legend {
+    float: left; width: 100%; box-sizing: border-box;
+    font-weight: 600; padding: 0; margin-bottom: 0.5rem;
+}
+fieldset.card > legend + * { clear: both; }
 .card > h3:first-child { margin-top: 0; }
 /* .admin-form caps a form at 24rem, right for Add user; the settings form
    holds a row of cards, so it takes the full width. */
