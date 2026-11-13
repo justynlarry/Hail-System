@@ -8153,3 +8153,41 @@ is small, with one person sending. Opening it to senders is a short code change 
 `drip.py`, the menu in `base.html`, and the tests that expect a sender refused) and can be made when someone other
 than an admin is meant to send. Until then the role name `sender` means "can spend RentCast calls", not "can send
 email".
+
+---
+
+## 2026-11-13 — Item 190 step 1: the jurisdiction trial on Address Search
+
+**Decision (developer):** waive "do not build ahead of the current phase" for **step 1 of item 190 only**: a read-only
+jurisdiction trial built into the existing Address Search page. Steps 2 and 3 of item 190 (the correction table, item 75;
+permit issuer and adopted-code columns, items 97 and 98) are not waived in. Each still needs its own entry.
+
+What step 1 is:
+1. **A jurisdiction panel above the weather reports** on `/search`, for the point the search has already geocoded. No
+   extra Census call, and no toggle. It shows the municipality the point falls in (`municipal_boundaries`), or
+   "Unincorporated <County>" when it falls in none; the county (`county_boundaries`); the geocoder's matched address; a
+   near-boundary warning when the point is within the set distance of a municipal line (item 77); and the boundaries'
+   load date. **No permit issuer and no building codes are shown.** They are not verified (items 97, 98).
+2. **A check log.** Under the panel, a form records the printed jurisdiction book's answer against the system's: agrees
+   or differs, what the book says, a cause (geocoder wrong, boundary wrong, book out of date, not known yet), a new-build
+   tick and a note. Each row keeps the search, the geocoded point, the system's answer and the boundary load date, so a
+   later DOLA reload or cache change does not rewrite what a check was measured against. Append-only, like the other
+   logs.
+3. **The near-boundary distance is a setting** on the admin page, logged to `settings_history`. Starting value: **150 m**,
+   about the Census geocoder's block-level error.
+4. **Built and run on `hail-dev`**, not `rbi-hail01`. Recording a check is admin-only for the trial; any signed-in user
+   sees the panel.
+5. **DOLA is reloaded before the first check.** The load of 2026-09-23 is seven weeks old.
+
+**The test set.** The developer enters new RBI orders about three days a week and already checks each against the
+jurisdiction book, so the trial uses real addresses, new builds among them. This replaces item 190's "about 20 addresses
+staff know". It runs as an ongoing log, not a one-off.
+
+**Pass bar, set before the first check:** after at least 50 checks, the system is at fault (geocoder wrong or boundary
+wrong) on no more than 1 in 20. Book-out-of-date cases count as system right, and near-boundary-flagged checks are
+reported separately. The result decides whether steps 2 and 3 are worth building.
+
+**Why:** the developer is waiting on RBI for items 96 and 183, and the checks happen anyway. Logging them in the system
+costs no extra work per order and turns item 190's untested risk (new builds, block-level geocodes) into counts. Customer
+addresses typed into `/search` are already logged in `address_searches`; the check log adds the book's answer beside
+them, on `hail-dev` only.

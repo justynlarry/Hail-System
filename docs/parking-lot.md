@@ -3126,7 +3126,8 @@ that write `sent_emails`. Left: the final lists on production.
 
 ## 190. Address search as an office tool: jurisdiction, permit issuer and adopted codes
 
-**Status:** open (parked 2026-10-08, by developer decision: the email work comes first)
+**Status:** open — step 1 (the jurisdiction trial) waived in 2026-11-13 (decision log); steps 2 and 3 wait on its
+result. Was: open (parked 2026-10-08, by developer decision: the email work comes first).
 
 **The use.** Staff now look an address up in printed books to learn which jurisdiction it is in,
 who issues its permit, and which building codes that jurisdiction enforces. The books are out
@@ -3164,6 +3165,11 @@ are loaded, but nothing reads `municipal_boundaries` or `county_boundaries` yet 
 
 **When:** after the Phase 5 email work; Phase 6 with address search. Start with the trial
 (step 1); it decides whether the rest is worth building.
+
+**Update 2026-11-13 (developer).** Step 1 is waived in as a jurisdiction panel and check log on the existing Address
+Search page, run on `hail-dev` against the developer's new RBI orders (about three days a week, checked against the
+printed book), not a fixed set of 20 addresses (decision log 2026-11-13). No issuer or code columns. **When:** steps 2
+and 3, once the trial has at least 50 checks and is read against the pass bar in that entry.
 
 ## 191. No count of Constant Contact calls per day; `max_emails` is a stand-in
 
