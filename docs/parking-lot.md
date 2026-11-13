@@ -43,7 +43,7 @@ where it had been recorded four days earlier.
 
 ## Open — items needing work
 
-*Counted 2026-10-28 across the whole file, by status line (273 items): 54 `open`, 30 `open (watch)`, 24 `open (parked)`, 3 `accepted`, 1 `deferred`, 1 `built`; 124 `resolved`, 20 `resolved (residuals)`, 5 `closed`, 2 `merged`, 9 `dropped`. This block holds only items up to 153; later items are in the two "Filed" blocks.*
+*Counted 2026-11-13 across the whole file, by status line (309 items): 19 `open`, 26 `open (watch)`, 24 `open (parked)`, 16 `accepted`, 1 `deferred`; 186 `resolved`, 21 `resolved (residuals)`, 5 `closed`, 2 `merged`, 9 `dropped`. This block holds only items up to 153; later items are in the two "Filed" blocks.*
 
 ## 3. The base image is on an EOL operating system
 
@@ -3082,9 +3082,9 @@ Still open on this item: the eligibility gate (item 189), and the production box
 
 ## 189. No eligibility gate: nothing yet stops an email to an address outside the warm pools
 
-**Status:** built on `hail-dev` 2026-11-04 (decision log 2026-11-04); open until the final service-client and Constant
-Contact subscriber lists are uploaded on the production box (`docs/deploy.md` §7). Was: open (parked 2026-10-08, by
-developer decision).
+**Status:** open (parked) — gated on the final service-client and Constant Contact subscriber lists being uploaded on
+the production box (`docs/deploy.md` §7). The gate was built on `hail-dev` 2026-11-04 (decision log 2026-11-04). Was:
+open (parked 2026-10-08, by developer decision).
 
 Constant Contact's permission policy bans scraped and public-directory addresses (item 119,
 closed only for warm pools). The send list does not yet check that a realtor is a service
@@ -4719,7 +4719,7 @@ anyone changes a radius on the admin page, whichever comes first.
 
 ## 217. The footer phone and the built-in template's links are template content, not settings
 
-**Status:** open (accepted 2026-10-15)
+**Status:** accepted 2026-10-15
 
 In the block builder (item 203, pieces 2 and 3) the footer's phone number is a setting of the footer
 block (default `(303) 750-1900`), so it is not hard-coded in code. The other fixed text of the
@@ -4757,7 +4757,7 @@ images on the admin page, or it has been retired." Tested in `tests/test_emailtp
 
 ## 219. Saving a template and retiring an image in the same instant can slip past the guard
 
-**Status:** open (accepted 2026-10-15)
+**Status:** accepted 2026-10-15
 
 `save_blocks` checks that its images are active, and `set_image_active` checks that no active block
 template uses the image, but neither holds a lock across the other. If an admin saves a template that
@@ -4848,7 +4848,7 @@ skipped, 256 errors, all item 241's. Commands: `README.md` (Tests) and `docs/com
 
 ## 223. The test send's hourly limit can be passed by two clicks in the same instant
 
-**Status:** open (accepted 2026-10-15)
+**Status:** accepted 2026-10-15
 
 `testsend.send_test` counts an admin's tests in the last hour, commits (so no transaction stays open
 across the Constant Contact calls), and only then makes them. Two requests at the same instant can both
@@ -4883,7 +4883,7 @@ its `tests/test_iem_parse.py` to `3cf6848`, both 2026-09-09. None of the old mis
 
 ## 225. The editor's formatting toolbar needs JavaScript
 
-**Status:** open (accepted 2026-10-16)
+**Status:** accepted 2026-10-16
 
 The B, I, Colour, Link and Insert field controls above the rich text boxes are hidden until
 `templates.js` adds the class `js` to the form (`.tpl-toolbar` is `display: none` without it). With
@@ -6875,7 +6875,7 @@ states have a key, a label and a CSS class".
 
 ## 240. Radar zones are cut at the crop box edge
 
-**Status:** open, accepted (filed 2026-10-21, Phase 5b slice 2)
+**Status:** accepted (filed 2026-10-21, Phase 5b slice 2)
 
 `hailsys/radar/load.py` stores cells only inside the coverage extent plus 0.5 degrees (`BOX_MARGIN_DEGREES`),
 so a hail patch that runs past that edge is clipped, and its core, margin and radar-indicated areas end in a
@@ -7020,7 +7020,7 @@ from a real run that held no days.
 
 ## 246. A radar day keeps the crop box it was loaded with
 
-**Status:** open, accepted (filed 2026-10-22, Phase 5b slice 4)
+**Status:** accepted (filed 2026-10-22, Phase 5b slice 4)
 
 `load.crop_box` makes the box from the active `coverage_zips` when a run starts, and `radar_days` stores the box a
 day was loaded with. If coverage zips are added later, days already held keep their older, smaller box, so their
