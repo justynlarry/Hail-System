@@ -1,7 +1,7 @@
 # Database Schema
 
 Storm outreach system — reference document for the data model.
-Started during planning; now the reference for the live schema, through `sql/068`. Update it in the same commit as a migration.
+Started during planning; now the reference for the live schema, through `sql/069`. Update it in the same commit as a migration.
 
 ---
 
@@ -1253,6 +1253,34 @@ suggestions are needed.
 
 `hail_app` has `SELECT, INSERT` only on both tables.
 
+### `jurisdiction_checks`
+
+Added `sql/069_jurisdiction_checks.sql`, 2026-11-13 (item 190 step 1, decision log 2026-11-13). One row per check of
+Address Search's jurisdiction answer against the printed jurisdiction book, recorded from the form under the
+Jurisdiction box (admin only, `POST /search/check`). **The system's side is a copy made when the check is recorded**,
+looked up again from the search's own geocoded point (`hailsys/queries/jurisdiction.py`), never taken from the form. It
+is not joined from `municipal_boundaries`, which `load_municipal.sh` replaces wholesale, so a reload never re-answers an
+old check.
+
+| Field | Purpose |
+|---|---|
+| `check_id` | Surrogate PK |
+| `search_id` | FK `fk_jurisdiction_checks_search` → `address_searches`, `UNIQUE` (`jurisdiction_checks_one_per_search`): one check per search. Searching the address again makes a new search to check |
+| `place_count`, `place_fips`, `place_name` | The city the point was in: 0 is unincorporated; above 1 is overlapping city polygons, with the first by name kept (`jurisdiction_checks_place_matches_count`) |
+| `county_fips`, `county_name` | Both or neither (`jurisdiction_checks_county_pair`); NULL outside every county |
+| `nearest_line_kind`, `nearest_line_name`, `nearest_line_m` | The nearest city (`municipal`) or `county` line within 2 km (`jurisdiction.LINE_REACH_M`), its polygon's name, and the distance to 0.1 m. All three or none (`jurisdiction_checks_line_triple`). Kept even past the setting, so the trial can show whether 150 m is right. On a tie, the line of a polygon the point is not in |
+| `near_boundary`, `near_boundary_m` | The flag shown, and the setting it was made with. `jurisdiction_checks_near_boundary_consistent` re-derives it from `place_count` and the stored distance, so the module decides on the rounded number |
+| `boundaries_loaded_at` | `municipal_boundaries.loaded_at` at check time. A check is refused while the boundaries are not loaded |
+| `verdict` | `agrees` / `differs` |
+| `book_answer` | What the book says, up to 200 characters; required when `differs` |
+| `cause` | `geocoder` (the point is in the wrong place), `boundary` (the boundary data is wrong), `book_outdated` (the book is wrong, which counts as the system right) or `unknown`. Required when `differs`, NULL when `agrees` (`jurisdiction_checks_verdict_fields`, written `IS NOT NULL`, item 259) |
+| `new_build`, `note` | A tick, and up to 1,000 characters |
+| `checked_at`, `checked_by` | `checked_by` FK `fk_jurisdiction_checks_checked_by` → `users` |
+
+**Append-only**, by `trg_jurisdiction_checks_guard` (any `UPDATE` or `DELETE` raises). `hail_app` has `SELECT, INSERT`.
+A check recorded as `unknown` is resolved by searching the address again and checking it again; the trial summary
+(`docs/command-ref.md`, "Jurisdiction trial") counts the latest check per geocoded address.
+
 ---
 
 ## Operations
@@ -1370,6 +1398,7 @@ invalidation to get wrong across Gunicorn workers.
 | `storm_states` | `TEXT NOT NULL DEFAULT 'CO'`, `CHECK` two-letter upper case codes separated by commas, no spaces — added `sql/050_radar_warnings.sql` (Phase 5b). The states whose NWS warnings the radar layers fetch (`CO,WY` for two). Not yet used by the IEM report ingest (item 238). **No admin-page field yet**, an admin `UPDATE` changes it and the trigger logs it (item 243). `hail_ingest` may read this column and no other |
 | `zone_observer_wording_approved` | `BOOLEAN NOT NULL DEFAULT false` — added `sql/060_zone_sends.sql`. **False until the developer has read the CoCoRaHS usage policy in full and recorded it in the decision log.** While false, `send_log` refuses a zone send whose match rests on a volunteer observer report (basis `observer` or `both`). Set from the admin page's Hail zones section (Phase 5c step 4 piece 4b-2); logged to `settings_history` |
 | `session_max_hours` | `SMALLINT NOT NULL DEFAULT 12`, `CHECK` `settings_session_max_hours_check` `BETWEEN 1 AND 72` — added `sql/067_sign_in_limits.sql` (item 299). How long a sign-in lasts, counted from signing in (the session's `issued_at`). `auth.load_current_user` checks it on every request, so a change applies to sessions already open; a session with no `issued_at` counts as too old. A send already running is not stopped. Admin page, Settings, "Sign out after (hours)"; logged to `settings_history` |
+| `jurisdiction_near_boundary_m` | `SMALLINT NOT NULL DEFAULT 150`, `CHECK` `settings_jurisdiction_near_boundary_m_check` `BETWEEN 10 AND 1000` — added `sql/069_jurisdiction_checks.sql` (item 190 step 1). Metres. A searched address this close to a city or county line, or inside two cities, is shown on Address Search as near the boundary. 150 is about the Census geocoder's block-level error. Admin page, Settings, "Near a boundary within (metres)"; logged to `settings_history` |
 | `rentcast_monthly_quota` | `INTEGER NOT NULL DEFAULT 1000`, `CHECK` `> 0` — added `023`. Requests included per billing period. **Warn and allow**: the pull estimate warns when a pull would exceed it, and nothing blocks (decision-log 2026-09-23, "RentCast quota…") |
 
 Plus a table-level `CHECK` `match_within_zip_radius`:
@@ -1416,6 +1445,7 @@ freshness settings, snapshotting all seven values that resulted (five before `03
 | `storm_states` | `TEXT`, nullable — added `sql/050`. **NULL on rows written before `050`**, not backfilled |
 | `zone_observer_wording_approved` | `BOOLEAN`, nullable — added `sql/060`. **NULL on rows written before `060`**, not backfilled |
 | `session_max_hours` | `SMALLINT`, nullable — added `sql/067`. **NULL on rows written before `067`**, not backfilled |
+| `jurisdiction_near_boundary_m` | `SMALLINT`, nullable — added `sql/069`. **NULL on rows written before `069`**, not backfilled |
 | `match_max_age_days`, `email_cap_days` | `SMALLINT`, nullable — added `sql/038`. **NULL on rows written before `038`**, not backfilled, for the same reason |
 | `contact_email`, `schedule_url`, `from_name`, `from_email`, `reply_to` | `TEXT`, nullable — added `sql/042`. **NULL on rows written before `042`**, not backfilled, for the same reason |
 
@@ -1427,7 +1457,8 @@ AFTER UPDATE OF default_zip_radius_miles, default_match_radius_miles,
                 listing_freshness_days, match_max_age_days, email_cap_days,
                 contact_email, schedule_url, from_name, from_email, reply_to,
                 drip_max_followups, drip_max_gap_days, storm_states,
-                zone_observer_wording_approved, session_max_hours
+                zone_observer_wording_approved, session_max_hours,
+                jurisdiction_near_boundary_m
 ON settings
 FOR EACH ROW
 WHEN (OLD.default_zip_radius_miles    IS DISTINCT FROM NEW.default_zip_radius_miles
@@ -1447,13 +1478,14 @@ WHEN (OLD.default_zip_radius_miles    IS DISTINCT FROM NEW.default_zip_radius_mi
    OR OLD.storm_states                IS DISTINCT FROM NEW.storm_states
    OR OLD.zone_observer_wording_approved
                                       IS DISTINCT FROM NEW.zone_observer_wording_approved
-   OR OLD.session_max_hours           IS DISTINCT FROM NEW.session_max_hours)
+   OR OLD.session_max_hours           IS DISTINCT FROM NEW.session_max_hours
+   OR OLD.jurisdiction_near_boundary_m IS DISTINCT FROM NEW.jurisdiction_near_boundary_m)
 ```
 
-That is the definition as of `067`. `023` replaced `020`'s two-column version
+That is the definition as of `069`. `023` replaced `020`'s two-column version
 with `CREATE OR REPLACE FUNCTION` plus a drop and recreate of the trigger, and
 `028` did the same to add the fifth column, `038` the sixth and seventh, `042` the five email values, `045` the two
-drip settings, `050` `storm_states`, `060` `zone_observer_wording_approved` and `067` `session_max_hours`.
+drip settings, `050` `storm_states`, `060` `zone_observer_wording_approved`, `067` `session_max_hours` and `069` `jurisdiction_near_boundary_m`.
 Scoped to the settings columns, and still **not** `global_sessions_invalidated_at`,
 because the boot-everyone route updates that column on the same row; unscoped, that update fired
 the trigger and demanded attribution it has no reason to set. The `WHEN`

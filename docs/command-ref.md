@@ -106,6 +106,52 @@ prints the old code, rebuild before testing anything. That turns a would-be
 false result ("my change didn't work") into a clear one ("the image is
 stale") in two commands.
 
+## Jurisdiction trial (item 190)
+
+Address Search shows the jurisdiction above the weather reports; admins record each check against the printed book
+(decision log 2026-11-13). Run on `hail-dev` only.
+
+**Reload the city boundaries** (DOLA republishes nightly; reload before a trial starts and whenever an annexation is
+suspected). The fetch runs on the host (stdlib only; the loader image has no Python), the load in `loader`:
+
+    python3 scripts/fetch_municipal.py                    # writes data/raw/dola/municipal_boundaries_<today>.geojson and .layer.json
+    docker compose run --rm loader scripts/load_municipal.sh data/raw/dola/municipal_boundaries_<today>.geojson
+
+The load replaces the whole table in one transaction. Checks already recorded keep the answer they were made with.
+
+**Read the results.** Open psql (`docker compose exec postgis sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'`) and
+run:
+
+```sql
+-- Latest check per address: a later check of the same geocoded address replaces an earlier one.
+WITH latest AS (
+    SELECT DISTINCT ON (s.geocode_id) c.*
+        FROM jurisdiction_checks c
+        JOIN address_searches s ON s.search_id = c.search_id
+      ORDER BY s.geocode_id, c.checked_at DESC, c.check_id DESC
+)
+SELECT count(*)                                                          AS addresses,
+       count(*) FILTER (WHERE verdict = 'agrees')                        AS agrees,
+       count(*) FILTER (WHERE cause = 'book_outdated')                   AS book_outdated,
+       count(*) FILTER (WHERE cause IN ('geocoder', 'boundary'))         AS system_wrong,
+       count(*) FILTER (WHERE cause = 'unknown')                         AS unresolved,
+       count(*) FILTER (WHERE NOT near_boundary)                         AS not_flagged,
+       count(*) FILTER (WHERE NOT near_boundary
+                          AND cause IN ('geocoder', 'boundary'))         AS not_flagged_wrong,
+       count(*) FILTER (WHERE near_boundary)                             AS flagged,
+       count(*) FILTER (WHERE near_boundary
+                          AND cause IN ('geocoder', 'boundary'))         AS flagged_wrong,
+       count(*) FILTER (WHERE new_build)                                 AS new_builds,
+       count(*) FILTER (WHERE new_build
+                          AND cause IN ('geocoder', 'boundary'))         AS new_builds_wrong
+    FROM latest;
+```
+
+**The pass bar** (decision log 2026-11-13): at least 50 addresses, and `not_flagged_wrong` no more than 1 in 20 of
+`not_flagged`. Flagged checks are reported beside it, not in it: the system had already said to check the book.
+`book_outdated` counts as the system right. Resolve the `unresolved` ones (search again, check again) before reading
+the bar.
+
 ## Migrations
 
 `scripts/migrate.sh` applies the `sql/NNN_*.sql` files and records each in `schema_migrations` (`sql/062`, item 277),

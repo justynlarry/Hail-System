@@ -3171,6 +3171,11 @@ Search page, run on `hail-dev` against the developer's new RBI orders (about thr
 printed book), not a fixed set of 20 addresses (decision log 2026-11-13). No issuer or code columns. **When:** steps 2
 and 3, once the trial has at least 50 checks and is read against the pass bar in that entry.
 
+**Built on `hail-dev` 2026-11-13/14:** `sql/069` (`jurisdiction_checks`, the near-boundary setting),
+`hailsys/queries/jurisdiction.py`, the panel and check form on `/search` (`c644e7b`, `2ff82ce`, `c2a7477`;
+waived in by `eb58f46`).
+Not yet in a release. The trial starts after the DOLA reload (`docs/command-ref.md`, "Jurisdiction trial").
+
 ## 191. No count of Constant Contact calls per day; `max_emails` is a stand-in
 
 **Status:** resolved (residuals) 2026-10-13 (`e56b1be`). Residuals (see "Still open" below): the reset time of the daily limit (item 183), the real calls per email after the first real send, and the production box. Status reworded 2026-10-28 (sweep); it read "built 2026-10-13 …; the reset time of the daily limit is still unverified (item 183)"
