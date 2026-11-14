@@ -35,7 +35,7 @@ except ImportError as exc:
 
 # The tables these routes could write, counted before and after each test.
 WRITTEN = ("users", "api_pulls", "storm_listing_matches", "match_runs", "dnc_import_batches", "oauth_tokens",
-           "address_searches", "geocode_cache", "login_attempts")
+           "address_searches", "geocode_cache", "login_attempts", "jurisdiction_checks")
 
 ROLES = ("viewer", "sender", "admin")
 
@@ -73,6 +73,7 @@ ACTIONS = {
     "/admin/dnc/discard/no-such-token": ("admin",),
     "/cc/connect": ("admin",),
     "/cc/refresh": ("admin",),
+    "/search/check": ("admin",),
 }
 
 

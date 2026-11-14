@@ -37,6 +37,69 @@
 
 {% if outcome == 'matched' %}
     <h3>{{ match.matched_address }}</h3>
+
+    {% if jurisdiction %}
+    <div class="card jurisdiction">
+        <h3>Jurisdiction</h3>
+        {% if not jurisdiction.loaded %}
+        <p>City boundaries aren't loaded on this system, so no jurisdiction can be given.</p>
+        {% else %}
+        {% set line = jurisdiction.nearest_line %}
+        {% set county = jurisdiction.county %}
+        <p>
+            {% if jurisdiction.places %}
+            <strong>{{ jurisdiction.places | map(attribute='name') | join(' and ') }}</strong>{% if jurisdiction.places|length > 1 %} (the city boundaries overlap here){% endif %},
+            {% else %}
+            <strong>Unincorporated</strong>,
+            {% endif %}
+            {{ county.name ~ ' County' if county else 'no county found' }}
+        </p>
+        {% if jurisdiction.near_boundary %}
+        <p class="note warning">
+            Near a boundary{% if line and line.distance_m <= jurisdiction.near_boundary_m %}:
+            {{ '%.0f'|format(line.distance_m) }} m from the {{ line.name }}
+            {{ 'city' if line.kind == 'municipal' else 'county' }} line{% endif %}. Check the book.
+        </p>
+        {% elif line %}
+        <p class="note">
+            Nearest city or county line: {{ line.name }}
+            {{ 'city' if line.kind == 'municipal' else 'county' }} line,
+            {{ '%.0f'|format(line.distance_m) }} m away.
+        </p>
+        {% endif %}
+        <p class="note">
+            From the address's location and the city and county boundaries (city boundaries loaded
+            {{ boundaries_date }}). The location is accurate to about a block. The permit issuer and
+            building codes aren't shown: they haven't been checked yet.
+        </p>
+
+        {% if can_check %}
+        <form method="post" action="{{ url_for('search.record_check') }}" class="admin-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="search_id" value="{{ search_id }}">
+            <fieldset class="choices">
+                <legend>The jurisdiction book says</legend>
+                <label><input type="radio" name="verdict" value="agrees" required> The same</label>
+                <label><input type="radio" name="verdict" value="differs"> Something else</label>
+            </fieldset>
+            <label for="book_answer">What the book says <small>(needed when it differs)</small></label>
+            <input type="text" id="book_answer" name="book_answer" maxlength="200">
+            <label for="cause">Why they differ</label>
+            <select id="cause" name="cause">
+                <option value="">(the book says the same)</option>
+                {% for value, label in check_causes.items() %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <label><input type="checkbox" name="new_build" value="1"> New build</label>
+            <label for="note">Note</label>
+            <textarea id="note" name="note" maxlength="1000" rows="2"></textarea>
+            <button type="submit">Record check</button>
+        </form>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
     <p>
         {% if reports %}
         <strong>{{ reports|length }}</strong> {% if selected_type %}{{ selected_type }} {% endif %}report{{ '' if reports|length == 1 else 's' }}
@@ -110,7 +173,7 @@
 
 {% elif not raw %}
     <p>
-        Enter a street address to see hail and wind reports near it. This is
+        Enter a street address to see its jurisdiction and the hail and wind reports near it. This is
         for answering questions about a specific property; it doesn't touch
         listings or outreach.
     </p>

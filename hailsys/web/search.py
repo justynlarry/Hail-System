@@ -9,12 +9,13 @@ import logging
 
 from datetime import datetime, timedelta
 
-from flask import Blueprint, g, render_template, request
+import psycopg
+from flask import Blueprint, flash, g, redirect, render_template, request, url_for
 
 from hailsys import geocode
 from hailsys.db import get_connection
-from hailsys.queries import storms
-from hailsys.web.auth import login_required
+from hailsys.queries import jurisdiction, storms
+from hailsys.web.auth import login_required, role_required
 from hailsys.tuning import (
     DISPLAY_TZ, METRES_PER_MILE, denver_day_bounds, miles_to_metres,
 )
@@ -28,6 +29,14 @@ search_bp = Blueprint("search", __name__, url_prefix="/search")
 # views._window_from_args doesn't apply.  A year back is the default
 # because that is the span a homeowner or agent asks about.
 DEFAULT_SEARCH_DAYS = 365
+
+# What the check form offers.  The keys are jurisdiction_checks.cause's CHECK values (sql/069).
+CHECK_CAUSES = {
+    "geocoder": "The address landed in the wrong place",
+    "boundary": "The boundary data is wrong",
+    "book_outdated": "The book is out of date (an annexation, a new build)",
+    "unknown": "Not known yet",
+}
 
 
 def _parse_day(raw):
@@ -119,6 +128,7 @@ INSERT INTO address_searches
          reports_found, range_start, range_end, searched_by)
 VALUES (%(raw)s, %(address_key)s, %(geocode_id)s, %(outcome)s,
         %(reports_found)s, %(range_start)s, %(range_end)s, %(searched_by)s)
+RETURNING search_id
 """
 
 
@@ -151,6 +161,7 @@ def search():
     geocode_id = None
     address_key = None
     error_message = None
+    jur = None
 
     with get_connection() as conn, conn.cursor() as cur:
         cur.execute(_CACHE_LOOKUP_SQL, {"raw": raw})
@@ -195,7 +206,8 @@ def search():
                         inserted = cur.fetchone()
                     geocode_id = inserted["geocode_id"]
         if match is not None:
-            radius_miles = fetch_settings(conn)["match_radius_miles"]
+            settings = fetch_settings(conn)
+            radius_miles = settings["match_radius_miles"]
 
             cur.execute(_REPORTS_SQL, {
                 "lat": match["latitude"],
@@ -207,6 +219,9 @@ def search():
                 "window_end": window_end,
             })
             reports = cur.fetchall()
+            # The same point the reports were found around:  one geocode answers both.
+            jur = jurisdiction.lookup(conn, match["latitude"], match["longitude"],
+                                      settings["jurisdiction_near_boundary_m"])
             outcome = "matched"
         else:
             radius_miles = None
@@ -221,6 +236,7 @@ def search():
             "range_end": end_day,
             "searched_by": g.user["emp_id"],
         })
+        search_id = cur.fetchone()["search_id"]
 
     return render_template(
         "search.html",
@@ -234,4 +250,121 @@ def search():
         types=types,
         selected_type=report_text,
         error_message=error_message,
+        jurisdiction=jur,
+        boundaries_date=(jur["boundaries_loaded_at"].astimezone(DISPLAY_TZ).date().isoformat()
+                         if jur and jur["loaded"] else None),
+        search_id=search_id,
+        can_check=g.user["role"] == "admin",
+        check_causes=CHECK_CAUSES,
     )
+
+
+_CHECK_SEARCH_SQL = """
+SELECT s.search_id, s.query_raw, c.latitude, c.longitude
+    FROM address_searches s
+    JOIN geocode_cache c ON c.geocode_id = s.geocode_id
+  WHERE s.search_id = %(search_id)s
+    AND s.outcome = 'matched'
+"""
+
+_CHECK_INSERT_SQL = """
+INSERT INTO jurisdiction_checks
+        (search_id, place_count, place_fips, place_name, county_fips, county_name,
+         nearest_line_kind, nearest_line_name, nearest_line_m,
+         near_boundary, near_boundary_m, boundaries_loaded_at,
+         verdict, book_answer, cause, new_build, note, checked_by)
+VALUES (%(search_id)s, %(place_count)s, %(place_fips)s, %(place_name)s,
+        %(county_fips)s, %(county_name)s,
+        %(line_kind)s, %(line_name)s, %(line_m)s,
+        %(near)s, %(near_m)s, %(loaded_at)s,
+        %(verdict)s, %(book_answer)s, %(cause)s, %(new_build)s, %(note)s, %(checked_by)s)
+"""
+
+
+@search_bp.route("/check", methods=["POST"])
+@role_required("admin")
+def record_check():
+    """Record the jurisdiction book's answer against the system's, for one search (item 190).
+
+    The system's side is looked up again here, from the search's own geocoded point, and never
+    taken from the form:  the form carries only the search and the book's side.  Afterwards it is
+    back to an empty search form, ready for the next address.
+    """
+    try:
+        search_id = int(request.form.get("search_id") or "")
+    except ValueError:
+        flash("That check had no search to go with it.  Nothing was recorded.")
+        return redirect(url_for("search.search"))
+
+    verdict = request.form.get("verdict")
+    book_answer = (request.form.get("book_answer") or "").strip() or None
+    cause = request.form.get("cause") or None
+    note = (request.form.get("note") or "").strip() or None
+    new_build = request.form.get("new_build") == "1"
+
+    with get_connection() as conn, conn.cursor() as cur:
+        cur.execute(_CHECK_SEARCH_SQL, {"search_id": search_id})
+        found = cur.fetchone()
+        if found is None:
+            flash("That search has no location to check.  Nothing was recorded.")
+            return redirect(url_for("search.search"))
+
+        # Searching again makes a new search, which can be checked:  the way back when the
+        # form was not filled in.
+        again = url_for("search.search", address=found["query_raw"])
+        if verdict == "agrees":
+            cause = None        # the drop-down may still show a reason; agreeing has none
+        elif verdict == "differs":
+            if cause not in CHECK_CAUSES or book_answer is None:
+                flash("When the book differs, say what it says and pick a reason.  "
+                      "Nothing was recorded.")
+                return redirect(again)
+        else:
+            flash("Pick whether the book says the same.  Nothing was recorded.")
+            return redirect(again)
+
+        near_m = fetch_settings(conn)["jurisdiction_near_boundary_m"]
+        answer = jurisdiction.lookup(conn, found["latitude"], found["longitude"], near_m)
+        if not answer["loaded"]:
+            flash("City boundaries aren't loaded, so there is nothing to check.  "
+                  "Nothing was recorded.")
+            return redirect(url_for("search.search"))
+
+        first = answer["places"][0] if answer["places"] else None
+        county = answer["county"]
+        line = answer["nearest_line"]
+        try:
+            cur.execute(_CHECK_INSERT_SQL, {
+                "search_id": search_id,
+                "place_count": len(answer["places"]),
+                "place_fips": first["place_fips"] if first else None,
+                "place_name": first["name"] if first else None,
+                "county_fips": county["county_fips"] if county else None,
+                "county_name": county["name"] if county else None,
+                "line_kind": line["kind"] if line else None,
+                "line_name": line["name"] if line else None,
+                "line_m": line["distance_m"] if line else None,
+                "near": answer["near_boundary"],
+                "near_m": near_m,
+                "loaded_at": answer["boundaries_loaded_at"],
+                "verdict": verdict,
+                "book_answer": book_answer,
+                "cause": cause,
+                "new_build": new_build,
+                "note": note,
+                "checked_by": g.user["emp_id"],
+            })
+        except psycopg.errors.UniqueViolation:
+            conn.rollback()
+            flash("That search was already checked.  Search the address again to check it again.")
+            return redirect(url_for("search.search"))
+        except psycopg.errors.CheckViolation:
+            conn.rollback()
+            flash("The book's answer can be up to 200 characters, and the note up to 1,000.  "
+                  "Nothing was recorded.")
+            return redirect(again)
+        conn.commit()
+
+    said = "the same" if verdict == "agrees" else f"something else ({CHECK_CAUSES[cause].lower()})"
+    flash(f"Check recorded for {found['query_raw']}: the book says {said}.")
+    return redirect(url_for("search.search"))
