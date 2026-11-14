@@ -8191,3 +8191,12 @@ reported separately. The result decides whether steps 2 and 3 are worth building
 costs no extra work per order and turns item 190's untested risk (new builds, block-level geocodes) into counts. Customer
 addresses typed into `/search` are already logged in `address_searches`; the check log adds the book's answer beside
 them, on `hail-dev` only.
+
+**Addendum 2026-11-14 (developer): how the trial is read.** (1) **The latest check per address counts.**
+`jurisdiction_checks` is append-only with one check per search, so a check recorded as `unknown` cannot be corrected in
+place: the address is searched again and checked again, and the summary counts only the latest check per geocoded
+address. (2) **The pass bar is read on unflagged checks.** "Reported separately" means the 1-in-20 bar is measured on
+the checks the system did not flag as near a boundary; flagged checks are reported beside it, since the system had
+already said to check the book. The summary query and the bar are in `docs/command-ref.md`, "Jurisdiction trial".
+DOLA was reloaded on `hail-dev` the same day (274 municipalities, 65 invalid as received and repaired, the same count
+as 2026-09-23; publish of 2026-11-13), so the trial starts on those boundaries.
