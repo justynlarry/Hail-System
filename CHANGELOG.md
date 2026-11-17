@@ -7,6 +7,21 @@ setting, a migration), MAJOR for a milestone (`v1.0.0` is the pilot, Phase 6).  
 `docs/parking-lot.md` and `docs/decision-log.md`; this names the items.  The repository is public:  nothing here
 names a person, an address or a secret.
 
+## v0.11.0
+
+### Added
+- Address Search shows the jurisdiction for the address it found:  the city it falls in (or "Unincorporated"), the
+  county, the nearest city or county line, and a warning when it is close to one.  The near-boundary distance is a
+  setting on the admin page.  Admins can record the printed jurisdiction book's answer beside it, in an append-only
+  log (`sql/069`).  The trial runs on `hail-dev` only:  production has no city boundaries, so it shows "City
+  boundaries aren't loaded" and offers no check (item 190, step 1).
+- Address Search has a map beside the results, laid out like Territory:  the house, the match radius, the reports
+  coloured by hail size, the city and county lines near it, and the radar and hail-likelihood layers for a day picked
+  from the days that touched it.  Read only (item 313).
+
+### Fixed
+- The admin Settings tab's box headings sit inside their boxes instead of on the top edge (item 312).
+
 ## v0.10.0
 
 ### Changed
