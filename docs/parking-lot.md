@@ -8610,3 +8610,62 @@ inside its box. CSS only; it touches the five Settings boxes and nothing else, s
 Checked by the developer on the page, 2026-11-13.
 
 **Related:** items 190, 201, 294.
+
+## 313. A map on Address Search
+
+**Status:** built on `hail-dev` 2026-11-17 and checked by the developer on the page the same day (the commit that files item 314); not yet released (waived in, decision log 2026-11-17)
+
+Address Search (`/search`, `hailsys/web/search.py`, `search.html`) shows the jurisdiction panel and the reports table,
+but no map, so placing the house against a city line or a storm footprint means switching to Territory and finding it
+by eye.
+
+**Plan:** `hailsys/queries/address_map.py` (the boundaries near the point; the radar and likelihood days that touch the
+circle, with what is at the point); the reports query returns lat/lon; `search.html` in the `.split` layout with
+`_search_map.html`; `static/search_map.js` (the house, the radius circle, the reports by hail size, the city and county
+lines, and the radar and likelihood layers for the picked day from the existing URLs); hail-size and boundary styles in
+`style.css`; the likelihood and radar legends shared with Territory as `_radar_legends.html`; `tests/test_search_map.py`.
+Checked so far: the days query takes 0.23 s for a year at one point; the clipped boundaries are 438 KB raw and 57 KB
+simplified to 0.00002 degrees.
+
+**When:** now.
+
+**Related:** items 190, 201, 216; decision log 2026-09-16 (no tile layer), 2026-11-13 (item 190 step 1).
+
+**Built 2026-11-17:** `hailsys/queries/address_map.py` (the hail-size bands, the
+lines near the point, the radar and likelihood days touching the circle with the layer and level at the point, the
+picker's default day); `search.py` passes the map data, and its reports query returns lat/lon; `search.html` in the
+`.split` layout with `_search_map.html`; `static/search_map.js`; `style.css` (hail-size colours, the lines, the house,
+the circle); the two legends moved to `_radar_legends.html`, which Territory includes with `legend_circles` so its
+circles sentence stays.  The two isolation guards were widened by one file each: `test_cocorahs_isolation.py`'s
+`ALLOWED` names `_radar_legends.html` in place of `_map_panel.html`, and `test_radar_map_web.py`'s query-module
+exemptions include `address_map.py`.
+**Tests:** `tests/test_search_map.py`, 14 tests (bands, default day, days query, clipped lines, the page, no zones, no
+match, the address cannot close the data's script element).  With the search, jurisdiction, radar map, likelihood map
+and isolation modules, 90 OK; the full `test` service 2,868 tests, 390 skipped, OK on two runs.  The first full run had
+one failure that was not captured and did not recur (item 314).  `search_map.js` passed `node --check` in
+`node:22-alpine`.  On `hail-dev`'s data, a Douglas County address rendered in 0.35 s, 84 KB, with 58 reports in three
+bands, 8 lines and the day picker; the radar URL for one day returned 27 KB.  `CHANGELOG.md` gets its line when the
+next release section is written (`docs/deploy.md` §12).
+**Found on the page 2026-11-17 (developer):** the house marker sat off its point on load and moved on every pan and
+zoom.  `style.css` rotated the marker element with `rotate: 45deg`, but Leaflet positions a marker with
+`transform: translate3d()` on that same element, and the browser applies `rotate` after `transform`, so the position
+offset was turned 45 degrees too.  Fixed the same day:  `search_map.js` gives the `divIcon` an inner `<span>`, and
+`.search-house span` carries the rotation and the colours, so Leaflet's element only positions.  Not caught by the
+tests, which do not run the browser.
+
+## 314. One full-suite failure that did not recur
+
+**Status:** open (found 2026-11-17, during item 313)
+
+The first full run of the `test` service on 2026-11-17, with item 313's changes in the working tree, ended
+`Ran 2868 tests ... FAILED (failures=1, skipped=390)`.  The output was piped through `tail`, so the failing test's name
+was not kept.  The next two full runs, on the same tree, were `OK (skipped=390)`, and the modules item 313 touched
+(`test_search_map`, `test_search_jurisdiction`, `test_radar_map_web`, `test_likelihood_map`, `test_cocorahs_isolation`)
+passed on every run.  So some test fails intermittently, and whether item 313 has anything to do with it is not known.
+Nothing in this file or the decision log named a flaky test before.
+
+**When:** the next time a full run fails.  Keep the whole output
+(`docker compose run --rm test > out.txt 2>&1`), record the test's name and its traceback here, and look for a time,
+order or shared-row dependence.
+
+**Related:** item 313.

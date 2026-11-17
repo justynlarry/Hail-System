@@ -1,0 +1,53 @@
+{# The Address Search map (item 313).  Read only and informational:  nothing here reaches a pull, a match, an email or
+   an export.  From search.py:  map_data (the point, the radius in metres, the reports with their hail-size band, and
+   the city and county lines near the point), radar_days (the days whose radar or likelihood zones touch the circle,
+   with what is at the address), radar_default, radar_set, likelihood_set and hail_bands.  The radar and likelihood
+   layers for the picked day come from the Territory map's own URLs. #}
+{% set RADAR_AT = {'core': 'Core', 'margin': 'Margin', 'radar_indicated': 'Radar-indicated', 'outer': 'NWS warning'} %}
+{% set LEVEL_AT = {'agree': 'Agree', 'one_source': 'One source', 'context': 'Context'} %}
+<script src="{{ url_for('static', filename='search_map.js') }}" defer></script>
+
+{% if radar_days %}
+<div class="radar-controls">
+    <label for="radar-day">Radar day</label>
+    <select id="radar-day">
+        <option value="">None</option>
+        {% for r in radar_days %}
+        {% set here = [RADAR_AT.get(r.radar), LEVEL_AT.get(r.level)] | select | list %}
+        <option value="{{ r.day.isoformat() }}" {% if r.day == radar_default %}selected{% endif %}>{{ r.day.isoformat() }} — {% if here %}{{ here | join(', ') }} at the address{% else %}within {{ radius_miles }} mi, not at the address{% endif %}</option>
+        {% endfor %}
+    </select>
+</div>
+<p id="radar-status" class="note"></p>
+{% else %}
+<p class="note">No radar or hail-likelihood zones within {{ radius_miles }} miles between {{ start_day.isoformat() }} and
+   {{ end_day.isoformat() }}.</p>
+{% endif %}
+
+{# tojson escapes <, > and &, so the address and remarks cannot close this script element. #}
+<script type="application/json" id="search-map-data">{{ map_data | tojson }}</script>
+<div id="map" data-radar-url="{{ url_for('main.map_radar') }}"
+     data-likelihood-url="{{ url_for('main.map_likelihood') }}"></div>
+
+<details class="radar-legend-box search-legend-box" open>
+    <summary>On the map</summary>
+    <ul class="radar-legend">
+        <li><span class="swatch swatch-house"></span>
+            <span><strong>The address</strong>, where the geocoder placed it (about a block)</span></li>
+        <li><span class="swatch swatch-radius"></span>
+            <span><strong>The match radius</strong>, {{ radius_miles }} miles: the reports in the table are inside it</span></li>
+        <li><span class="swatch swatch-city-line"></span>
+            <span><strong>City line</strong> — municipal boundaries; hover a line for its name</span></li>
+        <li><span class="swatch swatch-county-line"></span>
+            <span><strong>County line</strong></span></li>
+        {% for b in hail_bands %}
+        <li><span class="swatch swatch-dot hail-{{ b.key }}"></span>
+            <span><strong>Hail {{ b.label }}</strong></span></li>
+        {% endfor %}
+        <li><span class="swatch swatch-dot hail-other"></span>
+            <span><strong>Other reports</strong> — wind, tornado and the rest, and hail with no size; the size is in the tooltip</span></li>
+    </ul>
+    <p class="note">Bigger hail is a bigger, darker dot. Hover a dot for its date, type, size and source.</p>
+</details>
+
+{% include "_radar_legends.html" %}

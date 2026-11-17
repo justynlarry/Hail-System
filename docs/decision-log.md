@@ -8200,3 +8200,31 @@ the checks the system did not flag as near a boundary; flagged checks are report
 already said to check the book. The summary query and the bar are in `docs/command-ref.md`, "Jurisdiction trial".
 DOLA was reloaded on `hail-dev` the same day (274 municipalities, 65 invalid as received and repaired, the same count
 as 2026-09-23; publish of 2026-11-13), so the trial starts on those boundaries.
+
+---
+
+## 2026-11-17 — Item 313: a map on Address Search
+
+**Decision (developer):** waive "do not build ahead of the current phase" for **item 313 only**: a map on `/search`
+beside the jurisdiction panel and the reports, laid out like Territory (table on the left, map on the right). Read only
+and informational: nothing on it reaches a pull, a match, an email or an export.
+
+What it shows, for the point the search has already geocoded (no extra Census call):
+1. **The house, the match-radius circle, and the reports in the table**, as dots coloured by hail size: under 1 in,
+   1 to under 1.75, 1.75 to under 2.5, 2.5 and up. Other report types are a neutral grey. The bands are display only and
+   stay in code, like the likelihood colours; they are not a tuning value.
+2. **The city and county lines near the address**, from `municipal_boundaries` and `county_boundaries`, clipped to a box
+   twice the radius and simplified to about 2 m (about 57 KB for a Denver-metro point), sent in the page.
+3. **The radar and hail-likelihood layers for one day**, from the existing `/map/radar.geojson` and
+   `/map/likelihood.geojson` (signed-in users, as on Territory). The day picker lists the days in the search's dates
+   where a zone of the set in use touches the circle, with the layer and level at the address; it opens on the newest
+   day with Core or Agree at the address, else the newest day listed. No "all days" choice.
+
+Like Territory, no tile basemap (decision log 2026-09-16). The likelihood and radar legends move from `_map_panel.html`
+into a shared `_radar_legends.html`, so the two pages say the same thing.
+
+**Who keys it (developer, 2026-11-17):** for this item only, Claude keys all of it, the Python (queries, route, tests)
+as well as the `.html`, `.js` and `.css`, an exception to CLAUDE.md's "code is keyed in by the user".
+
+**Why:** an address question is answered on one page, with where the house sits against the city line and the storm
+footprints, instead of switching to Territory and finding the spot by eye.

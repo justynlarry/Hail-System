@@ -38,6 +38,8 @@
 {% if outcome == 'matched' %}
     <h3>{{ match.matched_address }}</h3>
 
+    <div class="split">
+    <div class="split-table">
     {% if jurisdiction %}
     <div class="card jurisdiction">
         <h3>Jurisdiction</h3>
@@ -146,6 +148,9 @@
         about a block, which is well inside the {{ radius_miles }}-mile radius
         but is not the exact position of the house.
     </p>
+    </div>
+    <div class="split-map">{% include "_search_map.html" %}</div>
+    </div>
 
 {% elif outcome == 'no_match' %}
     <h3>Address not found</h3>

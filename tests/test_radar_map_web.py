@@ -310,8 +310,10 @@ class IsolationTest(unittest.TestCase):
                     self.assertEqual(found, {"zone_set_id"} if rel == "hailsys/email/send.py" else set())
 
     def test_the_other_query_modules_never_mention_the_radar(self):
-        # findings.py is the slice 6 panel, staff only;  likelihoodadmin.py edits the parameter sets (slice 7, admin only)
-        radar = {"radar.py", "radar_map.py", "findings.py", "likelihood_map.py", "likelihoodadmin.py", "zonepull.py", "zonesend.py"}
+        # findings.py is the slice 6 panel, staff only;  likelihoodadmin.py edits the parameter sets (slice 7, admin only);
+        # address_map.py lists the radar and likelihood days for the Address Search map, read only (item 313)
+        radar = {"radar.py", "radar_map.py", "findings.py", "likelihood_map.py", "likelihoodadmin.py", "zonepull.py", "zonesend.py",
+                 "address_map.py"}
         for path in self.files("hailsys/queries/*.py"):
             if path.name not in radar:
                 with self.subTest(path=path.name):

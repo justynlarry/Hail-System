@@ -1,0 +1,43 @@
+{# The hail-likelihood and radar legends, shared by the Territory map (_map_panel.html) and the Address Search map
+   (_search_map.html), so the two pages describe the layers in the same words (item 313).  Needs radar_days,
+   radar_set and likelihood_set.  legend_circles is set by Territory only:  its map draws a match-radius circle
+   around each report, and the Address Search map draws one around the house instead. #}
+{% if radar_days and likelihood_set %}
+<details class="radar-legend-box likelihood-legend-box" open>
+    <summary>Hail likelihood</summary>
+    <ul class="radar-legend">
+        <li><span class="swatch swatch-lk-agree"></span>
+            <span><strong>Agree</strong> — radar and ground reports point to hail here</span></li>
+        <li><span class="swatch swatch-lk-one"></span>
+            <span><strong>One source</strong> — radar hail with no report near it, or a ground report with no radar behind it</span></li>
+        <li><span class="swatch swatch-lk-context"></span>
+            <span><strong>Context</strong> — inside an NWS warning area and nothing else points to hail (off until ticked)</span></li>
+    </ul>
+    <p class="note">The levels rank where to look first; they are not probabilities. Radar means hail of
+       {{ '{:g}'.format(radar_set.hail_threshold_in) }} in or more within about {{ '{:g}'.format(radar_set.report_radius_km) }} km of a report.
+       Ground reports are NWS storm reports (via IEM) and hail reports of {{ '{:g}'.format(likelihood_set.cocorahs_min_in) }} in or more
+       from CoCoRaHS volunteer observers (<a href="https://www.cocorahs.org" rel="noopener">CoCoRaHS</a>, CC BY 4.0).
+       Distances are measured to the nearest such report: {{ '{:g}'.format(likelihood_set.band_1_mi) }},
+       {{ '{:g}'.format(likelihood_set.band_2_mi) }} and {{ '{:g}'.format(likelihood_set.band_3_mi) }} miles.
+       Likelihood set {{ likelihood_set.set_id }} ({{ likelihood_set.name }}). Exports never use these levels.
+       A pull, a match or an email from them each needs a person's click.</p>
+</details>
+{% endif %}
+
+{% if radar_days %}
+<details class="radar-legend-box" open>
+    <summary>Radar layers</summary>
+    <ul class="radar-legend">
+        <li><span class="swatch swatch-core"></span>
+            <span><strong>Core</strong> — radar hail of {{ '{:.2f}'.format(radar_set.hail_threshold_in) }} in or more with a report within {{ '{:g}'.format(radar_set.report_radius_km) }} km</span></li>
+        <li><span class="swatch swatch-margin"></span>
+            <span><strong>Margin</strong> — {{ '{:g}'.format(radar_set.margin_km) }} km around the core</span></li>
+        <li><span class="swatch swatch-indicated"></span>
+            <span><strong>Radar-indicated</strong> — radar hail with no report near it</span></li>
+        <li><span class="swatch swatch-warnings"></span>
+            <span><strong>NWS warnings</strong> — severe thunderstorm and tornado warning polygons for the day, outside the layers above (off until ticked)</span></li>
+    </ul>
+    <p class="note">{% if legend_circles is defined and legend_circles %}Circles show the match radius around each report. {% endif %}Zones use parameter set {{ radar_set.set_id }}
+       ({{ radar_set.name }}). Staff only: not used for emails, exports, pulls or matching.</p>
+</details>
+{% endif %}

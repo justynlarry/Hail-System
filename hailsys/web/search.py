@@ -14,7 +14,7 @@ from flask import Blueprint, flash, g, redirect, render_template, request, url_f
 
 from hailsys import geocode
 from hailsys.db import get_connection
-from hailsys.queries import jurisdiction, storms
+from hailsys.queries import address_map, jurisdiction, likelihood_map, radar_map, storms
 from hailsys.web.auth import login_required, role_required
 from hailsys.tuning import (
     DISPLAY_TZ, METRES_PER_MILE, denver_day_bounds, miles_to_metres,
@@ -105,6 +105,8 @@ SELECT  i.iem_id,
         t.mag_unit,
         i.report_source,
         i.remark,
+        ST_Y(i.geom) AS latitude,
+        ST_X(i.geom) AS longitude,
         ST_Distance(i.geom::geography,
                     ST_SetSRID(ST_MakePoint(%(lon)s, %(lat)s), 4326)::geography)
                 / %(metres_per_mile)s AS distance_miles
@@ -162,6 +164,11 @@ def search():
     address_key = None
     error_message = None
     jur = None
+    map_data = None
+    radar_days = []
+    radar_default = None
+    radar_set = None
+    likelihood_set = None
 
     with get_connection() as conn, conn.cursor() as cur:
         cur.execute(_CACHE_LOOKUP_SQL, {"raw": raw})
@@ -222,6 +229,23 @@ def search():
             # The same point the reports were found around:  one geocode answers both.
             jur = jurisdiction.lookup(conn, match["latitude"], match["longitude"],
                                       settings["jurisdiction_near_boundary_m"])
+            # The map (item 313):  the same point and radius the reports were found with.
+            radius_m = miles_to_metres(radius_miles)
+            radar_set = radar_map.in_use_set(conn)
+            likelihood_set = likelihood_map.in_use_set(conn)
+            radar_days = address_map.radar_days(
+                conn, match["latitude"], match["longitude"], radius_m, start_day, end_day,
+                radar_set["set_id"], likelihood_set["set_id"] if likelihood_set else None)
+            radar_default = address_map.default_day(radar_days)
+            map_data = {
+                "lat": float(match["latitude"]),
+                "lon": float(match["longitude"]),
+                "address": match["matched_address"],
+                "radius_m": round(float(radius_m), 1),
+                "reports": [address_map.report_point(r) for r in reports],
+                "boundaries": address_map.boundaries_geojson(
+                    conn, match["latitude"], match["longitude"], radius_m),
+            }
             outcome = "matched"
         else:
             radius_miles = None
@@ -256,6 +280,12 @@ def search():
         search_id=search_id,
         can_check=g.user["role"] == "admin",
         check_causes=CHECK_CAUSES,
+        map_data=map_data,
+        radar_days=radar_days,
+        radar_default=radar_default,
+        radar_set=radar_set,
+        likelihood_set=likelihood_set,
+        hail_bands=address_map.HAIL_BANDS,
     )
 
 

@@ -1508,3 +1508,39 @@ path.storm-dot  { stroke: var(--text); fill: var(--storm); }
 .send-summary { max-width: 48rem; margin-bottom: 1rem; }
 .send-summary p { margin: 0.25rem 0; }
 .send-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 1rem; }
+
+/* Address Search map (item 313, search_map.js).  .page already gives the side margin, so the split adds none. */
+.page .split { padding: 0; }
+.split-table > .card { margin-bottom: 1rem; }
+/* Hail size, smallest to largest:  a viridis-like ramp (yellow to navy), the same in both themes, away from the radar
+   reds and the likelihood purples.  Each dot has a ring in the text colour and grows with the band, so the size is
+   never colour alone.  Other report types are the grey older storms use on Territory. */
+:root {
+  --hail-1: #fde725;  --hail-2: #5ec962;  --hail-3: #21918c;  --hail-4: #3b528b;
+  --hail-other: #8a8f96;
+  --map-line-city: #111;  --map-line-county: #555;  --search-house: #d7191c;
+}
+:root[data-theme="dark"] {
+  --map-line-city: #f2f2f2;  --map-line-county: #b0b8c0;  --search-house: #ff6b6b;
+}
+.hail-h1 { --hail: var(--hail-1); }   .hail-h2 { --hail: var(--hail-2); }
+.hail-h3 { --hail: var(--hail-3); }   .hail-h4 { --hail: var(--hail-4); }
+.hail-other { --hail: var(--hail-other); }
+path.hail-dot { stroke: var(--text); fill: var(--hail); }
+path.map-line-city   { stroke: var(--map-line-city); }
+path.map-line-county { stroke: var(--map-line-county); stroke-dasharray: 8 4; }
+path.search-radius   { stroke: var(--accent); fill: var(--accent); }
+/* The house is a diamond, the one shape on the map that is not a dot or an area.  The inner span is rotated, not
+   the marker:  Leaflet positions the marker with transform: translate3d(), and a rotate on the same element turns
+   that offset too, so the diamond drifted off the house and moved on every pan and zoom. */
+.search-house span {
+  display: block; width: 100%; height: 100%; transform: rotate(45deg);
+  background: var(--search-house); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--text);
+}
+.radar-legend .swatch-dot   { width: .8rem; height: .8rem; border-radius: 50%; border: 1px solid var(--text);
+                              background: var(--hail); opacity: 1; }
+.radar-legend .swatch-house { width: .7rem; height: .7rem; rotate: 45deg; background: var(--search-house);
+                              border: 1px solid var(--text); opacity: 1; }
+.radar-legend .swatch-radius { border-color: var(--accent); border-radius: 50%; background: transparent; }
+.radar-legend .swatch-city-line   { height: 0; border: 0; border-top: 2px solid var(--map-line-city); }
+.radar-legend .swatch-county-line { height: 0; border: 0; border-top: 3px dashed var(--map-line-county); }
