@@ -8656,6 +8656,8 @@ tests, which do not run the browser.
 `status.sh images` all OK with no rebuild, the footer `v0.11.0 · b29c656`.  The map's queries, run read only on a
 cached point there:  12 radar days, opening on 2026-08-13; 5 county lines and no city lines, since production has no
 city boundaries (decision log 2026-11-13, addendum 2026-11-17); the jurisdiction panel "not loaded".
+**Checked by the developer on production's Address Search, 2026-11-17:** the "City boundaries aren't loaded" panel,
+no check form, and the map with county lines and the radar day picker, as decided.
 
 ## 314. One full-suite failure that did not recur
 
