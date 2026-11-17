@@ -133,7 +133,7 @@ setting it correctly.
 ---
 # Tables
 
-Fifty-nine tables (`sql/` has 59 `CREATE TABLE`s, counted 2026-10-29, `sql/062` included). The live database also holds `us_gaz`,
+Sixty-five tables (`sql/` has 65 `CREATE TABLE`s, counted 2026-11-17, `sql/069` included). The live database also holds `us_gaz`,
 `us_lex` and `us_rules`, which the `address_standardizer_data_us` extension creates (`sql/024`); they are not ours.
 Grouped by which half of the system they belong to.
 

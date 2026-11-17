@@ -452,3 +452,23 @@
      address, no FK.
    Drip_Recipients.STOP_REASON gains no_permission (066).
    Settings.SESSION_MAX_HOURS (067), also on Settings_History.
+
+
+
+ ADDED SINCE  (sql/069, drawn 2026-11-17)
+ ═══════════════════════════════════════════════════════════════════════════
+
+  Jurisdiction_Checks (069)   the item 190 trial's log: PK CHECK_ID,
+                              FK SEARCH_ID ► Address_Searches (UNIQUE: one
+                              check per search), FK CHECKED_BY ► Users. The
+                              system's answer copied in when recorded (place,
+                              county, nearest line and its distance, the
+                              near-boundary flag and setting, the boundaries'
+                              load time), then the book's side: VERDICT
+                              (agrees|differs), BOOK_ANSWER, CAUSE, NEW_BUILD,
+                              NOTE. Append-only (trigger
+                              trg_jurisdiction_checks_guard).
+
+ Columns on tables drawn above, not drawn as boxes:
+   Settings.JURISDICTION_NEAR_BOUNDARY_M (069, 10 to 1000 m, default 150),
+     also on Settings_History.

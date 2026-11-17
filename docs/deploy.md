@@ -31,7 +31,7 @@ Update this table as the build moves. Item numbers are in `docs/parking-lot.md`.
 | 4. Secrets | `.env` filled in, except the Constant Contact values (placeholders until item 183) and the domain (96) |
 | 5. Build and start | Built and started 2026-11-05; `status.sh images` all OK |
 | 6. The database | `migrate.sh --apply` from empty, 2026-11-05: `recorded 67, pending 0` (item 305) |
-| 7. Data | First admin, reference and coverage loaded; suppressions copied 2026-11-05, 768 active and 1 removed, the same as `hail-dev` (item 285); backfills done 2026-11-06, every count the same as `hail-dev` (IEM, radar, radar zones, warnings, CoCoRaHS, likelihood); the eight timers enabled, the four nightly ones ran 2026-11-06. settings checked 2026-11-06, all as wanted (item 308). **Open:** the other users, the permission list (item 189), the city boundaries (item 190) |
+| 7. Data | First admin, reference and coverage loaded; suppressions copied 2026-11-05, 768 active and 1 removed, the same as `hail-dev` (item 285); backfills done 2026-11-06, every count the same as `hail-dev` (IEM, radar, radar zones, warnings, CoCoRaHS, likelihood); the eight timers enabled, the four nightly ones ran 2026-11-06. settings checked 2026-11-06, all as wanted (item 308). **Open:** the other users, the permission list (item 189). The city boundaries are not loaded, by decision (item 190; decision log 2026-11-13, addendum 2026-11-17) |
 | 8. Access | `tailscale serve` for the developer, signed in 2026-11-05. The staff Cloudflare tunnel not set up (waits on the domain, 96) |
 | 9. Constant Contact | Not started (item 183) |
 | 10. Checks | `status.sh`: every nightly job OK 2026-11-06; `status.sh images` OK. Backup and restore test passed 2026-11-06, backups scheduled. Role sign-ins checked 2026-11-06 (item 309). **Done** |
@@ -61,7 +61,8 @@ Have these in hand, or know where they come from:
       its "Last synced" line. Ask Claude Code to "review all the .md files in docs".
       Done 2026-11-04 (before `v0.9.0`) and again 2026-11-06, after the first deploy: `CLAUDE.md`, `README.md` and every
       file in `docs/` except the dated analysis reports, checked against both machines; `hail-consolidated.md` re-synced
-      to 2026-11-06 (`18c563d`; item 310 came out of it). Repeat it before each release (§12).
+      to 2026-11-06 (`18c563d`; item 310 came out of it). Again 2026-11-17, before `v0.11.0`: the same files, checked
+      against both machines; `hail-consolidated.md` re-synced to 2026-11-17. Repeat it before each release (§12).
 
 ## 1. The hosts (when the server is a Proxmox VM)
 
@@ -170,10 +171,12 @@ Detail: `docs/server-setup.md`, "Data on a new server" (decided 2026-11-02). In 
 
 - [x] The first admin with `scripts/create_user.py`, as `hail_admin`. Every other user on the admin page.
 - [x] `scripts/load_reference.sh`, then `scripts/load_coverage.sh` (the loader service).
-- [ ] **City boundaries (item 190):** `python3 scripts/fetch_municipal.py` on the server, then
+- [ ] **City boundaries (item 190): not loaded on `rbi-hail01`, by decision** (decision log 2026-11-13, addendum
+      2026-11-17). The jurisdiction trial runs on `hail-dev` only, so production's Address Search says "City boundaries
+      aren't loaded", offers no check form, and its map (item 313) draws county lines but no city lines. If that
+      decision changes: `python3 scripts/fetch_municipal.py` on the server, then
       `docker compose run --rm loader scripts/load_municipal.sh data/raw/dola/municipal_boundaries_<today>.geojson`.
-      Fetched here, not copied: DOLA is public and keyless. Without it Address Search says "City boundaries aren't
-      loaded" and no check can be recorded. Needed once a release carrying item 190 (`sql/069`) is deployed.
+      Fetched here, not copied: DOLA is public and keyless.
 - [x] Settings on the admin page: check each against what this install should use, and change what differs (radii,
       billing day, quota, freshness, match age, email cap, sign out after (hours; item 299), the email images, sender
       and contact settings, `storm_states`). Only a change is logged to `settings_history`, and an unchanged hail-zone

@@ -384,7 +384,8 @@ at real volume, and the production sending domain's authentication (items 96, 18
 
 Researched 2026-09-23. **Parked until the system is running** (decision log,
 *Permits are parked; the claim rule; jurisdiction is a polygon, never a
-mailing city*). Only the municipal boundaries are loaded. No permit data has
+mailing city*). Only the municipal boundaries are loaded, on `hail-dev` (reloaded 2026-11-14, 274 municipalities, for
+the item 190 jurisdiction trial); not on `rbi-hail01`, by decision (decision log 2026-11-13, addendum 2026-11-17). No permit data has
 a schema or a loader. The permit snapshots in `data/raw/permits/` are raw
 captures, taken because Aurora's history may roll off.
 

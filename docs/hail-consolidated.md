@@ -19,7 +19,15 @@ disagrees with the files it summarizes, the source files win:
 | Rules for AI assistants | `CLAUDE.md` |
 | Actual DDL | `sql/0*.sql` |
 
-Last synced against the repo: **2026-11-06**, after commit `4afa129` (the document review before the next release,
+Last synced against the repo: **2026-11-17**, after commit `f0b5174` (the document review before `v0.11.0`,
+`docs/deploy.md` §12). In the eleven days since the 2026-11-06 sync: host alerts and SSH hardening on the production hosts
+(items 236, 237), `v0.10.0` deployed (item 311), the jurisdiction trial on Address Search (item 190 step 1) and the
+Address Search map (item 313). What this sync adds: the header and §2's opening; §2 gains "Host hardening, the second
+release, the jurisdiction trial and the Address Search map, 2026-11-06 to 2026-11-17"; §5 counts 68 tables; §6 the
+decisions of 2026-11-06 to 2026-11-17, condensed; §7 three traps; §10 the files added. **§3, §4 and §11 to §13 were not
+re-checked.**
+
+Previous sync: **2026-11-06**, after commit `4afa129` (the document review before the next release,
 `docs/deploy.md` §0). In the two days since the 2026-11-04 sync: the eligibility gate (item 189), the production-readiness
 fixes (items 299 to 303), the first two releases (`v0.9.0`, `v0.9.1`), the first deploy to `rbi-hail01`, and the review of
 every other document. What this sync adds: the header and §2's opening; §2 gains "The eligibility gate, the readiness
@@ -140,7 +148,17 @@ across 15 zips, 11 of them in El Paso County.
 
 ## 2. Where the project actually stands
 
-**Where things stand, 2026-11-06 (this sync).** Phases 0 to 4 are closed; **Phase 5 (Email) is the current phase**, with
+**Where things stand, 2026-11-17 (this sync).** Phases 0 to 4 are closed; **Phase 5 (Email) is the current phase**, with
+5b (radar layers) and 5c (the hail-likelihood map, built through sends by level) built alongside it. Two things on
+Address Search were waived in outside the phases: the jurisdiction trial (item 190 step 1, run on `hail-dev` only, two
+checks recorded so far) and the Address Search map (item 313).
+
+`rbi-hail01` runs release `v0.10.0` (2026-11-09) with 68 migrations; `v0.11.0`, carrying `sql/069` and both Address
+Search changes, is being cut from this review. It still cannot send (items 183, 96 and 189 open), only the developer
+reaches it, and nothing has gone to a real recipient. It has no city boundaries, by decision, so the trial cannot run
+there (decision log 2026-11-13, addendum 2026-11-17).
+
+**Superseded 2026-11-17 (the 2026-11-06 state):** **Where things stand, 2026-11-06.** Phases 0 to 4 are closed; **Phase 5 (Email) is the current phase**, with
 5b (radar layers) and 5c (the hail-likelihood map, built through sends by level) built alongside it.
 
 **The production VM `rbi-hail01` is deployed** (2026-11-05/06). It runs release `v0.10.0` (2026-11-09), with all 68 migrations applied by
@@ -1023,11 +1041,36 @@ by radar) and 206 (a radar-shaped area); both wait for inspection data (items 20
   CoCoRaHS as sources; then this file. The host test run failed on a missing skip guard (item 310, fixed). The test
   service ran 2,812 tests, 390 skipped, OK.
 
+### Host hardening, the second release, the jurisdiction trial and the Address Search map — 2026-11-06 to 2026-11-17
+
+- **The production hosts (2026-11-09):** host alerts arrive by email from both Proxmox hosts (item 236); `sshd` takes keys
+  only on both hosts, Tailscale key expiry and Tailscale SSH are off on all three machines, and RBI was told about
+  Tailscale; internal DNS was accepted, not built, to revisit on an IP change (item 237).
+- **`v0.10.0` (2026-11-09):** one active suppression per address, so a removed address can be suppressed again
+  (`sql/068`, item 311), deployed to `rbi-hail01` the same day. Removing a suppression stays a by-hand database step for
+  the pilot (item 134, accepted).
+- **RentCast billing (item 87, accepted 2026-11-09):** the last billing period matches our logs, and a 404 lookup is
+  billed; the reset's timezone is left unknown.
+- **The UI pass is done (item 201, resolved 2026-11-09).** Item 312 (the Settings tab's box headings) was its last
+  cosmetic fix, 2026-11-13.
+- **The jurisdiction trial (item 190 step 1, waived in 2026-11-13):** Address Search shows the city the geocoded point is
+  in (or "Unincorporated"), its county, the nearest city or county line and a near-boundary warning
+  (`settings.jurisdiction_near_boundary_m`, 150 m). Admins record the printed jurisdiction book's answer beside it in
+  `jurisdiction_checks` (`sql/069`, append-only). The pass bar: after 50 checks, the system at fault on no more than 1 in
+  20 unflagged checks (addendum 2026-11-14). DOLA was reloaded on `hail-dev` 2026-11-14. Run on `hail-dev` only.
+- **The Address Search map (item 313, 2026-11-17):** Territory's layout on Address Search: the house, the match radius,
+  the reports coloured by hail size, the city and county lines near the house, and the radar and likelihood layers for
+  one day, picked from the days whose zones touch the circle. Read only. Claude keyed all of it at the developer's
+  request.
+- **Tests:** 2,868, 390 skipped, OK. One earlier full run had a single failure that was not captured and has not come back
+  (item 314, open).
+
 ### Permits and jurisdiction research — parked, 2026-09-23 / 2026-09-24
 
 Groundwork for building-permit data as a future source, allowed as a
 deliberate exception to "do not build ahead". `municipal_boundaries`
-(`sql/021`, DOLA's dissolved layer, 274 municipalities) is loaded. Permits
+(`sql/021`, DOLA's dissolved layer, 274 municipalities) is loaded (on `hail-dev`; not on `rbi-hail01`,
+by decision, 2026-11-17). **Update 2026-11-13:** item 190 step 1, the jurisdiction trial, reads it. Permits
 themselves are **parked until the system is running**. The findings are in
 `docs/data-sources.md` §5 and the decision log (2026-09-23):
 - **82 permit issuers** cover the territory.
@@ -1142,6 +1185,10 @@ privilege list can be read against this diagram.
 ---
 
 ## 5. The data model
+
+**68 tables on 2026-11-17**, counted against `hail-dev`: 65 are the project's and three come from
+`address_standardizer`, `spatial_ref_sys` not counted, as below. `sql/069` added `jurisdiction_checks` and
+`settings.jurisdiction_near_boundary_m`. `rbi-hail01` has 67 until `v0.11.0` is deployed.
 
 **67 tables on 2026-11-06**, counted against `hail-dev` and `rbi-hail01`, whose schemas are identical. 64 are the
 project's and three come from `address_standardizer`; PostGIS's `spatial_ref_sys` is not counted. `sql/066` added
@@ -1648,6 +1695,16 @@ The full entries are in `docs/decision-log.md` under these dates.
   developer's request; the template editor remodel (item 294); releases are tags and production runs a tag (item 289);
   static files carry their modification time (item 296).
 
+### Decisions 2026-11-06 to 2026-11-17, condensed
+
+- **2026-11-06:** sending stays admin-only for the pilot; the role `sender` means "can spend RentCast calls" (item 309).
+- **2026-11-13:** item 190 step 1, the jurisdiction trial, is waived in: a panel and a check log on Address Search, the
+  near-boundary distance a setting, run on `hail-dev`. **2026-11-14:** the latest check per address counts, and the bar
+  is read on unflagged checks. **2026-11-17:** the trial's code ships in releases, but production gets no city
+  boundaries, so the trial runs on `hail-dev` only.
+- **2026-11-17:** the Address Search map is waived in (item 313); the hail-size bands are display only and stay in code;
+  for this item Claude keyed all of the code, Python included.
+
 ## 7. Known traps
 
 These have already bitten. Do not re-discover them.
@@ -1984,6 +2041,14 @@ The same list as `CLAUDE.md`'s known traps:
 - **On SELinux, copy systemd units with `cp`, not `mv`.** A moved file keeps its home-directory label, which systemd
   cannot read.
 - **A history trigger that fires on a changed value** logs nothing for a save that changes nothing (item 308).
+
+### Found 2026-11-09 to 2026-11-17
+- **A UNIQUE constraint over rows that are removed but kept** blocks adding the value again: `ON CONFLICT DO NOTHING`
+  then inserts nothing, silently. Use a partial unique index over the active rows (item 311, `sql/068`).
+- **A polygon's `ST_Boundary` includes its holes,** so an unincorporated enclave inside a city counts as a line in a
+  nearest-line search (item 190, `hailsys/queries/jurisdiction.py`).
+- **CSS `rotate` on an element Leaflet positions** turns Leaflet's own `transform: translate3d()` offset as well, so the
+  marker sits off its point and drifts on every pan and zoom. Rotate an inner element instead (item 313).
 
 ## 8. External sources
 
@@ -2564,6 +2629,17 @@ The tree above is as of the 2026-10-14 sync. Since then (each with its own tests
     hailsys/web/templates/        permission_preview.html, server_error.html
     tests/                        test_permission.py, permission_fixtures.py, test_sign_in_limits.py,
                                   test_server_error_page.py
+
+### Added 2026-11-06 to 2026-11-17
+
+    sql/068, 069                  one active suppression per address; jurisdiction_checks and the near-boundary setting
+    hailsys/queries/jurisdiction.py   the jurisdiction for one point (item 190)
+    hailsys/queries/address_map.py    the Address Search map's lines, radar days and hail-size bands (item 313)
+    hailsys/web/static/           search_map.js
+    hailsys/web/templates/        _search_map.html; _radar_legends.html, the likelihood and radar legends shared
+                                  with Territory's _map_panel.html
+    tests/                        test_jurisdiction.py, test_jurisdiction_setting.py, test_search_jurisdiction.py,
+                                  test_search_map.py
 
 ### Running it
 

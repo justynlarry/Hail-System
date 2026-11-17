@@ -8201,6 +8201,17 @@ already said to check the book. The summary query and the bar are in `docs/comma
 DOLA was reloaded on `hail-dev` the same day (274 municipalities, 65 invalid as received and repaired, the same count
 as 2026-09-23; publish of 2026-11-13), so the trial starts on those boundaries.
 
+**Addendum 2026-11-17 (developer): the trial's code ships, the trial does not run on production.** A release is a tag on
+`main`, so `v0.11.0` carries item 190 step 1 (`sql/069`, the jurisdiction panel, the check form) to `rbi-hail01` along
+with item 313. That is accepted. Point 4 above now reads as where the trial is **run**: on `hail-dev` only.
+`rbi-hail01` gets no city-boundary load for it, so its panel says "City boundaries aren't loaded on this system", the
+check form is never offered (it is shown only when boundaries are loaded), no check can be recorded there, and its
+Address Search map (item 313) draws county lines but no city lines. `jurisdiction_checks` exists there, empty.
+**Why:** holding the release until the trial has its 50 checks would hold item 313 with it, and without boundaries
+the code on production cannot record a check, which is what point 4 was for.
+**Revisit when:** the trial's result is read and steps 2 and 3 are taken up, or production needs city lines on the map
+or the panel; either one is a boundary load on `rbi-hail01` (`docs/deploy.md` §7) and its own decision.
+
 ---
 
 ## 2026-11-17 — Item 313: a map on Address Search

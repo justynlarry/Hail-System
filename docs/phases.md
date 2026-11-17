@@ -442,3 +442,10 @@ decision log's 2026-09-23 entries.
 
 **Trigger:** the system running in production; the jurisdiction and
 address-search half also waits on parking-lot item 23 (geocoding).
+
+**Update 2026-11-17:** item 23 was resolved 2026-10-01 (Address Search,
+`/search`). The first step of the jurisdiction half, item 190 step 1 (a
+jurisdiction panel and a check log on Address Search), was waived in on
+2026-11-13 and built; the trial runs on `hail-dev` only (decision log
+2026-11-13 and its addenda). Steps 2 and 3 (permit issuer, adopted codes)
+wait on the trial's result. Permits themselves stay parked.
