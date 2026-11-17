@@ -8613,7 +8613,7 @@ Checked by the developer on the page, 2026-11-13.
 
 ## 313. A map on Address Search
 
-**Status:** built on `hail-dev` 2026-11-17 and checked by the developer on the page the same day (the commit that files item 314); not yet released (waived in, decision log 2026-11-17)
+**Status:** resolved 2026-11-17, released in `v0.11.0` (`b29c656`) and deployed to `rbi-hail01` the same day (waived in, decision log 2026-11-17)
 
 Address Search (`/search`, `hailsys/web/search.py`, `search.html`) shows the jurisdiction panel and the reports table,
 but no map, so placing the house against a city line or a storm footprint means switching to Territory and finding it
@@ -8652,6 +8652,10 @@ zoom.  `style.css` rotated the marker element with `rotate: 45deg`, but Leaflet 
 offset was turned 45 degrees too.  Fixed the same day:  `search_map.js` gives the `divIcon` an inner `<span>`, and
 `.search-house span` carries the rotation and the colours, so Leaflet's element only positions.  Not caught by the
 tests, which do not run the browser.
+**Deployed on `rbi-hail01` 2026-11-17:** `v0.11.0` checked out, `sql/069` applied (`recorded 69, pending 0`),
+`status.sh images` all OK with no rebuild, the footer `v0.11.0 · b29c656`.  The map's queries, run read only on a
+cached point there:  12 radar days, opening on 2026-08-13; 5 county lines and no city lines, since production has no
+city boundaries (decision log 2026-11-13, addendum 2026-11-17); the jurisdiction panel "not loaded".
 
 ## 314. One full-suite failure that did not recur
 
