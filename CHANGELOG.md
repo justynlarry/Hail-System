@@ -7,6 +7,12 @@ setting, a migration), MAJOR for a milestone (`v1.0.0` is the pilot, Phase 6).  
 `docs/parking-lot.md` and `docs/decision-log.md`; this names the items.  The repository is public:  nothing here
 names a person, an address or a secret.
 
+## v0.12.0
+
+### Added
+- Territory: the day rows under a city (the + button) list each hail size reported that day, smallest first.
+  Hail rows only.
+
 ## v0.11.0
 
 ### Added
