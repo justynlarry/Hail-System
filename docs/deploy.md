@@ -17,7 +17,7 @@ Two rules for every server:
 
 ## rbi-hail01: where it stands
 
-**Release running:** `v0.11.0` (`b29c656`), checked out 2026-11-17; `sql/069` applied, `recorded 69, pending 0`; the footer reads `v0.11.0 · b29c656` (items 190, 313). Production runs a tag, never `main`, and
+**Release running:** `v0.12.0` (`ebd4abd`), checked out 2026-11-24; no migration in this release, so still `recorded 69, pending 0`; the footer reads `v0.12.0 · ebd4abd` (Territory: hail sizes in a city's day rows). Production runs a tag, never `main`, and
 its footer shows the release (for example `v0.9.0 · abc1234`); update this line at each deploy.
 
 Update this table as the build moves. Item numbers are in `docs/parking-lot.md`.
