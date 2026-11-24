@@ -5278,6 +5278,31 @@ the source lacks. Only the last 30 days could be tested.
 **Still unverified:** history depth and whether older records carry richer descriptions (needs a
 paid month, Indie $29), contractor contact details (Developer, $79), and Shovels (not tested).
 
+**A per-address lookup: the routes to a permit (discussed 2026-11-24; options, not a decision).** The idea: a user
+enters an address, the system answers from the bulk pulls where it holds them, and otherwise asks the jurisdiction.
+Grades are from `docs/data-sources.md` §5, "Viability of all 82 issuers".
+1. **Local, from bulk pulls.** The 3 A and 7 B issuers, about 44% of coverage area. Cheap and fast; most are ArcGIS, so
+   one client with a field map per issuer covers them (not PPRBD or Parker).
+2. **Live query of the jurisdiction.** Easy for ArcGIS sources (they take a per-address query), but those are the ones
+   already held in bulk. The 59 C issuers are on portals built for people (Accela, SAFEbuilt, eTRAKiT, OpenGov and a
+   dozen others), so a live query means a scraper per platform: it breaks when a vendor changes a page, some portals use
+   logins, CAPTCHAs or session state, and their terms often bar automated access (item 72). **Middle ground:** for a C
+   issuer, show the issuer's name and a link to its portal search and let a person look. An honest "not held, look
+   here", and nothing to break.
+3. **Paid.** PermitStack's per-address API ($29-79/month; terms allow commercial use and caching) adds Arvada,
+   Westminster, Centennial, Parker and PPRBD with coordinates; not Lakewood or Thornton, and Denver's records are bare.
+   PPRBD's own bulk files are $19.95/month. Shovels ($599/month) untested. None covers the big unincorporated counties
+   well.
+4. **CORA requests.** A history snapshot per jurisdiction, repeated to stay current. Slow, possibly with fees, one
+   request per jurisdiction: worth it for a few that matter most, not for 59.
+
+**Suggested if picked up:** 1 for A and B, PermitStack for the C cities it covers, the link-out for the rest; no
+scrapers. Item 73 (RBI's business map) comes first: if RBI's work is mostly PPRBD, Aurora and Douglas, the C gap matters
+far less than 55% of area suggests. **Before building:** it is parked (this item), so it needs its own decision-log
+entry, as item 190 step 1 had; and the use needs naming first. For outreach the claim rule limits permits to internal
+confidence; for the office (item 190's use: who issues, what is on file) the jurisdictions that matter and the freshness
+needed may differ.
+
 **When:** parked until the system is running. If permits are pursued, the cheapest next test is one
 Indie month to check history depth for PPRBD, Arvada, Westminster and Centennial, and to see
 whether older Denver records have descriptions. Check Shovels the same way.
