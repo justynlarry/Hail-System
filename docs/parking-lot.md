@@ -3174,7 +3174,9 @@ and 3, once the trial has at least 50 checks and is read against the pass bar in
 **Built on `hail-dev` 2026-11-13/14:** `sql/069` (`jurisdiction_checks`, the near-boundary setting),
 `hailsys/queries/jurisdiction.py`, the panel and check form on `/search` (`c644e7b`, `2ff82ce`, `c2a7477`;
 waived in by `eb58f46`).
-Not yet in a release. The trial starts after the DOLA reload (`docs/command-ref.md`, "Jurisdiction trial").
+In release `v0.11.0` (2026-11-17), so the code and the empty `jurisdiction_checks` table are on `rbi-hail01` too; the
+trial is run on `hail-dev` only, and production has no city boundaries, so it can record no check (decision log
+2026-11-13, addendum 2026-11-17). The trial starts after the DOLA reload (`docs/command-ref.md`, "Jurisdiction trial").
 
 ## 191. No count of Constant Contact calls per day; `max_emails` is a stand-in
 
