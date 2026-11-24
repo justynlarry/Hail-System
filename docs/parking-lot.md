@@ -5398,7 +5398,16 @@ question: are reroofs in the RESCON layer, or under a separate ROOFSIDE
 type? The known-answer test is 18,475 roof permits in 2017, 54.6% above
 2016 (`docs/data-sources.md` §5).
 
-**When:** if Denver enters the build order (item 73).
+**Answered 2026-09-24 (viability research, `data/research/permit_viability_2026-09-24/results.csv`; recorded here
+2026-11-24, item 315):** reroofs are **not** in RESCON. No RESCON permit number contains `ROOF`, its `CLASS` has no
+roofing value, and it holds about 7,300 permits a year (7,300 in 2017) against the 18,475 roof permits of 2017. Reroofs
+are a separate Roofing/Siding quick permit in Denver's Accela portal, not published as open data, so Denver is grade C
+(per-address portal; bulk means a CORA request). The known answer cannot be tested from open data. PermitStack's Denver
+roofing records (51,383) are bare, address and filing date only, on samples from 14 Sep, 24-26 Sep and 6-7 Oct 2026
+(item 70, 2026-10-09), so it cannot fill the gap either. **Still unverified:** the exact Accela type name (ROOFSIDE is
+inferred from permit numbers) and whether Accela allows a search by type or date.
+
+**When:** if Denver enters the build order (item 73); the next step then is a CORA request or an Accela search test.
 
 ## 82. The annexation layer as boundary-change history
 
@@ -8677,3 +8686,15 @@ Nothing in this file or the decision log named a flaky test before.
 order or shared-row dependence.
 
 **Related:** item 313.
+
+## 315. Denver's permit entries predated the 2026-09-24 viability research
+
+**Status:** resolved 2026-11-24 (found and fixed the same day)
+
+`docs/data-sources.md` §5 ("Denver (not examined)") and item 81 treated RESCON vs. ROOFSIDE as an open question, but the
+viability research of 2026-09-24 (`data/research/permit_viability_2026-09-24/results.csv`, gitignored) had already found
+that RESCON holds no reroofs and graded Denver C. The 82-issuer grades (3 A, 7 B, 59 C, 13 D) were in no tracked doc,
+and §5 gave RESCON's start as 2015 where the research found 2012-07-11. Fixed by updating item 81 and adding the grade
+summary and a rewritten Denver section to §5.
+
+**Related:** items 70, 73, 81.

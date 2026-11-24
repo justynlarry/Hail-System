@@ -554,16 +554,44 @@ squares), `valuation` on 36,628. Adams' description names a material on about
 text is typed by contractors and unchecked, so it needs parsing and is
 incomplete.
 
-### Denver (not examined)
+### Viability of all 82 issuers (2026-09-24)
 
-From research outside the 2026-09-23 session. Not re-verified ⚠.
+Research only, from metadata, `returnCountOnly` and samples of about 10 records; no full downloads. Aurora, Adams and
+Douglas were graded from the 2026-09-23 findings. Detail per issuer is in `data/research/permit_viability_2026-09-24/`
+(`results.csv`, `summary.md`, `progress.md`), which is gitignored. Recorded here 2026-11-24 (parking-lot item 315).
 
-The ArcGIS RESCON (residential construction) layer covers 2015 on, native
-SRID 2877, with invalid addresses placed at (0, 0). **Open:** whether
-reroofs are in RESCON or under a separate ROOFSIDE type. Permit numbers like
-`2021-ROOFSIDE-…` suggest a separate type. The 2017 known answer is
-**18,475** roof permits, 54.6% above 2016, after the May 2017 hailstorm.
-Parking-lot item 81.
+Grades: **A** bulk open data, roofing identifiable, coordinates or clean addresses, 10+ years; **B** bulk with a real
+gap; **C** per-address portal only, so bulk means a CORA request; **D** nothing public found.
+
+| Grade | Issuers | Share of coverage area | Who |
+|---|---|---|---|
+| A | 3 | 5.1% | Unincorporated Boulder, Boulder, Greenwood Village |
+| B | 7 | 39.4% | PPRBD (paid text export, no coordinates, "REROOF" text only), Aurora (2021 on), unincorporated Adams (keywords after 2016), unincorporated Douglas (51% without coordinates), Longmont (about 2023 on), Parker (frozen at 2017-11), Timnath (2020–2024 layers) |
+| C | 59 | 55.1% | Largest by area: unincorporated Weld, Elbert, Arapahoe, Larimer, Jefferson and Clear Creek; Denver, Fort Collins, Greeley, Lakewood, Arvada, Thornton |
+| D | 13 | 0.3% | Small towns (Keenesburg, Eaton, Idaho Springs and others) |
+
+**Platforms.** ArcGIS REST is the only bulk platform that recurs: one generic ArcGIS client with a field map per issuer
+would cover every A and B except PPRBD and Parker. The portals behind the C grades are many (Accela 12 issuers, SAFEbuilt
+21, eTRAKiT 11, OpenGov 3, and a dozen others or none identified). Denver's and Fort Collins' ArcGIS layers contain no
+roofing. ⚠ Not checked: whether SAFEbuilt CommunityCore has a public no-login search (if not, its 21 towns move from C
+to D); the Fremont County and Federal Heights PDFs; terms of use for any A or B source (item 72).
+
+### Denver (grade C)
+
+Examined 2026-09-24 in the viability research (above); this section said "not examined" until 2026-11-24 (item 315).
+
+- **RESCON has no reroofs.** The open-data residential construction layer
+  (`services1.arcgis.com/zdB7qR0BtYrg0Xpl/arcgis/rest/services/ODC_DEV_RESIDENTIALCONSTPERMIT_P/FeatureServer/316`)
+  has no permit number containing `ROOF` and no roofing `CLASS`, and holds about 7,300 permits a year (7,300 in 2017)
+  against **18,475** roof permits in 2017, 54.6% above 2016, after the May 2017 hailstorm. Native SRID 2877, invalid
+  addresses at (0, 0), page size 2000, updated daily. Its records start 2012-07-11 (Accela went live 2015-06-07); this
+  section earlier said "2015 on".
+- **Reroofs are a Roofing/Siding quick permit in Accela** (`aca-prod.accela.com/DENVER`), searchable per address and
+  not published in bulk. ⚠ The type name ROOFSIDE is inferred from permit numbers like `2021-ROOFSIDE-…`, and whether
+  Accela allows a search by type or date is unverified.
+- **PermitStack does not fill it:** 51,383 Denver roofing records, address and filing date only, on three samples
+  from September and October 2026 (parking-lot item 70).
+- The 2017 known answer cannot be tested from open data. Parking-lot item 81.
 
 ## 6. Monthly subscription costs
 
