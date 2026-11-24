@@ -266,7 +266,13 @@ SELECT
     t.mag_unit,
     count(DISTINCT i.iem_id)    AS report_count,
     count(DISTINCT c.zcta5)     AS zip_count,
-    max(i.magnitude)            AS max_magnitude
+    max(i.magnitude)            AS max_magnitude,
+    -- Each size reported once, smallest first.  DISTINCT also undoes the one-row-per-nearby-zip
+    -- fan-out of the join.  The FILTER drops NULL magnitudes (IEM's `None`), which array_agg
+    -- would otherwise keep as an element.  NULL, not an empty array, when no report that day
+    -- has a size (the template prints nothing then).
+    array_agg(DISTINCT i.magnitude ORDER BY i.magnitude)
+        FILTER (WHERE i.magnitude IS NOT NULL) AS sizes
 {_FROM_WHERE}
 {_ACTIONABLE}
     AND c.area_name = %(area_name)s
@@ -276,7 +282,7 @@ ORDER BY storm_date DESC
 
 CITY_DAYS_COLUMNS = [
     "storm_date", "report_text", "mag_unit",
-    "report_count", "zip_count", "max_magnitude",
+    "report_count", "zip_count", "max_magnitude", "sizes",
 ]
 
 def fetch_city_days(conn, *, radius_m, window_start, window_end, report_text,

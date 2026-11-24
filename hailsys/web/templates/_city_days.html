@@ -8,6 +8,7 @@
             <th class="num">Reports</th>
             <th class="num">Zips</th>
             <th class="num">Max</th>
+            <th>Sizes</th>
         </tr>
     </thead>
     <tbody>
@@ -18,6 +19,8 @@
             <td class="num">{{ row.report_count }}</td>
             <td class="num">{{ row.zip_count }}</td>
             <td class="num">{{ row.max_magnitude | magnitude(row.mag_unit) }}</td>
+            {# Hail only:  for rain the "sizes" are every rainfall total reported, dozens of values. #}
+            <td>{% if row.report_text == 'HAIL' %}{% for s in row.sizes or [] %}{{ s | magnitude(row.mag_unit) }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</td>
         </tr>
         {% endfor %}
     </tbody>
